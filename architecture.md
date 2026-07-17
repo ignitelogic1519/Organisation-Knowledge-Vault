@@ -104,14 +104,12 @@ model Course {
   orgId                    String
   code                     String  @unique  // "456-989-0001"
   uploaderRoleNodeId       String
-  kind                     CourseKind      // DOCUMENT | AUDIO | VIDEO | EXAM | BOOK | LINK
+  kind                     CourseKind      // DOCUMENT | AUDIO | VIDEO | BOOK | LINK (EXAM: post-v1)
   title                    String
   storageRef               Json            // adapter-specific pointer (Drive fileId, …)
   deadlineDays             Int?            // optional deadline
-  retakeEveryNDays         Int?            // recurrence (§3.4)
+  retakeEveryNDays         Int?            // recurrence (§3.4) — applies to all course kinds
   resetsCompletionOnUpdate Boolean @default(false)
-  issuesCertificate        Boolean @default(false)  // exams
-  passThresholdPct         Int?            // exams
   version                  Int     @default(1)
   prerequisites            CoursePrerequisite[]
   placements               CoursePlacement[]
@@ -143,16 +141,17 @@ model CourseAdminAccess {  // the separate per-course permission page (§3.3)
   @@unique([courseId, profileId])
 }
 
-model CompletionRecord {
+model CompletionRecord {   // part of the USER's data, keyed by course code (structure.md §3.7)
   id           String   @id @default(uuid())
   courseId     String
+  courseCode   String            // platform-unique code, stored denormalized for exports
   profileId    String
   orgId        String
-  status       CompletionStatus  // ASSIGNED | IN_PROGRESS | COMPLETED | FAILED | EXPIRED
-  score        Int?              // exams
+  status       CompletionStatus  // ASSIGNED | IN_PROGRESS | COMPLETED | EXPIRED
   completedAt  DateTime?
-  validUntil   DateTime?         // completedAt + retakeEveryNDays
+  validUntil   DateTime?         // expiry: completedAt + retakeEveryNDays
   courseVersion Int              // which version was completed
+  // exam fields (score, pass/fail, re-attempt time) join here when exams ship (future.md)
 }
 
 model Notification {       // in-app only (v1)
@@ -200,8 +199,11 @@ interface StorageAdapter {
 
 - Each organization connects **its own backend** (own quota, own custody).
 - v1 ships `GoogleDriveAdapter` (org connects via OAuth; files live in the org's Drive).
+  - **Scope rule:** request only the **`drive.file`** scope (access limited to files this app
+    created). It is non-restricted — avoids Google's app-verification process and user caps —
+    and is all we need. Setup will be a guided, step-by-step walkthrough.
 - The `Course.storageRef` JSON keeps adapter name + adapter-specific pointer, so NAS/S3/cloud
-  adapters (see `future.md`) drop in later without schema changes.
+  adapters (see `future.md`) drop in later without schema changes — this end stays open by design.
 
 ---
 
@@ -220,12 +222,18 @@ Both are **encrypted JSON bundles**:
   the export carries the `storageRef`s.
 - **`.bkp` payload:** one node's owners/members/placements/records (or full tree when exported
   by the Owner role). Child nodes are excluded from restore.
-- **`structureHash` (the "severely changed" check):** hash of the node's normalized structural
-  fingerprint (path, role numbers, child skeleton) at export time. On restore, the live
-  fingerprint is recomputed — mismatch beyond the allowed tolerance ⇒ restore denied with the
-  "structure has changed severely" message.
+- **`structureHash` (the restore gate):** hash of the node's normalized structural fingerprint
+  (path, role number, child skeleton) at export time. On restore, the live fingerprint is
+  recomputed — **any mismatch ⇒ restore denied** ("structure has changed severely"). v1 uses
+  exact equality, no tolerance; a successful restore emits a **restore report** (applied /
+  skipped / why, per the orphan-handling table in `structure.md` §5.2).
 - **Revival:** upload `.main` + Supreme password → decrypt → reject if `orgNumber` still active →
-  otherwise rebuild rows in a transaction.
+  otherwise rebuild rows in a transaction → mandatory **storage reconnection step** (media marked
+  unreachable until reconnected) → unmatched `profileId + email` entries become **pending
+  members** re-attached when that email joins.
+- **Durability rules (hard requirements):** versioned bundle format with import migrations for
+  every format change; org numbers (and role numbers) are **never reused**, sequences only
+  increment. (Full rationale demonstrated during website testing — structure.md §5.1.)
 
 Deletion lifecycle (implements structure.md §4.3): `deletedAt` soft delete → nightly purge job
 removes orgs where `deletedAt < now() - 30 days` → after purge, `.main` is the only way back.
@@ -255,7 +263,7 @@ GET    /courses/:code/admin         → course admin page (separate ACL)
 
 GET    /orgs/:id/my-learning        → assignments + opt-in catalog + prereq state
 GET    /orgs/:id/my-structure       → user's slice of the tree
-POST   /courses/:code/complete      → mark complete / submit exam
+POST   /courses/:code/complete      → mark complete (exam submission arrives post-v1)
 GET    /notifications               → in-app feed
 
 POST   /orgs/:id/roles/:rid/backup  → export .bkp
@@ -275,7 +283,8 @@ mobile app's contract — no web-only shortcuts allowed.
 | Neon (free) | ~0.5 GB storage, connection limits | Prisma connection pooling; media never in DB. |
 | Vercel (free) | Serverless limits | Frontend only; heavy work lives on the API. |
 | Google Drive | 15 GB per account; not a streaming CDN | Per-org OAuth (each org brings its own quota); playback via Drive preview/stream URLs — accepted v1 limitation. |
-| Gmail (deletion mail) | Low daily send limits | Only one transactional mail exists in v1. |
+| Gmail (transactional mail) | Low daily send limits | Only two mail types in v1: deletion confirmation + sign-up email verification. |
+| Nightly jobs | Render free tier sleeps; no reliable built-in cron | Jobs exposed as a protected API endpoint, triggered by a free external scheduler (GitHub Actions `schedule`). |
 
 ---
 

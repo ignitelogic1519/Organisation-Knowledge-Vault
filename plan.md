@@ -28,7 +28,7 @@ response, with data read from Neon.
 **Goal:** the "profile is the actor for everything" foundation.
 
 - Register / login with email+password (Argon2id) and Google OAuth.
-- JWT access + refresh flow; `GET /me`; email verification.
+- JWT access + refresh flow; `GET /me`; email verification sent via the platform Gmail account.
 - Profile deletion endpoint with the owner-block rule stubbed (activates fully in Phase 2).
 
 **Done when:** a person can sign up both ways, log in, refresh their session, and see their
@@ -38,7 +38,8 @@ profile page on the web app.
 
 **Goal:** org creation exactly as specified in `structure.md` §4.1.
 
-- Create org → Supreme object (org number from global sequence) + Supreme password.
+- Create org → Supreme object (org number from global sequence) + Supreme password, with the
+  explicit unrecoverability warning + confirmation in the creation flow.
 - Owner role created with creator as first occupant; co-owners addable (invariant I2 enforced).
 - Supreme-access gate endpoint (verify password, rate-limited, audit-logged).
 - Profile deletion block now live: cannot delete while owning orgs.
@@ -65,7 +66,9 @@ heights with correctly scoped powers in each.
 
 **Goal:** knowledge items with the platform-unique code scheme, no duplication.
 
-- Storage adapter port + `GoogleDriveAdapter` (org connects its own Drive via OAuth).
+- Storage adapter port + `GoogleDriveAdapter` (org connects its own Drive via OAuth,
+  **`drive.file` scope only**; guided setup walkthrough included — the port stays open for
+  future NAS/cloud adapters).
 - Upload flow → code `org-role-item` generated; kinds: document/book/link/audio/video.
 - Course placements: mandatory vs opt-in, inherit-to-descendants; share-by-code across branches
   (no approval).
@@ -80,26 +83,30 @@ course admin page.
 **Goal:** the learner's side.
 
 - **My Learning** page: mandatory (flagged) + opt-in catalog + enroll.
-- Manual "mark as complete"; completion records with course version.
+- Manual "mark as complete"; completion records are part of the user's data, keyed by the
+  course's unique platform code, carrying course version and expiry time.
 - Prerequisites: hard-block until required course completed; prereq state visible.
 - Content viewing/streaming via adapter URLs.
 
 **Done when:** a member sees their mandatory course, is blocked from course B until course A is
 complete, finishes both, and the records show the right versions.
 
-## Phase 6 — Exams & compliance engine
+## Phase 6 — Compliance engine
 
-**Goal:** pass/fail, recurrence, escalation.
+**Goal:** recurrence, deadlines, escalation. (Exams are deferred out of v1 entirely —
+see `future.md`; recurrence applies to all course kinds.)
 
-- Exam submission with per-exam pass threshold; certificate toggle honored.
-- Failure flow: notification to the person who added the user → retake unlock.
-- `retake_every_n_days` recurrence: `validUntil` computed; expiry re-assigns (nightly job).
-- Optional deadlines; overdue → in-app notification to user + escalation target.
+- `retake_every_n_days` recurrence: `validUntil` computed; expiry re-assigns (nightly job,
+  triggered via a free external scheduler — GitHub Actions `schedule` hitting a protected
+  endpoint, since Render's free tier sleeps).
+- Optional deadlines; overdue → in-app notification to user + escalation target with fallback
+  chain (adder → node owners → up the branch).
 - Course update flag: `resets_completion_on_update` honored and communicated to end users.
 - In-app notification center (feed + read state) — the channel all of the above uses.
 
 **Done when:** a security course set to 365-day recurrence expires a completion and
-re-assigns it; a failed exam notifies the right escalation person and unlocks a retake.
+re-assigns it; an overdue mandatory course notifies the user and the correct escalation
+person even after the original adder has left the org.
 
 ## Phase 7 — `.main`, `.bkp` & the deletion lifecycle
 
@@ -107,12 +114,15 @@ re-assigns it; a failed exam notifies the right escalation person and unlocks a 
 phases created.
 
 - `.main` export: encrypted full-org bundle, key derived from Supreme password (download gated
-  by the Supreme password).
+  by the Supreme password); **versioned bundle format** with import migrations; org/role numbers
+  never reused; revival ends with the storage-reconnection step and pending-member re-attachment.
+  (This machinery gets a walkthrough explanation during website testing.)
 - Deletion flow: prompt `.main` download → confirmation email from platform mail → soft delete →
   30-day retention → nightly purge job.
 - Revival: within 30 days from DB; after, via `.main` upload (rejected if org still exists).
 - `.bkp` per node: export by node owners; restore with full-restore semantics, current-node-only,
-  no children, `structureHash` divergence check → deny with message.
+  no children; **identical-structure-only** gate (`structureHash` exact match, else deny with
+  message); orphan-handling table applied; restore report shown to the restorer.
 
 **Done when:** a deleted org is revived from its `.main` after the 30-day purge, and a node
 restore correctly denies when the branch was restructured beyond tolerance.
@@ -132,10 +142,11 @@ a second stranger can be onboarded and complete it — with no guidance from us.
 
 ## Explicitly Out of v1 (tracked in `future.md`)
 
-Granular capability switches · advanced completion tracking (watch %, acknowledgments) ·
+**Exams (entire system: builder, scoring, thresholds, retake-after-failure, certificates)** ·
+granular capability switches · advanced completion tracking (watch %, acknowledgments) ·
 org-chart graph tab · incident templates for restructuring · authoring suite (templates, AI
-conversion, exam builder, audiobooks) · NAS/S3/cloud adapters · mobile app · email/push
-notification channels (post-incident-management).
+conversion, audiobooks) · NAS/S3/cloud adapters · mobile app · email/push notification
+channels (post-incident-management).
 
 ## Working Agreement
 

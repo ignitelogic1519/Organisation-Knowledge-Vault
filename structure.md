@@ -112,6 +112,13 @@ A course is an **org-level entity**; branches receive **placements**, never copi
 - Placement fields: `role_node`, `mandatory | opt-in`, `inherit_to_descendants (bool)`.
 - Unrelated branches reuse a course **by its code** — no approval required.
 
+**Precedence rules ✅ DECIDED:**
+1. If the same course reaches a user via multiple paths with conflicting flags,
+   **mandatory wins over opt-in**.
+2. A sub-role created *after* an inherited placement exists **inherits it automatically**.
+3. Removing a placement **keeps** existing completion records (history is never destroyed);
+   only the active assignment disappears.
+
 ### 3.3 Course admin page (per course)
 - Shows everywhere the course is used.
 - Access is a **separate permission system**, independent of org roles: a 2-layer tree where the
@@ -124,20 +131,25 @@ A course is an **org-level entity**; branches receive **placements**, never copi
   not per individual.
 - `resets_completion_on_update` — flag chosen by the creator when modifying content.
 - Escalation target for overdue/failure: **the person who added the user to the group /
-  tagged the role on them**.
+  tagged the role on them**, with a **fallback chain** if that person has left the org:
+  adder → current owners of the node → owners up the branch. ✅ DECIDED
 
 ### 3.5 Prerequisites
 - Hard prerequisites: item X requires completed item Y first.
 - Courses form their own small dependency trees, fully independent of the org tree.
 
-### 3.6 Exams
-- Pass/fail with scoring.
-- `issues_certificate` — on/off chosen by the creator at publish.
-- On failure: retake unlocks ("refresh") after a notification is sent to the person who added
-  the failed user to the group.
+### 3.6 Exams — DEFERRED OUT OF v1 ✅ DECIDED
+- v1 ships **no exams**: a scored exam requires the platform to know questions and answers,
+  which belongs to the authoring suite. The full exam system (builder, pass/fail scoring,
+  thresholds, retake-after-failure flow, certificates) moves to `future.md`.
+- Recurrence (`retake_every_n_days`) is **not** exam-specific and stays in v1 for all courses.
 
-### 3.7 Completion (v1)
-- Non-exam content: manual **"mark as complete"**. Advanced tracking → `future.md`.
+### 3.7 Completion (v1) ✅ DECIDED
+- Manual **"mark as complete"** for all v1 content. Advanced tracking → `future.md`.
+- A completion record is keyed to the **course's unique platform code** and is part of the
+  **user's data**, carrying: the course code, the completed course version, the completion
+  date, and the **expiry time** (`completedAt + retake_every_n_days`, when recurrence is set).
+  When exams arrive (future), the re-attempt time joins the same record.
 
 ---
 
@@ -146,6 +158,9 @@ A course is an **org-level entity**; branches receive **placements**, never copi
 ### 4.1 Organization creation
 1. Person signs up / logs in with their global profile.
 2. Creates the organization → sets the **Supreme password** → Supreme object + org number issued.
+   - The flow shows an **explicit, loud warning with confirmation**: this password is
+     unrecoverable by anyone, including the platform; losing it permanently forfeits
+     owner-structure changes, `.main` download, and revival. ✅ DECIDED
 3. Names the Owner role; creator becomes its first occupant. Co-owners can be added (I2 applies).
 
 ### 4.2 People onboarding
@@ -175,16 +190,32 @@ A course is an **org-level entity**; branches receive **placements**, never copi
   at any time in the future.
 - Custody and sharing are entirely the owner's responsibility.
 
+**Durability rules ✅ DECIDED** (locked before coding; will be demonstrated during website testing):
+1. The bundle header carries a **format version**; every future format change ships an import
+   migration so old files stay revivable forever.
+2. **Org numbers are never reused**, even after purge — the global sequence only increments.
+3. Revival ends with a mandatory **storage reconnection step**; media stays listed but marked
+   unreachable until the org reconnects its storage backend.
+4. Exports store **`profileId + email`** for every person; unmatched profiles on import become
+   **pending members**, re-attached automatically when that email registers/joins.
+
 ### 5.2 `.bkp` — node backup file
 - Scope: **one node** (its owners, members, placements, records). The Owner role may also export
   a full-tree `.bkp`.
-- **Restore semantics:**
-  - Restores every data point of the node "like nothing ever happened" — including completion
-    records; post-snapshot progress is lost (accepted trade-off, node head communicates it).
+- **Restore semantics ✅ DECIDED (v1 — strictest rule first, loosened later with incident management):**
+  - Restore is allowed **only when the node's structural fingerprint is IDENTICAL** to the
+    snapshot (same path, role number, child skeleton). Any divergence → **denied** with the
+    "structure has changed severely" message. No tolerance percentage in v1.
+  - When allowed, restores every data point of the node "like nothing ever happened" —
+    including completion records; post-snapshot progress is lost (accepted trade-off, node head
+    communicates it).
   - Restricted to the node itself — requires **complete access + restore rights on that node**;
     **child nodes are not restored**.
-  - If the live structure diverged **severely** from the snapshot structure → restore **denied**
-    with an explanatory message (structure-hash comparison, see `architecture.md`).
+  - **Orphan-handling table** (pre-agreed): referenced course deleted ⇒ drop the record;
+    course version newer ⇒ keep record with its stored `courseVersion`; person left the org ⇒
+    skip that placement and log it.
+  - Every restore produces a **restore report** shown to the restorer: what was applied, what
+    was skipped, and why.
 - `.bkp` ≠ `.main`: operational backup vs. existence/revival file.
 
 ---
@@ -204,4 +235,5 @@ position(s) highlighted with layers above/below, role click → people list with
 
 - **In-app only**: assignment received, deadline approaching/overdue, exam failed (to the
   escalation target), retake unlocked, invitation received, restore/deletion events.
-- Sole email exception: the transactional **deletion confirmation** mail (§4.3).
+- Email exceptions (both sent from the platform Gmail account): the transactional **deletion
+  confirmation** mail (§4.3) and **email verification** at sign-up. ✅ DECIDED

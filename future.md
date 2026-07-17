@@ -36,7 +36,16 @@ v1 is upload-only. Later:
 - Template-based documentation authoring.
 - AI conversion of uploaded documents into standardized documentation.
 - Video / audio / audiobook upload pipelines (processing, previews).
-- In-platform exam builder.
+
+## 5b. Exam system (deferred from v1 — decided 2026-07-17)
+v1 ships no exams: a scored exam requires the platform to know questions and answers, which
+belongs here. The full system arrives together:
+- In-platform exam builder (multiple-choice first).
+- Pass/fail scoring with per-exam pass thresholds.
+- Retake-after-failure flow: notification to the escalation target → retake unlock.
+- Certificates (`issues_certificate` toggle at publish) and pass expiry.
+- Exam fields (score, pass/fail, re-attempt time) extend the existing `CompletionRecord`,
+  which already carries course code, version, and expiry — no schema redesign needed.
 
 ## 6. Additional storage adapters
 v1 ships the storage adapter interface with **Google Drive** as the first backend. Later adapters

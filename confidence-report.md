@@ -150,13 +150,50 @@ soft (warn-but-allow) until the email system matures. **Proposed: use the platfo
 
 ## Decisions Needed From the Owner (blocking their phases, not Phase 0)
 
-| Decision | Blocks | Recommendation |
-|----------|--------|----------------|
-| D1: Exams in v1 — minimal MCQ builder / defer / honor-scored | Phase 6 | Minimal MCQ builder |
-| D2: `.bkp` restore rule — identical-structure-only in v1? | Phase 7 | Yes, strictest first |
-| D3: The 4 `.main` durability rules | Phase 7 | Adopt all four |
-| D4: Placement precedence rules (3 proposals in #8) | Phase 4 | Adopt as proposed |
-| D5: Escalation fallback chain | Phase 6 | Adopt as proposed |
-| D6: Email verification via platform Gmail | Phase 1 | Yes |
+| Decision | Blocks | Recommendation | RESOLUTION (2026-07-17) |
+|----------|--------|----------------|-------------------------|
+| D1: Exams in v1 — minimal MCQ builder / defer / honor-scored | Phase 6 | Minimal MCQ builder | **Option B: exams deferred entirely** → `future.md` §5b |
+| D2: `.bkp` restore rule — identical-structure-only in v1? | Phase 7 | Yes, strictest first | **Accepted** |
+| D3: The 4 `.main` durability rules | Phase 7 | Adopt all four | **Accepted** (walkthrough during website testing) |
+| D4: Placement precedence rules (3 proposals in #8) | Phase 4 | Adopt as proposed | **Accepted** + completion keyed by course code in user data with expiry/re-attempt time |
+| D5: Escalation fallback chain | Phase 6 | Adopt as proposed | **Accepted** |
+| D6: Email verification via platform Gmail | Phase 1 | Yes | **Accepted** |
 
-Phase 0 (scaffold + deploys) is unblocked regardless — nothing above changes the skeleton.
+All decisions resolved; documents updated accordingly. Phase 0 fully unblocked.
+
+---
+
+# Round 2 — Post-Decision Rescoring (2026-07-17)
+
+All contradictions are resolved and every low scorer has an agreed rule. Updated area scores:
+
+| Area | Was | Now | Why it moved |
+|------|-----|-----|--------------|
+| Exams in v1 | 5 | n/a (deferred) | Contradiction eliminated; v1 compliance = completion + recurrence + deadlines |
+| `.bkp` restore | 5 | 8 | Exact-match gate, orphan table, restore report — fully specified |
+| `.main` & revival | 6 | 8 | Four durability rules locked (versioned format, no number reuse, storage reconnect, pending members) |
+| Google Drive adapter | 6 | 7.5 | `drive.file` scope removes the verification risk; streaming limits remain a known v1 trade-off |
+| Supreme password | 7 | 8 | Unrecoverability is now an explicit, warned product decision |
+| Placements & inheritance | 7 | 8.5 | Three precedence rules + completion-record shape decided |
+| Compliance engine | 7 | 8 | Fallback chain + external-scheduler answer for the cron gap |
+| Auth | 8 | 8.5 | Verification-email contradiction resolved |
+| (unchanged) identity 9 · role tree 8 · course codes 8 · notifications 8 · API-first 8 · infra 7 |
+
+**Overall design confidence: 7.5 → 8.4 / 10.**
+
+## Industry-Parameter Scorecard
+
+| Parameter | Score | Assessment |
+|-----------|-------|------------|
+| IT industry standards | 8/10 | RBAC-with-scoping, JWT auth, API-first, ORM migrations, adapter ports — all mainstream patterns. Held back only by free-tier deviations (Gmail SMTP, external cron) that a paid setup would replace. |
+| Security (design) | 8.5/10 | Argon2id, derived-key client-custody encryption, central policy function, no restricted OAuth scopes, zero-knowledge backups. Implementation discipline will decide the real number. |
+| Reasonability / feasibility | 9/10 | v1 scope is honest: upload-only content, manual completion, exams deferred. Nothing in v1 fights the free tier. |
+| Feature completeness (v1) | 7/10 | Deliberate cost of Option B: compliance without exams is assignment+completion tracking, not competence testing. Roadmap covers it. |
+| Uniqueness | 9/10 | The Supreme/.main custody model ("the platform holds nothing crucial; the org holds its own existence") and per-org storage custody are genuine differentiators vs. typical LMS products. |
+| Ease of access / UX potential | 8/10 | Two-surface member view (My Learning / My Structure) is simple; Supreme gate and .main custody need careful UX copy to not confuse non-technical owners. |
+| Scalability path | 7.5/10 | Materialized paths, code scheme, and adapter port all scale; free-tier hosting itself does not — but the design swaps hosting without redesign. |
+| Maintainability | 8.5/10 | Single policy function, shared Zod schemas, docs-as-contract working agreement, monorepo with shared types. |
+| Compliance value | 7.5/10 | Assignment, recurrence, expiry, escalation, history-preserving records — solid; exams and richer evidence (watch %, acknowledgment) are the deferred half. |
+| Cost efficiency | 9.5/10 | ₹0/month v1 with a documented upgrade path per component. |
+
+**Weighted overall: ~8.3/10 — cleared to start Phase 0.**
