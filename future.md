@@ -47,4 +47,6 @@ API-first backend (Render) is kept separate from the web frontend from day 1 spe
 mobile app can consume the same API.
 
 ## 8. Notification channel expansion
-Beyond v1 channels: richer email digests, push notifications (mobile), escalation chains.
+v1 is **in-app only** (sole exception: the transactional org-deletion email). Email
+notifications are planned **after the incident management system** is established; later also
+push notifications (mobile) and richer escalation chains.

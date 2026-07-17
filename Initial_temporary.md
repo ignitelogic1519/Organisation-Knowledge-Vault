@@ -26,6 +26,8 @@ A **multi-tenant organizational training & compliance platform** ("Knowledge Vau
 - **Nothing can be done without a profile** — the profile is the actor for every action.
 - One profile can belong to **N organizations**; organizations attach memberships + roles to
   existing global profiles, they never own the profile.
+- **Profile deletion rule:** a user cannot delete their profile while they still own projects —
+  they must first delete those organizations or transfer the owner role to another user.
 
 ### 2.2 The "Supreme" (org root object — NOT an account) ✅ DECIDED
 - The Supreme is **not a user profile and cannot perform actions**. It is the organization's
@@ -34,24 +36,43 @@ A **multi-tenant organizational training & compliance platform** ("Knowledge Vau
   but holds **no permission** to add courses or make changes.
 - The hierarchy always begins: **Supreme → Owner** (the first role; the creator chooses its
   display name — Owner / CEO / Principal / etc.).
+- The Owner role can have **multiple occupants, minimum one** — same invariant as every role.
 - Changing the Owner sub-profile (owner-level structural change) requires the **password set at
-  organization creation time** — this password belongs to the Supreme layer, not to any profile.
+  organization creation time** ("Supreme password") — this password belongs to the Supreme layer,
+  not to any profile. It is entered on a dedicated Supreme-access gate for the org
+  (assumption: a protected page/modal, not part of normal login).
 
-### 2.3 The `.main` file ✅ DECIDED
+### 2.3 The `.main` file & organization deletion lifecycle ✅ DECIDED
 - **Extension:** `.main` (custom).
 - **Contents:** a **full encrypted export** of the organization — the platform deliberately does
   NOT retain the org's crucial backup data; custody of the file is entirely the owner's
   responsibility (they decide which colleagues get copies).
-- The **decryption key is stored by the platform for 30 days only**, then destroyed forever
-  (⚠ see open question #1 on the revival implication).
-- **Revival:** uploading a `.main` file revives a deleted organization. If the organization
-  **still exists, the upload is rejected**.
+- **Encryption:** the key is **derived from the Supreme password** — the platform never stores a
+  decryption key, so a `.main` file stays revivable forever for whoever holds file + password.
+- **Deletion flow:**
+  1. When the owner clicks "delete project", the platform first prompts them to **download the
+     `.main` file**; downloading requires entering the **Supreme password**.
+  2. On correct password, a confirmation email is sent from the platform mail
+     (`ignite.logic1519@gmail.com` for now) to the organization, and the notice goes to the
+     owner's mail id.
+  3. After deletion, the org's database data is **retained for 30 days** (soft delete) in case
+     they change their mind, then **purged forever**.
+- **Revival:** within the 30-day window, restore from retained DB data; after that, only by
+  uploading the `.main` file. If the organization **still exists, a `.main` upload is rejected**.
 
 ### 2.4 The `.bkp` file (node-level backups) ✅ DECIDED
-- Every **node manager** (role owner) can create and manage a `.bkp` backup of **their node/branch**.
+- Every **node manager** (role owner) can create and manage a `.bkp` backup of **their node**.
 - The Owner profile can create a `.bkp` of the **full tree** and restore it when needed.
 - `.bkp` is **not** the same as `.main` — `.main` is the org's existence/revival file;
-  `.bkp` is an operational branch backup.
+  `.bkp` is an operational node backup.
+- **Restore semantics:**
+  - Restoring puts back **every data point** of that node "like nothing ever happened"
+    (completion records included). Any progress made after the snapshot is lost — accepted;
+    the node head owns the apology.
+  - Restore is restricted to the **current node only** — the restorer must have **complete
+    access + restore rights on that particular node**. **Child nodes are NOT restored.**
+  - If the live structure has diverged **severely** from the `.bkp` structure, the restoration
+    is **denied** with a message that the structure has changed too much.
 
 ---
 
@@ -116,8 +137,10 @@ Entering an organization, a user sees two primary areas:
    456       -     989       -     xxxx…
 ```
 
-- The **organization number** lives in the Supreme/`.main` (e.g., `456`).
-- Each role gets a unique code (e.g., HR = `989`).
+- The **organization number** lives in the Supreme/`.main` (e.g., `456`) and is
+  **platform-unique**.
+- Each role gets a code **unique within its organization** (e.g., HR = `989`); the combined
+  code stays globally unique.
 - Rationale: content may live on many storage backends/servers per org, so IDs must be globally
   resolvable to org + role + item.
 - **No duplication** — unrelated branches share a course **by its code**, never by copying.
@@ -181,7 +204,13 @@ Entering an organization, a user sees two primary areas:
 - Architecture requirement: a **storage adapter interface** ("open port") so backends plug in
   without touching the core. Google Drive is the first adapter we build.
 
-### 7.2 Authentication ✅ DECIDED
+### 7.2 Notifications ✅ DECIDED (v1)
+- **In-app notifications only** for v1 (assignment, overdue, exam failure escalation, etc.).
+- Email notifications come later, most probably after the incident management system
+  (see `future.md`). One exception exists today: the **transactional deletion email** in the
+  org-deletion flow (§2.3), sent from the platform mail account.
+
+### 7.3 Authentication ✅ DECIDED
 - **Both** email+password (with verification) **and** Google sign-in — free-tier friendly
   implementation required.
 
@@ -192,6 +221,7 @@ Entering an organization, a user sees two primary areas:
 | Database           | Neon (serverless Postgres)      |
 | Backend API server | Render (kept separate from day 1 to serve the future mobile app) |
 | Media storage      | Per-org adapter (Drive first)   |
+| Transactional mail | Platform Gmail account (deletion flow only) |
 
 - Note: the user is new to this stack — documentation and steps must be **guided, step by step**.
 
@@ -209,29 +239,16 @@ Entering an organization, a user sees two primary areas:
 
 ---
 
-## 9. Open Questions (final round)
+## 9. Open Questions
 
-1. **The 30-day key paradox (structural!).** If the platform destroys the decryption key after
-   30 days, a `.main` file older than 30 days can never be decrypted — revival becomes impossible
-   exactly when it's most needed. Options:
-   (a) derive the encryption key from the **org-creation password** so the platform never stores
-   it and the file is decryptable forever by whoever has file + password (recommended);
-   (b) owner must re-download a fresh `.main` at least every 30 days.
-2. **`.bkp` restore semantics.** Does restoring a node `.bkp` overwrite the current subtree?
-   Are completion records included? Can only the node's owners upload/restore it?
-3. **Owner replacement flow.** Where is the org-creation password entered — a dedicated
-   "Supreme access" page per org? Can the first role (Owner/CEO) have multiple co-owners like
-   any other role?
-4. **Role numbers.** Org numbers are platform-unique (456). Are role numbers (989) unique
-   platform-wide too, or only within their organization?
-5. **Notifications v1.** In-app only, or also email (free tier permitting)?
+None — all discovery rounds resolved. Decisions are folded into the sections above.
 
 ---
 
 ## 10. Deliverables Roadmap (meta)
 
 1. ✅ Requirement discussion (this document)
-2. ⬜ `plan.md` — phased delivery plan
-3. ⬜ `structure.md` — org/data structure specification
-4. ⬜ `architecture.md` — technical architecture (stack, API design, data model, storage adapter port)
+2. ✅ `plan.md` — phased delivery plan
+3. ✅ `structure.md` — org/data structure specification
+4. ✅ `architecture.md` — technical architecture (stack, API design, data model, storage adapter port)
 5. ✅ `future.md` — deferred features register
