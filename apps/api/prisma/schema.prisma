@@ -1,0 +1,191 @@
+// Knowledge Vault data model — the DB contract from docs/architecture.md §3.
+// Phase 0 ships the schema only; the first migration runs in Phase 1 against Neon.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlacementKind {
+  OWNER
+  MEMBER
+}
+
+enum CourseKind {
+  DOCUMENT
+  BOOK
+  LINK
+  AUDIO
+  VIDEO
+  // EXAM arrives post-v1 (docs/future.md §5b)
+}
+
+enum CompletionStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+}
+
+enum AccessLevel {
+  VIEW
+  EDIT
+}
+
+// ── Identity ────────────────────────────────────────────────────────────────
+
+model Profile {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String? // null when Google-only
+  googleId     String?      @unique
+  displayName  String
+  emailVerifiedAt DateTime?
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+}
+
+// ── Organization / Supreme ─────────────────────────────────────────────────
+
+model Organization {
+  id          String       @id @default(uuid())
+  name        String
+  orgNumber   Int          @unique // platform-unique, NEVER reused
+  supremeHash String // Argon2id of the Supreme password
+  deletedAt   DateTime? // soft delete; purge job after 30 days
+  createdAt   DateTime     @default(now())
+  roles       RoleNode[]
+  memberships Membership[]
+  courses     Course[]
+}
+
+model RoleNode {
+  id           String       @id @default(uuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  parentId     String? // null only for the Owner role
+  name         String // "HR", "Owner", "CEO", …
+  roleNumber   Int // unique within org, NEVER reused
+  isTerminal   Boolean      @default(false)
+  path         String // materialized path, e.g. "root.hr.assistant_hr"
+  placements   Placement[]
+
+  @@unique([orgId, roleNumber])
+  @@index([orgId, path])
+}
+
+model Membership {
+  id         String       @id @default(uuid())
+  profileId  String
+  profile    Profile      @relation(fields: [profileId], references: [id])
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id])
+  createdAt  DateTime     @default(now())
+  placements Placement[]
+
+  @@unique([profileId, orgId])
+}
+
+model Placement {
+  id                 String        @id @default(uuid())
+  membershipId       String
+  membership         Membership    @relation(fields: [membershipId], references: [id])
+  roleNodeId         String
+  roleNode           RoleNode      @relation(fields: [roleNodeId], references: [id])
+  kind               PlacementKind
+  canCreateSubgroups Boolean       @default(false) // meaningful for OWNER
+  addedByProfileId   String // escalation target (docs/structure.md §3.4)
+  createdAt          DateTime      @default(now())
+
+  @@unique([membershipId, roleNodeId, kind])
+}
+
+// ── Courses ────────────────────────────────────────────────────────────────
+
+model Course {
+  id                       String             @id @default(uuid())
+  orgId                    String
+  org                      Organization       @relation(fields: [orgId], references: [id])
+  code                     String             @unique // "456-989-0001"
+  uploaderRoleNodeId       String
+  kind                     CourseKind
+  title                    String
+  storageRef               Json // adapter-specific pointer (Drive fileId, …)
+  deadlineDays             Int?
+  retakeEveryNDays         Int? // recurrence, applies to all kinds
+  resetsCompletionOnUpdate Boolean            @default(false)
+  version                  Int                @default(1)
+  createdAt                DateTime           @default(now())
+  placements               CoursePlacement[]
+  prerequisites            CoursePrerequisite[] @relation("course")
+  requiredBy               CoursePrerequisite[] @relation("requires")
+  adminAccess              CourseAdminAccess[]
+}
+
+model CoursePlacement {
+  id                   String  @id @default(uuid())
+  courseId             String
+  course               Course  @relation(fields: [courseId], references: [id])
+  roleNodeId           String
+  mandatory            Boolean
+  inheritToDescendants Boolean
+  placedByProfileId    String
+
+  @@unique([courseId, roleNodeId])
+}
+
+model CoursePrerequisite {
+  courseId         String
+  course           Course @relation("course", fields: [courseId], references: [id])
+  requiresCourseId String
+  requires         Course @relation("requires", fields: [requiresCourseId], references: [id])
+
+  @@id([courseId, requiresCourseId])
+}
+
+model CourseAdminAccess {
+  id        String      @id @default(uuid())
+  courseId  String
+  course    Course      @relation(fields: [courseId], references: [id])
+  profileId String
+  level     AccessLevel
+  canGrant  Boolean // 2-layer tree: may add more people to this page
+  grantedBy String
+
+  @@unique([courseId, profileId])
+}
+
+// ── Compliance ─────────────────────────────────────────────────────────────
+
+// Part of the USER's data, keyed by course code (docs/structure.md §3.7).
+model CompletionRecord {
+  id            String           @id @default(uuid())
+  courseId      String
+  courseCode    String // denormalized platform-unique code, survives exports
+  profileId     String
+  orgId         String
+  status        CompletionStatus
+  completedAt   DateTime?
+  validUntil    DateTime? // expiry: completedAt + retakeEveryNDays
+  courseVersion Int
+  // exam fields (score, pass/fail, re-attempt time) join here post-v1
+
+  @@index([profileId, orgId])
+  @@index([courseCode])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  profileId String
+  orgId     String?
+  kind      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([profileId, readAt])
+}

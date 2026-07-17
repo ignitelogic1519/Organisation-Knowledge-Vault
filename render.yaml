@@ -1,0 +1,16 @@
+# Render Blueprint — deploys the API from this monorepo.
+# In Render: New + → Blueprint → select this repository → apply.
+
+services:
+  - type: web
+    name: knowledge-vault-api
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: WEB_ORIGIN
+        sync: false # set to your Vercel URL, e.g. https://your-app.vercel.app
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string (needed from Phase 1)
