@@ -543,3 +543,94 @@ button {
   border-radius: 10px;
   padding: 0.6rem 0.8rem;
 }
+
+/* ── Learning, notifications, vault files ───────────────────────────────── */
+
+.badge-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.learning-h {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin: 0.75rem 0 0.25rem;
+}
+
+.learning-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.learning-main {
+  flex: 1;
+  min-width: 240px;
+}
+
+.bell-wrap {
+  position: relative;
+}
+
+.bell-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.bell-panel {
+  position: absolute;
+  right: 0;
+  top: 2.75rem;
+  width: 320px;
+  max-height: 380px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.9rem;
+  z-index: 30;
+  animation: fade-up 200ms var(--ease) both;
+}
+
+.bell-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.danger-zone {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.inline-form-wrap {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.inline-form-wrap .field {
+  min-width: 200px;
+  flex: none;
+}
+
+.revive-box {
+  margin: 0.5rem 0 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.revive-box summary {
+  cursor: pointer;
+}

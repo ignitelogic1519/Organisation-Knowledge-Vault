@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { OrgSummary } from "@vault/shared";
 import { hasSession } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
+import { fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { SiteNav } from "@/components/SiteNav";
 
 export default function OrgsPage() {
@@ -35,6 +36,37 @@ export default function OrgsPage() {
         </header>
 
         {list === null && <p className="auth-sub">Loading…</p>}
+        <details className="revive-box">
+          <summary>Revive a deleted organization from a .main file</summary>
+          <form
+            className="inline-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const d = new FormData(e.currentTarget);
+              const file = d.get("main") as File;
+              try {
+                const b64 = await fileToBase64(file);
+                const res = await vaultFiles.revive(b64, String(d.get("password")));
+                alert(
+                  `Revived! Roles: ${res.report.rolesRestored}, matched people: ${res.report.peopleMatched}, pending (re-attach on registration): ${res.report.peoplePending}, courses: ${res.report.coursesRestored}.\n\nMedia is marked unreachable until storage is reconnected.`,
+                );
+                router.push(`/orgs/${res.orgId}`);
+              } catch (err) {
+                alert(err instanceof Error ? err.message : "Revival failed");
+              }
+            }}
+          >
+            <label className="field">
+              <span>.main file</span>
+              <input name="main" type="file" accept=".main" required />
+            </label>
+            <label className="field">
+              <span>Supreme password</span>
+              <input name="password" type="password" required />
+            </label>
+            <button className="btn btn-primary btn-small">Revive</button>
+          </form>
+        </details>
         {list?.length === 0 && (
           <div className="empty-card">
             <h2>No organizations yet</h2>

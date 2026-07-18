@@ -27,3 +27,5 @@ services:
         sync: false # optional: platform Gmail address for verification mails
       - key: SMTP_PASS
         sync: false # optional: Gmail App Password (not the account password)
+      - key: JOB_SECRET
+        generateValue: true # shared with the GitHub Actions nightly-job workflow

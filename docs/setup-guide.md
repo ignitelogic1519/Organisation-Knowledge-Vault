@@ -117,10 +117,28 @@ The auth code deploys with the normal git push, but it needs the database and tw
 4. Wrong password → clean error message, no crash.
 5. ~~Google sign-in~~ — deferred; the button is intentionally absent until §4.2 is done.
 
-## 5. Google Drive storage (Phase 4 — skip for now)
+## 5. Phases 4–7 — courses, compliance job & vault files
 
-Its own guided walkthrough when we get there: same Google Cloud project, **`drive.file`**
-scope only (no verification process needed).
+Deploys with the normal git push. Two one-time setups:
+
+### 5.1 JOB_SECRET (compliance nightly job)
+1. **Render → Environment**: add `JOB_SECRET` = a long random string (Generate button works).
+2. **GitHub repo → Settings → Secrets and variables → Actions**:
+   - New **secret** `JOB_SECRET` = the same value.
+   - New **variable** `API_URL` = your Render URL (no trailing slash).
+3. The workflow `.github/workflows/nightly-job.yml` then runs the compliance job daily at
+   02:30 UTC (recurrence expiry, overdue escalation, 30-day purge). Trigger it manually any
+   time: repo → Actions → nightly-compliance-job → Run workflow.
+
+### 5.2 Storage in v1 (no Google account needed)
+The storage adapter port ships with two live backends:
+- **Inline** — files up to 2 MB stored in Neon (documents, small PDFs).
+- **Link** — external URLs for anything big (YouTube videos, Drive share links, podcasts…).
+The **Google Drive adapter** (org connects its own Drive, `drive.file` scope) plugs into the
+same port later — its Google Cloud walkthrough activates together with Google sign-in
+(`future.md` §9). After a `.main` revival, media shows as *unreachable* until storage is
+reconnected — inline files do not survive a purge; links resume working immediately after
+re-adding them.
 
 ---
 

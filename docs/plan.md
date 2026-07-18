@@ -63,7 +63,7 @@ and the Supreme password gates owner-level changes.
 individual delegation flags, and a profile can verifiably sit in two branches at different
 heights with correctly scoped powers in each.
 
-## Phase 4 — Courses: upload, codes & placements
+## Phase 4 — Courses: upload, codes & placements ✅ BUILT (2026-07-18)
 
 **Goal:** knowledge items with the platform-unique code scheme, no duplication.
 
@@ -79,7 +79,7 @@ heights with correctly scoped powers in each.
 mandatory+inherited; an unrelated branch adds the same course by code; usage shows on the
 course admin page.
 
-## Phase 5 — Learning experience & completion
+## Phase 5 — Learning experience & completion ✅ BUILT (2026-07-18)
 
 **Goal:** the learner's side.
 
@@ -92,7 +92,7 @@ course admin page.
 **Done when:** a member sees their mandatory course, is blocked from course B until course A is
 complete, finishes both, and the records show the right versions.
 
-## Phase 6 — Compliance engine
+## Phase 6 — Compliance engine ✅ BUILT (2026-07-18)
 
 **Goal:** recurrence, deadlines, escalation. (Exams are deferred out of v1 entirely —
 see `future.md`; recurrence applies to all course kinds.)
@@ -109,7 +109,7 @@ see `future.md`; recurrence applies to all course kinds.)
 re-assigns it; an overdue mandatory course notifies the user and the correct escalation
 person even after the original adder has left the org.
 
-## Phase 7 — `.main`, `.bkp` & the deletion lifecycle
+## Phase 7 — `.main`, `.bkp` & the deletion lifecycle ✅ BUILT (2026-07-18)
 
 **Goal:** the existence/backup machinery — last, because it exports everything the earlier
 phases created.

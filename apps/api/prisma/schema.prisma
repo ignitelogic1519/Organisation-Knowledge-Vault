@@ -117,7 +117,8 @@ model RoleNode {
   name         String // "HR", "Owner", "CEO", …
   roleNumber   Int // unique within org, NEVER reused
   isTerminal   Boolean      @default(false)
-  path         String // materialized path, e.g. "root.hr.assistant_hr"
+  path         String // materialized path built from role numbers, e.g. "100.101"
+  nextItemNumber Int        @default(1) // per-role course item counter, NEVER reused
   placements   Placement[]
 
   @@unique([orgId, roleNumber])
@@ -158,9 +159,10 @@ model Course {
   org                      Organization       @relation(fields: [orgId], references: [id])
   code                     String             @unique // "456-989-0001"
   uploaderRoleNodeId       String
+  createdByProfileId       String
   kind                     CourseKind
   title                    String
-  storageRef               Json // adapter-specific pointer (Drive fileId, …)
+  storageRef               Json // adapter-specific pointer: {adapter:"inline"|"link", ...}
   deadlineDays             Int?
   retakeEveryNDays         Int? // recurrence, applies to all kinds
   resetsCompletionOnUpdate Boolean            @default(false)
@@ -173,15 +175,30 @@ model Course {
 }
 
 model CoursePlacement {
-  id                   String  @id @default(uuid())
+  id                   String   @id @default(uuid())
   courseId             String
-  course               Course  @relation(fields: [courseId], references: [id])
+  course               Course   @relation(fields: [courseId], references: [id])
   roleNodeId           String
   mandatory            Boolean
   inheritToDescendants Boolean
   placedByProfileId    String
+  createdAt            DateTime @default(now()) // deadline anchor
 
   @@unique([courseId, roleNodeId])
+}
+
+// Inline storage adapter backend: small files kept in Postgres (free-tier friendly).
+// Media at scale goes through other adapters (Drive/NAS/S3 — the port stays open).
+model StoredFile {
+  id        String   @id @default(uuid())
+  orgId     String
+  filename  String
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
 }
 
 model CoursePrerequisite {

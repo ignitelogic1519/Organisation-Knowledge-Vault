@@ -4,3 +4,4 @@ export * from "./policy.js";
 export * from "./auth.js";
 export * from "./orgs.js";
 export * from "./roles.js";
+export * from "./courses.js";

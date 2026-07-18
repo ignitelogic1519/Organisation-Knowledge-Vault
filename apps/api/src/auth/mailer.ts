@@ -55,6 +55,20 @@ export async function sendInviteEmail(email: string, orgName: string, roleName: 
   });
 }
 
+export async function sendDeletionEmail(email: string, orgName: string): Promise<void> {
+  const text = `The organization "${orgName}" on Knowledge Vault has been deleted.\n\nIts data is retained for 30 days — sign in and use Undelete to change your mind. After that, only the downloaded .main file (with its Supreme password) can revive it.`;
+  if (!transport) {
+    console.info(`[mailer] SMTP not configured — deletion notice for ${email}: ${orgName}`);
+    return;
+  }
+  await transport.sendMail({
+    from: `"Knowledge Vault" <${env.smtp.user}>`,
+    to: email,
+    subject: `Organization deleted: ${orgName}`,
+    text,
+  });
+}
+
 export async function consumeVerificationToken(token: string): Promise<boolean> {
   const row = await db.emailToken.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!row || row.purpose !== "verify_email" || row.usedAt || row.expiresAt < new Date()) {

@@ -6,8 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 import type { OrgDetail } from "@vault/shared";
 import { ApiError, hasSession } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
+import { MyLearning } from "@/components/MyLearning";
 import { SiteNav } from "@/components/SiteNav";
 import { StructureTree } from "@/components/StructureTree";
+import { downloadBlob, vaultFiles } from "@/lib/courses-client";
 
 export default function OrgPage() {
   const router = useRouter();
@@ -109,10 +111,9 @@ export default function OrgPage() {
         </header>
 
         <div className="panel-grid">
-          <div className="panel">
+          <div className="panel panel-wide">
             <h2>My Learning</h2>
-            <p className="auth-sub">Courses arrive in Phase 4–5.</p>
-            <span className="badge">Coming soon</span>
+            <MyLearning orgId={id} />
           </div>
 
           <div className="panel panel-wide">
@@ -164,6 +165,54 @@ export default function OrgPage() {
             )}
             {notice && <p className="auth-sub">{notice}</p>}
           </div>
+
+          {isOwner && supremeToken && (
+            <div className="panel panel-wide danger-zone">
+              <h2>Supreme zone</h2>
+              <p className="auth-sub">
+                The <code>.main</code> file is this organization&apos;s existence backup —
+                encrypted with the Supreme password, held only by you.
+              </p>
+              <div className="tree-actions">
+                <button
+                  className="btn btn-quiet"
+                  onClick={async () => {
+                    const pw = prompt("Enter the Supreme password to encrypt the .main file:");
+                    if (!pw) return;
+                    try {
+                      const blob = await vaultFiles.exportMain(id, pw, supremeToken);
+                      downloadBlob(blob, `${org.name}.main`);
+                      setNotice(".main downloaded — keep it safe; it cannot be regenerated after deletion.");
+                    } catch (e) {
+                      setNotice(e instanceof Error ? e.message : "Export failed");
+                    }
+                  }}
+                >
+                  ⬇ Download .main
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={async () => {
+                    if (
+                      !confirm(
+                        "Delete this organization?\n\nDownload the .main file FIRST — after the 30-day retention it is the ONLY way to revive the organization.",
+                      )
+                    )
+                      return;
+                    try {
+                      const res = await vaultFiles.deleteOrg(id, supremeToken);
+                      alert(`Organization deleted. Data retained until ${res.retainedUntil.slice(0, 10)} — after that, only the .main file can revive it.`);
+                      router.replace("/orgs");
+                    } catch (e) {
+                      setNotice(e instanceof Error ? e.message : "Deletion failed");
+                    }
+                  }}
+                >
+                  Delete organization
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </main>
