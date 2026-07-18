@@ -25,6 +25,10 @@ export const env = {
     user: process.env.SMTP_USER?.trim() || undefined,
     pass: process.env.SMTP_PASS?.trim() || undefined,
   },
+  /** Brevo transactional API key — preferred mail path (HTTPS, no SMTP involved). */
+  brevoKey: process.env.BREVO_API_KEY?.trim() || undefined,
+  /** Verified sender address (defaults to SMTP_USER). */
+  mailFrom: process.env.MAIL_FROM?.trim() || process.env.SMTP_USER?.trim() || undefined,
 };
 
 if (!process.env.JWT_SECRET && !isProd) {

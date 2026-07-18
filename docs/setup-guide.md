@@ -102,7 +102,27 @@ The auth code deploys with the normal git push, but it needs the database and tw
    - Vercel → `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (then **redeploy** the web app — build-time var)
 5. The Google button appears on the login/register pages automatically once the var is set.
 
-### 4.3 Optional — verification emails via the platform Gmail
+### 4.3a Recommended — email via Brevo (HTTPS API, no SMTP)
+
+Most reliable on free-tier hosting. Free plan: 300 emails/day.
+
+1. Sign up at https://www.brevo.com (free).
+2. **Verify the sender**: Brevo → Senders & Domains (Settings → Senders) → *Add a sender* →
+   enter the platform address (e.g. `ignite.logic1519@gmail.com`) → click the confirmation
+   link Brevo emails to that inbox.
+3. **Get the API key**: Brevo → SMTP & API → **API keys** tab → Generate a new API key
+   (NOT an SMTP key — the API key, it starts with `xkeysib-`).
+4. Render → knowledge-vault-api → Environment:
+   - `BREVO_API_KEY` = the key
+   - `MAIL_FROM` = the verified sender address
+5. Save → after redeploy, `/health` shows `"mail":"brevo"`. Register a test account — the
+   verification mail should arrive. (Brevo's dashboard also shows every send under
+   Transactional → Logs, which makes debugging trivial.)
+
+Note: mails sent via Brevo will NOT appear in the Gmail "Sent" folder — Gmail is only the
+sender identity, not the carrier. Check Brevo's Transactional Logs instead.
+
+### 4.3b Alternative — verification emails via the platform Gmail (SMTP)
 1. On the platform Gmail account: enable **2-Step Verification**, then create an
    **App Password** (Google Account → Security → App passwords).
 2. Render → `SMTP_USER` = the Gmail address, `SMTP_PASS` = the app password.

@@ -23,9 +23,13 @@ services:
         sync: false # same as WEB_ORIGIN — used in email verification links
       - key: GOOGLE_CLIENT_ID
         sync: false # optional: enables Google sign-in (Phase 1 §4 of setup-guide)
+      - key: BREVO_API_KEY
+        sync: false # recommended mail path: Brevo transactional API key (xkeysib-…)
+      - key: MAIL_FROM
+        sync: false # sender address verified in Brevo (e.g. the platform Gmail)
       - key: SMTP_USER
-        sync: false # optional: platform Gmail address for verification mails
+        sync: false # fallback mail path: platform Gmail address
       - key: SMTP_PASS
-        sync: false # optional: Gmail App Password (not the account password)
+        sync: false # fallback: Gmail App Password (not the account password)
       - key: JOB_SECRET
         generateValue: true # shared with the GitHub Actions nightly-job workflow

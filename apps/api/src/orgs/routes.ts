@@ -113,19 +113,25 @@ export async function orgRoutes(app: FastifyInstance) {
     );
   });
 
-  // My deleted-but-retained organizations (30-day window) — feeds the Undelete UI
+  // My deleted-but-retained organizations (30-day window) — feeds the Undelete UI.
+  // Visible ONLY to occupants of the org's root Owner role — plain members have no
+  // business seeing (or undeleting) a deleted organization.
   app.get("/orgs/deleted", { preHandler: app.authenticate }, async (req) => {
     const memberships = await db.membership.findMany({
       where: { profileId: req.profileId, org: { deletedAt: { not: null } } },
-      include: { org: true },
+      include: { org: true, placements: { include: { roleNode: true } } },
     });
-    return memberships.map((m) => ({
-      id: m.org.id,
-      name: m.org.name,
-      orgNumber: m.org.orgNumber,
-      deletedAt: m.org.deletedAt!.toISOString(),
-      purgeAt: new Date(m.org.deletedAt!.getTime() + 30 * 86400_000).toISOString(),
-    }));
+    return memberships
+      .filter((m) =>
+        m.placements.some((p) => p.kind === "OWNER" && p.roleNode.parentId === null),
+      )
+      .map((m) => ({
+        id: m.org.id,
+        name: m.org.name,
+        orgNumber: m.org.orgNumber,
+        deletedAt: m.org.deletedAt!.toISOString(),
+        purgeAt: new Date(m.org.deletedAt!.getTime() + 30 * 86400_000).toISOString(),
+      }));
   });
 
   // Organization detail (members only)

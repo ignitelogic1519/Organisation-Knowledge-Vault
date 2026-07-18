@@ -18,30 +18,65 @@ const transport =
       })
     : null;
 
-// Mail must NEVER break the request that triggered it — failures are logged with the SMTP
-// error (visible in Render Logs, search "[mailer]") and the fallback link is printed too.
-async function sendSafely(
-  options: {
-    to: string;
-    subject: string;
-    text: string;
-    attachments?: { filename: string; content: Buffer }[];
-  },
-  fallbackLog: string,
-): Promise<void> {
-  if (!transport) {
-    console.info(`[mailer] SMTP not configured — ${fallbackLog}`);
+// Mail must NEVER break the request that triggered it — failures are logged with the
+// provider error (visible in Render Logs, search "[mailer]") and the fallback link too.
+// Provider order: Brevo HTTPS API (BREVO_API_KEY + MAIL_FROM) → Gmail SMTP → log-only.
+interface MailOptions {
+  to: string;
+  subject: string;
+  text: string;
+  attachments?: { filename: string; content: Buffer }[];
+}
+
+export function mailMode(): "brevo" | "smtp" | "log-only" {
+  if (env.brevoKey && env.mailFrom) return "brevo";
+  if (transport) return "smtp";
+  return "log-only";
+}
+
+async function sendViaBrevo(options: MailOptions): Promise<void> {
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": env.brevoKey!, "content-type": "application/json" },
+    body: JSON.stringify({
+      sender: { email: env.mailFrom, name: "Knowledge Vault" },
+      to: [{ email: options.to }],
+      subject: options.subject,
+      textContent: options.text,
+      ...(options.attachments?.length
+        ? {
+            attachment: options.attachments.map((a) => ({
+              name: a.filename,
+              content: a.content.toString("base64"),
+            })),
+          }
+        : {}),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Brevo ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+}
+
+async function sendSafely(options: MailOptions, fallbackLog: string): Promise<void> {
+  const mode = mailMode();
+  if (mode === "log-only") {
+    console.info(`[mailer] no mail provider configured — ${fallbackLog}`);
     return;
   }
   try {
-    await transport.sendMail({
-      from: `"Knowledge Vault" <${env.smtp.user}>`,
-      ...options,
-    });
-    console.info(`[mailer] sent "${options.subject}" to ${options.to}`);
+    if (mode === "brevo") {
+      await sendViaBrevo(options);
+    } else {
+      await transport!.sendMail({
+        from: `"Knowledge Vault" <${env.smtp.user}>`,
+        ...options,
+      });
+    }
+    console.info(`[mailer] (${mode}) sent "${options.subject}" to ${options.to}`);
   } catch (err) {
     console.error(
-      `[mailer] SEND FAILED to ${options.to}: ${err instanceof Error ? err.message : err} — ${fallbackLog}`,
+      `[mailer] (${mode}) SEND FAILED to ${options.to}: ${err instanceof Error ? err.message : err} — ${fallbackLog}`,
     );
   }
 }
