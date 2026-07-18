@@ -46,20 +46,30 @@ async function rawRequest(path: string, init: RequestInit = {}): Promise<Respons
   });
 }
 
-async function tryRefresh(): Promise<boolean> {
-  const refreshToken = localStorage.getItem(REFRESH_KEY);
-  if (!refreshToken) return false;
-  const res = await fetch(`${API}/auth/refresh`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
+// Single-flight refresh: refresh tokens rotate (one-time use), so parallel 401s must share
+// ONE refresh call — otherwise the losers revoke the winner's fresh session.
+let refreshInFlight: Promise<boolean> | null = null;
+
+function tryRefresh(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (!refreshToken) return false;
+    const res = await fetch(`${API}/auth/refresh`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) {
+      clearTokens();
+      return false;
+    }
+    storeTokens((await res.json()) as AuthResponse);
+    return true;
+  })().finally(() => {
+    refreshInFlight = null;
   });
-  if (!res.ok) {
-    clearTokens();
-    return false;
-  }
-  storeTokens((await res.json()) as AuthResponse);
-  return true;
+  return refreshInFlight;
 }
 
 /** Authenticated fetch with transparent one-shot token refresh — for any response type. */

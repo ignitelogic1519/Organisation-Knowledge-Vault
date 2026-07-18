@@ -70,14 +70,23 @@ export async function verifyAccessToken(token: string): Promise<AccessClaims | n
   }
 }
 
-/** Rotation: the presented token is revoked and a fresh pair is issued. */
+/**
+ * Rotation: the presented token is revoked and a fresh pair is issued.
+ * Grace window: a token revoked < 60 s ago is still accepted (and rotated again) — absorbs
+ * races where two tabs/devices refresh with the same token at nearly the same time.
+ */
+const ROTATION_GRACE_MS = 60 * 1000;
+
 export async function rotateRefreshToken(presented: string): Promise<Profile | null> {
   const row = await db.refreshToken.findUnique({
     where: { tokenHash: hashToken(presented) },
     include: { profile: true },
   });
-  if (!row || row.revokedAt || row.expiresAt < new Date()) return null;
-  await db.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
+  if (!row || row.expiresAt < new Date()) return null;
+  if (row.revokedAt && Date.now() - row.revokedAt.getTime() > ROTATION_GRACE_MS) return null;
+  if (!row.revokedAt) {
+    await db.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
+  }
   return row.profile;
 }
 
