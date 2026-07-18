@@ -17,8 +17,10 @@ export default function OrgPage() {
   const [org, setOrg] = useState<OrgDetail | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Supreme gate state: token lives only in memory and dies with the page
+  // Supreme gate state: token AND the verified password live only in page memory (never
+  // persisted) and die on navigation — the password is needed again to encrypt .main exports
   const [supremeToken, setSupremeToken] = useState<string | null>(null);
+  const [supremePassword, setSupremePassword] = useState<string | null>(null);
   const [gateOpen, setGateOpen] = useState(false);
 
   const reload = useCallback(() => {
@@ -47,6 +49,7 @@ export default function OrgPage() {
     try {
       const session = await orgs.supremeVerify(id, password);
       setSupremeToken(session.supremeToken);
+      setSupremePassword(password);
       setGateOpen(false);
       setNotice("Supreme access granted for 10 minutes.");
     } catch (err) {
@@ -177,14 +180,21 @@ export default function OrgPage() {
                 <button
                   className="btn btn-quiet"
                   onClick={async () => {
-                    const pw = prompt("Enter the Supreme password to encrypt the .main file:");
+                    // The password verified at the gate is reused — no re-typing, no mismatch
+                    const pw =
+                      supremePassword ??
+                      prompt(
+                        "Enter this organization's SUPREME password (the one set at creation — it encrypts the .main file):",
+                      );
                     if (!pw) return;
                     try {
                       const blob = await vaultFiles.exportMain(id, pw, supremeToken);
                       downloadBlob(blob, `${org.name}.main`);
                       setNotice(".main downloaded — keep it safe; it cannot be regenerated after deletion.");
                     } catch (e) {
-                      setNotice(e instanceof Error ? e.message : "Export failed");
+                      const msg = e instanceof Error ? e.message : "Export failed";
+                      alert(`.main export failed: ${msg}`);
+                      setNotice(msg);
                     }
                   }}
                 >
