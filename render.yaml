@@ -6,7 +6,9 @@ services:
     name: knowledge-vault-api
     runtime: node
     plan: free
-    buildCommand: corepack enable && pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build
+    # Render pre-installs pnpm (via the packageManager field) — do NOT `corepack enable`,
+    # its /usr/bin is read-only and already has a pnpm shim.
+    buildCommand: pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build
     startCommand: node apps/api/dist/server.js
     healthCheckPath: /health
     envVars:

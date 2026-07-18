@@ -86,3 +86,4 @@ consent screen, and the **`drive.file`** scope only (no verification process nee
 | Chip: "API offline" in prod | Render asleep or `NEXT_PUBLIC_API_URL` wrong | Wait 60 s and refresh; verify the env var has no trailing slash, then redeploy |
 | Browser console CORS error | `WEB_ORIGIN` mismatch | Set it to the exact Vercel URL (scheme included) |
 | Vercel build fails | Root directory not set | Project Settings → Root Directory → `apps/web` |
+| Render build: `EROFS: read-only file system, unlink '/usr/bin/pnpm'` | `corepack enable` in the build command | Remove `corepack enable &&` — Render pre-installs pnpm; build command is just `pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build` |
