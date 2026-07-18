@@ -85,7 +85,9 @@ export default function AccountPage() {
           </div>
           <div className="account-row">
             <span>Organizations</span>
-            <span className="badge">Coming in Phase 2</span>
+            <a className="btn btn-quiet" href="/orgs">
+              Open
+            </a>
           </div>
 
           {notice && <p className="auth-sub">{notice}</p>}

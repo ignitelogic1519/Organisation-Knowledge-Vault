@@ -81,15 +81,32 @@ model EmailToken {
 // ── Organization / Supreme ─────────────────────────────────────────────────
 
 model Organization {
-  id          String       @id @default(uuid())
-  name        String
-  orgNumber   Int          @unique // platform-unique, NEVER reused
-  supremeHash String // Argon2id of the Supreme password
-  deletedAt   DateTime? // soft delete; purge job after 30 days
-  createdAt   DateTime     @default(now())
-  roles       RoleNode[]
-  memberships Membership[]
-  courses     Course[]
+  id             String       @id @default(uuid())
+  name           String
+  orgNumber      Int          @unique // platform-unique, NEVER reused (global sequence)
+  supremeHash    String // Argon2id of the Supreme password
+  nextRoleNumber Int          @default(101) // per-org role counter, NEVER reused
+  deletedAt      DateTime? // soft delete; purge job after 30 days
+  createdAt      DateTime     @default(now())
+  roles          RoleNode[]
+  memberships    Membership[]
+  courses        Course[]
+  supremeAudits  SupremeAudit[]
+}
+
+// Audit trail of Supreme-gate activity — the Supreme itself performs no actions, so every
+// use of its password is recorded (docs/architecture.md §8).
+model SupremeAudit {
+  id             String       @id @default(uuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  action         String // verify_success | verify_failed | owner_added | owner_removed
+  actorProfileId String?
+  ip             String?
+  detail         String?
+  createdAt      DateTime     @default(now())
+
+  @@index([orgId, createdAt])
 }
 
 model RoleNode {

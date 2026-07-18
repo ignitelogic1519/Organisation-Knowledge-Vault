@@ -35,7 +35,7 @@ response, with data read from Neon.
 **Done when:** a person can sign up both ways, log in, refresh their session, and see their
 profile page on the web app.
 
-## Phase 2 — Organizations, Supreme & Owner role
+## Phase 2 — Organizations, Supreme & Owner role ✅ BUILT (2026-07-18)
 
 **Goal:** org creation exactly as specified in `structure.md` §4.1.
 

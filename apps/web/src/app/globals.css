@@ -359,3 +359,130 @@ button {
   border-top: 1px solid var(--border);
   margin: 0.5rem 0;
 }
+
+/* ── Org pages (Intune-style panels) ────────────────────────────────────── */
+
+.page-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 6rem 1.5rem 3rem;
+  animation: fade-up 400ms var(--ease) both;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.page-head h1 {
+  font-size: 1.8rem;
+  letter-spacing: -0.02em;
+}
+
+.org-grid,
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.org-card,
+.panel,
+.empty-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color var(--dur-micro) var(--ease), transform var(--dur-micro) var(--ease);
+}
+
+.org-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.org-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.org-card h2,
+.panel h2,
+.empty-card h2 {
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+.empty-card {
+  align-items: flex-start;
+  max-width: 480px;
+}
+
+.chip {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 0.15rem 0.55rem;
+  border-radius: 980px;
+  white-space: nowrap;
+}
+
+.warn-box {
+  border: 1px solid var(--danger);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.warn-box strong {
+  color: var(--danger);
+}
+
+.warn-box p {
+  color: var(--text-secondary);
+}
+
+.ack-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.ack-row input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--danger);
+}
+
+.auth-card-wide {
+  max-width: 460px;
+}
+
+.inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.inline-form .field {
+  flex: 1;
+}
+
+.owner-list {
+  list-style: none;
+}

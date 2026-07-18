@@ -6,6 +6,7 @@ import { env } from "./env.js";
 import { authenticatePlugin } from "./plugins/authenticate.js";
 import { authRoutes } from "./auth/routes.js";
 import { meRoutes } from "./me/routes.js";
+import { orgRoutes } from "./orgs/routes.js";
 
 const app = Fastify({ logger: true });
 
@@ -31,6 +32,7 @@ app.setErrorHandler((err: unknown, _req, reply) => {
 await app.register(authenticatePlugin);
 await app.register(authRoutes);
 await app.register(meRoutes);
+await app.register(orgRoutes);
 
 app.get("/health", async (): Promise<HealthResponse> => ({
   status: "ok",
