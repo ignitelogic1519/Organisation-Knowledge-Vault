@@ -9,10 +9,21 @@ services:
     # Render pre-installs pnpm (via the packageManager field) — do NOT `corepack enable`,
     # its /usr/bin is read-only and already has a pnpm shim.
     buildCommand: pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build
-    startCommand: node apps/api/dist/server.js
+    # start:prod applies pending DB migrations, then boots the server
+    startCommand: pnpm --filter @vault/api run start:prod
     healthCheckPath: /health
     envVars:
-      - key: WEB_ORIGIN
-        sync: false # set to your Vercel URL, e.g. https://your-app.vercel.app
       - key: DATABASE_URL
-        sync: false # paste the Neon connection string (needed from Phase 1)
+        sync: false # Neon connection string (required from Phase 1)
+      - key: JWT_SECRET
+        generateValue: true # random secret minted by Render — never commit one
+      - key: WEB_ORIGIN
+        sync: false # your Vercel URL, e.g. https://your-app.vercel.app
+      - key: WEB_URL
+        sync: false # same as WEB_ORIGIN — used in email verification links
+      - key: GOOGLE_CLIENT_ID
+        sync: false # optional: enables Google sign-in (Phase 1 §4 of setup-guide)
+      - key: SMTP_USER
+        sync: false # optional: platform Gmail address for verification mails
+      - key: SMTP_PASS
+        sync: false # optional: Gmail App Password (not the account password)

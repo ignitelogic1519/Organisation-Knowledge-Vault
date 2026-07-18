@@ -47,6 +47,35 @@ model Profile {
   emailVerifiedAt DateTime?
   createdAt    DateTime     @default(now())
   memberships  Membership[]
+  refreshTokens RefreshToken[]
+  emailTokens   EmailToken[]
+}
+
+// Opaque rotating refresh tokens — only the hash is stored (architecture.md §8)
+model RefreshToken {
+  id        String    @id @default(uuid())
+  profileId String
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([profileId])
+}
+
+// Single-use email tokens (verification now; password reset later)
+model EmailToken {
+  id        String    @id @default(uuid())
+  profileId String
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  purpose   String // "verify_email"
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([profileId, purpose])
 }
 
 // ── Organization / Supreme ─────────────────────────────────────────────────

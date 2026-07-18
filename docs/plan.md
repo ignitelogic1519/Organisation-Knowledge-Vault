@@ -11,7 +11,7 @@ locked by `structure.md` from Phase 1.
 
 ---
 
-## Phase 0 — Foundations & "hello world" deploys
+## Phase 0 — Foundations & "hello world" deploys ✅ DONE (2026-07-18)
 
 **Goal:** the empty skeleton runs on all three services, so deployment is never a surprise later.
 
@@ -23,7 +23,7 @@ locked by `structure.md` from Phase 1.
 **Done when:** visiting the Vercel URL shows a page that displays the Render API's health
 response, with data read from Neon.
 
-## Phase 1 — Global profiles & auth
+## Phase 1 — Global profiles & auth ✅ BUILT (2026-07-18 — awaiting production env setup, see setup-guide §4)
 
 **Goal:** the "profile is the actor for everything" foundation.
 

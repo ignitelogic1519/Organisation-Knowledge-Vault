@@ -1,0 +1,109 @@
+"use client";
+
+import type { AuthResponse, PublicProfile } from "@vault/shared";
+
+// Token storage + API client with automatic refresh-token rotation.
+// Tokens live in localStorage (works for the future mobile app's model too — see
+// docs/architecture.md; revisit for httpOnly cookies if we ever go same-domain).
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const ACCESS_KEY = "kv.accessToken";
+const REFRESH_KEY = "kv.refreshToken";
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function storeTokens(res: AuthResponse) {
+  localStorage.setItem(ACCESS_KEY, res.tokens.accessToken);
+  localStorage.setItem(REFRESH_KEY, res.tokens.refreshToken);
+}
+
+export function clearTokens() {
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+export function hasSession(): boolean {
+  return typeof window !== "undefined" && !!localStorage.getItem(REFRESH_KEY);
+}
+
+async function rawRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const access = localStorage.getItem(ACCESS_KEY);
+  return fetch(`${API}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...(access ? { authorization: `Bearer ${access}` } : {}),
+      ...init.headers,
+    },
+  });
+}
+
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
+  if (!refreshToken) return false;
+  const res = await fetch(`${API}/auth/refresh`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+  if (!res.ok) {
+    clearTokens();
+    return false;
+  }
+  storeTokens((await res.json()) as AuthResponse);
+  return true;
+}
+
+/** Authenticated JSON request; transparently refreshes an expired access token once. */
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res = await rawRequest(path, init);
+  if (res.status === 401 && (await tryRefresh())) {
+    res = await rawRequest(path, init);
+  }
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new ApiError(res.status, body.error ?? `Request failed (${res.status})`);
+  return body as T;
+}
+
+async function authCall(path: string, payload: unknown): Promise<AuthResponse> {
+  const res = await fetch(`${API}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = (await res.json().catch(() => ({}))) as AuthResponse & { error?: string };
+  if (!res.ok) throw new ApiError(res.status, body.error ?? "Request failed");
+  storeTokens(body);
+  return body;
+}
+
+export const auth = {
+  register: (email: string, password: string, displayName: string) =>
+    authCall("/auth/register", { email, password, displayName }),
+  login: (email: string, password: string) => authCall("/auth/login", { email, password }),
+  google: (idToken: string) => authCall("/auth/google", { idToken }),
+  me: () => api<{ profile: PublicProfile }>("/me"),
+  verifyEmail: (token: string) =>
+    api<{ ok: boolean }>("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
+  resendVerification: () =>
+    api<{ ok: boolean }>("/auth/resend-verification", { method: "POST", body: "{}" }),
+  deleteMe: () => api<{ ok: boolean }>("/me", { method: "DELETE" }),
+  logout: async () => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (refreshToken) {
+      await fetch(`${API}/auth/logout`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => undefined);
+    }
+    clearTokens();
+  },
+};

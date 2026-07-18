@@ -1,16 +1,12 @@
+import Link from "next/link";
 import { ApiStatus } from "@/components/ApiStatus";
 import { Constellation } from "@/components/Constellation";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { SiteNav } from "@/components/SiteNav";
 
 export default function Home() {
   return (
     <main>
-      <nav className="nav">
-        <span className="nav-brand">Knowledge Vault</span>
-        <div className="nav-actions">
-          <ThemeToggle />
-        </div>
-      </nav>
+      <SiteNav right={<Link href="/login">Sign in</Link>} />
 
       <section className="hero">
         <Constellation />
@@ -22,12 +18,12 @@ export default function Home() {
             you hold everything.
           </p>
           <div className="hero-cta">
-            <a className="btn btn-primary" href="#">
+            <Link className="btn btn-primary" href="/register">
               Get started
-            </a>
-            <a className="btn btn-quiet" href="#">
-              Learn more
-            </a>
+            </Link>
+            <Link className="btn btn-quiet" href="/login">
+              Sign in
+            </Link>
           </div>
           <ApiStatus />
         </div>

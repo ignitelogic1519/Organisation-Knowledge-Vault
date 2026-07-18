@@ -71,10 +71,52 @@ theme toggle (top right), and a green "API connected" chip. That chip is the Pha
 
 Phase 1 will run `prisma migrate` against this database — nothing touches it in Phase 0.
 
-## 4. Google Cloud — OAuth & Drive (needed at Phase 1/4 — skip for now)
+## 4. Phase 1 — activate profiles & authentication
 
-Will be its own guided walkthrough when we get there: one Google Cloud project, an OAuth
-consent screen, and the **`drive.file`** scope only (no verification process needed).
+The auth code deploys with the normal git push, but it needs the database and two env vars.
+
+### 4.1 Required (auth won't work without these)
+1. **Neon** (section 3 above): paste the connection string into
+   **Render → knowledge-vault-api → Environment → `DATABASE_URL`**.
+2. In the same place add **`JWT_SECRET`** — any long random string (50+ characters; a password
+   generator is fine). Never reuse it anywhere else.
+3. Add **`WEB_URL`** = your Vercel URL (used inside email verification links).
+4. Save → Render redeploys. The start command now runs `prisma migrate deploy` automatically,
+   so the database tables are created on first boot. Check the deploy log for
+   "migrations have been applied".
+
+### 4.2 Optional — Google sign-in
+1. Go to https://console.cloud.google.com → create a project (e.g. `knowledge-vault`).
+2. **APIs & Services → OAuth consent screen**: External, fill app name + your email, add no
+   extra scopes, save. (Basic sign-in scopes need no Google verification.)
+3. **APIs & Services → Credentials → Create Credentials → OAuth client ID → Web application**:
+   - Authorized JavaScript origins: your Vercel URL **and** `http://localhost:3000`.
+   - No redirect URIs needed (we use the Google Identity Services button).
+4. Copy the **Client ID** (ends in `.apps.googleusercontent.com`) and set it in **both** places:
+   - Render → `GOOGLE_CLIENT_ID`
+   - Vercel → `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (then **redeploy** the web app — build-time var)
+5. The Google button appears on the login/register pages automatically once the var is set.
+
+### 4.3 Optional — verification emails via the platform Gmail
+1. On the platform Gmail account: enable **2-Step Verification**, then create an
+   **App Password** (Google Account → Security → App passwords).
+2. Render → `SMTP_USER` = the Gmail address, `SMTP_PASS` = the app password.
+3. Until these are set, the API **logs the verification link** instead of emailing it —
+   find it in Render → Logs (search for `verification link`). Fine for testing.
+
+### 4.4 Phase 1 test checklist
+1. `<vercel-url>/register` → create a profile → lands on the account page.
+2. Verification: click the emailed link (or the one from Render logs) → account page shows
+   the green **Verified** badge.
+3. Sign out → sign in again with the same credentials.
+4. Wrong password → clean error message, no crash.
+5. (If Google configured) "Sign in with Google" → lands on the account page with
+   Google sign-in **Linked**.
+
+## 5. Google Drive storage (Phase 4 — skip for now)
+
+Its own guided walkthrough when we get there: same Google Cloud project, **`drive.file`**
+scope only (no verification process needed).
 
 ---
 
