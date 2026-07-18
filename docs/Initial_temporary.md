@@ -210,9 +210,11 @@ Entering an organization, a user sees two primary areas:
   (see `future.md`). One exception exists today: the **transactional deletion email** in the
   org-deletion flow (§2.3), sent from the platform mail account.
 
-### 7.3 Authentication ✅ DECIDED
-- **Both** email+password (with verification) **and** Google sign-in — free-tier friendly
-  implementation required.
+### 7.3 Authentication ✅ DECIDED (revised 2026-07-18)
+- **v1 active method: email+password with verification.**
+- **Google sign-in: DEFERRED** by owner decision — fully built but dormant until its env vars
+  are configured (activation steps preserved in `setup-guide.md` §4.2; see `future.md` §9).
+  Note: Google OAuth client IDs are free — no billing account required.
 
 ### 7.3 Infrastructure (free tier) ✅ DECIDED
 | Concern            | v1 choice                       |

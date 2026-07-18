@@ -27,7 +27,8 @@ response, with data read from Neon.
 
 **Goal:** the "profile is the actor for everything" foundation.
 
-- Register / login with email+password (Argon2id) and Google OAuth.
+- Register / login with email+password (Argon2id). Google OAuth: built dormant, activation
+  deferred by owner decision (future.md §9).
 - JWT access + refresh flow; `GET /me`; email verification sent via the platform Gmail account.
 - Profile deletion endpoint with the owner-block rule stubbed (activates fully in Phase 2).
 

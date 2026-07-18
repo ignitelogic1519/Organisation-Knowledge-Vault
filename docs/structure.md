@@ -27,6 +27,7 @@
 
 ### 1.1 Profile (global)
 - Platform-wide identity: email, password hash and/or Google identity, display name.
+  (v1 sign-in: email+password; Google sign-in is built but deferred — `future.md` §9.)
 - The actor of every action. Self-owned; admins never create profiles for others.
 - Can belong to N organizations via **Memberships**.
 - **Cannot be deleted** while the profile still owns any organization — the user must first

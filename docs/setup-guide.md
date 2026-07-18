@@ -85,7 +85,12 @@ The auth code deploys with the normal git push, but it needs the database and tw
    so the database tables are created on first boot. Check the deploy log for
    "migrations have been applied".
 
-### 4.2 Optional — Google sign-in
+### 4.2 Google sign-in — DEFERRED (owner decision, 2026-07-18)
+
+> Skipped for now. The feature is fully built and dormant — the button appears on the
+> login/register pages automatically once the two env vars below are set. Note: creating an
+> OAuth client ID is free on Google Cloud (no billing account required). Steps kept for when
+> we activate it:
 1. Go to https://console.cloud.google.com → create a project (e.g. `knowledge-vault`).
 2. **APIs & Services → OAuth consent screen**: External, fill app name + your email, add no
    extra scopes, save. (Basic sign-in scopes need no Google verification.)
@@ -110,8 +115,7 @@ The auth code deploys with the normal git push, but it needs the database and tw
    the green **Verified** badge.
 3. Sign out → sign in again with the same credentials.
 4. Wrong password → clean error message, no crash.
-5. (If Google configured) "Sign in with Google" → lands on the account page with
-   Google sign-in **Linked**.
+5. ~~Google sign-in~~ — deferred; the button is intentionally absent until §4.2 is done.
 
 ## 5. Google Drive storage (Phase 4 — skip for now)
 

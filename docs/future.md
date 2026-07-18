@@ -55,6 +55,15 @@ chosen per organization's capability: NAS, S3-compatible object storage, other c
 API-first backend (Render) is kept separate from the web frontend from day 1 specifically so a
 mobile app can consume the same API.
 
+## 9. Google sign-in activation (deferred 2026-07-18)
+Owner decision: launch v1 with email+password only. The Google path is **already fully
+implemented and tested** (API `/auth/google` with same-email profile linking; web button via
+Google Identity Services) but dormant. Activation is configuration only, no code:
+1. Create a free OAuth client ID in Google Cloud (no billing account needed) —
+   steps preserved in `setup-guide.md` §4.2.
+2. Set `GOOGLE_CLIENT_ID` on Render and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` on Vercel; redeploy web.
+The button then appears on login/register automatically.
+
 ## 8. Notification channel expansion
 v1 is **in-app only** (sole exception: the transactional org-deletion email). Email
 notifications are planned **after the incident management system** is established; later also

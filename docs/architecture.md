@@ -32,7 +32,7 @@
 | Frontend | **Next.js 14+ (App Router)** | First-class on Vercel free tier; file-based routing is beginner-friendly. |
 | API framework | **Fastify** | Small, fast, well-documented; simpler mental model than NestJS for a first backend. |
 | ORM | **Prisma** | Schema-as-code, generated types, painless migrations against Neon. |
-| Auth | Email+password (**Argon2id** hashes) + **Google OAuth**; API issues **JWT access + refresh tokens** | Token auth works identically for the future mobile app; both methods are free. |
+| Auth | Email+password (**Argon2id** hashes); API issues **JWT access + refresh tokens**. Google OAuth is built but **dormant until configured** (deferred — future.md §9) | Token auth works identically for the future mobile app. |
 | Validation | **Zod** shared between web and API | One schema validates a form on the client and the request on the server. |
 | Monorepo | **pnpm workspaces**: `apps/web`, `apps/api`, `packages/shared` | Shared types/Zod schemas without publishing packages. |
 
