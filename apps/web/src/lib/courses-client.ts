@@ -7,7 +7,7 @@ import type {
   MyLearningView,
   PlaceCourseInput,
 } from "@vault/shared";
-import { api } from "./auth-client";
+import { api, authFetch } from "./auth-client";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -83,18 +83,15 @@ export const vaultFiles = {
 };
 
 async function fetchBinary(path: string, body: object, supremeToken?: string): Promise<Blob> {
-  const res = await fetch(`${API}${path}`, {
+  // authFetch handles the Bearer header AND transparently refreshes an expired session
+  const res = await authFetch(path, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${localStorage.getItem("kv.accessToken")}`,
-      ...(supremeToken ? { "x-supreme-token": supremeToken } : {}),
-    },
+    headers: supremeToken ? { "x-supreme-token": supremeToken } : {},
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? "Download failed");
+    throw new Error(err.error ?? `Download failed (${res.status})`);
   }
   return res.blob();
 }

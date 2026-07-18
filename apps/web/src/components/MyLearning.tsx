@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { LearningItem, MyLearningView } from "@vault/shared";
-import { ApiError } from "@/lib/auth-client";
+import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
 
 function StatusBadge({ item }: { item: LearningItem }) {
@@ -25,9 +25,7 @@ function Row({ item, onChanged }: { item: LearningItem; onChanged: () => void })
 
   async function open() {
     // Links redirect via JSON; files stream — open in a new tab either way
-    const res = await fetch(courses.contentUrl(item.code), {
-      headers: { authorization: `Bearer ${localStorage.getItem("kv.accessToken")}` },
-    });
+    const res = await authFetch(`/courses/${item.code}/content`);
     const type = res.headers.get("content-type") ?? "";
     if (type.includes("application/json")) {
       const { url } = (await res.json()) as { url?: string };

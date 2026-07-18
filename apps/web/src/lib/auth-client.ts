@@ -62,12 +62,18 @@ async function tryRefresh(): Promise<boolean> {
   return true;
 }
 
-/** Authenticated JSON request; transparently refreshes an expired access token once. */
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** Authenticated fetch with transparent one-shot token refresh — for any response type. */
+export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   let res = await rawRequest(path, init);
   if (res.status === 401 && (await tryRefresh())) {
     res = await rawRequest(path, init);
   }
+  return res;
+}
+
+/** Authenticated JSON request; transparently refreshes an expired access token once. */
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await authFetch(path, init);
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) throw new ApiError(res.status, body.error ?? `Request failed (${res.status})`);
   return body as T;
