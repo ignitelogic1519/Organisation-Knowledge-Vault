@@ -93,12 +93,21 @@ export function StructureTree({ orgId }: { orgId: string }) {
                     title="Download an encrypted .bkp of this node"
                     onClick={() => {
                       const pw = prompt(
-                        "Choose a backup password (min 8 chars) — needed to restore this .bkp:",
+                        "Choose a backup password (minimum 8 characters) — you will need it to restore this .bkp:",
                       );
-                      if (!pw) return;
+                      if (pw === null) return;
+                      if (pw.length < 8) {
+                        alert("Backup password must be at least 8 characters — nothing was exported.");
+                        return;
+                      }
                       act(async () => {
-                        const blob = await vaultFiles.exportBkp(n.id, pw);
-                        downloadBlob(blob, `${n.name}.bkp`);
+                        try {
+                          const blob = await vaultFiles.exportBkp(n.id, pw);
+                          downloadBlob(blob, `${n.name}.bkp`);
+                        } catch (e) {
+                          alert(e instanceof Error ? e.message : "Backup export failed");
+                          throw e;
+                        }
                       });
                     }}
                   >

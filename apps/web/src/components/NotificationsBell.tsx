@@ -16,8 +16,12 @@ export function NotificationsBell() {
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  // Session state is browser-only — render nothing until mounted so server and client
+  // HTML match (hydration safety)
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     if (!hasSession()) return;
     notifications
       .list()
@@ -28,7 +32,7 @@ export function NotificationsBell() {
       .catch(() => undefined);
   }, []);
 
-  if (!hasSession()) return null;
+  if (!mounted || !hasSession()) return null;
 
   return (
     <div className="bell-wrap">
