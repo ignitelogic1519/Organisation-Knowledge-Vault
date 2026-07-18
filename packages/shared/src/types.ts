@@ -38,4 +38,6 @@ export interface HealthResponse {
   status: "ok";
   service: string;
   time: string;
+  /** "configured" when SMTP credentials are set; "log-only" when mails go to the server log. */
+  mail?: "configured" | "log-only";
 }

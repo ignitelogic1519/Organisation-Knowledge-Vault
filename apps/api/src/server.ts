@@ -46,6 +46,7 @@ app.get("/health", async (): Promise<HealthResponse> => ({
   status: "ok",
   service: "knowledge-vault-api",
   time: new Date().toISOString(),
+  mail: env.smtp.user && env.smtp.pass ? "configured" : "log-only",
 }));
 
 try {
