@@ -9,8 +9,10 @@ import { env } from "../env.js";
 // password uses are the only trace of "Supreme activity" that can exist.
 
 const SUPREME_TTL_SECONDS = 10 * 60;
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000;
+// Env-tunable for testing phases (e.g. SUPREME_MAX_ATTEMPTS=100). Counters are in-memory,
+// so a service restart also clears any active lockout. Production defaults: 5 per 15 min.
+const MAX_ATTEMPTS = Number(process.env.SUPREME_MAX_ATTEMPTS ?? 5);
+const WINDOW_MS = Number(process.env.SUPREME_WINDOW_MINUTES ?? 15) * 60 * 1000;
 
 const secret = new TextEncoder().encode(env.jwtSecret);
 const attempts = new Map<string, { count: number; resetAt: number }>();

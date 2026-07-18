@@ -13,9 +13,33 @@ const transport =
   env.smtp.user && env.smtp.pass
     ? nodemailer.createTransport({
         service: "gmail",
-        auth: { user: env.smtp.user, pass: env.smtp.pass },
+        // Google shows app passwords in groups of 4 — strip any pasted spaces
+        auth: { user: env.smtp.user, pass: env.smtp.pass.replace(/\s+/g, "") },
       })
     : null;
+
+// Mail must NEVER break the request that triggered it — failures are logged with the SMTP
+// error (visible in Render Logs, search "[mailer]") and the fallback link is printed too.
+async function sendSafely(
+  options: { to: string; subject: string; text: string },
+  fallbackLog: string,
+): Promise<void> {
+  if (!transport) {
+    console.info(`[mailer] SMTP not configured — ${fallbackLog}`);
+    return;
+  }
+  try {
+    await transport.sendMail({
+      from: `"Knowledge Vault" <${env.smtp.user}>`,
+      ...options,
+    });
+    console.info(`[mailer] sent "${options.subject}" to ${options.to}`);
+  } catch (err) {
+    console.error(
+      `[mailer] SEND FAILED to ${options.to}: ${err instanceof Error ? err.message : err} — ${fallbackLog}`,
+    );
+  }
+}
 
 export async function sendVerificationEmail(profileId: string, email: string): Promise<void> {
   const token = randomBytes(32).toString("base64url");
@@ -29,44 +53,34 @@ export async function sendVerificationEmail(profileId: string, email: string): P
   });
 
   const link = `${env.webUrl}/verify?token=${token}`;
-  if (!transport) {
-    console.info(`[mailer] SMTP not configured — verification link for ${email}: ${link}`);
-    return;
-  }
-  await transport.sendMail({
-    from: `"Knowledge Vault" <${env.smtp.user}>`,
-    to: email,
-    subject: "Verify your Knowledge Vault email",
-    text: `Welcome to Knowledge Vault!\n\nVerify your email by opening this link:\n${link}\n\nThe link expires in ${VERIFY_TTL_HOURS} hours. If you didn't create this account, ignore this mail.`,
-  });
+  await sendSafely(
+    {
+      to: email,
+      subject: "Verify your Knowledge Vault email",
+      text: `Welcome to Knowledge Vault!\n\nVerify your email by opening this link:\n${link}\n\nThe link expires in ${VERIFY_TTL_HOURS} hours. If you didn't create this account, ignore this mail.`,
+    },
+    `verification link for ${email}: ${link}`,
+  );
 }
 
 export async function sendInviteEmail(email: string, orgName: string, roleName: string): Promise<void> {
   const link = `${env.webUrl}/register`;
-  if (!transport) {
-    console.info(`[mailer] SMTP not configured — invite for ${email} (${orgName}/${roleName}): ${link}`);
-    return;
-  }
-  await transport.sendMail({
-    from: `"Knowledge Vault" <${env.smtp.user}>`,
-    to: email,
-    subject: `You've been added to ${orgName} on Knowledge Vault`,
-    text: `You've been given the role "${roleName}" in ${orgName}.\n\nCreate your profile with this email address to join:\n${link}\n\nIf you weren't expecting this, you can ignore this mail.`,
-  });
+  await sendSafely(
+    {
+      to: email,
+      subject: `You've been added to ${orgName} on Knowledge Vault`,
+      text: `You've been given the role "${roleName}" in ${orgName}.\n\nCreate your profile with this email address to join:\n${link}\n\nIf you weren't expecting this, you can ignore this mail.`,
+    },
+    `invite for ${email} (${orgName}/${roleName}): ${link}`,
+  );
 }
 
 export async function sendDeletionEmail(email: string, orgName: string): Promise<void> {
   const text = `The organization "${orgName}" on Knowledge Vault has been deleted.\n\nIts data is retained for 30 days — sign in and use Undelete to change your mind. After that, only the downloaded .main file (with its Supreme password) can revive it.`;
-  if (!transport) {
-    console.info(`[mailer] SMTP not configured — deletion notice for ${email}: ${orgName}`);
-    return;
-  }
-  await transport.sendMail({
-    from: `"Knowledge Vault" <${env.smtp.user}>`,
-    to: email,
-    subject: `Organization deleted: ${orgName}`,
-    text,
-  });
+  await sendSafely(
+    { to: email, subject: `Organization deleted: ${orgName}`, text },
+    `deletion notice for ${email}: ${orgName}`,
+  );
 }
 
 export async function consumeVerificationToken(token: string): Promise<boolean> {
