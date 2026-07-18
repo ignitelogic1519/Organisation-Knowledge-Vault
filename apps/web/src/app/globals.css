@@ -486,3 +486,60 @@ button {
 .owner-list {
   list-style: none;
 }
+
+/* ── Structure tree ─────────────────────────────────────────────────────── */
+
+.panel-wide {
+  grid-column: 1 / -1;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tree-node {
+  border-left: 2px solid var(--border);
+  padding: 0.4rem 0 0.4rem 0.75rem;
+  animation: fade-up 250ms var(--ease) both;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tree-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tree-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.btn-small {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.82rem;
+}
+
+.tree-people {
+  margin-top: 0.4rem;
+}
+
+.field select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+}

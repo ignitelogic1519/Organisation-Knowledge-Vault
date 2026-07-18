@@ -1,6 +1,12 @@
 "use client";
 
-import type { OrgDetail, OrgSummary, SupremeSession } from "@vault/shared";
+import type {
+  AddPersonInput,
+  OrgDetail,
+  OrgSummary,
+  StructureView,
+  SupremeSession,
+} from "@vault/shared";
 import { api } from "./auth-client";
 
 export const orgs = {
@@ -28,4 +34,31 @@ export const orgs = {
       method: "DELETE",
       headers: { "x-supreme-token": supremeToken },
     }),
+};
+
+export const roles = {
+  structure: (orgId: string) => api<StructureView>(`/orgs/${orgId}/structure`),
+  createSubRole: (roleId: string, name: string, isTerminal: boolean) =>
+    api<{ id: string }>(`/roles/${roleId}/children`, {
+      method: "POST",
+      body: JSON.stringify({ name, isTerminal }),
+    }),
+  addPerson: (roleId: string, input: AddPersonInput) =>
+    api<{ ok: boolean; invited: boolean }>(`/roles/${roleId}/people`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  removePerson: (roleId: string, profileId: string) =>
+    api<{ ok: boolean }>(`/roles/${roleId}/people/${profileId}`, { method: "DELETE" }),
+  setTerminal: (roleId: string, isTerminal: boolean) =>
+    api<{ ok: boolean }>(`/roles/${roleId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isTerminal }),
+    }),
+  setPersonDelegation: (roleId: string, profileId: string, canCreateSubgroups: boolean) =>
+    api<{ ok: boolean }>(`/roles/${roleId}/people/${profileId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ canCreateSubgroups }),
+    }),
+  deleteRole: (roleId: string) => api<{ ok: boolean }>(`/roles/${roleId}`, { method: "DELETE" }),
 };

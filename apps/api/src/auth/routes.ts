@@ -12,6 +12,7 @@ import {
 import { db } from "../db.js";
 import { env } from "../env.js";
 import { consumeVerificationToken, sendVerificationEmail } from "./mailer.js";
+import { acceptPendingInvitations } from "../roles/helpers.js";
 import { issueTokens, revokeRefreshToken, rotateRefreshToken, toPublicProfile } from "./tokens.js";
 
 const googleClient = env.googleClientId ? new OAuth2Client(env.googleClientId) : null;
@@ -34,6 +35,8 @@ export async function authRoutes(app: FastifyInstance) {
       },
     });
     await sendVerificationEmail(profile.id, email);
+    // Joining completes on registration for anyone invited before they had a profile
+    await acceptPendingInvitations(profile.id, email);
 
     return { profile: toPublicProfile(profile), tokens: await issueTokens(profile) };
   });

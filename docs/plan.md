@@ -48,7 +48,7 @@ profile page on the web app.
 **Done when:** a user creates an org, names the first role (CEO/Principal/…), adds a co-owner,
 and the Supreme password gates owner-level changes.
 
-## Phase 3 — Role tree, delegation & onboarding
+## Phase 3 — Role tree, delegation & onboarding ✅ BUILT (2026-07-18)
 
 **Goal:** the full "3D tree" structure.
 

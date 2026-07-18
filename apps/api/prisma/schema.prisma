@@ -224,6 +224,23 @@ model CompletionRecord {
   @@index([courseCode])
 }
 
+// Pending role invitations for emails without a profile yet (docs/structure.md §4.2).
+// Auto-accepted the moment that email registers.
+model Invitation {
+  id                 String        @id @default(uuid())
+  orgId              String
+  email              String
+  roleNodeId         String
+  kind               PlacementKind
+  canCreateSubgroups Boolean       @default(false)
+  invitedByProfileId String
+  acceptedAt         DateTime?
+  createdAt          DateTime      @default(now())
+
+  @@index([email])
+  @@index([orgId, roleNodeId])
+}
+
 model Notification {
   id        String    @id @default(uuid())
   profileId String

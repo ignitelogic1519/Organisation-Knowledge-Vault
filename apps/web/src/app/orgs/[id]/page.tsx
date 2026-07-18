@@ -7,6 +7,7 @@ import type { OrgDetail } from "@vault/shared";
 import { ApiError, hasSession } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
 import { SiteNav } from "@/components/SiteNav";
+import { StructureTree } from "@/components/StructureTree";
 
 export default function OrgPage() {
   const router = useRouter();
@@ -114,12 +115,9 @@ export default function OrgPage() {
             <span className="badge">Coming soon</span>
           </div>
 
-          <div className="panel">
+          <div className="panel panel-wide">
             <h2>My Structure</h2>
-            <p className="auth-sub">
-              The role tree and people management arrive in Phase 3.
-            </p>
-            <span className="badge">Coming soon</span>
+            <StructureTree orgId={id} />
           </div>
 
           <div className="panel">

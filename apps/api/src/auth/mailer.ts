@@ -41,6 +41,20 @@ export async function sendVerificationEmail(profileId: string, email: string): P
   });
 }
 
+export async function sendInviteEmail(email: string, orgName: string, roleName: string): Promise<void> {
+  const link = `${env.webUrl}/register`;
+  if (!transport) {
+    console.info(`[mailer] SMTP not configured — invite for ${email} (${orgName}/${roleName}): ${link}`);
+    return;
+  }
+  await transport.sendMail({
+    from: `"Knowledge Vault" <${env.smtp.user}>`,
+    to: email,
+    subject: `You've been added to ${orgName} on Knowledge Vault`,
+    text: `You've been given the role "${roleName}" in ${orgName}.\n\nCreate your profile with this email address to join:\n${link}\n\nIf you weren't expecting this, you can ignore this mail.`,
+  });
+}
+
 export async function consumeVerificationToken(token: string): Promise<boolean> {
   const row = await db.emailToken.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!row || row.purpose !== "verify_email" || row.usedAt || row.expiresAt < new Date()) {

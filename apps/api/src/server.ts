@@ -7,6 +7,7 @@ import { authenticatePlugin } from "./plugins/authenticate.js";
 import { authRoutes } from "./auth/routes.js";
 import { meRoutes } from "./me/routes.js";
 import { orgRoutes } from "./orgs/routes.js";
+import { roleRoutes } from "./roles/routes.js";
 
 const app = Fastify({ logger: true });
 
@@ -33,6 +34,7 @@ await app.register(authenticatePlugin);
 await app.register(authRoutes);
 await app.register(meRoutes);
 await app.register(orgRoutes);
+await app.register(roleRoutes);
 
 app.get("/health", async (): Promise<HealthResponse> => ({
   status: "ok",

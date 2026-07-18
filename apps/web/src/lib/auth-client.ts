@@ -38,7 +38,8 @@ async function rawRequest(path: string, init: RequestInit = {}): Promise<Respons
   return fetch(`${API}${path}`, {
     ...init,
     headers: {
-      "content-type": "application/json",
+      // content-type only when there IS a body — Fastify 400s on empty JSON bodies
+      ...(init.body != null ? { "content-type": "application/json" } : {}),
       ...(access ? { authorization: `Bearer ${access}` } : {}),
       ...init.headers,
     },
