@@ -190,6 +190,9 @@ A course is an **org-level entity**; branches receive **placements**, never copi
 - Encryption key **derived from the Supreme password**; whoever holds file + password can revive
   at any time in the future.
 - Custody and sharing are entirely the owner's responsibility.
+- **Export delivery ✅ DECIDED (2026-07-18):** downloading the `.main` also emails a copy of the
+  encrypted file to the requesting owner's registered address (fail-soft — the download still
+  works if mail is down).
 
 **Durability rules ✅ DECIDED** (locked before coding; will be demonstrated during website testing):
 1. The bundle header carries a **format version**; every future format change ships an import
