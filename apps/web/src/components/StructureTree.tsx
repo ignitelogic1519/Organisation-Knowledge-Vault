@@ -9,6 +9,74 @@ import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-c
 // My Structure — the user's slice of the role tree (docs/structure.md §6).
 // Roles render as an indented tree; governed nodes expose management actions.
 
+function NodeCourses({ roleId, onError }: { roleId: string; onError: (m: string) => void }) {
+  const [list, setList] = useState<
+    Awaited<ReturnType<typeof courses.listForRole>>["courses"] | null
+  >(null);
+
+  const load = useCallback(() => {
+    courses
+      .listForRole(roleId)
+      .then((r) => setList(r.courses))
+      .catch((e) => onError(e instanceof ApiError ? e.message : "Could not load courses"));
+  }, [roleId, onError]);
+  useEffect(load, [load]);
+
+  if (!list) return <p className="auth-sub">Loading courses…</p>;
+  if (list.length === 0) return <p className="auth-sub">No courses placed on this role yet.</p>;
+  return (
+    <ul className="owner-list tree-people">
+      {list.map((c) => (
+        <li key={c.code} className="account-row">
+          <span>
+            {c.title} <span className="chip">{c.code}</span>{" "}
+            <span className="badge">{c.kind.toLowerCase()}</span>{" "}
+            <span className="badge">{c.mandatory ? "mandatory" : "opt-in"}</span>
+            {c.inheritToDescendants && <span className="badge">inherited ↓</span>}
+          </span>
+          <span className="tree-actions">
+            <button
+              className="btn btn-quiet btn-small"
+              title="Remove from this branch only — the course keeps existing elsewhere"
+              onClick={async () => {
+                try {
+                  await courses.unplace(c.code, roleId);
+                  load();
+                } catch (e) {
+                  onError(e instanceof ApiError ? e.message : "Unplace failed");
+                }
+              }}
+            >
+              Unplace
+            </button>
+            {c.canDelete && (
+              <button
+                className="btn btn-danger btn-small"
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Delete "${c.title}" (${c.code}) everywhere?\n\nAll placements disappear. Completion history is kept.`,
+                    )
+                  )
+                    return;
+                  try {
+                    await courses.remove(c.code);
+                    load();
+                  } catch (e) {
+                    onError(e instanceof ApiError ? e.message : "Delete failed");
+                  }
+                }}
+              >
+                Delete course
+              </button>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function StructureTree({ orgId }: { orgId: string }) {
   const [nodes, setNodes] = useState<TreeNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +152,16 @@ export function StructureTree({ orgId }: { orgId: string }) {
                   }
                 >
                   + Course
+                </button>
+              )}
+              {n.my.canAddPeople && (
+                <button
+                  className="btn btn-quiet btn-small"
+                  onClick={() =>
+                    setOpenForm(openForm === `${n.id}:courses` ? null : `${n.id}:courses`)
+                  }
+                >
+                  Courses
                 </button>
               )}
               {n.my.canAddPeople && (
@@ -282,6 +360,8 @@ export function StructureTree({ orgId }: { orgId: string }) {
               <button className="btn btn-primary btn-small">Publish course</button>
             </form>
           )}
+
+          {openForm === `${n.id}:courses` && <NodeCourses roleId={n.id} onError={setError} />}
 
           {openForm === `${n.id}:restore` && (
             <form

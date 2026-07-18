@@ -36,6 +36,23 @@ export const courses = {
     }),
   /** Content opens in a new tab: links resolve to their URL; files stream from the API. */
   contentUrl: (code: string) => `${API}/courses/${code}/content`,
+  listForRole: (roleId: string) =>
+    api<{
+      courses: {
+        code: string;
+        title: string;
+        kind: string;
+        mandatory: boolean;
+        inheritToDescendants: boolean;
+        canDelete: boolean;
+      }[];
+    }>(`/roles/${roleId}/courses`),
+  unplace: (code: string, roleNodeId: string) =>
+    api<{ ok: boolean }>(`/courses/${code}/placements/${roleNodeId}`, { method: "DELETE" }),
+  remove: (code: string) =>
+    api<{ ok: boolean; releasedPrerequisiteLinks: number }>(`/courses/${code}`, {
+      method: "DELETE",
+    }),
 };
 
 export const notifications = {

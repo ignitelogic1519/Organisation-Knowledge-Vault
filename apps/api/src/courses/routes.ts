@@ -338,6 +338,96 @@ export async function courseRoutes(app: FastifyInstance) {
     },
   );
 
+  // Courses placed on a node — for the node's managers (feeds the tree UI)
+  app.get<{ Params: { roleId: string } }>(
+    "/roles/:roleId/courses",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const node = await db.roleNode.findUnique({
+        where: { id: req.params.roleId },
+        include: { org: true },
+      });
+      if (!node || node.org.deletedAt) return reply.status(404).send({ error: "Role not found" });
+      const placements = await actorPlacements(req.profileId, node.orgId);
+      if (!can(placements, "create_content", toRoleRef(node))) {
+        return reply.status(403).send({ error: "You don't manage content in this layer" });
+      }
+      const rows = await db.coursePlacement.findMany({
+        where: { roleNodeId: node.id },
+        include: { course: true },
+        orderBy: { createdAt: "asc" },
+      });
+      return {
+        courses: await Promise.all(
+          rows.map(async (r) => ({
+            code: r.course.code,
+            title: r.course.title,
+            kind: r.course.kind,
+            mandatory: r.mandatory,
+            inheritToDescendants: r.inheritToDescendants,
+            canDelete:
+              (await adminLevel(req.profileId, r.course.id, r.course.createdByProfileId))
+                ?.level === "EDIT",
+          })),
+        ),
+      };
+    },
+  );
+
+  // Remove a placement from one branch — completion records are kept (history rule D4-3)
+  app.delete<{ Params: { code: string; roleNodeId: string } }>(
+    "/courses/:code/placements/:roleNodeId",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      const node = await db.roleNode.findUnique({ where: { id: req.params.roleNodeId } });
+      if (!node || node.orgId !== course.orgId) {
+        return reply.status(404).send({ error: "Placement not found" });
+      }
+      const placements = await actorPlacements(req.profileId, course.orgId);
+      if (!can(placements, "create_content", toRoleRef(node))) {
+        return reply.status(403).send({ error: "You don't manage content in that layer" });
+      }
+      await db.coursePlacement.deleteMany({
+        where: { courseId: course.id, roleNodeId: node.id },
+      });
+      return { ok: true };
+    },
+  );
+
+  // Delete a course everywhere — EDIT access required. Completion records survive (keyed by
+  // the never-reused course code); prerequisite links pointing at it are released.
+  app.delete<{ Params: { code: string } }>(
+    "/courses/:code",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      const access = await adminLevel(req.profileId, course.id, course.createdByProfileId);
+      if (access?.level !== "EDIT") {
+        return reply.status(403).send({ error: "Edit access to this course is required" });
+      }
+
+      const releasedPrereqs = await db.coursePrerequisite.count({
+        where: { requiresCourseId: course.id },
+      });
+      const ref = course.storageRef as unknown as { adapter?: string; fileId?: string };
+      await db.$transaction([
+        db.coursePrerequisite.deleteMany({
+          where: { OR: [{ courseId: course.id }, { requiresCourseId: course.id }] },
+        }),
+        db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
+        db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
+        ...(ref.adapter === "inline" && ref.fileId
+          ? [db.storedFile.deleteMany({ where: { id: ref.fileId } })]
+          : []),
+        db.course.delete({ where: { id: course.id } }),
+      ]);
+      return { ok: true, releasedPrerequisiteLinks: releasedPrereqs };
+    },
+  );
+
   // Grant admin-page access (2-layer: only creator or canGrant holders may grant)
   app.post<{ Params: { code: string } }>(
     "/courses/:code/admin/access",
