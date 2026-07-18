@@ -113,6 +113,21 @@ export async function orgRoutes(app: FastifyInstance) {
     );
   });
 
+  // My deleted-but-retained organizations (30-day window) — feeds the Undelete UI
+  app.get("/orgs/deleted", { preHandler: app.authenticate }, async (req) => {
+    const memberships = await db.membership.findMany({
+      where: { profileId: req.profileId, org: { deletedAt: { not: null } } },
+      include: { org: true },
+    });
+    return memberships.map((m) => ({
+      id: m.org.id,
+      name: m.org.name,
+      orgNumber: m.org.orgNumber,
+      deletedAt: m.org.deletedAt!.toISOString(),
+      purgeAt: new Date(m.org.deletedAt!.getTime() + 30 * 86400_000).toISOString(),
+    }));
+  });
+
   // Organization detail (members only)
   app.get<{ Params: { id: string } }>(
     "/orgs/:id",

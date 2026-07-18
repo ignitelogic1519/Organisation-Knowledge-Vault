@@ -9,19 +9,28 @@ import { orgs } from "@/lib/orgs-client";
 import { fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { SiteNav } from "@/components/SiteNav";
 
+type DeletedOrg = Awaited<ReturnType<typeof orgs.listDeleted>>[number];
+
 export default function OrgsPage() {
   const router = useRouter();
   const [list, setList] = useState<OrgSummary[] | null>(null);
+  const [deleted, setDeleted] = useState<DeletedOrg[]>([]);
+
+  const load = () => {
+    orgs
+      .list()
+      .then(setList)
+      .catch(() => router.replace("/login"));
+    orgs.listDeleted().then(setDeleted).catch(() => undefined);
+  };
 
   useEffect(() => {
     if (!hasSession()) {
       router.replace("/login");
       return;
     }
-    orgs
-      .list()
-      .then(setList)
-      .catch(() => router.replace("/login"));
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   return (
@@ -36,6 +45,39 @@ export default function OrgsPage() {
         </header>
 
         {list === null && <p className="auth-sub">Loading…</p>}
+        {deleted.length > 0 && (
+          <div className="panel danger-zone" style={{ marginBottom: "1rem" }}>
+            <h2>Deleted — restorable until purge</h2>
+            <ul className="owner-list">
+              {deleted.map((d) => (
+                <li key={d.id} className="account-row">
+                  <span>
+                    {d.name} <span className="chip">#{d.orgNumber}</span>{" "}
+                    <span className="auth-sub">purges {d.purgeAt.slice(0, 10)}</span>
+                  </span>
+                  <button
+                    className="btn btn-quiet btn-small"
+                    onClick={async () => {
+                      const pw = prompt(
+                        `Undelete "${d.name}" — enter its Supreme password:`,
+                      );
+                      if (!pw) return;
+                      try {
+                        await orgs.undelete(d.id, pw);
+                        load();
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : "Undelete failed");
+                      }
+                    }}
+                  >
+                    Undelete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <details className="revive-box">
           <summary>Revive a deleted organization from a .main file</summary>
           <form

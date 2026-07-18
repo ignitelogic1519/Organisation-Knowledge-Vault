@@ -11,6 +11,15 @@ import { api } from "./auth-client";
 
 export const orgs = {
   list: () => api<OrgSummary[]>("/orgs"),
+  listDeleted: () =>
+    api<{ id: string; name: string; orgNumber: number; deletedAt: string; purgeAt: string }[]>(
+      "/orgs/deleted",
+    ),
+  undelete: (id: string, password: string) =>
+    api<{ ok: boolean }>(`/orgs/${id}/undelete`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
   get: (id: string) => api<OrgDetail>(`/orgs/${id}`),
   create: (input: {
     name: string;

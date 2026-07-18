@@ -6,6 +6,7 @@ import { db } from "../db.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { sendDeletionEmail, sendMainFileEmail } from "../auth/mailer.js";
 import { requireSupreme, auditSupreme } from "../orgs/supreme.js";
+import { purgeOrganization } from "../orgs/purge.js";
 import { openContainer, readHeader, sealContainer, structureFingerprint } from "./container.js";
 
 // .main / .bkp / deletion lifecycle — docs/structure.md §4.3 & §5.
@@ -180,12 +181,18 @@ export async function vaultFileRoutes(app: FastifyInstance) {
     const existing = await db.organization.findUnique({
       where: { orgNumber: header.orgNumber },
     });
-    if (existing) {
+    if (existing && !existing.deletedAt) {
       return reply.status(409).send({
-        error: existing.deletedAt
-          ? "This organization still exists in the 30-day retention window — use undelete instead"
-          : "This organization still exists — revival is only for deleted organizations",
+        error: "This organization still exists — revival is only for deleted organizations",
       });
+    }
+    if (existing?.deletedAt) {
+      // Soft-deleted copy still retained: file + matching Supreme password proves ownership,
+      // so the retained copy is purged and the file's snapshot takes its place.
+      if (!(await argonVerify(existing.supremeHash, body.password))) {
+        return reply.status(401).send({ error: "Wrong Supreme password" });
+      }
+      await purgeOrganization(existing.id);
     }
 
     const { payload } = openContainer<MainPayload>(file, body.password);

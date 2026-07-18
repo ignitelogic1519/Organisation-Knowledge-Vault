@@ -3,6 +3,7 @@ import type { AppNotification } from "@vault/shared";
 import { db } from "../db.js";
 import { env } from "../env.js";
 import { coursesReaching, escalationTargets, notify, toLearningItem } from "../courses/helpers.js";
+import { purgeOrganization } from "../orgs/purge.js";
 
 export async function complianceRoutes(app: FastifyInstance) {
   // In-app notification center (v1 channel — docs/structure.md §7)
@@ -95,19 +96,7 @@ export async function complianceRoutes(app: FastifyInstance) {
     const cutoff = new Date(Date.now() - 30 * 86400_000);
     const doomed = await db.organization.findMany({ where: { deletedAt: { lt: cutoff } } });
     for (const org of doomed) {
-      await db.$transaction([
-        db.completionRecord.deleteMany({ where: { orgId: org.id } }),
-        db.courseAdminAccess.deleteMany({ where: { course: { orgId: org.id } } }),
-        db.coursePrerequisite.deleteMany({ where: { course: { orgId: org.id } } }),
-        db.coursePlacement.deleteMany({ where: { course: { orgId: org.id } } }),
-        db.course.deleteMany({ where: { orgId: org.id } }),
-        db.storedFile.deleteMany({ where: { orgId: org.id } }),
-        db.invitation.deleteMany({ where: { orgId: org.id } }),
-        db.placement.deleteMany({ where: { membership: { orgId: org.id } } }),
-        db.membership.deleteMany({ where: { orgId: org.id } }),
-        db.roleNode.deleteMany({ where: { orgId: org.id } }),
-        db.organization.delete({ where: { id: org.id } }),
-      ]);
+      await purgeOrganization(org.id);
       report.purgedOrgs++;
     }
 
