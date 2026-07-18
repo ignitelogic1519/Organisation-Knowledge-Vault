@@ -21,7 +21,12 @@ const transport =
 // Mail must NEVER break the request that triggered it — failures are logged with the SMTP
 // error (visible in Render Logs, search "[mailer]") and the fallback link is printed too.
 async function sendSafely(
-  options: { to: string; subject: string; text: string },
+  options: {
+    to: string;
+    subject: string;
+    text: string;
+    attachments?: { filename: string; content: Buffer }[];
+  },
   fallbackLog: string,
 ): Promise<void> {
   if (!transport) {
@@ -39,6 +44,23 @@ async function sendSafely(
       `[mailer] SEND FAILED to ${options.to}: ${err instanceof Error ? err.message : err} — ${fallbackLog}`,
     );
   }
+}
+
+/** Emails the encrypted .main file to the owner as an attachment (docs/structure.md §2.3). */
+export async function sendMainFileEmail(
+  email: string,
+  orgName: string,
+  file: Buffer,
+): Promise<void> {
+  await sendSafely(
+    {
+      to: email,
+      subject: `Your .main file for ${orgName}`,
+      text: `Attached is the encrypted .main existence file for "${orgName}".\n\nKeep it somewhere safe and share copies with trusted colleagues as you see fit. It can only be decrypted with the organization's Supreme password — which nobody, including Knowledge Vault, can recover. Together, file + password can revive the organization at any time after deletion.`,
+      attachments: [{ filename: `${orgName.replace(/[^\w-]/g, "_")}.main`, content: file }],
+    },
+    `.main copy for ${email} (${orgName}, ${file.length} bytes)`,
+  );
 }
 
 export async function sendVerificationEmail(profileId: string, email: string): Promise<void> {

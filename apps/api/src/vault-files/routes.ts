@@ -4,7 +4,7 @@ import { z } from "zod";
 import { can } from "@vault/shared";
 import { db } from "../db.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
-import { sendDeletionEmail } from "../auth/mailer.js";
+import { sendDeletionEmail, sendMainFileEmail } from "../auth/mailer.js";
 import { requireSupreme, auditSupreme } from "../orgs/supreme.js";
 import { openContainer, readHeader, sealContainer, structureFingerprint } from "./container.js";
 
@@ -115,6 +115,10 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       const payload = await buildMainPayload(org.id);
       const file = sealContainer(password, { scope: "main", orgNumber: org.orgNumber }, payload);
       await auditSupreme(org.id, "main_exported", { actorProfileId: req.profileId, ip: req.ip });
+
+      // A copy also goes to the requesting owner's registered email (fail-soft)
+      const actor = await db.profile.findUnique({ where: { id: req.profileId } });
+      if (actor) await sendMainFileEmail(actor.email, org.name, file);
 
       reply
         .header("content-type", "application/octet-stream")
