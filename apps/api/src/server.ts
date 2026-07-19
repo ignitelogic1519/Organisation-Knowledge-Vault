@@ -23,7 +23,11 @@ await app.register(cors, {
 // Zod validation failures become clean 400s with the first helpful message
 app.setErrorHandler((err: unknown, _req, reply) => {
   if (err instanceof ZodError) {
-    return reply.status(400).send({ error: err.issues[0]?.message ?? "Invalid request" });
+    const issue = err.issues[0];
+    const field = issue?.path?.join(".");
+    // Always name the offending field — a bare "Required" helps nobody
+    const message = issue ? (field ? `${field}: ${issue.message}` : issue.message) : "Invalid request";
+    return reply.status(400).send({ error: message });
   }
   app.log.error(err);
   const statusCode =
