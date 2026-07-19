@@ -252,7 +252,7 @@ export function StructureTree({ orgId }: { orgId: string }) {
                 const d = new FormData(e.currentTarget);
                 act(() =>
                   roles.addPerson(n.id, {
-                    email: String(d.get("email")),
+                    username: String(d.get("username")),
                     kind: d.get("kind") === "OWNER" ? "OWNER" : "MEMBER",
                     canCreateSubgroups: d.get("delegate") === "on",
                   }),
@@ -260,8 +260,8 @@ export function StructureTree({ orgId }: { orgId: string }) {
               }}
             >
               <label className="field">
-                <span>Email</span>
-                <input name="email" type="email" required autoFocus />
+                <span>Username</span>
+                <input name="username" required autoFocus />
               </label>
               <label className="field">
                 <span>As</span>
@@ -399,7 +399,7 @@ export function StructureTree({ orgId }: { orgId: string }) {
               {n.people.map((p) => (
                 <li key={`${p.profileId}:${p.kind}`} className="account-row">
                   <span>
-                    {p.displayName} <span className="auth-sub">{p.email}</span>{" "}
+                    {p.displayName} <span className="auth-sub">@{p.username}</span>{" "}
                     <span className="badge">{p.kind.toLowerCase()}</span>
                     {p.kind === "OWNER" && p.canCreateSubgroups && (
                       <span className="badge badge-ok">delegates</span>

@@ -1,9 +1,19 @@
 import { z } from "zod";
 
-// Auth request/response contracts — one source of truth for web forms and API validation.
+// Auth contracts — username-based identity (owner decision 2026-07-19; the email system was
+// removed from v1 — docs/future.md §10).
+
+export const usernameSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(40, "Username is too long")
+  .regex(
+    /^[a-zA-Z0-9](?:[a-zA-Z0-9._@-]*[a-zA-Z0-9])?$/,
+    "Usernames may contain letters, numbers, dots, dashes, underscores and @",
+  );
 
 export const registerSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  username: usernameSchema,
   password: z
     .string()
     .min(10, "Password must be at least 10 characters")
@@ -13,34 +23,20 @@ export const registerSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  username: z.string().min(1, "Enter your username"),
   password: z.string().min(1, "Enter your password"),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
-
-export const googleAuthSchema = z.object({
-  /** Google Identity Services ID token (JWT credential from the sign-in button). */
-  idToken: z.string().min(10),
-});
-export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
 
 export const refreshSchema = z.object({
   refreshToken: z.string().min(10),
 });
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
-export const verifyEmailSchema = z.object({
-  token: z.string().min(10),
-});
-export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
-
 export interface PublicProfile {
   id: string;
-  email: string;
+  username: string;
   displayName: string;
-  emailVerified: boolean;
-  hasPassword: boolean;
-  googleLinked: boolean;
   createdAt: string;
 }
 

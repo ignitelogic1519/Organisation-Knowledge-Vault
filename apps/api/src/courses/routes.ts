@@ -326,7 +326,7 @@ export async function courseRoutes(app: FastifyInstance) {
         }),
         access: grants.map((g) => {
           const p = profiles.find((x) => x.id === g.profileId)!;
-          return { email: p.email, displayName: p.displayName, level: g.level, canGrant: g.canGrant };
+          return { username: p.username, displayName: p.displayName, level: g.level, canGrant: g.canGrant };
         }),
         myLevel: access.level,
         completions: {
@@ -440,8 +440,8 @@ export async function courseRoutes(app: FastifyInstance) {
       if (!access?.canGrant) {
         return reply.status(403).send({ error: "You cannot grant access to this page" });
       }
-      const target = await db.profile.findUnique({ where: { email: body.email.toLowerCase() } });
-      if (!target) return reply.status(404).send({ error: "No profile with this email" });
+      const target = await db.profile.findUnique({ where: { username: body.username.toLowerCase() } });
+      if (!target) return reply.status(404).send({ error: "No profile with this username" });
       // Layer 2 cannot mint further granters — keeps the tree at two layers
       const canGrant = req.profileId === course.createdByProfileId ? body.canGrant : false;
       await db.courseAdminAccess.upsert({

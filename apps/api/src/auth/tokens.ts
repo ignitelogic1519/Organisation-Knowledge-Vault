@@ -11,19 +11,15 @@ const secret = new TextEncoder().encode(env.jwtSecret);
 
 export interface AccessClaims {
   sub: string;
-  email: string;
+  username: string;
   name: string;
-  verified: boolean;
 }
 
 export function toPublicProfile(p: Profile): PublicProfile {
   return {
     id: p.id,
-    email: p.email,
+    username: p.username,
     displayName: p.displayName,
-    emailVerified: p.emailVerifiedAt !== null,
-    hasPassword: p.passwordHash !== null,
-    googleLinked: p.googleId !== null,
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -34,9 +30,8 @@ export function hashToken(token: string): string {
 
 export async function issueTokens(profile: Profile): Promise<AuthTokens> {
   const accessToken = await new SignJWT({
-    email: profile.email,
+    username: profile.username,
     name: profile.displayName,
-    verified: profile.emailVerifiedAt !== null,
   } satisfies Omit<AccessClaims, "sub">)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(profile.id)
@@ -61,9 +56,8 @@ export async function verifyAccessToken(token: string): Promise<AccessClaims | n
     const { payload } = await jwtVerify(token, secret);
     return {
       sub: payload.sub as string,
-      email: payload.email as string,
+      username: payload.username as string,
       name: payload.name as string,
-      verified: payload.verified as boolean,
     };
   } catch {
     return null;

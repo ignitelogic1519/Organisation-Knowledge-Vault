@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { loginSchema } from "@vault/shared";
 import { auth, ApiError } from "@/lib/auth-client";
-import { GoogleButton } from "@/components/GoogleButton";
 import { SiteNav } from "@/components/SiteNav";
 
 export default function LoginPage() {
@@ -18,7 +17,7 @@ export default function LoginPage() {
     setError(null);
     const data = new FormData(e.currentTarget);
     const parsed = loginSchema.safeParse({
-      email: data.get("email"),
+      username: data.get("username"),
       password: data.get("password"),
     });
     if (!parsed.success) {
@@ -27,21 +26,11 @@ export default function LoginPage() {
     }
     setBusy(true);
     try {
-      await auth.login(parsed.data.email, parsed.data.password);
+      await auth.login(parsed.data.username, parsed.data.password);
       router.push("/account");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the server");
       setBusy(false);
-    }
-  }
-
-  async function google(idToken: string) {
-    setError(null);
-    try {
-      await auth.google(idToken);
-      router.push("/account");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Google sign-in failed");
     }
   }
 
@@ -53,8 +42,8 @@ export default function LoginPage() {
           <h1>Sign in</h1>
           <p className="auth-sub">Welcome back to Knowledge Vault.</p>
           <label className="field">
-            <span>Email</span>
-            <input name="email" type="email" autoComplete="email" required />
+            <span>Username</span>
+            <input name="username" autoComplete="username" required />
           </label>
           <label className="field">
             <span>Password</span>
@@ -64,7 +53,6 @@ export default function LoginPage() {
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
-          <GoogleButton onCredential={google} />
           <p className="auth-alt">
             New here? <Link href="/register">Create a profile</Link>
           </p>

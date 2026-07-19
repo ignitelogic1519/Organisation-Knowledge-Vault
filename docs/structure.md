@@ -26,8 +26,9 @@
 ```
 
 ### 1.1 Profile (global)
-- Platform-wide identity: email, password hash and/or Google identity, display name.
-  (v1 sign-in: email+password; Google sign-in is built but deferred — `future.md` §9.)
+- Platform-wide identity: **unique username**, password hash, display name.
+  (Owner decision 2026-07-19: the email system is removed from v1 — `future.md` §10;
+  Google sign-in also parked — `future.md` §9.)
 - The actor of every action. Self-owned; admins never create profiles for others.
 - Can belong to N organizations via **Memberships**.
 - **Cannot be deleted** while the profile still owns any organization — the user must first
@@ -164,9 +165,10 @@ A course is an **org-level entity**; branches receive **placements**, never copi
      owner-structure changes, `.main` download, and revival. ✅ DECIDED
 3. Names the Owner role; creator becomes its first occupant. Co-owners can be added (I2 applies).
 
-### 4.2 People onboarding
-1. An authorized role owner enters an **email address**.
-2. Profile exists → org invitation. No profile → sign-up link; joining completes on registration.
+### 4.2 People onboarding ✅ REVISED (2026-07-19 — username-based)
+1. An authorized role owner enters a **username**.
+2. Profile exists → placed immediately. No profile → the placement is **reserved** and applies
+   automatically when someone registers with exactly that username.
 
 ### 4.3 Organization deletion (30-day soft delete)
 1. Owner clicks delete → platform prompts to **download `.main` first**.
@@ -190,9 +192,8 @@ A course is an **org-level entity**; branches receive **placements**, never copi
 - Encryption key **derived from the Supreme password**; whoever holds file + password can revive
   at any time in the future.
 - Custody and sharing are entirely the owner's responsibility.
-- **Export delivery ✅ DECIDED (2026-07-18):** downloading the `.main` also emails a copy of the
-  encrypted file to the requesting owner's registered address (fail-soft — the download still
-  works if mail is down).
+- **Export delivery:** browser download only (the email copy was removed with the email
+  system, 2026-07-19 — returns with `future.md` §10).
 
 **Durability rules ✅ DECIDED** (locked before coding; will be demonstrated during website testing):
 1. The bundle header carries a **format version**; every future format change ships an import
@@ -239,5 +240,5 @@ position(s) highlighted with layers above/below, role click → people list with
 
 - **In-app only**: assignment received, deadline approaching/overdue, exam failed (to the
   escalation target), retake unlocked, invitation received, restore/deletion events.
-- Email exceptions (both sent from the platform Gmail account): the transactional **deletion
-  confirmation** mail (§4.3) and **email verification** at sign-up. ✅ DECIDED
+- No email exists in v1 at all (owner decision 2026-07-19 — `future.md` §10): all
+  notifications are in-app; the `.main` file is download-only.

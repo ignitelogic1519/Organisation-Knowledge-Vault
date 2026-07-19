@@ -29,7 +29,7 @@ export const placeCourseSchema = z.object({
 export type PlaceCourseInput = z.infer<typeof placeCourseSchema>;
 
 export const grantAdminAccessSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(1),
   level: z.enum(["VIEW", "EDIT"]),
   canGrant: z.boolean().default(false),
 });
@@ -79,7 +79,7 @@ export interface CourseAdminView {
     mandatory: boolean;
     inheritToDescendants: boolean;
   }[];
-  access: { email: string; displayName: string; level: "VIEW" | "EDIT"; canGrant: boolean }[];
+  access: { username: string; displayName: string; level: "VIEW" | "EDIT"; canGrant: boolean }[];
   myLevel: "VIEW" | "EDIT";
   completions: { total: number; completed: number; expired: number };
 }

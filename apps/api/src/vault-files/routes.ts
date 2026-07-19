@@ -4,7 +4,6 @@ import { z } from "zod";
 import { can } from "@vault/shared";
 import { db } from "../db.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
-import { sendDeletionEmail, sendMainFileEmail } from "../auth/mailer.js";
 import { requireSupreme, auditSupreme } from "../orgs/supreme.js";
 import { purgeOrganization } from "../orgs/purge.js";
 import { openContainer, readHeader, sealContainer, structureFingerprint } from "./container.js";
@@ -27,7 +26,7 @@ interface MainPayload {
     path: string;
     nextItemNumber: number;
   }[];
-  people: { profileId: string; email: string; displayName: string }[];
+  people: { profileId: string; username: string; displayName: string }[];
   placements: {
     profileId: string;
     roleNodeId: string;
@@ -75,7 +74,7 @@ async function buildMainPayload(orgId: string): Promise<MainPayload> {
     })),
     people: memberships.map((m) => ({
       profileId: m.profileId,
-      email: m.profile.email,
+      username: m.profile.username,
       displayName: m.profile.displayName,
     })),
     placements: memberships.flatMap((m) =>
@@ -117,9 +116,6 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       const file = sealContainer(password, { scope: "main", orgNumber: org.orgNumber }, payload);
       await auditSupreme(org.id, "main_exported", { actorProfileId: req.profileId, ip: req.ip });
 
-      // A copy also goes to the requesting owner's registered email (fail-soft)
-      const actor = await db.profile.findUnique({ where: { id: req.profileId } });
-      if (actor) await sendMainFileEmail(actor.email, org.name, file);
 
       reply
         .header("content-type", "application/octet-stream")
@@ -141,8 +137,6 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       await db.organization.update({ where: { id: org.id }, data: { deletedAt: new Date() } });
       await auditSupreme(org.id, "org_deleted", { actorProfileId: req.profileId, ip: req.ip });
 
-      const actor = await db.profile.findUnique({ where: { id: req.profileId } });
-      if (actor) await sendDeletionEmail(actor.email, org.name);
       return {
         ok: true,
         retainedUntil: new Date(Date.now() + 30 * 86400_000).toISOString(),
@@ -227,7 +221,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
 
       const profileIdMap = new Map<string, string>(); // old id -> current id
       for (const person of payload.people) {
-        const profile = await tx.profile.findUnique({ where: { email: person.email } });
+        const profile = await tx.profile.findUnique({ where: { username: person.username } });
         if (profile) {
           await tx.membership.create({ data: { profileId: profile.id, orgId: created.id } });
           profileIdMap.set(person.profileId, profile.id);
@@ -242,13 +236,13 @@ export async function vaultFileRoutes(app: FastifyInstance) {
         const roleNodeId = roleIdMap.get(p.roleNodeId);
         if (!roleNodeId) continue;
         if (!profileId) {
-          // pending member: re-attached when that email registers (structure.md §5.1)
+          // pending member: re-attached when that username registers (structure.md §5.1)
           const person = payload.people.find((x) => x.profileId === p.profileId);
           if (person) {
             await tx.invitation.create({
               data: {
                 orgId: created.id,
-                email: person.email,
+                username: person.username,
                 roleNodeId,
                 kind: p.kind,
                 canCreateSubgroups: p.canCreateSubgroups,
@@ -393,15 +387,15 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       const payload = {
         node: { name: node.name, roleNumber: node.roleNumber, isTerminal: node.isTerminal },
         occupants: occupants.map((o) => ({
-          email: o.membership.profile.email,
+          username: o.membership.profile.username,
           displayName: o.membership.profile.displayName,
           kind: o.kind,
           canCreateSubgroups: o.canCreateSubgroups,
           addedByProfileId: o.addedByProfileId,
         })),
         completions: records.map((r) => ({
-          email: occupants.find((o) => o.membership.profileId === r.profileId)!.membership.profile
-            .email,
+          username: occupants.find((o) => o.membership.profileId === r.profileId)!.membership
+            .profile.username,
           courseCode: r.courseCode,
           status: r.status,
           completedAt: r.completedAt?.toISOString() ?? null,
@@ -466,13 +460,13 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       const { payload } = openContainer<{
         node: { isTerminal: boolean };
         occupants: {
-          email: string;
+          username: string;
           kind: "OWNER" | "MEMBER";
           canCreateSubgroups: boolean;
           addedByProfileId: string;
         }[];
         completions: {
-          email: string;
+          username: string;
           courseCode: string;
           status: "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "EXPIRED";
           completedAt: string | null;
@@ -486,9 +480,9 @@ export async function vaultFileRoutes(app: FastifyInstance) {
         // Full node restore "like nothing ever happened": replace current occupants
         await tx.placement.deleteMany({ where: { roleNodeId: node.id } });
         for (const o of payload.occupants) {
-          const profile = await tx.profile.findUnique({ where: { email: o.email } });
+          const profile = await tx.profile.findUnique({ where: { username: o.username } });
           if (!profile) {
-            report.skipped.push(`${o.email}: no longer has a profile`);
+            report.skipped.push(`${o.username}: no longer has a profile`);
             continue;
           }
           const membership = await tx.membership.upsert({
@@ -505,14 +499,14 @@ export async function vaultFileRoutes(app: FastifyInstance) {
               addedByProfileId: req.profileId,
             },
           });
-          report.applied.push(`${o.email} restored as ${o.kind.toLowerCase()}`);
+          report.applied.push(`${o.username} restored as ${o.kind.toLowerCase()}`);
         }
 
         for (const rec of payload.completions) {
-          const profile = await tx.profile.findUnique({ where: { email: rec.email } });
+          const profile = await tx.profile.findUnique({ where: { username: rec.username } });
           const course = await tx.course.findUnique({ where: { code: rec.courseCode } });
           if (!profile) {
-            report.skipped.push(`completion ${rec.courseCode} for ${rec.email}: profile missing`);
+            report.skipped.push(`completion ${rec.courseCode} for ${rec.username}: profile missing`);
             continue;
           }
           if (!course) {
@@ -541,7 +535,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
               },
             });
           }
-          report.applied.push(`completion ${rec.courseCode} for ${rec.email}`);
+          report.applied.push(`completion ${rec.courseCode} for ${rec.username}`);
         }
       });
 

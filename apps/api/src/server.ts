@@ -3,7 +3,6 @@ import cors from "@fastify/cors";
 import { ZodError } from "zod";
 import type { HealthResponse } from "@vault/shared";
 import { env } from "./env.js";
-import { mailMode } from "./auth/mailer.js";
 import { authenticatePlugin } from "./plugins/authenticate.js";
 import { authRoutes } from "./auth/routes.js";
 import { meRoutes } from "./me/routes.js";
@@ -47,7 +46,6 @@ app.get("/health", async (): Promise<HealthResponse> => ({
   status: "ok",
   service: "knowledge-vault-api",
   time: new Date().toISOString(),
-  mail: mailMode(),
 }));
 
 try {

@@ -55,8 +55,19 @@ chosen per organization's capability: NAS, S3-compatible object storage, other c
 API-first backend (Render) is kept separate from the web frontend from day 1 specifically so a
 mobile app can consume the same API.
 
+## 10. Email system reintroduction (removed 2026-07-19)
+Owner decision: v1 runs entirely WITHOUT email. Identity is a unique username; people are
+added to roles by username (unknown usernames become reserved placements that apply on
+registration); the .main file is download-only. What returns when this reopens:
+- Email as a verified contact channel on profiles (verification links)
+- Invitation/deletion/notification emails and the .main-by-mail delivery
+- Password reset (impossible without a verified channel — until then, lost profile
+  passwords are unrecoverable; communicate this in product copy)
+- Provider decision (owner wants to avoid third-party services; options: own SMTP relay,
+  or revisit Brevo/Gmail — prior wiring is preserved in git history at commit d0c6fa8)
+
 ## 9. Google sign-in activation (deferred 2026-07-18)
-Owner decision: launch v1 with email+password only. The Google path is **already fully
+Owner decision: launch v1 with username+password only. The Google path is **already fully
 implemented and tested** (API `/auth/google` with same-email profile linking; web button via
 Google Identity Services) but dormant. Activation is configuration only, no code:
 1. Create a free OAuth client ID in Google Cloud (no billing account needed) —

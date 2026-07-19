@@ -26,7 +26,7 @@ export const supremeVerifySchema = z.object({
 export type SupremeVerifyInput = z.infer<typeof supremeVerifySchema>;
 
 export const addOwnerSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  username: z.string().min(1, "Enter their username"),
 });
 export type AddOwnerInput = z.infer<typeof addOwnerSchema>;
 
@@ -48,7 +48,7 @@ export interface OrgSummary {
 export interface OrgOwner {
   profileId: string;
   displayName: string;
-  email: string;
+  username: string;
 }
 
 export interface OrgDetail extends OrgSummary {

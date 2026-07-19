@@ -55,10 +55,10 @@ export async function placePerson(opts: {
   });
 }
 
-/** Accept every pending invitation for an email — called right after registration. */
-export async function acceptPendingInvitations(profileId: string, email: string): Promise<number> {
+/** Accept every pending placement for a username — called right after registration. */
+export async function acceptPendingInvitations(profileId: string, username: string): Promise<number> {
   const invites = await db.invitation.findMany({
-    where: { email: email.toLowerCase(), acceptedAt: null },
+    where: { username: username.toLowerCase(), acceptedAt: null },
   });
   for (const invite of invites) {
     await placePerson({

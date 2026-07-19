@@ -29,10 +29,10 @@ export const courses = {
       body: "{}",
     }),
   admin: (code: string) => api<CourseAdminView>(`/courses/${code}/admin`),
-  grantAccess: (code: string, email: string, level: "VIEW" | "EDIT", canGrant: boolean) =>
+  grantAccess: (code: string, username: string, level: "VIEW" | "EDIT", canGrant: boolean) =>
     api<{ ok: boolean }>(`/courses/${code}/admin/access`, {
       method: "POST",
-      body: JSON.stringify({ email, level, canGrant }),
+      body: JSON.stringify({ username, level, canGrant }),
     }),
   /** Content opens in a new tab: links resolve to their URL; files stream from the API. */
   contentUrl: (code: string) => `${API}/courses/${code}/content`,

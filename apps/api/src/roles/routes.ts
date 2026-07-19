@@ -11,7 +11,6 @@ import {
   type TreeNode,
 } from "@vault/shared";
 import { db } from "../db.js";
-import { sendInviteEmail } from "../auth/mailer.js";
 import { actorPlacements, placePerson, toRoleRef } from "./helpers.js";
 
 type RoleReq = FastifyRequest<{ Params: { roleId: string } }>;
@@ -42,7 +41,7 @@ async function peopleOf(roleNodeId: string): Promise<RolePerson[]> {
   return rows.map((p) => ({
     profileId: p.membership.profile.id,
     displayName: p.membership.profile.displayName,
-    email: p.membership.profile.email,
+    username: p.membership.profile.username,
     kind: p.kind,
     canCreateSubgroups: p.canCreateSubgroups,
   }));
@@ -170,25 +169,26 @@ export async function roleRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "You don't manage this role" });
       }
 
-      const email = body.email.toLowerCase();
-      const profile = await db.profile.findUnique({ where: { email } });
+      const username = body.username.toLowerCase();
+      const profile = await db.profile.findUnique({ where: { username } });
 
       if (!profile) {
         const existing = await db.invitation.findFirst({
-          where: { orgId: ctx.node.orgId, email, roleNodeId: ctx.node.id, kind: body.kind, acceptedAt: null },
+          where: { orgId: ctx.node.orgId, username, roleNodeId: ctx.node.id, kind: body.kind, acceptedAt: null },
         });
-        if (existing) return reply.status(409).send({ error: "Already invited to this role" });
+        if (existing) return reply.status(409).send({ error: "Already reserved for this role" });
         await db.invitation.create({
           data: {
             orgId: ctx.node.orgId,
-            email,
+            username,
             roleNodeId: ctx.node.id,
             kind: body.kind,
             canCreateSubgroups: body.kind === "OWNER" ? body.canCreateSubgroups : false,
             invitedByProfileId: req.profileId,
           },
         });
-        await sendInviteEmail(email, ctx.node.org.name, ctx.node.name);
+        // No profile with this username yet: the placement is reserved and applies
+        // automatically the moment someone registers with exactly this username.
         return { ok: true, invited: true };
       }
 

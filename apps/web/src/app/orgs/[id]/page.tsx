@@ -62,9 +62,9 @@ export default function OrgPage() {
     if (!supremeToken) return;
     setNotice(null);
     const form = e.currentTarget;
-    const email = new FormData(form).get("email") as string;
+    const username = new FormData(form).get("username") as string;
     try {
-      await orgs.addOwner(id, email, supremeToken);
+      await orgs.addOwner(id, username, supremeToken);
       form.reset();
       reload();
     } catch (err) {
@@ -132,7 +132,7 @@ export default function OrgPage() {
               {org.owners.map((o) => (
                 <li key={o.profileId} className="account-row">
                   <span>
-                    {o.displayName} <span className="auth-sub">{o.email}</span>
+                    {o.displayName} <span className="auth-sub">@{o.username}</span>
                   </span>
                   {isOwner && supremeToken && org.owners.length > 1 && (
                     <button className="btn btn-danger" onClick={() => removeOwner(o.profileId)}>
@@ -160,8 +160,8 @@ export default function OrgPage() {
             {supremeToken && (
               <form onSubmit={addOwner} className="inline-form">
                 <label className="field">
-                  <span>Add co-owner by email</span>
-                  <input name="email" type="email" placeholder="their-profile@email.com" required />
+                  <span>Add co-owner by username</span>
+                  <input name="username" placeholder="their-username" required />
                 </label>
                 <button className="btn btn-primary">Add owner</button>
               </form>

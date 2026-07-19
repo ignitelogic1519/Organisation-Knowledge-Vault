@@ -38,17 +38,16 @@ enum AccessLevel {
 
 // ── Identity ────────────────────────────────────────────────────────────────
 
+// Identity is username-based (owner decision 2026-07-19 — email system removed from v1,
+// see docs/future.md §10). Existing rows keep their data: the old email string IS the username.
 model Profile {
   id           String       @id @default(uuid())
-  email        String       @unique
-  passwordHash String? // null when Google-only
-  googleId     String?      @unique
+  username     String       @unique
+  passwordHash String?
   displayName  String
-  emailVerifiedAt DateTime?
   createdAt    DateTime     @default(now())
   memberships  Membership[]
   refreshTokens RefreshToken[]
-  emailTokens   EmailToken[]
 }
 
 // Opaque rotating refresh tokens — only the hash is stored (architecture.md §8)
@@ -64,19 +63,6 @@ model RefreshToken {
   @@index([profileId])
 }
 
-// Single-use email tokens (verification now; password reset later)
-model EmailToken {
-  id        String    @id @default(uuid())
-  profileId String
-  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  purpose   String // "verify_email"
-  tokenHash String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@index([profileId, purpose])
-}
 
 // ── Organization / Supreme ─────────────────────────────────────────────────
 
@@ -241,12 +227,12 @@ model CompletionRecord {
   @@index([courseCode])
 }
 
-// Pending role invitations for emails without a profile yet (docs/structure.md §4.2).
-// Auto-accepted the moment that email registers.
+// Pending placements for usernames without a profile yet — used by .main revival
+// (pending members re-attach when that username registers).
 model Invitation {
   id                 String        @id @default(uuid())
   orgId              String
-  email              String
+  username           String
   roleNodeId         String
   kind               PlacementKind
   canCreateSubgroups Boolean       @default(false)
@@ -254,7 +240,7 @@ model Invitation {
   acceptedAt         DateTime?
   createdAt          DateTime      @default(now())
 
-  @@index([email])
+  @@index([username])
   @@index([orgId, roleNodeId])
 }
 

@@ -32,11 +32,11 @@ export const orgs = {
       method: "POST",
       body: JSON.stringify({ password }),
     }),
-  addOwner: (id: string, email: string, supremeToken: string) =>
+  addOwner: (id: string, username: string, supremeToken: string) =>
     api<{ ok: boolean }>(`/orgs/${id}/owners`, {
       method: "POST",
       headers: { "x-supreme-token": supremeToken },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ username }),
     }),
   removeOwner: (id: string, profileId: string, supremeToken: string) =>
     api<{ ok: boolean }>(`/orgs/${id}/owners/${profileId}`, {

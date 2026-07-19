@@ -10,7 +10,7 @@ export const createSubRoleSchema = z.object({
 export type CreateSubRoleInput = z.infer<typeof createSubRoleSchema>;
 
 export const addPersonSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  username: z.string().min(1, "Enter their username"),
   kind: z.enum(["OWNER", "MEMBER"]),
   canCreateSubgroups: z.boolean().default(false),
 });
@@ -29,7 +29,7 @@ export type UpdatePersonFlagsInput = z.infer<typeof updatePersonFlagsSchema>;
 export interface RolePerson {
   profileId: string;
   displayName: string;
-  email: string;
+  username: string;
   kind: PlacementKind;
   canCreateSubgroups: boolean;
 }
@@ -64,7 +64,7 @@ export interface StructureView {
 
 export interface PendingInvite {
   id: string;
-  email: string;
+  username: string;
   roleName: string;
   kind: PlacementKind;
 }

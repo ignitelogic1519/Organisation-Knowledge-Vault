@@ -53,35 +53,13 @@ export default function AccountPage() {
       <section className="auth-wrap">
         <div className="auth-card">
           <h1>{profile.displayName}</h1>
-          <p className="auth-sub">{profile.email}</p>
+          <p className="auth-sub">
+            @{profile.username} · joined {profile.createdAt.slice(0, 10)}
+          </p>
 
           <div className="account-row">
-            <span>Email verification</span>
-            {profile.emailVerified ? (
-              <span className="badge badge-ok">Verified</span>
-            ) : (
-              <button
-                className="btn btn-quiet"
-                onClick={async () => {
-                  await auth.resendVerification().catch(() => undefined);
-                  setNotice("Verification email sent — check your inbox.");
-                }}
-              >
-                Resend email
-              </button>
-            )}
-          </div>
-          <div className="account-row">
-            <span>Password sign-in</span>
-            <span className={`badge ${profile.hasPassword ? "badge-ok" : ""}`}>
-              {profile.hasPassword ? "Enabled" : "Not set"}
-            </span>
-          </div>
-          <div className="account-row">
-            <span>Google sign-in</span>
-            <span className={`badge ${profile.googleLinked ? "badge-ok" : ""}`}>
-              {profile.googleLinked ? "Linked" : "Not linked"}
-            </span>
+            <span>Username</span>
+            <span className="badge badge-ok">@{profile.username}</span>
           </div>
           <div className="account-row">
             <span>Organizations</span>

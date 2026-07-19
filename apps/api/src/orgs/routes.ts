@@ -166,7 +166,7 @@ export async function orgRoutes(app: FastifyInstance) {
         owners: ownerPlacements.map((p) => ({
           profileId: p.membership.profile.id,
           displayName: p.membership.profile.displayName,
-          email: p.membership.profile.email,
+          username: p.membership.profile.username,
         })),
         myPlacements: await myPlacements(req.profileId, org.id),
       };
@@ -214,12 +214,12 @@ export async function orgRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, requireSupreme] },
     async (req, reply) => {
       const body = addOwnerSchema.parse(req.body);
-      const email = body.email.toLowerCase();
+      const username = body.username.toLowerCase();
 
-      const profile = await db.profile.findUnique({ where: { email } });
+      const profile = await db.profile.findUnique({ where: { username } });
       if (!profile) {
         return reply.status(404).send({
-          error: "No profile with this email — ask them to register first (invitations come in Phase 3)",
+          error: "No profile with this username — ask them to register first",
         });
       }
       const ownerRole = await db.roleNode.findFirst({
@@ -257,7 +257,7 @@ export async function orgRoutes(app: FastifyInstance) {
       await auditSupreme(req.params.id, "owner_added", {
         actorProfileId: req.profileId,
         ip: req.ip,
-        detail: email,
+        detail: username,
       });
       return { ok: true };
     },

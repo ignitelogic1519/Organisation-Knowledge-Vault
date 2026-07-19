@@ -102,15 +102,10 @@ async function authCall(path: string, payload: unknown): Promise<AuthResponse> {
 }
 
 export const auth = {
-  register: (email: string, password: string, displayName: string) =>
-    authCall("/auth/register", { email, password, displayName }),
-  login: (email: string, password: string) => authCall("/auth/login", { email, password }),
-  google: (idToken: string) => authCall("/auth/google", { idToken }),
+  register: (username: string, password: string, displayName: string) =>
+    authCall("/auth/register", { username, password, displayName }),
+  login: (username: string, password: string) => authCall("/auth/login", { username, password }),
   me: () => api<{ profile: PublicProfile }>("/me"),
-  verifyEmail: (token: string) =>
-    api<{ ok: boolean }>("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
-  resendVerification: () =>
-    api<{ ok: boolean }>("/auth/resend-verification", { method: "POST", body: "{}" }),
   deleteMe: () => api<{ ok: boolean }>("/me", { method: "DELETE" }),
   logout: async () => {
     const refreshToken = localStorage.getItem(REFRESH_KEY);

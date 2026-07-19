@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { registerSchema } from "@vault/shared";
 import { auth, ApiError } from "@/lib/auth-client";
-import { GoogleButton } from "@/components/GoogleButton";
 import { SiteNav } from "@/components/SiteNav";
 
 export default function RegisterPage() {
@@ -18,7 +17,7 @@ export default function RegisterPage() {
     setError(null);
     const data = new FormData(e.currentTarget);
     const parsed = registerSchema.safeParse({
-      email: data.get("email"),
+      username: data.get("username"),
       password: data.get("password"),
       displayName: data.get("displayName"),
     });
@@ -28,21 +27,11 @@ export default function RegisterPage() {
     }
     setBusy(true);
     try {
-      await auth.register(parsed.data.email, parsed.data.password, parsed.data.displayName);
+      await auth.register(parsed.data.username, parsed.data.password, parsed.data.displayName);
       router.push("/account");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the server");
       setBusy(false);
-    }
-  }
-
-  async function google(idToken: string) {
-    setError(null);
-    try {
-      await auth.google(idToken);
-      router.push("/account");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Google sign-in failed");
     }
   }
 
@@ -60,8 +49,12 @@ export default function RegisterPage() {
             <input name="displayName" autoComplete="name" required />
           </label>
           <label className="field">
-            <span>Email</span>
-            <input name="email" type="email" autoComplete="email" required />
+            <span>Username</span>
+            <input name="username" autoComplete="username" required minLength={3} />
+            <small>
+              Your unique identity on the platform — admins add you to organizations by this
+              exact username
+            </small>
           </label>
           <label className="field">
             <span>Password</span>
@@ -78,7 +71,6 @@ export default function RegisterPage() {
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? "Creating…" : "Create profile"}
           </button>
-          <GoogleButton onCredential={google} />
           <p className="auth-alt">
             Already have a profile? <Link href="/login">Sign in</Link>
           </p>
