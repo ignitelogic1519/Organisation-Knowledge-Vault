@@ -1,79 +1,104 @@
-# design.md — Design Language & UI Contract
+# design.md — Design Language & UI Contract (v2)
 
-> The visual/interaction rules every screen must follow. Inspirations: **Apple's marketing
-> pages** (public site) and **Microsoft Intune's admin dashboards** (in-app admin surfaces).
-> Principle: *normal, not glossy* — calm surfaces, restrained color, generous whitespace —
-> but with **smooth animation** and one signature "wow": the constellation org graph.
+> The visual/interaction rules every screen must follow. **v2 (owner decision 2026-07-19):**
+> the language moved from "normal, not glossy" to an expressive, colorful system —
+> **glassmorphism surfaces + neumorphic controls + dynamic aurora backgrounds + multi-theme
+> accents** — while keeping the original discipline: tokens only, motion with restraint,
+> reduced-motion always honored. The signature "wow" remains the constellation org graph,
+> now a first-class interactive tab.
 
 ---
 
 ## 1. Principles
 
-1. **Content-first, chrome-last.** No gradients-for-gradients'-sake, no glassmorphism noise.
-   Type and spacing do the talking (Apple); density and clarity where work happens (Intune).
-2. **Motion is felt, not seen.** Everything eases; nothing bounces. 150–300 ms, ease-out.
-   `prefers-reduced-motion` is always respected — animations collapse to instant states.
-3. **Two first-class themes.** Dark and light are equals; every component is built against
-   **semantic tokens**, never raw colors. The user can switch theme anywhere, any time
-   (toggle in the nav), with system-preference as the default.
-4. **The graph is the jewel.** The org chart is a **constellation view**: roles are stars,
-   branches are constellations, the org is a night sky. Interactive depth (pan/zoom/parallax
-   into 3D space) + live state over time = the "4D" feel. Everything else stays quiet so this
-   can shine.
+1. **Expressive but systematic.** Color and depth are welcome — but only through the token
+   system. Glass for containers, neumorphism for controls, gradients for emphasis
+   (primary buttons, display type, active nav). Never raw colors in components.
+2. **Motion is felt, not seen.** Everything eases; springs are allowed for micro-feedback
+   (`--spring`), never for layout. 150–450 ms. `prefers-reduced-motion` is always
+   respected — animations collapse to instant states.
+3. **Multi-theme, first-class.** Two base themes (light/dark, system default, switchable
+   anywhere via the skeuomorphic day/night switch) × four accent palettes (Aurora, Ocean,
+   Sunset, Forest — persisted per device, applied pre-paint via `data-accent`).
+4. **Separation of audiences.** Members get a calm learning Overview; owners get a
+   dedicated **Admin console** route; exploration/structural action happens in the
+   **Constellation** tab. One surface never mixes all three.
+5. **The graph is the jewel.** Roles are stars, branches constellations, the org a night
+   sky — pan/zoom/parallax depth, and every star is clickable with permission-gated
+   actions in a glass drawer.
+6. **Scales to the pocket.** Desktop: glass sidebar rail. ≤900 px: floating bottom tab
+   bar, stacked grids, drawer becomes a bottom sheet. Hit targets ≥ 44 px on touch.
 
 ## 2. Theme Tokens
 
 Defined as CSS custom properties on `:root` (light) and `[data-theme="dark"]`; switched via
-`next-themes` (`data-theme` attribute, no flash on load, persisted, system default).
+`next-themes` (`data-theme`, no flash, persisted, system default). Accent palettes override
+`--accent` / `--accent-2` via `[data-accent="aurora|ocean|sunset|forest"]`, persisted in
+`localStorage("kv.accent")` and applied pre-paint by an inline script in the root layout.
 
-| Token | Light | Dark |
-|-------|-------|------|
-| `--bg` | `#f5f5f7` | `#0a0a0c` |
-| `--surface` | `#ffffff` | `#161618` |
-| `--surface-2` | `#fafafa` | `#1e1e21` |
-| `--text` | `#1d1d1f` | `#f5f5f7` |
-| `--text-secondary` | `#6e6e73` | `#98989d` |
-| `--accent` | `#0071e3` | `#2997ff` |
-| `--border` | `rgba(0,0,0,.08)` | `rgba(255,255,255,.10)` |
-| `--star` | `rgba(29,29,31,.45)` | `rgba(245,245,247,.75)` |
-| `--danger` / `--success` / `--warning` | standard, muted | brightened for dark bg |
+Key token groups (see `apps/web/src/app/globals.css` for values):
+
+| Group | Tokens |
+|-------|--------|
+| Base | `--bg`, `--bg-2`, `--surface-solid`, `--surface-2`, `--text`, `--text-secondary`, `--border`, `--star` |
+| State | `--success`, `--warning`, `--danger` |
+| Glass | `--glass`, `--glass-strong`, `--glass-border` |
+| Neumorphism | `--neu-hi`, `--neu-lo` (paired soft shadows; inset variant for inputs/pressed) |
+| Accent | `--accent`, `--accent-2`, `--accent-contrast`, `--accent-soft`, `--grad-accent` |
+| Motion | `--ease`, `--spring`, `--dur-micro` (150), `--dur-standard` (250), `--dur-large` (450) |
 
 Rule: **no component may hardcode a color** — tokens only. New colors enter this table first.
 
-## 3. Typography & Layout
+## 3. Surfaces & Controls
 
-- **Font:** system stack — `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-  (SF Pro on Apple devices, Segoe on Windows — Apple + Intune feel for free, zero font bytes).
-- **Public pages (Apple mode):** oversized headlines (clamp 2.5–4.5 rem, -0.02 em tracking),
-  short lines, centered heroes, sections that breathe (96 px+ vertical rhythm).
-- **App pages (Intune mode):** left navigation rail, top bar with org switcher + theme toggle,
-  card-based content grid, dense-but-legible tables, 8 px spacing grid, 12 px card radius.
-- Buttons: pill-shaped primary (accent), quiet secondary (border only). Focus rings always
-  visible for keyboard users.
+- **`.glass`** — translucent blurred container (cards, panels, nav pill, sidebar, drawers).
+- **`.neu` / `.neu-inset`** — raised / pressed soft-shadow controls; inputs are inset,
+  icon buttons raised and press inward (skeuomorphic feedback).
+- **Buttons:** pill-shaped; primary = accent gradient with glow shadow; quiet = glass +
+  neu shadow; danger = outlined, fills on hover.
+- **Type design:** system font stack; display headlines clamp 2.6–5 rem, -0.03 em
+  tracking, with `.gradient-text` accents; `.eyebrow` uppercase labels introduce sections.
+- **Dynamic background:** fixed `.aurora` layer — three blurred accent-tinted blobs
+  drifting (26–38 s loops) behind every page, plus the constellation canvas on the hero.
 
-## 4. Motion Rules
+## 4. Application Structure
+
+- **Public (marketing) pages:** `/` (hero + features + steps + CTA), `/login`,
+  `/register`, `/help` — floating glass pill nav.
+- **App pages:** wrapped in the `AppShell` (sidebar / tab bar + top row with
+  notifications and appearance controls): `/orgs`, `/orgs/new`, `/account`.
+- **Org tabs** (shared org layout fetches once): `/orgs/[id]` **Overview** (stats + My
+  Learning + entry cards), `/orgs/[id]/graph` **Constellation**, `/orgs/[id]/admin`
+  **Admin console** (structure tree, owner management behind the Supreme gate, Supreme
+  zone). The Admin tab renders only for profiles holding an OWNER placement.
+- **`/help`** explains every component in plain language (profile, Supreme, roles,
+  constellation, courses, admin console, `.main`/`.bkp`, themes, notifications).
+
+## 5. Motion Rules
 
 - Durations: micro (hover/press) 150 ms · standard (reveal, theme cross-fade) 250 ms ·
-  large (page/graph transitions) 400 ms. Easing: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
-- Page content reveals with a single fade-up (8 px), staggered ≤ 60 ms — never per-letter,
-  never parallax-scroll-jacking.
+  large (page/drawer/graph transitions) 400–450 ms. Easing `--ease`; `--spring` only for
+  micro-feedback (knob slide, card lift, drawer entrance).
+- Content reveals with a single fade-up (10 px), staggered ≤ 60 ms via `.stagger`.
+- Skeleton shimmer (`.skeleton`) stands in for loading content — never spinners.
 - Theme switch cross-fades tokens (250 ms) — no white flash in dark mode.
 
-## 5. The Constellation Org Graph (signature feature)
+## 6. The Constellation Org Graph (signature feature)
 
-- **Metaphor:** Supreme is the pole star; each branch is a constellation; roles are stars
-  sized by subtree, linked by faint light-lines; the user's own placements glow accent.
-- **"4D" interaction:** free pan/zoom into a depth-layered starfield (parallax = 3rd
-  dimension), with live state — completions pulsing, overdue reddening, structure changes
-  drifting in — as the 4th. Click a star → role people-list with search (never a full user
-  dump on the sky, per `structure.md` §6).
-- **Tech direction:** Canvas/WebGL (evaluate `react-force-graph` / `three.js` vs. hand-rolled
-  canvas at Phase 3-time); must honor theme tokens and reduced-motion (static sky).
-- **v0 taste:** the public landing hero ships a lightweight ambient constellation canvas —
-  drifting stars, proximity linking, pointer parallax — as the brand's first impression.
+- **Metaphor:** the first role is the pole star at the center; each depth ring is a
+  constellation shell; star size grows with subtree; the user's own placements glow accent.
+- **Interaction:** drag to pan, wheel/pinch to zoom (0.3–3×), pointer parallax over
+  depth-layered stars + background dust (the "3D object" feel), gentle per-star float and
+  twinkle (the 4th dimension). Click a star → glass **node drawer** with badges, people,
+  courses and permission-gated actions (+ sub-role, + person, terminal flag, delete).
+- **Tech:** hand-rolled canvas 2D (no heavy deps), radial tidy-tree layout, theme-token
+  colors re-read on `data-theme`/`data-accent` changes; static sky under reduced motion.
+- Zoom controls and a hint chip are always visible; the drawer becomes a bottom sheet on
+  small screens.
 
-## 6. Accessibility
+## 7. Accessibility
 
-- WCAG AA contrast in both themes (tokens are chosen for it — verify when adding any).
-- Full keyboard navigation; graph offers a list-view fallback (also serves screen readers).
-- Hit targets ≥ 44 px on touch surfaces (mobile app later inherits this system).
+- WCAG AA contrast in both themes (verify when adding tokens).
+- Full keyboard navigation; visible focus rings (`:focus-visible`); the admin tree remains
+  the list-view fallback for the graph (also serves screen readers).
+- Hit targets ≥ 44 px on touch surfaces; `prefers-reduced-motion` collapses all animation.

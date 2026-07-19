@@ -1,12 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createOrgSchema } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
-import { SiteNav } from "@/components/SiteNav";
+import { AppShell } from "@/components/AppShell";
+import { IconGrid, IconHelp, IconUser } from "@/components/icons";
+
+const NAV = [
+  { href: "/orgs", label: "Organizations", icon: <IconGrid /> },
+  { href: "/account", label: "Account", icon: <IconUser /> },
+  { href: "/help", label: "Help", icon: <IconHelp /> },
+];
 
 export default function NewOrgPage() {
   const router = useRouter();
@@ -42,55 +48,50 @@ export default function NewOrgPage() {
   }
 
   return (
-    <main>
-      <SiteNav right={<Link href="/orgs">Your organizations</Link>} />
-      <section className="auth-wrap">
-        <form className="auth-card auth-card-wide" onSubmit={submit}>
-          <h1>Create an organization</h1>
-          <p className="auth-sub">
-            This creates the organization&apos;s <strong>Supreme</strong> — its root object —
-            and its first role, with you as the first owner.
+    <AppShell
+      nav={NAV}
+      title="Create an organization"
+      subtitle="This creates the organization's Supreme — its root object — and its first role, with you as the first owner."
+    >
+      <form className="auth-card auth-card-wide glass" onSubmit={submit} style={{ margin: 0 }}>
+        <label className="field">
+          <span>Organization name</span>
+          <input name="name" required minLength={2} />
+        </label>
+        <label className="field">
+          <span>First role name</span>
+          <input name="ownerRoleName" placeholder="Owner / CEO / Principal…" required />
+          <small>The role at the top of your structure — you become its first occupant</small>
+        </label>
+        <label className="field">
+          <span>Supreme password</span>
+          <input name="supremePassword" type="password" minLength={12} required />
+          <small>At least 12 characters</small>
+        </label>
+        <label className="field">
+          <span>Repeat Supreme password</span>
+          <input name="supremePassword2" type="password" required />
+        </label>
+
+        <div className="warn-box">
+          <strong>This password cannot be recovered. By anyone. Ever.</strong>
+          <p>
+            The platform stores no copy — it protects owner-level changes and encrypts your
+            organization&apos;s <code>.main</code> revival file. If it is lost, changing the
+            owner structure and reviving a deleted organization become permanently
+            impossible.
           </p>
+          <label className="ack-row">
+            <input type="checkbox" name="ack" />
+            <span>I understand the Supreme password is unrecoverable</span>
+          </label>
+        </div>
 
-          <label className="field">
-            <span>Organization name</span>
-            <input name="name" required minLength={2} />
-          </label>
-          <label className="field">
-            <span>First role name</span>
-            <input name="ownerRoleName" placeholder="Owner / CEO / Principal…" required />
-            <small>The role at the top of your structure — you become its first occupant</small>
-          </label>
-          <label className="field">
-            <span>Supreme password</span>
-            <input name="supremePassword" type="password" minLength={12} required />
-            <small>At least 12 characters</small>
-          </label>
-          <label className="field">
-            <span>Repeat Supreme password</span>
-            <input name="supremePassword2" type="password" required />
-          </label>
-
-          <div className="warn-box">
-            <strong>This password cannot be recovered. By anyone. Ever.</strong>
-            <p>
-              The platform stores no copy — it protects owner-level changes and encrypts your
-              organization&apos;s <code>.main</code> revival file. If it is lost, changing the
-              owner structure and reviving a deleted organization become permanently
-              impossible.
-            </p>
-            <label className="ack-row">
-              <input type="checkbox" name="ack" />
-              <span>I understand the Supreme password is unrecoverable</span>
-            </label>
-          </div>
-
-          {error && <p className="form-error">{error}</p>}
-          <button className="btn btn-primary btn-block" disabled={busy}>
-            {busy ? "Creating…" : "Create organization"}
-          </button>
-        </form>
-      </section>
-    </main>
+        {error && <p className="form-error">{error}</p>}
+        <button className="btn btn-primary btn-block" disabled={busy}>
+          {busy ? "Creating…" : "Create organization"}
+        </button>
+      </form>
+    </AppShell>
   );
 }

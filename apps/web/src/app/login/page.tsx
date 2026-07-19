@@ -36,11 +36,16 @@ export default function LoginPage() {
 
   return (
     <main>
-      <SiteNav right={<Link href="/register">Create profile</Link>} />
+      <SiteNav right={<Link href="/register" className="nav-link">Create profile</Link>} />
       <section className="auth-wrap">
-        <form className="auth-card" onSubmit={submit}>
-          <h1>Sign in</h1>
-          <p className="auth-sub">Welcome back to Knowledge Vault.</p>
+        <form className="auth-card glass" onSubmit={submit}>
+          <span className="brand-mark" aria-hidden>
+            ✦
+          </span>
+          <h1>
+            Welcome <span className="gradient-text">back</span>
+          </h1>
+          <p className="auth-sub">Sign in to your Knowledge Vault profile.</p>
           <label className="field">
             <span>Username</span>
             <input name="username" autoComplete="username" required />

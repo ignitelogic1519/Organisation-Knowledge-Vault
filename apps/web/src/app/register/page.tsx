@@ -37,10 +37,15 @@ export default function RegisterPage() {
 
   return (
     <main>
-      <SiteNav right={<Link href="/login">Sign in</Link>} />
+      <SiteNav right={<Link href="/login" className="nav-link">Sign in</Link>} />
       <section className="auth-wrap">
-        <form className="auth-card" onSubmit={submit}>
-          <h1>Create your profile</h1>
+        <form className="auth-card glass" onSubmit={submit}>
+          <span className="brand-mark" aria-hidden>
+            ✦
+          </span>
+          <h1>
+            Create your <span className="gradient-text">profile</span>
+          </h1>
           <p className="auth-sub">
             One global profile — join or create any number of organizations with it.
           </p>

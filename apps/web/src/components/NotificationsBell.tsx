@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { AppNotification } from "@vault/shared";
 import { hasSession } from "@/lib/auth-client";
 import { notifications } from "@/lib/courses-client";
+import { IconBell } from "./icons";
 
 const LABELS: Record<string, string> = {
   completion_expired: "A completion expired — course re-assigned",
@@ -37,7 +38,7 @@ export function NotificationsBell() {
   return (
     <div className="bell-wrap">
       <button
-        className="theme-toggle"
+        className="icon-btn"
         aria-label="Notifications"
         onClick={async () => {
           const next = !open;
@@ -48,10 +49,11 @@ export function NotificationsBell() {
           }
         }}
       >
-        🔔{unread > 0 && <span className="bell-dot" aria-hidden />}
+        <IconBell />
+        {unread > 0 && <span className="bell-dot" aria-hidden />}
       </button>
       {open && (
-        <div className="bell-panel">
+        <div className="bell-panel glass">
           {items.length === 0 && <p className="auth-sub">Nothing yet.</p>}
           <ul className="owner-list">
             {items.slice(0, 12).map((n) => (

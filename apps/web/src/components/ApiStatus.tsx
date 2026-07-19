@@ -25,7 +25,7 @@ export function ApiStatus() {
   }, []);
 
   return (
-    <div className="status-card" role="status">
+    <div className="status-card glass" role="status">
       <span
         className="status-dot"
         data-state={status.state === "checking" ? undefined : status.state}
