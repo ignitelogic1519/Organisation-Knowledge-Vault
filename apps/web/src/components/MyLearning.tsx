@@ -1,25 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LearningItem, MyLearningView } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
 
-function StatusBadge({ item }: { item: LearningItem }) {
+// My Learning — the member's course list, grouped by what matters to them:
+// pending (assigned / in progress / expired / overdue) first, completed below.
+
+type Item = LearningItem & { mandatory: boolean };
+
+function StatusBadge({ item }: { item: Item }) {
   if (item.overdue) return <span className="badge badge-danger">overdue</span>;
   switch (item.status) {
     case "COMPLETED":
       return <span className="badge badge-ok">completed</span>;
     case "EXPIRED":
       return <span className="badge badge-danger">expired — redo</span>;
-    case "ASSIGNED":
-      return <span className="badge">assigned</span>;
+    case "IN_PROGRESS":
+      return <span className="badge">in progress</span>;
     default:
-      return <span className="badge">opt-in</span>;
+      return <span className="badge">assigned</span>;
   }
 }
 
-function Row({ item, onChanged }: { item: LearningItem; onChanged: () => void }) {
+function Row({ item, onChanged }: { item: Item; onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const locked = item.missingPrerequisites.length > 0;
 
@@ -40,7 +45,9 @@ function Row({ item, onChanged }: { item: LearningItem; onChanged: () => void })
     <li className="learning-row">
       <div className="learning-main">
         <strong>{item.title}</strong> <span className="chip">{item.code}</span>{" "}
-        <span className="badge">{item.kind.toLowerCase()}</span> <StatusBadge item={item} />
+        <span className="badge">{item.kind.toLowerCase()}</span>{" "}
+        <span className="badge">{item.mandatory ? "mandatory" : "opt-in"}</span>{" "}
+        <StatusBadge item={item} />
         <div className="auth-sub">
           via {item.viaRoleName}
           {item.retakeEveryNDays && ` · repeats every ${item.retakeEveryNDays} days`}
@@ -84,27 +91,70 @@ export function MyLearning({ orgId }: { orgId: string }) {
   }, [orgId]);
   useEffect(reload, [reload]);
 
-  if (!view) return <p className="auth-sub">Loading…</p>;
-  const empty = view.mandatory.length === 0 && view.optIn.length === 0;
+  const groups = useMemo(() => {
+    if (!view) return null;
+    const all: Item[] = [
+      ...view.mandatory.map((i) => ({ ...i, mandatory: true })),
+      ...view.optIn.map((i) => ({ ...i, mandatory: false })),
+    ];
+    return {
+      pending: all.filter((i) => i.status !== "COMPLETED"),
+      completed: all.filter((i) => i.status === "COMPLETED"),
+      overdue: all.filter((i) => i.overdue).length,
+    };
+  }, [view]);
+
+  if (!groups) {
+    return (
+      <div className="tree" aria-hidden>
+        <div className="skeleton" style={{ height: "3rem" }} />
+        <div className="skeleton" style={{ height: "3rem" }} />
+      </div>
+    );
+  }
+
+  const empty = groups.pending.length === 0 && groups.completed.length === 0;
 
   return (
     <div>
+      <div className="stat-row">
+        <div className="stat-card glass">
+          <span className="stat-n gradient-text">{groups.pending.length}</span>
+          <span className="stat-l">Pending courses</span>
+        </div>
+        <div className="stat-card glass">
+          <span className="stat-n gradient-text">{groups.completed.length}</span>
+          <span className="stat-l">Completed</span>
+        </div>
+        <div className="stat-card glass">
+          <span
+            className="stat-n"
+            style={{ color: groups.overdue > 0 ? "var(--danger)" : undefined }}
+          >
+            {groups.overdue}
+          </span>
+          <span className="stat-l">Overdue</span>
+        </div>
+      </div>
+
       {empty && <p className="auth-sub">No courses reach your position yet.</p>}
-      {view.mandatory.length > 0 && (
+
+      {groups.pending.length > 0 && (
         <>
-          <h3 className="learning-h">Mandatory</h3>
+          <h3 className="learning-h">Pending</h3>
           <ul className="owner-list">
-            {view.mandatory.map((i) => (
+            {groups.pending.map((i) => (
               <Row key={i.code} item={i} onChanged={reload} />
             ))}
           </ul>
         </>
       )}
-      {view.optIn.length > 0 && (
+
+      {groups.completed.length > 0 && (
         <>
-          <h3 className="learning-h">Available (opt-in)</h3>
+          <h3 className="learning-h">Completed</h3>
           <ul className="owner-list">
-            {view.optIn.map((i) => (
+            {groups.completed.map((i) => (
               <Row key={i.code} item={i} onChanged={reload} />
             ))}
           </ul>

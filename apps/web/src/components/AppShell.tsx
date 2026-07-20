@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { auth } from "@/lib/auth-client";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeMenu } from "./ThemeMenu";
+import { IconLogout } from "./icons";
 
 export interface ShellNavItem {
   href: string;
@@ -13,8 +15,25 @@ export interface ShellNavItem {
   prefix?: boolean;
 }
 
+function SignOutButton() {
+  const router = useRouter();
+  return (
+    <button
+      className="icon-btn"
+      aria-label="Sign out"
+      title="Sign out"
+      onClick={async () => {
+        await auth.logout();
+        router.replace("/login");
+      }}
+    >
+      <IconLogout />
+    </button>
+  );
+}
+
 // Authenticated app chrome: glass sidebar on desktop, floating tab bar on mobile,
-// glass top row with title + notifications + theme controls.
+// glass top row with title + notifications + theme + sign-out controls.
 export function AppShell({
   nav,
   title,
@@ -57,6 +76,7 @@ export function AppShell({
         <div className="side-foot">
           <NotificationsBell />
           <ThemeMenu />
+          <SignOutButton />
         </div>
       </aside>
 
@@ -68,7 +88,7 @@ export function AppShell({
           </div>
           <div className="shell-top-actions">
             {actions}
-            {/* bell + theme live in the sidebar on desktop; surface them here on mobile */}
+            {/* bell + theme + sign-out live in the sidebar on desktop; surface them here on mobile */}
             <MobileExtras />
           </div>
         </header>
@@ -93,7 +113,6 @@ export function AppShell({
 }
 
 function MobileExtras() {
-  // Rendered inline in the top row; hidden on desktop (sidebar already has them)
   return (
     <span className="mobile-extras">
       <style>{`
@@ -104,6 +123,7 @@ function MobileExtras() {
       `}</style>
       <NotificationsBell />
       <ThemeMenu />
+      <SignOutButton />
     </span>
   );
 }

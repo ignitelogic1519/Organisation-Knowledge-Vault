@@ -47,8 +47,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const nav = useMemo<ShellNavItem[]>(() => {
     const items: ShellNavItem[] = [
       { href: "/orgs", label: "Organizations", icon: <IconBack /> },
-      { href: `/orgs/${id}`, label: "Overview", icon: <IconBook /> },
-      { href: `/orgs/${id}/graph`, label: "Constellation", icon: <IconStars /> },
+      { href: `/orgs/${id}`, label: "Constellation", icon: <IconStars /> },
+      { href: `/orgs/${id}/learning`, label: "My Learning", icon: <IconBook /> },
     ];
     if (isAdmin) {
       items.push({ href: `/orgs/${id}/admin`, label: "Admin console", icon: <IconShield /> });
@@ -57,11 +57,11 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     return items;
   }, [id, isAdmin]);
 
-  const section = pathname.endsWith("/graph")
-    ? "Constellation"
+  const section = pathname.endsWith("/learning")
+    ? "My Learning"
     : pathname.endsWith("/admin")
       ? "Admin console"
-      : "Overview";
+      : "Constellation";
 
   if (!org) {
     return (
@@ -84,7 +84,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
           </>
         }
         subtitle={
-          section === "Overview"
+          section === "Constellation"
             ? org.myPlacements.length > 0
               ? `Your position: ${org.myPlacements
                   .map((p) => `${p.roleName} (${p.kind.toLowerCase()})`)

@@ -83,7 +83,7 @@ export default function OrgAdminPage() {
         <p className="auth-sub">
           Your governed slice of the role tree. Create sub-roles, place people, publish
           courses, export/restore <code>.bkp</code> node backups. The{" "}
-          <Link href={`/orgs/${org.id}/graph`} style={{ color: "var(--accent)" }}>
+          <Link href={`/orgs/${org.id}`} style={{ color: "var(--accent)" }}>
             Constellation
           </Link>{" "}
           shows the same tree as a star map.

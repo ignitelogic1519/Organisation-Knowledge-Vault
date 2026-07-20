@@ -66,11 +66,14 @@ Rule: **no component may hardcode a color** — tokens only. New colors enter th
 - **Public (marketing) pages:** `/` (hero + features + steps + CTA), `/login`,
   `/register`, `/help` — floating glass pill nav.
 - **App pages:** wrapped in the `AppShell` (sidebar / tab bar + top row with
-  notifications and appearance controls): `/orgs`, `/orgs/new`, `/account`.
-- **Org tabs** (shared org layout fetches once): `/orgs/[id]` **Overview** (stats + My
-  Learning + entry cards), `/orgs/[id]/graph` **Constellation**, `/orgs/[id]/admin`
-  **Admin console** (structure tree, owner management behind the Supreme gate, Supreme
-  zone). The Admin tab renders only for profiles holding an OWNER placement.
+  notifications, appearance controls and **sign-out**): `/orgs`, `/orgs/new`, `/account`.
+  Popovers anchored in the sidebar footer open **upward** so they never clip off-screen.
+- **Org tabs** (shared org layout fetches once): `/orgs/[id]` is the **Constellation —
+  the org's main page**; `/orgs/[id]/learning` **My Learning** (pending / completed
+  courses with stat tiles); `/orgs/[id]/admin` **Admin console** (structure tree, owner
+  management behind the Supreme gate, Supreme zone). The Admin tab renders only for
+  profiles holding an OWNER placement. Old `/orgs/[id]/graph` links redirect to the
+  main page.
 - **`/help`** explains every component in plain language (profile, Supreme, roles,
   constellation, courses, admin console, `.main`/`.bkp`, themes, notifications).
 
@@ -86,11 +89,21 @@ Rule: **no component may hardcode a color** — tokens only. New colors enter th
 ## 6. The Constellation Org Graph (signature feature)
 
 - **Metaphor:** the first role is the pole star at the center; each depth ring is a
-  constellation shell; star size grows with subtree; the user's own placements glow accent.
+  constellation shell; star size grows with subtree.
+- **Your chain is highlighted** (with an on-canvas legend): roles you OWN render as
+  gold-rimmed **diamonds**, roles you are MEMBER of as filled accent stars, every
+  ancestor on your reporting path gets an accent ring, and the links along that chain
+  glow brighter — "CEO → HR → Hiring HR → you" reads at a glance.
 - **Interaction:** drag to pan, wheel/pinch to zoom (0.3–3×), pointer parallax over
   depth-layered stars + background dust (the "3D object" feel), gentle per-star float and
-  twinkle (the 4th dimension). Click a star → glass **node drawer** with badges, people,
-  courses and permission-gated actions (+ sub-role, + person, terminal flag, delete).
+  twinkle (the 4th dimension).
+- **Click behavior:** clicking a star you govern opens the glass **node drawer** —
+  quick structure actions (+ sub-role, terminal flag, delete) plus three owner action
+  panels: **People** (add form on top with the co-owner choice; owners marked ★;
+  delegation + remove), **Courses** (publish with full properties, toggle
+  mandatory/inheritance, unplace, delete), **Backup** (.bkp export & restore in place).
+  Clicking a star you do NOT govern routes a plain member to `/orgs/[id]/learning` —
+  their pending/completed courses.
 - **Tech:** hand-rolled canvas 2D (no heavy deps), radial tidy-tree layout, theme-token
   colors re-read on `data-theme`/`data-accent` changes; static sky under reduced motion.
 - Zoom controls and a hint chip are always visible; the drawer becomes a bottom sheet on

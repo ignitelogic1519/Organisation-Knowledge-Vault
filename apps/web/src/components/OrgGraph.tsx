@@ -3,10 +3,14 @@
 import { useEffect, useRef } from "react";
 import type { TreeNode } from "@vault/shared";
 
-// The constellation org graph (docs/design.md §5): the role tree rendered as a night sky.
+// The constellation org graph (docs/design.md §6): the role tree rendered as a night sky.
 // Radial tidy-tree layout — Supreme is the pole star at the center, each depth ring is a
 // constellation shell. Depth-layered parallax + drift give the "3D object" feel; pan, zoom
 // and click-to-select make every star an actionable role node.
+//
+// The signed-in user's chain is highlighted: roles they OWN draw as diamonds, roles they
+// are MEMBER of as filled accent stars, and every ancestor on the way down from the pole
+// star gets a ring — so "Owner > HR > Hiring HR > you" reads at a glance (see the legend).
 
 interface Star {
   node: TreeNode;
@@ -16,12 +20,36 @@ interface Star {
   z: number; // 0..1 depth layer for parallax
   phase: number; // per-star float phase
   parent?: Star;
+  mark: "owner" | "member" | "path" | "none";
 }
 
 interface Cam {
   x: number;
   y: number;
   zoom: number;
+}
+
+/** owner/member marks for the user's own placements; "path" for their ancestor chain. */
+function markOf(node: TreeNode, pathIds: Set<string>): Star["mark"] {
+  if (node.my.kinds.includes("OWNER")) return "owner";
+  if (node.my.kinds.includes("MEMBER")) return "member";
+  if (pathIds.has(node.id)) return "path";
+  return "none";
+}
+
+/** Every ancestor (by materialized path) of any node the user is placed on. */
+function ancestorIds(nodes: TreeNode[]): Set<string> {
+  const byPath = new Map(nodes.map((n) => [n.path, n.id]));
+  const ids = new Set<string>();
+  for (const n of nodes) {
+    if (n.my.kinds.length === 0) continue;
+    const segs = n.path.split(".");
+    for (let i = 1; i < segs.length; i++) {
+      const id = byPath.get(segs.slice(0, i).join("."));
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
 }
 
 function layoutRadial(nodes: TreeNode[]): Star[] {
@@ -34,6 +62,7 @@ function layoutRadial(nodes: TreeNode[]): Star[] {
     children.set(key, list);
   }
   const roots = children.get(null) ?? [];
+  const pathIds = ancestorIds(nodes);
 
   // Leaf count decides how much angular room a subtree gets
   const leafCount = (n: TreeNode): number => {
@@ -63,6 +92,7 @@ function layoutRadial(nodes: TreeNode[]): Star[] {
       z: Math.max(0.25, 1 - depth * 0.18),
       phase: Math.random() * Math.PI * 2,
       parent,
+      mark: markOf(n, pathIds),
     };
     stars.push(star);
     const kids = children.get(n.id) ?? [];
@@ -84,6 +114,15 @@ function layoutRadial(nodes: TreeNode[]): Star[] {
     cursor += span;
   }
   return stars;
+}
+
+function diamondPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x + r, y);
+  ctx.lineTo(x, y + r);
+  ctx.lineTo(x - r, y);
+  ctx.closePath();
 }
 
 export function OrgGraph({
@@ -123,7 +162,7 @@ export function OrgGraph({
     let raf = 0;
     let hovered: Star | null = null;
     const pointer = { x: 0.5, y: 0.5 };
-    let colors = { star: "", accent: "", accent2: "", text: "", muted: "" };
+    let colors = { star: "", accent: "", accent2: "", text: "", muted: "", warning: "" };
 
     const readColors = () => {
       const cs = getComputedStyle(document.documentElement);
@@ -133,6 +172,7 @@ export function OrgGraph({
         accent2: cs.getPropertyValue("--accent-2").trim(),
         text: cs.getPropertyValue("--text").trim(),
         muted: cs.getPropertyValue("--text-secondary").trim(),
+        warning: cs.getPropertyValue("--warning").trim(),
       };
     };
 
@@ -190,17 +230,18 @@ export function OrgGraph({
         ctx.fill();
       }
 
-      // constellation links
+      // constellation links — the user's chain glows brighter
       for (const s of stars) {
         if (!s.parent) continue;
         const a = project(s, t);
         const b = project(s.parent, t);
+        const onMyPath = s.mark !== "none" && s.parent.mark !== "none";
         const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
         grad.addColorStop(0, colors.accent);
         grad.addColorStop(1, colors.accent2);
         ctx.strokeStyle = grad;
-        ctx.globalAlpha = 0.35;
-        ctx.lineWidth = Math.max(0.6, 1.1 * cam.zoom);
+        ctx.globalAlpha = onMyPath ? 0.8 : 0.3;
+        ctx.lineWidth = Math.max(0.6, (onMyPath ? 1.9 : 1.1) * cam.zoom);
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
@@ -211,37 +252,56 @@ export function OrgGraph({
       for (const s of stars) {
         const p = project(s, t);
         const r = s.r * cam.zoom;
-        const mine = s.node.my.kinds.length > 0;
+        const mine = s.mark === "owner" || s.mark === "member";
         const isSel = s.node.id === selectedRef.current;
         const isHov = s === hovered;
 
         // glow halo
-        const glowR = r * (isSel ? 3.4 : isHov ? 2.9 : 2.2);
+        const glowR = r * (isSel ? 3.4 : isHov ? 2.9 : mine ? 2.6 : 2.2);
         const halo = ctx.createRadialGradient(p.x, p.y, r * 0.3, p.x, p.y, glowR);
         halo.addColorStop(0, mine || isSel ? colors.accent : colors.star);
         halo.addColorStop(1, "transparent");
-        ctx.globalAlpha = isSel ? 0.5 : isHov ? 0.4 : 0.22;
+        ctx.globalAlpha = isSel ? 0.5 : isHov ? 0.4 : mine ? 0.35 : 0.22;
         ctx.fillStyle = halo;
         ctx.beginPath();
         ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
         ctx.fill();
 
-        // core
+        // core — owners draw as diamonds, everyone else as circles
         const core = ctx.createRadialGradient(
           p.x - r * 0.3,
           p.y - r * 0.3,
           r * 0.1,
           p.x,
           p.y,
-          r,
+          r * (s.mark === "owner" ? 1.25 : 1),
         );
         core.addColorStop(0, "#ffffff");
         core.addColorStop(1, mine || isSel ? colors.accent : colors.accent2);
         ctx.globalAlpha = 0.95;
         ctx.fillStyle = core;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.fill();
+        if (s.mark === "owner") {
+          diamondPath(ctx, p.x, p.y, r * 1.25);
+          ctx.fill();
+          ctx.strokeStyle = colors.warning;
+          ctx.lineWidth = Math.max(1, 1.4 * cam.zoom);
+          ctx.globalAlpha = 0.9;
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // reporting-path ring (ancestors of your placements)
+        if (s.mark === "path") {
+          ctx.globalAlpha = 0.85;
+          ctx.strokeStyle = colors.accent2;
+          ctx.lineWidth = Math.max(1, 1.5 * cam.zoom);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r + Math.max(3, 4 * cam.zoom), 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
         // selected pulse ring
         if (isSel && !reducedMotion) {
@@ -254,13 +314,14 @@ export function OrgGraph({
           ctx.stroke();
         }
 
-        // labels when zoomed in enough, hovered, or selected
-        if (cam.zoom > 0.55 || isHov || isSel) {
-          ctx.globalAlpha = isHov || isSel ? 1 : 0.8;
+        // labels when zoomed in enough, hovered, selected, or on the user's chain
+        if (cam.zoom > 0.55 || isHov || isSel || s.mark !== "none") {
+          ctx.globalAlpha = isHov || isSel ? 1 : 0.85;
           ctx.fillStyle = colors.text;
           ctx.font = `500 ${Math.max(11, 12 * Math.min(cam.zoom, 1.4))}px -apple-system, "Segoe UI", sans-serif`;
           ctx.textAlign = "center";
-          ctx.fillText(s.node.name, p.x, p.y + r + 16);
+          const label = mine ? `${s.node.name} · you` : s.node.name;
+          ctx.fillText(label, p.x, p.y + r + 16);
           if (isHov || isSel) {
             ctx.globalAlpha = 0.7;
             ctx.fillStyle = colors.muted;
@@ -404,5 +465,38 @@ export function OrgGraph({
         </button>
       </div>
     </>
+  );
+}
+
+/** Legend for the constellation marks — rendered by the page next to the canvas. */
+export function GraphLegend() {
+  return (
+    <div className="graph-legend glass" aria-hidden>
+      <div className="legend-row">
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <path d="M7 0.5 13.5 7 7 13.5 0.5 7Z" fill="var(--accent)" stroke="var(--warning)" />
+        </svg>
+        Your role — owner
+      </div>
+      <div className="legend-row">
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <circle cx="7" cy="7" r="5" fill="var(--accent)" />
+        </svg>
+        Your role — member
+      </div>
+      <div className="legend-row">
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <circle cx="7" cy="7" r="4" fill="var(--accent-2)" />
+          <circle cx="7" cy="7" r="6.2" fill="none" stroke="var(--accent-2)" />
+        </svg>
+        On your reporting path
+      </div>
+      <div className="legend-row">
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <circle cx="7" cy="7" r="3.5" fill="var(--accent-2)" opacity="0.55" />
+        </svg>
+        Other role
+      </div>
+    </div>
   );
 }
