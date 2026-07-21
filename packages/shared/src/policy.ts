@@ -1,4 +1,9 @@
-import type { PlacementRef, PolicyAction, RoleNodeRef } from "./types.js";
+import type {
+  GrantableCapability,
+  PlacementRef,
+  PolicyAction,
+  RoleNodeRef,
+} from "./types.js";
 
 // THE central authorization function (docs/structure.md §2.1). Every permission decision in
 // the platform goes through here — no other file may contain permission logic. This is what
@@ -17,8 +22,10 @@ export function isStrictAncestor(ancestorPath: string, nodePath: string): boolea
 /**
  * v1 rules:
  * - Default: the actor must hold an OWNER placement on the node or any ancestor.
- * - `create_sub_role`: additionally requires the delegation flag on a governing placement
- *   and a non-terminal node.
+ * - `create_sub_role`: additionally requires the delegation flag on a governing placement.
+ * - `add_co_owner`: requires either an OWNER placement on a STRICT ancestor (the layer
+ *   above always appoints owners below) or the `canAddCoOwners` flag on a governing
+ *   placement — plain governance is NOT enough to mint co-owners.
  * - `manage_flags` / `delete_role` (invariant I6/I5): require an OWNER placement on a
  *   STRICT ancestor — a node's own owners cannot change their own node's flags or delete it;
  *   the layer above (or the org's root Owner role, ancestor of everything) does that.
@@ -40,8 +47,30 @@ export function can(
   if (governing.length === 0) return false;
 
   if (action === "create_sub_role") {
-    if (node.isTerminal) return false;
     return governing.some((p) => p.canCreateSubgroups);
   }
+  if (action === "add_co_owner") {
+    return governing.some(
+      (p) => p.canAddCoOwners || isStrictAncestor(p.roleNodePath, node.path),
+    );
+  }
   return true;
+}
+
+/**
+ * Nobody hands out a capability they don't hold themselves: granting a flag to another
+ * owner requires the actor to hold that same flag on a governing placement — or to sit
+ * strictly above the node, where the layer-above rule (invariant I6) applies.
+ */
+export function canGrantCapability(
+  placements: readonly PlacementRef[],
+  node: RoleNodeRef,
+  capability: GrantableCapability,
+): boolean {
+  return placements.some(
+    (p) =>
+      p.kind === "OWNER" &&
+      (isStrictAncestor(p.roleNodePath, node.path) ||
+        (isSelfOrAncestor(p.roleNodePath, node.path) && p[capability])),
+  );
 }

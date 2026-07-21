@@ -64,13 +64,15 @@ const TOPICS = [
           (they learn).
         </p>
         <ul>
-          <li>Owners can create sub-roles, add people, and publish courses on their branch.</li>
+          <li>Owners can add people, and publish courses on their branch.</li>
           <li>
-            A <strong>terminal</strong> role cannot receive sub-roles.
+            Owners hold only the rights granted to them: <strong>creating sub-groups</strong>{" "}
+            and <strong>appointing co-owners</strong> are separate flags — and nobody can
+            grant a right they don&apos;t hold themselves.
           </li>
           <li>
-            Owners may be granted <strong>delegation</strong> — permission to create
-            sub-groups.
+            A branch can be made <strong>public</strong>: every member sees it in the
+            constellation and can send a <strong>Join request</strong> to its owners.
           </li>
         </ul>
       </>
@@ -82,9 +84,8 @@ const TOPICS = [
     body: (
       <>
         <p>
-          The <strong>Constellation</strong> shows your organization as a star map: the
-          first role is the pole star, branches are constellations, and star size grows
-          with a subtree.
+          The <strong>Constellation</strong> shows your organization as a star map laid
+          out like a real tree: the first role at the top, every branch growing downward.
         </p>
         <ul>
           <li>
@@ -92,9 +93,13 @@ const TOPICS = [
             watch the sky parallax in depth.
           </li>
           <li>
-            <strong>Click a star</strong> to open its panel — see people and courses, add
-            sub-roles or people, or manage flags right there (only where you have
-            permission).
+            <strong>Click a star</strong> you govern to open its action panel — choose
+            between <strong>Group configuration</strong>, <strong>People</strong>,{" "}
+            <strong>Courses</strong> and <strong>Backup</strong>.
+          </li>
+          <li>
+            Clicking a position you have no access to simply tells you so — public
+            branches offer a join request instead.
           </li>
           <li>Stars where you are placed glow with your accent color.</li>
         </ul>
@@ -128,23 +133,30 @@ const TOPICS = [
     ),
   },
   {
-    icon: "🛡",
-    title: "The Admin console",
+    icon: "📖",
+    title: "Library & Requests",
     body: (
       <>
         <p>
-          Everything about <strong>running</strong> the organization lives in the Admin
-          console — deliberately separated from the member view.
+          The <strong>Library</strong> tab lists every course published to the
+          organization; the <strong>Requests</strong> tab is the ask-and-approve center.
         </p>
         <ul>
-          <li>Manage the role tree: sub-roles, people, courses, flags.</li>
           <li>
-            Manage Supreme-role owners after unlocking with the Supreme password (grants a
-            10-minute session).
+            Open a library entry for its description, completions, and the branches using
+            it — then <strong>request it</strong> for your branch.
           </li>
           <li>
-            The <strong>Supreme zone</strong> holds the gravest actions: exporting{" "}
-            <code>.main</code> and deleting the organization.
+            Requests carry clear categories: <strong>Course request</strong>,{" "}
+            <strong>Join request</strong>, <strong>Deletion request</strong>.
+          </li>
+          <li>
+            Approving a course request means <strong>configuring it first</strong> —
+            mandatory, inheritance, deadline and recurrence for that branch.
+          </li>
+          <li>
+            Deleting a branch always needs the level above: its own owners file a
+            Deletion request; approval executes it.
           </li>
         </ul>
       </>

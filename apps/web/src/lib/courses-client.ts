@@ -4,6 +4,7 @@ import type {
   AppNotification,
   CourseAdminView,
   CreateCourseInput,
+  LibraryCourse,
   MyLearningView,
   PlaceCourseInput,
 } from "@vault/shared";
@@ -42,11 +43,19 @@ export const courses = {
         code: string;
         title: string;
         kind: string;
+        description: string | null;
+        inLibrary: boolean;
         mandatory: boolean;
         inheritToDescendants: boolean;
+        deadlineDays: number | null;
+        retakeEveryNDays: number | null;
         canDelete: boolean;
       }[];
     }>(`/roles/${roleId}/courses`),
+  library: (orgId: string, q?: string) =>
+    api<{ courses: LibraryCourse[] }>(
+      `/orgs/${orgId}/library${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
   unplace: (code: string, roleNodeId: string) =>
     api<{ ok: boolean }>(`/courses/${code}/placements/${roleNodeId}`, { method: "DELETE" }),
   remove: (code: string) =>

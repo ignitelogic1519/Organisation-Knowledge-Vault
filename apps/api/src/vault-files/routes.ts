@@ -22,7 +22,7 @@ interface MainPayload {
     parentId: string | null;
     name: string;
     roleNumber: number;
-    isTerminal: boolean;
+    isPublic: boolean;
     path: string;
     nextItemNumber: number;
   }[];
@@ -32,6 +32,7 @@ interface MainPayload {
     roleNodeId: string;
     kind: "OWNER" | "MEMBER";
     canCreateSubgroups: boolean;
+    canAddCoOwners?: boolean;
     addedByProfileId: string;
   }[];
   courses: Record<string, unknown>[];
@@ -68,7 +69,7 @@ async function buildMainPayload(orgId: string): Promise<MainPayload> {
       parentId: r.parentId,
       name: r.name,
       roleNumber: r.roleNumber,
-      isTerminal: r.isTerminal,
+      isPublic: r.isPublic,
       path: r.path,
       nextItemNumber: r.nextItemNumber,
     })),
@@ -83,6 +84,7 @@ async function buildMainPayload(orgId: string): Promise<MainPayload> {
         roleNodeId: p.roleNodeId,
         kind: p.kind,
         canCreateSubgroups: p.canCreateSubgroups,
+        canAddCoOwners: p.canAddCoOwners,
         addedByProfileId: p.addedByProfileId,
       })),
     ),
@@ -210,7 +212,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             parentId: r.parentId ? (roleIdMap.get(r.parentId) ?? null) : null,
             name: r.name,
             roleNumber: r.roleNumber,
-            isTerminal: r.isTerminal,
+            isPublic: r.isPublic ?? false,
             path: r.path,
             nextItemNumber: r.nextItemNumber,
           },
@@ -246,6 +248,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
                 roleNodeId,
                 kind: p.kind,
                 canCreateSubgroups: p.canCreateSubgroups,
+                canAddCoOwners: p.canAddCoOwners ?? false,
                 invitedByProfileId: req.profileId,
               },
             });
@@ -261,6 +264,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             roleNodeId,
             kind: p.kind,
             canCreateSubgroups: p.canCreateSubgroups,
+            canAddCoOwners: p.canAddCoOwners ?? false,
             addedByProfileId: profileIdMap.get(p.addedByProfileId) ?? req.profileId,
           },
         });
@@ -385,12 +389,13 @@ export async function vaultFileRoutes(app: FastifyInstance) {
         childRoleNumbers: children.map((c) => c.roleNumber),
       });
       const payload = {
-        node: { name: node.name, roleNumber: node.roleNumber, isTerminal: node.isTerminal },
+        node: { name: node.name, roleNumber: node.roleNumber },
         occupants: occupants.map((o) => ({
           username: o.membership.profile.username,
           displayName: o.membership.profile.displayName,
           kind: o.kind,
           canCreateSubgroups: o.canCreateSubgroups,
+          canAddCoOwners: o.canAddCoOwners,
           addedByProfileId: o.addedByProfileId,
         })),
         completions: records.map((r) => ({
@@ -458,11 +463,11 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       }
 
       const { payload } = openContainer<{
-        node: { isTerminal: boolean };
         occupants: {
           username: string;
           kind: "OWNER" | "MEMBER";
           canCreateSubgroups: boolean;
+          canAddCoOwners?: boolean;
           addedByProfileId: string;
         }[];
         completions: {
@@ -496,6 +501,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
               roleNodeId: node.id,
               kind: o.kind,
               canCreateSubgroups: o.canCreateSubgroups,
+              canAddCoOwners: o.canAddCoOwners ?? false,
               addedByProfileId: req.profileId,
             },
           });

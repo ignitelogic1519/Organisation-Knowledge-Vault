@@ -2,8 +2,11 @@
 
 import type {
   AddPersonInput,
+  CreateRequestInput,
+  DecideRequestInput,
   OrgDetail,
   OrgSummary,
+  RequestsOverview,
   StructureView,
   SupremeSession,
 } from "@vault/shared";
@@ -47,10 +50,10 @@ export const orgs = {
 
 export const roles = {
   structure: (orgId: string) => api<StructureView>(`/orgs/${orgId}/structure`),
-  createSubRole: (roleId: string, name: string, isTerminal: boolean) =>
+  createSubRole: (roleId: string, name: string) =>
     api<{ id: string }>(`/roles/${roleId}/children`, {
       method: "POST",
-      body: JSON.stringify({ name, isTerminal }),
+      body: JSON.stringify({ name }),
     }),
   addPerson: (roleId: string, input: AddPersonInput) =>
     api<{ ok: boolean; invited: boolean }>(`/roles/${roleId}/people`, {
@@ -59,15 +62,35 @@ export const roles = {
     }),
   removePerson: (roleId: string, profileId: string) =>
     api<{ ok: boolean }>(`/roles/${roleId}/people/${profileId}`, { method: "DELETE" }),
-  setTerminal: (roleId: string, isTerminal: boolean) =>
+  setPublic: (roleId: string, isPublic: boolean) =>
     api<{ ok: boolean }>(`/roles/${roleId}`, {
       method: "PATCH",
-      body: JSON.stringify({ isTerminal }),
+      body: JSON.stringify({ isPublic }),
     }),
-  setPersonDelegation: (roleId: string, profileId: string, canCreateSubgroups: boolean) =>
+  setPersonFlags: (
+    roleId: string,
+    profileId: string,
+    flags: { canCreateSubgroups?: boolean; canAddCoOwners?: boolean },
+  ) =>
     api<{ ok: boolean }>(`/roles/${roleId}/people/${profileId}`, {
       method: "PATCH",
-      body: JSON.stringify({ canCreateSubgroups }),
+      body: JSON.stringify(flags),
     }),
   deleteRole: (roleId: string) => api<{ ok: boolean }>(`/roles/${roleId}`, { method: "DELETE" }),
+};
+
+export const requests = {
+  overview: (orgId: string) => api<RequestsOverview>(`/orgs/${orgId}/requests`),
+  create: (orgId: string, input: CreateRequestInput) =>
+    api<{ ok: boolean; id: string }>(`/orgs/${orgId}/requests`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  decide: (requestId: string, input: DecideRequestInput) =>
+    api<{ ok: boolean; status: string }>(`/requests/${requestId}/decide`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  withdraw: (requestId: string) =>
+    api<{ ok: boolean }>(`/requests/${requestId}`, { method: "DELETE" }),
 };

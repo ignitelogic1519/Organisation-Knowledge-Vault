@@ -13,11 +13,12 @@ export async function actorPlacements(profileId: string, orgId: string): Promise
     roleNodePath: p.roleNode.path,
     kind: p.kind,
     canCreateSubgroups: p.canCreateSubgroups,
+    canAddCoOwners: p.canAddCoOwners,
   }));
 }
 
 export function toRoleRef(node: RoleNode): RoleNodeRef {
-  return { id: node.id, orgId: node.orgId, path: node.path, isTerminal: node.isTerminal };
+  return { id: node.id, orgId: node.orgId, path: node.path };
 }
 
 /** Attach a profile to a role node (creates the membership if needed). */
@@ -27,6 +28,7 @@ export async function placePerson(opts: {
   roleNodeId: string;
   kind: "OWNER" | "MEMBER";
   canCreateSubgroups: boolean;
+  canAddCoOwners?: boolean;
   addedByProfileId: string;
 }): Promise<void> {
   await db.$transaction(async (tx) => {
@@ -48,6 +50,7 @@ export async function placePerson(opts: {
         roleNodeId: opts.roleNodeId,
         kind: opts.kind,
         canCreateSubgroups: opts.canCreateSubgroups,
+        canAddCoOwners: opts.canAddCoOwners ?? false,
         addedByProfileId: opts.addedByProfileId,
       },
       update: {},
@@ -67,6 +70,7 @@ export async function acceptPendingInvitations(profileId: string, username: stri
       roleNodeId: invite.roleNodeId,
       kind: invite.kind,
       canCreateSubgroups: invite.canCreateSubgroups,
+      canAddCoOwners: invite.canAddCoOwners,
       addedByProfileId: invite.invitedByProfileId,
     });
     await db.invitation.update({

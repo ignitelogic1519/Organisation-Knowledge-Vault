@@ -13,18 +13,21 @@ export type AccessLevel = "VIEW" | "EDIT";
 export type PolicyAction =
   | "create_content"
   | "add_people"
+  | "add_co_owner"
   | "create_sub_role"
   | "manage_flags"
   | "delete_role"
   | "export_backup"
   | "restore_backup";
 
+/** Owner capabilities that can be granted onward — never beyond what the granter holds. */
+export type GrantableCapability = "canCreateSubgroups" | "canAddCoOwners";
+
 export interface RoleNodeRef {
   id: string;
   orgId: string;
   /** Materialized path, e.g. "root.hr.assistant_hr" — ancestor checks are prefix tests. */
   path: string;
-  isTerminal: boolean;
 }
 
 export interface PlacementRef {
@@ -32,6 +35,7 @@ export interface PlacementRef {
   roleNodePath: string;
   kind: PlacementKind;
   canCreateSubgroups: boolean;
+  canAddCoOwners: boolean;
 }
 
 export interface HealthResponse {

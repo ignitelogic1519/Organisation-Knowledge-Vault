@@ -2,8 +2,10 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   addPersonSchema,
   can,
+  canGrantCapability,
   createSubRoleSchema,
   isSelfOrAncestor,
+  isStrictAncestor,
   updatePersonFlagsSchema,
   updateRoleFlagsSchema,
   type RolePerson,
@@ -44,13 +46,15 @@ async function peopleOf(roleNodeId: string): Promise<RolePerson[]> {
     username: p.membership.profile.username,
     kind: p.kind,
     canCreateSubgroups: p.canCreateSubgroups,
+    canAddCoOwners: p.canAddCoOwners,
   }));
 }
 
 export async function roleRoutes(app: FastifyInstance) {
   // My Structure: the user's visible slice of the tree (docs/structure.md §6) —
-  // nodes they occupy, ancestors of those nodes for context, and the full subtree
-  // beneath every node they OWN (authority flows down).
+  // nodes they occupy, ancestors of those nodes for context, the full subtree beneath
+  // every node they OWN (authority flows down), plus every PUBLIC branch in the org
+  // (with its ancestor chain for context) so members can discover where to request in.
   app.get<{ Params: { id: string } }>(
     "/orgs/:id/structure",
     { preHandler: app.authenticate },
@@ -69,13 +73,17 @@ export async function roleRoutes(app: FastifyInstance) {
 
       const ownedPaths = placements.filter((p) => p.kind === "OWNER").map((p) => p.roleNodePath);
       const occupiedPaths = placements.map((p) => p.roleNodePath);
+      const publicPaths = allNodes.filter((n) => n.isPublic).map((n) => n.path);
 
       const visible = allNodes.filter((n) => {
         const occupiesOrOwnsAbove =
           ownedPaths.some((op) => isSelfOrAncestor(op, n.path)) || // subtree of owned nodes
           occupiedPaths.includes(n.path); // nodes they occupy as member
         const isAncestorOfOccupied = occupiedPaths.some((op) => isSelfOrAncestor(n.path, op));
-        return occupiesOrOwnsAbove || isAncestorOfOccupied;
+        // Public branches are discoverable by every member — including the chain above
+        // them, otherwise the tree they hang from couldn't be drawn.
+        const isPublicOrAbovePublic = publicPaths.some((pp) => isSelfOrAncestor(n.path, pp));
+        return occupiesOrOwnsAbove || isAncestorOfOccupied || isPublicOrAbovePublic;
       });
 
       const counts = await db.placement.groupBy({
@@ -92,12 +100,21 @@ export async function roleRoutes(app: FastifyInstance) {
         visible.map(async (n) => {
           const ref = toRoleRef(n);
           const governs = can(placements, "add_people", ref);
+          const kinds = placements.filter((p) => p.roleNodeId === n.id).map((p) => p.kind);
+          const canDelete = n.parentId !== null && can(placements, "delete_role", ref);
           const my: TreeNode["my"] = {
-            kinds: placements.filter((p) => p.roleNodeId === n.id).map((p) => p.kind),
+            kinds,
             canAddPeople: governs,
+            canAddCoOwners: can(placements, "add_co_owner", ref),
+            canGrantSubgroups: canGrantCapability(placements, ref, "canCreateSubgroups"),
             canCreateSubRole: can(placements, "create_sub_role", ref),
             canManageFlags: can(placements, "manage_flags", ref),
-            canDelete: can(placements, "delete_role", ref),
+            canDelete,
+            canRequestDelete:
+              n.parentId !== null &&
+              !canDelete &&
+              placements.some((p) => p.kind === "OWNER" && p.roleNodeId === n.id),
+            canRequestJoin: n.isPublic && kinds.length === 0 && !governs,
           };
           return {
             id: n.id,
@@ -105,7 +122,7 @@ export async function roleRoutes(app: FastifyInstance) {
             name: n.name,
             roleNumber: n.roleNumber,
             path: n.path,
-            isTerminal: n.isTerminal,
+            isPublic: n.isPublic,
             ownerCount: counts.find((c) => c.roleNodeId === n.id && c.kind === "OWNER")?._count ?? 0,
             memberCount:
               counts.find((c) => c.roleNodeId === n.id && c.kind === "MEMBER")?._count ?? 0,
@@ -120,7 +137,7 @@ export async function roleRoutes(app: FastifyInstance) {
     },
   );
 
-  // Create a sub-role (central policy: OWNER at node/ancestor + delegation flag; terminal blocks)
+  // Create a sub-role (central policy: OWNER at node/ancestor + delegation flag)
   app.post<{ Params: { roleId: string } }>(
     "/roles/:roleId/children",
     { preHandler: app.authenticate },
@@ -129,11 +146,9 @@ export async function roleRoutes(app: FastifyInstance) {
       const ctx = await loadContext(req as RoleReq);
       if (!ctx) return reply.status(404).send({ error: "Role not found" });
       if (!can(ctx.placements, "create_sub_role", toRoleRef(ctx.node))) {
-        return reply.status(403).send({
-          error: ctx.node.isTerminal
-            ? "This role is terminal — no sub-roles can be created beneath it"
-            : "You don't have sub-group creation rights here",
-        });
+        return reply
+          .status(403)
+          .send({ error: "You don't have sub-group creation rights here" });
       }
 
       const child = await db.$transaction(async (tx) => {
@@ -148,7 +163,6 @@ export async function roleRoutes(app: FastifyInstance) {
             parentId: ctx.node.id,
             name: body.name,
             roleNumber,
-            isTerminal: body.isTerminal,
             path: `${ctx.node.path}.${roleNumber}`,
           },
         });
@@ -157,7 +171,9 @@ export async function roleRoutes(app: FastifyInstance) {
     },
   );
 
-  // Add a person (OWNER or MEMBER) to a role — invitation flow for unknown emails
+  // Add a person (OWNER or MEMBER) to a role — invitation flow for unknown usernames.
+  // Appointing OWNERS is gated separately (add_co_owner), and no capability can be
+  // granted onward by someone who doesn't hold it themselves.
   app.post<{ Params: { roleId: string } }>(
     "/roles/:roleId/people",
     { preHandler: app.authenticate },
@@ -165,8 +181,27 @@ export async function roleRoutes(app: FastifyInstance) {
       const body = addPersonSchema.parse(req.body);
       const ctx = await loadContext(req as RoleReq);
       if (!ctx) return reply.status(404).send({ error: "Role not found" });
-      if (!can(ctx.placements, "add_people", toRoleRef(ctx.node))) {
+      const ref = toRoleRef(ctx.node);
+      if (!can(ctx.placements, "add_people", ref)) {
         return reply.status(403).send({ error: "You don't manage this role" });
+      }
+
+      const wantsSubgroups = body.kind === "OWNER" && body.canCreateSubgroups;
+      const wantsCoOwnerFlag = body.kind === "OWNER" && body.canAddCoOwners;
+      if (body.kind === "OWNER" && !can(ctx.placements, "add_co_owner", ref)) {
+        return reply.status(403).send({
+          error: "You don't have co-owner appointment rights on this branch",
+        });
+      }
+      if (wantsSubgroups && !canGrantCapability(ctx.placements, ref, "canCreateSubgroups")) {
+        return reply.status(403).send({
+          error: "You can't grant sub-group creation — you don't hold that right yourself",
+        });
+      }
+      if (wantsCoOwnerFlag && !canGrantCapability(ctx.placements, ref, "canAddCoOwners")) {
+        return reply.status(403).send({
+          error: "You can't grant co-owner appointment — you don't hold that right yourself",
+        });
       }
 
       const username = body.username.toLowerCase();
@@ -183,7 +218,8 @@ export async function roleRoutes(app: FastifyInstance) {
             username,
             roleNodeId: ctx.node.id,
             kind: body.kind,
-            canCreateSubgroups: body.kind === "OWNER" ? body.canCreateSubgroups : false,
+            canCreateSubgroups: wantsSubgroups,
+            canAddCoOwners: wantsCoOwnerFlag,
             invitedByProfileId: req.profileId,
           },
         });
@@ -202,7 +238,8 @@ export async function roleRoutes(app: FastifyInstance) {
         orgId: ctx.node.orgId,
         roleNodeId: ctx.node.id,
         kind: body.kind,
-        canCreateSubgroups: body.kind === "OWNER" ? body.canCreateSubgroups : false,
+        canCreateSubgroups: wantsSubgroups,
+        canAddCoOwners: wantsCoOwnerFlag,
         addedByProfileId: req.profileId,
       });
       return { ok: true, invited: false };
@@ -227,6 +264,12 @@ export async function roleRoutes(app: FastifyInstance) {
       if (!target) return reply.status(404).send({ error: "They are not in this role" });
 
       if (target.kind === "OWNER") {
+        // Removing an owner is a co-owner-level structural change
+        if (!can(ctx.placements, "add_co_owner", toRoleRef(ctx.node))) {
+          return reply
+            .status(403)
+            .send({ error: "You don't have co-owner appointment rights on this branch" });
+        }
         const owners = await db.placement.count({
           where: { roleNodeId: ctx.node.id, kind: "OWNER" },
         });
@@ -249,7 +292,7 @@ export async function roleRoutes(app: FastifyInstance) {
     },
   );
 
-  // Flags — invariant I6: only the layer above (or the root Owner role) may change them
+  // Branch visibility: any owner governing the node can publish/unpublish it
   app.patch<{ Params: { roleId: string } }>(
     "/roles/:roleId",
     { preHandler: app.authenticate },
@@ -257,19 +300,19 @@ export async function roleRoutes(app: FastifyInstance) {
       const body = updateRoleFlagsSchema.parse(req.body);
       const ctx = await loadContext(req as RoleReq);
       if (!ctx) return reply.status(404).send({ error: "Role not found" });
-      if (!can(ctx.placements, "manage_flags", toRoleRef(ctx.node))) {
-        return reply
-          .status(403)
-          .send({ error: "Only the layer above this role can change its flags" });
+      if (!can(ctx.placements, "add_people", toRoleRef(ctx.node))) {
+        return reply.status(403).send({ error: "You don't manage this role" });
       }
       await db.roleNode.update({
         where: { id: ctx.node.id },
-        data: { isTerminal: body.isTerminal },
+        data: { isPublic: body.isPublic },
       });
       return { ok: true };
     },
   );
 
+  // Owner flags — invariant I6: only the layer above (or the root Owner role) may change
+  // them, and never beyond what the granter holds themselves.
   app.patch<{ Params: { roleId: string; profileId: string } }>(
     "/roles/:roleId/people/:profileId",
     { preHandler: app.authenticate },
@@ -277,10 +320,27 @@ export async function roleRoutes(app: FastifyInstance) {
       const body = updatePersonFlagsSchema.parse(req.body);
       const ctx = await loadContext(req as unknown as RoleReq);
       if (!ctx) return reply.status(404).send({ error: "Role not found" });
-      if (!can(ctx.placements, "manage_flags", toRoleRef(ctx.node))) {
+      const ref = toRoleRef(ctx.node);
+      if (!can(ctx.placements, "manage_flags", ref)) {
         return reply
           .status(403)
           .send({ error: "Only the layer above this role can change delegation flags" });
+      }
+      if (
+        body.canCreateSubgroups === true &&
+        !canGrantCapability(ctx.placements, ref, "canCreateSubgroups")
+      ) {
+        return reply.status(403).send({
+          error: "You can't grant sub-group creation — you don't hold that right yourself",
+        });
+      }
+      if (
+        body.canAddCoOwners === true &&
+        !canGrantCapability(ctx.placements, ref, "canAddCoOwners")
+      ) {
+        return reply.status(403).send({
+          error: "You can't grant co-owner appointment — you don't hold that right yourself",
+        });
       }
       const target = await db.placement.findFirst({
         where: { roleNodeId: ctx.node.id, kind: "OWNER", membership: { profileId: req.params.profileId } },
@@ -288,13 +348,20 @@ export async function roleRoutes(app: FastifyInstance) {
       if (!target) return reply.status(404).send({ error: "They are not an owner of this role" });
       await db.placement.update({
         where: { id: target.id },
-        data: { canCreateSubgroups: body.canCreateSubgroups },
+        data: {
+          ...(body.canCreateSubgroups !== undefined
+            ? { canCreateSubgroups: body.canCreateSubgroups }
+            : {}),
+          ...(body.canAddCoOwners !== undefined ? { canAddCoOwners: body.canAddCoOwners } : {}),
+        },
       });
       return { ok: true };
     },
   );
 
-  // Delete a role — invariant I5: blocked while the subtree (children or occupants) is non-empty
+  // Delete a role — invariant I5: blocked while the subtree (children or occupants) is
+  // non-empty. Direct deletion stays with the layer above; a branch's own owners go
+  // through a Deletion request instead (requests routes).
   app.delete<{ Params: { roleId: string } }>(
     "/roles/:roleId",
     { preHandler: app.authenticate },
@@ -305,7 +372,14 @@ export async function roleRoutes(app: FastifyInstance) {
         return reply.status(409).send({ error: "The root role cannot be deleted" });
       }
       if (!can(ctx.placements, "delete_role", toRoleRef(ctx.node))) {
-        return reply.status(403).send({ error: "Only the layer above this role can delete it" });
+        const ownsNode = ctx.placements.some(
+          (p) => p.kind === "OWNER" && p.roleNodeId === ctx.node.id,
+        );
+        return reply.status(403).send({
+          error: ownsNode
+            ? "Deleting your own branch needs approval from the level above — send a Deletion request"
+            : "Only the layer above this role can delete it",
+        });
       }
       const children = await db.roleNode.count({ where: { parentId: ctx.node.id } });
       const occupants = await db.placement.count({ where: { roleNodeId: ctx.node.id } });
@@ -315,8 +389,24 @@ export async function roleRoutes(app: FastifyInstance) {
         });
       }
       await db.invitation.deleteMany({ where: { roleNodeId: ctx.node.id } });
+      await db.vaultRequest.deleteMany({ where: { targetRoleNodeId: ctx.node.id } });
       await db.roleNode.delete({ where: { id: ctx.node.id } });
       return { ok: true };
     },
   );
+}
+
+/** Owners strictly above a node — the audience for join/deletion decisions. */
+export async function ownersAbove(orgId: string, nodePath: string, includeSelf: boolean) {
+  const nodes = await db.roleNode.findMany({ where: { orgId } });
+  const chainIds = nodes
+    .filter((n) =>
+      includeSelf ? isSelfOrAncestor(n.path, nodePath) : isStrictAncestor(n.path, nodePath),
+    )
+    .map((n) => n.id);
+  const owners = await db.placement.findMany({
+    where: { roleNodeId: { in: chainIds }, kind: "OWNER" },
+    include: { membership: true },
+  });
+  return [...new Set(owners.map((o) => o.membership.profileId))];
 }

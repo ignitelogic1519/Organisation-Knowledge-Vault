@@ -3,14 +3,17 @@
 import { useEffect, useRef } from "react";
 import type { TreeNode } from "@vault/shared";
 
-// The constellation org graph (docs/design.md §6): the role tree rendered as a night sky.
-// Radial tidy-tree layout — Supreme is the pole star at the center, each depth ring is a
-// constellation shell. Depth-layered parallax + drift give the "3D object" feel; pan, zoom
-// and click-to-select make every star an actionable role node.
+// The constellation org graph: the role tree rendered as a night sky — but laid out as a
+// real TREE. The root role sits at the top and every branch grows strictly DOWNWARD, so
+// the hierarchy reads like an org chart: parent above, children fanned out below.
+// Depth-layered parallax + a soft float give the "living sky" feel; pan, zoom and
+// click-to-select make every star an actionable role node.
 //
 // The signed-in user's chain is highlighted: roles they OWN draw as diamonds, roles they
-// are MEMBER of as filled accent stars, and every ancestor on the way down from the pole
-// star gets a ring — so "Owner > HR > Hiring HR > you" reads at a glance (see the legend).
+// are MEMBER of as filled accent stars, and every ancestor on the way down from the root
+// gets a ring — so "Owner > HR > Hiring HR > you" reads at a glance (see the legend).
+// Public branches the user isn't part of shimmer with a dashed ring — they're joinable
+// by request.
 
 interface Star {
   node: TreeNode;
@@ -52,7 +55,12 @@ function ancestorIds(nodes: TreeNode[]): Set<string> {
   return ids;
 }
 
-function layoutRadial(nodes: TreeNode[]): Star[] {
+// Tidy top-down layout: leaves get evenly spaced columns, parents center above their
+// children, each depth is one row further down. Branches only ever grow downward.
+const H_GAP = 150; // horizontal distance between neighboring leaves
+const V_GAP = 150; // vertical distance between depth levels
+
+function layoutTree(nodes: TreeNode[]): Star[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const children = new Map<string | null, TreeNode[]>();
   for (const n of nodes) {
@@ -61,57 +69,54 @@ function layoutRadial(nodes: TreeNode[]): Star[] {
     list.push(n);
     children.set(key, list);
   }
+  for (const list of children.values()) {
+    list.sort((a, b) => a.roleNumber - b.roleNumber);
+  }
   const roots = children.get(null) ?? [];
   const pathIds = ancestorIds(nodes);
 
-  // Leaf count decides how much angular room a subtree gets
-  const leafCount = (n: TreeNode): number => {
+  const stars: Star[] = [];
+  let nextLeafX = 0;
+
+  const subtreeSize = (n: TreeNode): number => {
     const kids = children.get(n.id) ?? [];
-    if (kids.length === 0) return 1;
-    return kids.reduce((sum, k) => sum + leafCount(k), 0);
+    return 1 + kids.reduce((s, k) => s + subtreeSize(k), 0);
   };
 
-  const RING = 130;
-  const stars: Star[] = [];
-
-  const place = (
-    n: TreeNode,
-    depth: number,
-    a0: number,
-    a1: number,
-    parent: Star | undefined,
-  ) => {
-    const angle = (a0 + a1) / 2;
-    const radius = depth * RING;
-    const subtree = leafCount(n);
+  const place = (n: TreeNode, depth: number, parent: Star | undefined): Star => {
+    const kids = children.get(n.id) ?? [];
     const star: Star = {
       node: n,
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
-      r: Math.min(16, 5 + Math.sqrt(subtree) * 2.4 + (depth === 0 ? 5 : 0)),
-      z: Math.max(0.25, 1 - depth * 0.18),
+      x: 0,
+      y: depth * V_GAP,
+      r: Math.min(15, 6 + Math.sqrt(subtreeSize(n)) * 1.8 + (depth === 0 ? 4 : 0)),
+      z: Math.max(0.25, 1 - depth * 0.16),
       phase: Math.random() * Math.PI * 2,
       parent,
       mark: markOf(n, pathIds),
     };
     stars.push(star);
-    const kids = children.get(n.id) ?? [];
-    const total = kids.reduce((s, k) => s + leafCount(k), 0) || 1;
-    let cursor = a0;
-    for (const k of kids) {
-      const span = ((a1 - a0) * leafCount(k)) / total;
-      place(k, depth + 1, cursor, cursor + span, star);
-      cursor += span;
+    if (kids.length === 0) {
+      star.x = nextLeafX;
+      nextLeafX += H_GAP;
+    } else {
+      const placed = kids.map((k) => place(k, depth + 1, star));
+      star.x = (placed[0].x + placed[placed.length - 1].x) / 2; // centered over children
     }
+    return star;
   };
 
-  // Usually a single root (the owner role); if the visible slice has several, share the circle
-  const totalRootLeaves = roots.reduce((s, r) => s + leafCount(r), 0) || 1;
-  let cursor = -Math.PI / 2;
   for (const r of roots) {
-    const span = (Math.PI * 2 * leafCount(r)) / totalRootLeaves;
-    place(r, roots.length > 1 ? 1 : 0, cursor, cursor + span, undefined);
-    cursor += span;
+    place(r, 0, undefined);
+    nextLeafX += H_GAP * 0.5; // breathing room between disjoint visible subtrees
+  }
+
+  // Center the whole tree horizontally around x = 0
+  if (stars.length > 0) {
+    const minX = Math.min(...stars.map((s) => s.x));
+    const maxX = Math.max(...stars.map((s) => s.x));
+    const shift = (minX + maxX) / 2;
+    for (const s of stars) s.x -= shift;
   }
   return stars;
 }
@@ -136,6 +141,7 @@ export function OrgGraph({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const camRef = useRef<Cam>({ x: 0, y: 0, zoom: 1 });
+  const fittedRef = useRef(false);
   const selectedRef = useRef<string | null>(selectedId);
   selectedRef.current = selectedId;
 
@@ -146,7 +152,7 @@ export function OrgGraph({
     if (!ctx) return;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const stars = layoutRadial(nodes);
+    const stars = layoutTree(nodes);
     const cam = camRef.current;
 
     // ambient background dust
@@ -176,6 +182,20 @@ export function OrgGraph({
       };
     };
 
+    // Fit the tree once: root near the top edge, whole spread visible when possible
+    const fit = () => {
+      if (stars.length === 0 || width === 0) return;
+      const minX = Math.min(...stars.map((s) => s.x));
+      const maxX = Math.max(...stars.map((s) => s.x));
+      const maxY = Math.max(...stars.map((s) => s.y));
+      const spreadX = maxX - minX + H_GAP * 2;
+      const spreadY = maxY + V_GAP * 2;
+      cam.zoom = Math.min(1.15, Math.max(0.35, Math.min(width / spreadX, height / spreadY)));
+      cam.x = 0;
+      // place the root row ~14% from the top of the stage
+      cam.y = (height / 2 - height * 0.14) / cam.zoom;
+    };
+
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       width = canvas.clientWidth;
@@ -183,6 +203,10 @@ export function OrgGraph({
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!fittedRef.current) {
+        fit();
+        fittedRef.current = true;
+      }
     };
 
     // graph space → screen space, with per-star depth parallax
@@ -190,10 +214,10 @@ export function OrgGraph({
       const z = s.z ?? 1;
       const floatY =
         !reducedMotion && "phase" in s
-          ? Math.sin(t / 1400 + (s as Star).phase) * 3 * z
+          ? Math.sin(t / 1600 + (s as Star).phase) * 2.4 * z
           : 0;
-      const px = (pointer.x - 0.5) * 26 * (1 - z);
-      const py = (pointer.y - 0.5) * 26 * (1 - z);
+      const px = (pointer.x - 0.5) * 22 * (1 - z);
+      const py = (pointer.y - 0.5) * 22 * (1 - z);
       return {
         x: width / 2 + (s.x - cam.x) * cam.zoom + px,
         y: height / 2 + (s.y - cam.y) * cam.zoom + py + floatY,
@@ -230,21 +254,22 @@ export function OrgGraph({
         ctx.fill();
       }
 
-      // constellation links — the user's chain glows brighter
+      // branch links — smooth downward curves; the user's chain glows brighter
       for (const s of stars) {
         if (!s.parent) continue;
-        const a = project(s, t);
-        const b = project(s.parent, t);
+        const a = project(s.parent, t); // top (parent)
+        const b = project(s, t); // bottom (child)
         const onMyPath = s.mark !== "none" && s.parent.mark !== "none";
         const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
         grad.addColorStop(0, colors.accent);
         grad.addColorStop(1, colors.accent2);
         ctx.strokeStyle = grad;
-        ctx.globalAlpha = onMyPath ? 0.8 : 0.3;
-        ctx.lineWidth = Math.max(0.6, (onMyPath ? 1.9 : 1.1) * cam.zoom);
+        ctx.globalAlpha = onMyPath ? 0.85 : 0.32;
+        ctx.lineWidth = Math.max(0.6, (onMyPath ? 2 : 1.1) * cam.zoom);
+        const midY = (a.y + b.y) / 2;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
+        ctx.bezierCurveTo(a.x, midY, b.x, midY, b.x, b.y);
         ctx.stroke();
       }
 
@@ -301,6 +326,18 @@ export function OrgGraph({
           ctx.beginPath();
           ctx.arc(p.x, p.y, r + Math.max(3, 4 * cam.zoom), 0, Math.PI * 2);
           ctx.stroke();
+        }
+
+        // public branch you could request to join — dashed halo ring
+        if (s.node.my.canRequestJoin) {
+          ctx.globalAlpha = 0.7;
+          ctx.strokeStyle = colors.warning;
+          ctx.lineWidth = Math.max(1, 1.2 * cam.zoom);
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r + Math.max(4, 5 * cam.zoom), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
 
         // selected pulse ring
@@ -456,9 +493,12 @@ export function OrgGraph({
           aria-label="Reset view"
           title="Reset view"
           onClick={() => {
-            camRef.current.x = 0;
-            camRef.current.y = 0;
-            camRef.current.zoom = 1;
+            fittedRef.current = false;
+            const canvas = canvasRef.current;
+            if (canvas) {
+              // re-fit on next resize pass
+              window.dispatchEvent(new Event("resize"));
+            }
           }}
         >
           ◎
@@ -490,6 +530,13 @@ export function GraphLegend() {
           <circle cx="7" cy="7" r="6.2" fill="none" stroke="var(--accent-2)" />
         </svg>
         On your reporting path
+      </div>
+      <div className="legend-row">
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <circle cx="7" cy="7" r="3.5" fill="var(--accent-2)" opacity="0.55" />
+          <circle cx="7" cy="7" r="6.2" fill="none" stroke="var(--warning)" strokeDasharray="2 2" />
+        </svg>
+        Public branch — join by request
       </div>
       <div className="legend-row">
         <svg width="14" height="14" viewBox="0 0 14 14">

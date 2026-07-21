@@ -71,6 +71,8 @@ export async function courseRoutes(app: FastifyInstance) {
           createdByProfileId: req.profileId,
           kind: body.kind,
           title: body.title,
+          description: body.description,
+          inLibrary: body.inLibrary,
           storageRef: ref as object,
           deadlineDays: body.deadlineDays,
           retakeEveryNDays: body.retakeEveryNDays,
@@ -148,18 +150,25 @@ export async function courseRoutes(app: FastifyInstance) {
       if (!can(placements, "create_content", toRoleRef(node))) {
         return reply.status(403).send({ error: "You don't manage content in that layer" });
       }
-      const dup = await db.coursePlacement.findUnique({
+      // Placing twice reconfigures — mandatory/inheritance/override toggles come here too
+      await db.coursePlacement.upsert({
         where: { courseId_roleNodeId: { courseId: course.id, roleNodeId: node.id } },
-      });
-      if (dup) return reply.status(409).send({ error: "Already placed on this role" });
-
-      await db.coursePlacement.create({
-        data: {
+        create: {
           courseId: course.id,
           roleNodeId: node.id,
           mandatory: body.mandatory,
           inheritToDescendants: body.inheritToDescendants,
+          deadlineDays: body.deadlineDays ?? null,
+          retakeEveryNDays: body.retakeEveryNDays ?? null,
           placedByProfileId: req.profileId,
+        },
+        update: {
+          mandatory: body.mandatory,
+          inheritToDescendants: body.inheritToDescendants,
+          ...(body.deadlineDays !== undefined ? { deadlineDays: body.deadlineDays } : {}),
+          ...(body.retakeEveryNDays !== undefined
+            ? { retakeEveryNDays: body.retakeEveryNDays }
+            : {}),
         },
       });
       return { ok: true };
@@ -203,8 +212,8 @@ export async function courseRoutes(app: FastifyInstance) {
         });
       }
 
-      const validUntil = course.retakeEveryNDays
-        ? new Date(Date.now() + course.retakeEveryNDays * 86400_000)
+      const validUntil = reach.retakeEveryNDays
+        ? new Date(Date.now() + reach.retakeEveryNDays * 86400_000)
         : null;
       const existing = await db.completionRecord.findFirst({
         where: { profileId: req.profileId, courseId: course.id },
@@ -363,8 +372,12 @@ export async function courseRoutes(app: FastifyInstance) {
             code: r.course.code,
             title: r.course.title,
             kind: r.course.kind,
+            description: r.course.description,
+            inLibrary: r.course.inLibrary,
             mandatory: r.mandatory,
             inheritToDescendants: r.inheritToDescendants,
+            deadlineDays: r.deadlineDays ?? r.course.deadlineDays,
+            retakeEveryNDays: r.retakeEveryNDays ?? r.course.retakeEveryNDays,
             canDelete:
               (await adminLevel(req.profileId, r.course.id, r.course.createdByProfileId))
                 ?.level === "EDIT",
@@ -425,6 +438,58 @@ export async function courseRoutes(app: FastifyInstance) {
         db.course.delete({ where: { id: course.id } }),
       ]);
       return { ok: true, releasedPrerequisiteLinks: releasedPrereqs };
+    },
+  );
+
+  // The organization library: every member can browse courses published to it.
+  // Each entry carries the signals the detail view needs — description, completions,
+  // and the branches currently using it.
+  app.get<{ Params: { id: string }; Querystring: { q?: string } }>(
+    "/orgs/:id/library",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const member = await db.membership.findUnique({
+        where: { profileId_orgId: { profileId: req.profileId, orgId: req.params.id } },
+      });
+      if (!member) return reply.status(404).send({ error: "Organization not found" });
+
+      const q = (req.query.q ?? "").trim().toLowerCase();
+      const list = await db.course.findMany({
+        where: { orgId: req.params.id, inLibrary: true },
+        include: { placements: true },
+        orderBy: { createdAt: "desc" },
+      });
+      const filtered = q
+        ? list.filter(
+            (c) =>
+              c.title.toLowerCase().includes(q) ||
+              (c.description ?? "").toLowerCase().includes(q) ||
+              c.code.includes(q),
+          )
+        : list;
+
+      const nodeIds = [...new Set(filtered.flatMap((c) => [c.uploaderRoleNodeId, ...c.placements.map((p) => p.roleNodeId)]))];
+      const nodes = await db.roleNode.findMany({ where: { id: { in: nodeIds } } });
+      const completions = await db.completionRecord.groupBy({
+        by: ["courseId"],
+        where: { courseId: { in: filtered.map((c) => c.id) }, status: "COMPLETED" },
+        _count: true,
+      });
+
+      return {
+        courses: filtered.map((c) => ({
+          code: c.code,
+          title: c.title,
+          kind: c.kind,
+          description: c.description,
+          uploaderRoleName: nodes.find((n) => n.id === c.uploaderRoleNodeId)?.name ?? "—",
+          createdAt: c.createdAt.toISOString(),
+          completedCount: completions.find((x) => x.courseId === c.id)?._count ?? 0,
+          usedIn: c.placements
+            .map((p) => nodes.find((n) => n.id === p.roleNodeId)?.name)
+            .filter((n): n is string => Boolean(n)),
+        })),
+      };
     },
   );
 

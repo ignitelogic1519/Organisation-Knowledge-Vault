@@ -5,7 +5,6 @@ import type { PlacementKind } from "./types.js";
 
 export const createSubRoleSchema = z.object({
   name: z.string().min(2, "Role name is too short").max(40),
-  isTerminal: z.boolean().default(false),
 });
 export type CreateSubRoleInput = z.infer<typeof createSubRoleSchema>;
 
@@ -13,16 +12,18 @@ export const addPersonSchema = z.object({
   username: z.string().min(1, "Enter their username"),
   kind: z.enum(["OWNER", "MEMBER"]),
   canCreateSubgroups: z.boolean().default(false),
+  canAddCoOwners: z.boolean().default(false),
 });
 export type AddPersonInput = z.infer<typeof addPersonSchema>;
 
 export const updateRoleFlagsSchema = z.object({
-  isTerminal: z.boolean(),
+  isPublic: z.boolean(),
 });
 export type UpdateRoleFlagsInput = z.infer<typeof updateRoleFlagsSchema>;
 
 export const updatePersonFlagsSchema = z.object({
-  canCreateSubgroups: z.boolean(),
+  canCreateSubgroups: z.boolean().optional(),
+  canAddCoOwners: z.boolean().optional(),
 });
 export type UpdatePersonFlagsInput = z.infer<typeof updatePersonFlagsSchema>;
 
@@ -32,6 +33,7 @@ export interface RolePerson {
   username: string;
   kind: PlacementKind;
   canCreateSubgroups: boolean;
+  canAddCoOwners: boolean;
 }
 
 export interface TreeNode {
@@ -40,7 +42,7 @@ export interface TreeNode {
   name: string;
   roleNumber: number;
   path: string;
-  isTerminal: boolean;
+  isPublic: boolean;
   ownerCount: number;
   memberCount: number;
   childCount: number;
@@ -48,9 +50,17 @@ export interface TreeNode {
   my: {
     kinds: PlacementKind[];
     canAddPeople: boolean;
+    /** May appoint co-owners here (strict-ancestor owner or canAddCoOwners flag). */
+    canAddCoOwners: boolean;
+    /** May pass the sub-group-creation flag on to owners here. */
+    canGrantSubgroups: boolean;
     canCreateSubRole: boolean;
     canManageFlags: boolean;
     canDelete: boolean;
+    /** Owner of this node without direct delete rights — deletion goes by request. */
+    canRequestDelete: boolean;
+    /** Public branch the user isn't part of — joining goes by request. */
+    canRequestJoin: boolean;
   };
   /** Occupants — present only when the requester governs this node. */
   people?: RolePerson[];

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { PublicProfile } from "@vault/shared";
 import { auth, ApiError, hasSession } from "@/lib/auth-client";
 import { AppShell } from "@/components/AppShell";
+import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconLogout, IconUser } from "@/components/icons";
 
 const NAV = [
@@ -16,6 +17,7 @@ const NAV = [
 
 export default function AccountPage() {
   const router = useRouter();
+  const dialogs = useDialogs();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -78,7 +80,15 @@ export default function AccountPage() {
             <button
               className="btn btn-danger"
               onClick={async () => {
-                if (!confirm("Delete your profile permanently? This cannot be undone.")) return;
+                if (
+                  !(await dialogs.confirm({
+                    title: "Delete profile",
+                    message: "Delete your profile permanently? This cannot be undone.",
+                    confirmLabel: "Delete forever",
+                    danger: true,
+                  }))
+                )
+                  return;
                 try {
                   await auth.deleteMe();
                   await auth.logout();

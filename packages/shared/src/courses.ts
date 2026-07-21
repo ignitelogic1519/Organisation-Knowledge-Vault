@@ -7,6 +7,10 @@ export const createCourseSchema = z.object({
   roleNodeId: z.string().uuid(), // uploading role — its number goes into the code
   kind: z.enum(["DOCUMENT", "BOOK", "LINK", "AUDIO", "VIDEO"]),
   title: z.string().min(2, "Title is too short").max(120),
+  /** Short description — shown in the library and on the course's detail view. */
+  description: z.string().min(8, "Describe the course in a sentence or two").max(500),
+  /** Whether the course is discoverable in the organization library. */
+  inLibrary: z.boolean().default(false),
   /** LINK/AUDIO/VIDEO hosted elsewhere: external URL. */
   url: z.string().url().optional(),
   /** Small files (≤ 2 MB) via the inline adapter. */
@@ -25,6 +29,9 @@ export const placeCourseSchema = z.object({
   roleNodeId: z.string().uuid(),
   mandatory: z.boolean(),
   inheritToDescendants: z.boolean(),
+  /** Optional per-branch overrides of the course defaults. */
+  deadlineDays: z.number().int().positive().max(3650).nullable().optional(),
+  retakeEveryNDays: z.number().int().positive().max(3650).nullable().optional(),
 });
 export type PlaceCourseInput = z.infer<typeof placeCourseSchema>;
 
@@ -52,6 +59,20 @@ export interface CourseInfo {
   deadlineDays: number | null;
   retakeEveryNDays: number | null;
   prerequisiteCodes: string[];
+}
+
+/** A library entry: course metadata plus usage & completion signals for the detail view. */
+export interface LibraryCourse {
+  code: string;
+  title: string;
+  kind: CourseKind;
+  description: string | null;
+  uploaderRoleName: string;
+  createdAt: string;
+  /** How many people completed it (org-wide, across versions). */
+  completedCount: number;
+  /** Branch names the course is currently placed on. */
+  usedIn: string[];
 }
 
 export interface LearningItem extends CourseInfo {

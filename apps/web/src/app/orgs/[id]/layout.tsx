@@ -11,12 +11,14 @@ import {
   IconBack,
   IconBook,
   IconHelp,
-  IconShield,
+  IconInbox,
+  IconLibrary,
   IconStars,
 } from "@/components/icons";
 
-// Org shell: fetches the org once, decides whether the Admin console tab is visible,
-// and wraps every org tab (Overview · Constellation · Admin) in the app chrome.
+// Org shell: fetches the org once and wraps every org tab
+// (Constellation · My Learning · Library · Requests) in the app chrome.
+// Everything owners once did in the Admin console now lives on the constellation.
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,24 +46,25 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       (p) => p.roleNodeId === org.ownerRole.id && p.kind === "OWNER",
     ) ?? false;
 
-  const nav = useMemo<ShellNavItem[]>(() => {
-    const items: ShellNavItem[] = [
+  const nav = useMemo<ShellNavItem[]>(
+    () => [
       { href: "/orgs", label: "Organizations", icon: <IconBack /> },
       { href: `/orgs/${id}`, label: "Constellation", icon: <IconStars /> },
       { href: `/orgs/${id}/learning`, label: "My Learning", icon: <IconBook /> },
-    ];
-    if (isAdmin) {
-      items.push({ href: `/orgs/${id}/admin`, label: "Admin console", icon: <IconShield /> });
-    }
-    items.push({ href: "/help", label: "Help", icon: <IconHelp /> });
-    return items;
-  }, [id, isAdmin]);
+      { href: `/orgs/${id}/library`, label: "Library", icon: <IconLibrary /> },
+      { href: `/orgs/${id}/requests`, label: "Requests", icon: <IconInbox /> },
+      { href: "/help", label: "Help", icon: <IconHelp /> },
+    ],
+    [id],
+  );
 
   const section = pathname.endsWith("/learning")
     ? "My Learning"
-    : pathname.endsWith("/admin")
-      ? "Admin console"
-      : "Constellation";
+    : pathname.endsWith("/library")
+      ? "Library"
+      : pathname.endsWith("/requests")
+        ? "Requests"
+        : "Constellation";
 
   if (!org) {
     return (

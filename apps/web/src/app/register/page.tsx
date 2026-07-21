@@ -16,6 +16,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     const data = new FormData(e.currentTarget);
+    if (data.get("password") !== data.get("password2")) {
+      setError("The passwords don't match — retype them.");
+      return;
+    }
     const parsed = registerSchema.safeParse({
       username: data.get("username"),
       password: data.get("password"),
@@ -71,6 +75,17 @@ export default function RegisterPage() {
               required
             />
             <small>At least 10 characters</small>
+          </label>
+          <label className="field">
+            <span>Retype password</span>
+            <input
+              name="password2"
+              type="password"
+              autoComplete="new-password"
+              minLength={10}
+              required
+            />
+            <small>Type it again to confirm you got it right</small>
           </label>
           {error && <p className="form-error">{error}</p>}
           <button className="btn btn-primary btn-block" disabled={busy}>

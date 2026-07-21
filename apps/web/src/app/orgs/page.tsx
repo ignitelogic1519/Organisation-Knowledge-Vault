@@ -8,6 +8,7 @@ import { hasSession } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
 import { fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { AppShell } from "@/components/AppShell";
+import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconPlus, IconUser } from "@/components/icons";
 
 type DeletedOrg = Awaited<ReturnType<typeof orgs.listDeleted>>[number];
@@ -21,6 +22,7 @@ const NAV = [
 // Dashboard — every organization the signed-in profile belongs to.
 export default function OrgsPage() {
   const router = useRouter();
+  const dialogs = useDialogs();
   const [list, setList] = useState<OrgSummary[] | null>(null);
   const [deleted, setDeleted] = useState<DeletedOrg[]>([]);
 
@@ -72,13 +74,19 @@ export default function OrgsPage() {
                 <button
                   className="btn btn-quiet btn-small"
                   onClick={async () => {
-                    const pw = prompt(`Undelete "${d.name}" — enter its Supreme password:`);
+                    const pw = await dialogs.promptPassword({
+                      title: `Undelete "${d.name}"`,
+                      message: "Enter the organization's Supreme password to restore it.",
+                      label: "Supreme password",
+                      minLength: 1,
+                      submitLabel: "Undelete",
+                    });
                     if (!pw) return;
                     try {
                       await orgs.undelete(d.id, pw);
                       load();
                     } catch (err) {
-                      alert(err instanceof Error ? err.message : "Undelete failed");
+                      dialogs.toast(err instanceof Error ? err.message : "Undelete failed", "danger");
                     }
                   }}
                 >
@@ -132,12 +140,14 @@ export default function OrgsPage() {
             try {
               const b64 = await fileToBase64(file);
               const res = await vaultFiles.revive(b64, String(d.get("password")));
-              alert(
-                `Revived! Roles: ${res.report.rolesRestored}, matched people: ${res.report.peopleMatched}, pending (re-attach on registration): ${res.report.peoplePending}, courses: ${res.report.coursesRestored}.\n\nMedia is marked unreachable until storage is reconnected.`,
-              );
+              await dialogs.alert({
+                title: "Organization revived",
+                message: `Roles: ${res.report.rolesRestored}, matched people: ${res.report.peopleMatched}, pending (re-attach on registration): ${res.report.peoplePending}, courses: ${res.report.coursesRestored}. Media is marked unreachable until storage is reconnected.`,
+                tone: "success",
+              });
               router.push(`/orgs/${res.orgId}`);
             } catch (err) {
-              alert(err instanceof Error ? err.message : "Revival failed");
+              dialogs.toast(err instanceof Error ? err.message : "Revival failed", "danger");
             }
           }}
         >

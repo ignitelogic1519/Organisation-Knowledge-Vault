@@ -36,6 +36,18 @@ enum AccessLevel {
   EDIT
 }
 
+enum RequestKind {
+  COURSE_ASSIGN // "Course request" — assign a library course to the requester's branch
+  JOIN_BRANCH // "Join request" — be added as member of a public branch
+  DELETE_BRANCH // "Deletion request" — branch owners asking the layer above to delete it
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ── Identity ────────────────────────────────────────────────────────────────
 
 // Identity is username-based (owner decision 2026-07-19 — email system removed from v1,
@@ -102,7 +114,7 @@ model RoleNode {
   parentId     String? // null only for the Owner role
   name         String // "HR", "Owner", "CEO", …
   roleNumber   Int // unique within org, NEVER reused
-  isTerminal   Boolean      @default(false)
+  isPublic     Boolean      @default(false) // visible to every org member; join-by-request
   path         String // materialized path built from role numbers, e.g. "100.101"
   nextItemNumber Int        @default(1) // per-role course item counter, NEVER reused
   placements   Placement[]
@@ -131,6 +143,7 @@ model Placement {
   roleNode           RoleNode      @relation(fields: [roleNodeId], references: [id])
   kind               PlacementKind
   canCreateSubgroups Boolean       @default(false) // meaningful for OWNER
+  canAddCoOwners     Boolean       @default(false) // OWNER only: may appoint co-owners here
   addedByProfileId   String // escalation target (docs/structure.md §3.4)
   createdAt          DateTime      @default(now())
 
@@ -148,6 +161,8 @@ model Course {
   createdByProfileId       String
   kind                     CourseKind
   title                    String
+  description              String? // short description shown in the library and admin views
+  inLibrary                Boolean            @default(false) // discoverable in the org library
   storageRef               Json // adapter-specific pointer: {adapter:"inline"|"link", ...}
   deadlineDays             Int?
   retakeEveryNDays         Int? // recurrence, applies to all kinds
@@ -167,6 +182,8 @@ model CoursePlacement {
   roleNodeId           String
   mandatory            Boolean
   inheritToDescendants Boolean
+  deadlineDays         Int? // per-branch override of the course default
+  retakeEveryNDays     Int? // per-branch recurrence override
   placedByProfileId    String
   createdAt            DateTime @default(now()) // deadline anchor
 
@@ -236,12 +253,33 @@ model Invitation {
   roleNodeId         String
   kind               PlacementKind
   canCreateSubgroups Boolean       @default(false)
+  canAddCoOwners     Boolean       @default(false)
   invitedByProfileId String
   acceptedAt         DateTime?
   createdAt          DateTime      @default(now())
 
   @@index([username])
   @@index([orgId, roleNodeId])
+}
+
+// Every ask-and-approve flow on the platform: course requests from the library,
+// join requests to public branches, and branch-deletion requests to the layer above.
+model VaultRequest {
+  id                 String        @id @default(uuid())
+  orgId              String
+  kind               RequestKind
+  status             RequestStatus @default(PENDING)
+  requesterProfileId String
+  targetRoleNodeId   String // branch to join / branch to delete / branch receiving the course
+  courseId           String? // COURSE_ASSIGN only
+  message            String?
+  decidedByProfileId String?
+  decidedAt          DateTime?
+  decisionNote       String?
+  createdAt          DateTime      @default(now())
+
+  @@index([orgId, status])
+  @@index([requesterProfileId])
 }
 
 model Notification {

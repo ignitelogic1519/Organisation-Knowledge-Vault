@@ -82,6 +82,7 @@ export async function orgRoutes(app: FastifyInstance) {
           roleNodeId: ownerRole.id,
           kind: "OWNER",
           canCreateSubgroups: true,
+          canAddCoOwners: true,
           addedByProfileId: req.profileId,
         },
       });
@@ -250,6 +251,7 @@ export async function orgRoutes(app: FastifyInstance) {
             roleNodeId: ownerRole.id,
             kind: "OWNER",
             canCreateSubgroups: true,
+            canAddCoOwners: true,
             addedByProfileId: req.profileId,
           },
         });

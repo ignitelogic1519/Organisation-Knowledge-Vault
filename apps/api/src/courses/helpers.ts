@@ -34,6 +34,9 @@ export interface ReachingCourse {
   mandatory: boolean;
   viaRoleName: string;
   anchor: Date; // earliest placement date — deadline anchor
+  /** Effective settings: the winning placement's per-branch override, else the course default. */
+  deadlineDays: number | null;
+  retakeEveryNDays: number | null;
 }
 
 /** Collect every course reaching the user in an org, mandatory-wins de-duplicated. */
@@ -66,12 +69,16 @@ export async function coursesReaching(profileId: string, orgId: string): Promise
           mandatory: cp.mandatory,
           viaRoleName: cpNode.name,
           anchor: cp.createdAt,
+          deadlineDays: cp.deadlineDays ?? cp.course.deadlineDays,
+          retakeEveryNDays: cp.retakeEveryNDays ?? cp.course.retakeEveryNDays,
         });
       } else {
         // mandatory wins over opt-in; keep the earliest anchor for deadlines
         if (cp.mandatory && !existing.mandatory) {
           existing.mandatory = true;
           existing.viaRoleName = cpNode.name;
+          existing.deadlineDays = cp.deadlineDays ?? cp.course.deadlineDays;
+          existing.retakeEveryNDays = cp.retakeEveryNDays ?? cp.course.retakeEveryNDays;
         }
         if (cp.createdAt < existing.anchor) existing.anchor = cp.createdAt;
       }
@@ -110,16 +117,16 @@ export async function toLearningItem(
   const overdue =
     reach.mandatory &&
     status !== "COMPLETED" &&
-    course.deadlineDays !== null &&
-    new Date(reach.anchor.getTime() + course.deadlineDays * 86400_000) < new Date();
+    reach.deadlineDays !== null &&
+    new Date(reach.anchor.getTime() + reach.deadlineDays * 86400_000) < new Date();
 
   return {
     code: course.code,
     title: course.title,
     kind: course.kind,
     version: course.version,
-    deadlineDays: course.deadlineDays,
-    retakeEveryNDays: course.retakeEveryNDays,
+    deadlineDays: reach.deadlineDays,
+    retakeEveryNDays: reach.retakeEveryNDays,
     prerequisiteCodes: prereqs.map((p) => p.requires.code),
     mandatory: reach.mandatory,
     viaRoleName: reach.viaRoleName,

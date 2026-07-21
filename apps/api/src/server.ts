@@ -9,6 +9,7 @@ import { meRoutes } from "./me/routes.js";
 import { orgRoutes } from "./orgs/routes.js";
 import { roleRoutes } from "./roles/routes.js";
 import { courseRoutes } from "./courses/routes.js";
+import { requestRoutes } from "./requests/routes.js";
 import { complianceRoutes } from "./compliance/routes.js";
 import { vaultFileRoutes } from "./vault-files/routes.js";
 
@@ -43,6 +44,7 @@ await app.register(meRoutes);
 await app.register(orgRoutes);
 await app.register(roleRoutes);
 await app.register(courseRoutes);
+await app.register(requestRoutes);
 await app.register(complianceRoutes);
 await app.register(vaultFileRoutes);
 

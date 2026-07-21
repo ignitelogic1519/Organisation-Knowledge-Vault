@@ -104,6 +104,43 @@ export const IconBack = (p: IconProps) => (
   </Svg>
 );
 
+export const IconSettings = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z" />
+  </Svg>
+);
+
+export const IconUsers = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9" cy="8" r="3.2" />
+    <path d="M2.5 20c1-3.2 3.5-4.5 6.5-4.5s5.5 1.3 6.5 4.5" />
+    <path d="M16 5.2a3.2 3.2 0 0 1 0 5.9M18.5 15.9c1.6.7 2.7 2 3.2 4.1" />
+  </Svg>
+);
+
+export const IconArchive = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="4.5" rx="1.2" />
+    <path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5" />
+    <path d="M9.5 12.5h5" />
+  </Svg>
+);
+
+export const IconLibrary = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 4.5h3.5v15H4zM9.5 4.5H13v15H9.5z" />
+    <path d="m15 5.5 4.5 1.2-3.6 13-4.4-1.2z" />
+  </Svg>
+);
+
+export const IconInbox = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3.5 13.5 6 5.5h12l2.5 8" />
+    <path d="M3.5 13.5V18a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-4.5h-5.2a2.8 2.8 0 0 1-5.6 0Z" />
+  </Svg>
+);
+
 export const IconLogout = (p: IconProps) => (
   <Svg {...p}>
     <path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8" />
