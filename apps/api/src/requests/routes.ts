@@ -3,22 +3,42 @@ import {
   can,
   createRequestSchema,
   decideRequestSchema,
+  isStrictAncestor,
   REQUEST_KIND_LABELS,
+  type PlacementRef,
   type RequestsOverview,
   type RequestView,
 } from "@vault/shared";
-import type { VaultRequest } from "@prisma/client";
+import type { RoleNode, VaultRequest } from "@prisma/client";
 import { db } from "../db.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { ownersAbove } from "../roles/routes.js";
 import { notify } from "../courses/helpers.js";
 
 // The ask-and-approve system (labeled categories):
-//  · Course request   — a member asks for a library course; the branch's handler approves,
-//    CONFIGURES it for the branch (mandatory / inheritance / deadline / recurrence), and
-//    only then it lands.
-//  · Join request     — a member asks to join a public branch; its owners decide.
-//  · Deletion request — a branch's own owners ask the level above to delete the branch.
+//  · Course request     — a member asks for a library course; the branch's handler
+//    approves, CONFIGURES it for the branch (mandatory / inheritance / deadline /
+//    recurrence), and only then it lands.
+//  · Join request       — a member asks to join a public branch; its owners decide.
+//  · Deletion request   — a branch's own owners ask the level above to delete the branch.
+//  · Visibility request — hidden inherits down a branch; an owner whose public node is
+//    still hidden by a level above asks that level to unhide the chain.
+
+/** Hidden strict ancestors of a node (root excluded), topmost first — the chain that
+ *  keeps an otherwise-public branch effectively hidden. */
+async function hiddenChainAbove(orgId: string, nodePath: string): Promise<RoleNode[]> {
+  const nodes = await db.roleNode.findMany({ where: { orgId } });
+  return nodes
+    .filter((n) => n.parentId !== null && !n.isPublic && isStrictAncestor(n.path, nodePath))
+    .sort((a, b) => a.path.length - b.path.length);
+}
+
+/** Deciding a Visibility request needs governance over the TOPMOST hidden ancestor —
+ *  owning that node (or above) covers everything beneath it. */
+function canDecideVisibility(placements: PlacementRef[], chain: RoleNode[], node: RoleNode) {
+  const gate = chain[0] ?? node;
+  return can(placements, "add_people", toRoleRef(gate));
+}
 
 async function toView(r: VaultRequest): Promise<RequestView> {
   const [node, course, requester] = await Promise.all([
@@ -84,11 +104,30 @@ export async function requestRoutes(app: FastifyInstance) {
         }
         courseId = course.id;
       } else if (body.kind === "JOIN_BRANCH") {
-        if (!node.isPublic) {
+        // Hidden inherits down: a public node under a hidden ancestor is NOT joinable
+        const hiddenAbove = await hiddenChainAbove(orgId, node.path);
+        if (!node.isPublic || hiddenAbove.length > 0) {
           return reply.status(403).send({ error: "This branch doesn't accept join requests" });
         }
         if (onNode.length > 0) {
           return reply.status(409).send({ error: "You are already part of this branch" });
+        }
+      } else if (body.kind === "VISIBILITY") {
+        if (node.parentId === null) {
+          return reply.status(409).send({ error: "The root role is always visible" });
+        }
+        if (!onNode.some((p) => p.kind === "OWNER")) {
+          return reply
+            .status(403)
+            .send({ error: "Only this branch's owners can request its visibility" });
+        }
+        const hiddenAbove = await hiddenChainAbove(orgId, node.path);
+        if (hiddenAbove.length === 0) {
+          return reply.status(409).send({
+            error: node.isPublic
+              ? "This branch is already publicly visible"
+              : "No level above hides this branch — make it public in Group configuration",
+          });
         }
       } else {
         // DELETE_BRANCH
@@ -125,8 +164,17 @@ export async function requestRoutes(app: FastifyInstance) {
         },
       });
 
-      // Tell the deciders: owners above for deletions, governing owners otherwise
-      const deciders = await ownersAbove(orgId, node.path, body.kind !== "DELETE_BRANCH");
+      // Tell the deciders: owners above for deletions, owners governing the topmost
+      // hidden level for visibility, governing owners otherwise
+      const deciderAnchor =
+        body.kind === "VISIBILITY"
+          ? ((await hiddenChainAbove(orgId, node.path))[0] ?? node)
+          : node;
+      const deciders = await ownersAbove(
+        orgId,
+        deciderAnchor.path,
+        body.kind !== "DELETE_BRANCH",
+      );
       await Promise.all(
         deciders
           .filter((id) => id !== req.profileId)
@@ -165,14 +213,19 @@ export async function requestRoutes(app: FastifyInstance) {
         where: { orgId, status: "PENDING", requesterProfileId: { not: req.profileId } },
         orderBy: { createdAt: "asc" },
       });
-      const nodeIds = [...new Set(pending.map((p) => p.targetRoleNodeId))];
-      const nodes = await db.roleNode.findMany({ where: { id: { in: nodeIds } } });
+      const allNodes = await db.roleNode.findMany({ where: { orgId } });
+      const hiddenAbove = (nodePath: string) =>
+        allNodes
+          .filter((n) => n.parentId !== null && !n.isPublic && isStrictAncestor(n.path, nodePath))
+          .sort((a, b) => a.path.length - b.path.length);
       const decidable = pending.filter((r) => {
-        const node = nodes.find((n) => n.id === r.targetRoleNodeId);
+        const node = allNodes.find((n) => n.id === r.targetRoleNodeId);
         if (!node) return false;
         const ref = toRoleRef(node);
         if (r.kind === "DELETE_BRANCH") return can(placements, "delete_role", ref);
         if (r.kind === "JOIN_BRANCH") return can(placements, "add_people", ref);
+        if (r.kind === "VISIBILITY")
+          return canDecideVisibility(placements, hiddenAbove(node.path), node);
         return can(placements, "create_content", ref); // COURSE_ASSIGN
       });
 
@@ -200,12 +253,16 @@ export async function requestRoutes(app: FastifyInstance) {
       const placements = await actorPlacements(req.profileId, request.orgId);
       const ref = toRoleRef(node);
 
+      const visibilityChain =
+        request.kind === "VISIBILITY" ? await hiddenChainAbove(request.orgId, node.path) : [];
       const allowed =
         request.kind === "DELETE_BRANCH"
           ? can(placements, "delete_role", ref)
           : request.kind === "JOIN_BRANCH"
             ? can(placements, "add_people", ref)
-            : can(placements, "create_content", ref);
+            : request.kind === "VISIBILITY"
+              ? canDecideVisibility(placements, visibilityChain, node)
+              : can(placements, "create_content", ref);
       if (!allowed) {
         return reply.status(403).send({ error: "You don't have authority over this request" });
       }
@@ -236,6 +293,13 @@ export async function requestRoutes(app: FastifyInstance) {
               },
             });
           }
+        } else if (request.kind === "VISIBILITY") {
+          // Unhide the whole chain above and publish the branch itself — hidden
+          // inherits downward, so every hidden level must open for it to show.
+          await db.roleNode.updateMany({
+            where: { id: { in: [...visibilityChain.map((c) => c.id), node.id] } },
+            data: { isPublic: true },
+          });
         } else if (request.kind === "DELETE_BRANCH") {
           const children = await db.roleNode.count({ where: { parentId: node.id } });
           const occupants = await db.placement.count({ where: { roleNodeId: node.id } });

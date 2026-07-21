@@ -42,7 +42,11 @@ export interface TreeNode {
   name: string;
   roleNumber: number;
   path: string;
+  /** This node's own visibility flag. */
   isPublic: boolean;
+  /** True only when the node AND every ancestor below the root are public —
+   *  hidden inherits down the branch to the last end. */
+  effectivePublic: boolean;
   ownerCount: number;
   memberCount: number;
   childCount: number;
@@ -61,6 +65,8 @@ export interface TreeNode {
     canRequestDelete: boolean;
     /** Public branch the user isn't part of — joining goes by request. */
     canRequestJoin: boolean;
+    /** Owner of a public node hidden by a level above — visibility goes by request. */
+    canRequestVisibility: boolean;
   };
   /** Occupants — present only when the requester governs this node. */
   people?: RolePerson[];

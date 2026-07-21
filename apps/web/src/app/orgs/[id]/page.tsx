@@ -81,13 +81,14 @@ function ConfigPanel({
 
   return (
     <div className="drawer-section">
-      {/* visibility */}
+      {/* visibility — changeable any time; hidden inherits down from every level above */}
       <div className="config-row">
         <div>
           <strong>Public branch</strong>
           <p className="auth-sub">
             Public branches are visible to every member of the organization, who can ask to
-            join with a Join request.
+            join with a Join request. A hidden branch hides everything beneath it, down to
+            the last end.
           </p>
         </div>
         <button
@@ -97,6 +98,44 @@ function ConfigPanel({
           {node.isPublic ? "Public ✓" : "Make public"}
         </button>
       </div>
+      {node.isPublic && !node.effectivePublic && (
+        <div className="config-row config-row-warn">
+          <div>
+            <strong>Hidden by a level above</strong>
+            <p className="auth-sub">
+              This branch is marked public, but a hidden level above keeps it — and its
+              whole subtree — invisible.
+              {node.my.canRequestVisibility
+                ? " Ask that level's owners to unhide the chain."
+                : " Unhide the level above to make it show."}
+            </p>
+          </div>
+          {node.my.canRequestVisibility && (
+            <button
+              className="btn btn-quiet btn-small"
+              onClick={async () => {
+                if (
+                  await dialogs.confirm({
+                    title: "Visibility request",
+                    message: `Ask the level above to unhide the chain so "${node.name}" becomes publicly visible?`,
+                    confirmLabel: "Send request",
+                  })
+                ) {
+                  await act(async () => {
+                    await requests.create(org.id, {
+                      kind: "VISIBILITY",
+                      targetRoleNodeId: node.id,
+                    });
+                    dialogs.toast("Visibility request sent to the level above.", "success");
+                  });
+                }
+              }}
+            >
+              Request visibility
+            </button>
+          )}
+        </div>
+      )}
 
       {/* structure */}
       {node.my.canCreateSubRole && (
@@ -925,7 +964,10 @@ function NodeDrawer({
       {!section && (
         <>
           <div className="drawer-badges">
-            {node.isPublic && <span className="badge badge-ok">public</span>}
+            {node.effectivePublic && <span className="badge badge-ok">public</span>}
+            {node.isPublic && !node.effectivePublic && (
+              <span className="badge">hidden by a level above</span>
+            )}
             {node.my.kinds.map((k) => (
               <span key={k} className="badge badge-ok">
                 you: {k.toLowerCase()}
@@ -1000,7 +1042,7 @@ function InfoDrawer({
         </button>
       </div>
       <div className="drawer-badges">
-        {node.isPublic && <span className="badge badge-ok">public</span>}
+        {node.effectivePublic && <span className="badge badge-ok">public</span>}
         {node.my.kinds.map((k) => (
           <span key={k} className="badge badge-ok">
             you: {k.toLowerCase()}

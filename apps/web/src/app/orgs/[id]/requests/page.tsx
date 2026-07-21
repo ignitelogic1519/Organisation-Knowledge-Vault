@@ -86,6 +86,12 @@ function InboxCard({
             asks to delete the branch <strong>{r.targetRoleName}</strong>
           </>
         )}
+        {r.kind === "VISIBILITY" && (
+          <>
+            asks to unhide the chain above <strong>{r.targetRoleName}</strong> so it becomes
+            publicly visible
+          </>
+        )}
         {r.kind === "COURSE_ASSIGN" && (
           <>
             asks for <strong>{r.courseTitle ?? r.courseCode}</strong>{" "}
@@ -182,7 +188,9 @@ function InboxCard({
                     message:
                       r.kind === "DELETE_BRANCH"
                         ? `Approving deletes the branch "${r.targetRoleName}" (it must be empty).`
-                        : `Approving adds ${r.requester.displayName} as a member of "${r.targetRoleName}".`,
+                        : r.kind === "VISIBILITY"
+                          ? `Approving unhides every hidden level above "${r.targetRoleName}" and makes the branch publicly visible.`
+                          : `Approving adds ${r.requester.displayName} as a member of "${r.targetRoleName}".`,
                     confirmLabel: "Approve",
                     danger: r.kind === "DELETE_BRANCH",
                   })
@@ -257,6 +265,11 @@ export default function RequestsPage() {
                 {r.kind === "DELETE_BRANCH" && (
                   <>
                     Delete the branch <strong>{r.targetRoleName}</strong>
+                  </>
+                )}
+                {r.kind === "VISIBILITY" && (
+                  <>
+                    Make <strong>{r.targetRoleName}</strong> publicly visible
                   </>
                 )}
                 {r.kind === "COURSE_ASSIGN" && (

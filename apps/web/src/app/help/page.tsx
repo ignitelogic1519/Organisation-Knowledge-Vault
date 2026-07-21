@@ -73,6 +73,9 @@ const TOPICS = [
           <li>
             A branch can be made <strong>public</strong>: every member sees it in the
             constellation and can send a <strong>Join request</strong> to its owners.
+            Hidden inherits downward — a hidden branch hides its whole subtree, and a
+            public node under it stays invisible until the chain above is unhidden (its
+            owners can file a <strong>Visibility request</strong>).
           </li>
         </ul>
       </>

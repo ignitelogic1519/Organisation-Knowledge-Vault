@@ -40,6 +40,7 @@ enum RequestKind {
   COURSE_ASSIGN // "Course request" — assign a library course to the requester's branch
   JOIN_BRANCH // "Join request" — be added as member of a public branch
   DELETE_BRANCH // "Deletion request" — branch owners asking the layer above to delete it
+  VISIBILITY // "Visibility request" — unhide the chain above so a public branch shows
 }
 
 enum RequestStatus {
@@ -114,7 +115,8 @@ model RoleNode {
   parentId     String? // null only for the Owner role
   name         String // "HR", "Owner", "CEO", …
   roleNumber   Int // unique within org, NEVER reused
-  isPublic     Boolean      @default(false) // visible to every org member; join-by-request
+  isPublic     Boolean      @default(false) // own flag; EFFECTIVE visibility also requires
+  // every ancestor below the root to be public — hidden inherits down to the last end
   path         String // materialized path built from role numbers, e.g. "100.101"
   nextItemNumber Int        @default(1) // per-role course item counter, NEVER reused
   placements   Placement[]

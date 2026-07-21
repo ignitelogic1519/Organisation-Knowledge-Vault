@@ -73,16 +73,33 @@ export async function roleRoutes(app: FastifyInstance) {
 
       const ownedPaths = placements.filter((p) => p.kind === "OWNER").map((p) => p.roleNodePath);
       const occupiedPaths = placements.map((p) => p.roleNodePath);
-      const publicPaths = allNodes.filter((n) => n.isPublic).map((n) => n.path);
+
+      // Hidden inherits down to the last end: a node is EFFECTIVELY public only when it
+      // and every ancestor below the root are public. (The root is visible to members
+      // by definition, so its own flag doesn't gate the chain.)
+      const byPath = new Map(allNodes.map((n) => [n.path, n]));
+      const hiddenAncestorOf = (n: (typeof allNodes)[number]) => {
+        const segs = n.path.split(".");
+        for (let i = 1; i < segs.length; i++) {
+          const anc = byPath.get(segs.slice(0, i).join("."));
+          if (anc && anc.parentId !== null && !anc.isPublic) return anc; // topmost first
+        }
+        return null;
+      };
+      const effectivePublicPaths = allNodes
+        .filter((n) => n.isPublic && !hiddenAncestorOf(n))
+        .map((n) => n.path);
 
       const visible = allNodes.filter((n) => {
         const occupiesOrOwnsAbove =
           ownedPaths.some((op) => isSelfOrAncestor(op, n.path)) || // subtree of owned nodes
           occupiedPaths.includes(n.path); // nodes they occupy as member
         const isAncestorOfOccupied = occupiedPaths.some((op) => isSelfOrAncestor(n.path, op));
-        // Public branches are discoverable by every member — including the chain above
-        // them, otherwise the tree they hang from couldn't be drawn.
-        const isPublicOrAbovePublic = publicPaths.some((pp) => isSelfOrAncestor(n.path, pp));
+        // Effectively public branches are discoverable by every member — including the
+        // chain above them, otherwise the tree they hang from couldn't be drawn.
+        const isPublicOrAbovePublic = effectivePublicPaths.some((pp) =>
+          isSelfOrAncestor(n.path, pp),
+        );
         return occupiesOrOwnsAbove || isAncestorOfOccupied || isPublicOrAbovePublic;
       });
 
@@ -102,6 +119,9 @@ export async function roleRoutes(app: FastifyInstance) {
           const governs = can(placements, "add_people", ref);
           const kinds = placements.filter((p) => p.roleNodeId === n.id).map((p) => p.kind);
           const canDelete = n.parentId !== null && can(placements, "delete_role", ref);
+          const hiddenAnc = hiddenAncestorOf(n);
+          const effectivePublic = n.isPublic && !hiddenAnc;
+          const ownsNode = placements.some((p) => p.kind === "OWNER" && p.roleNodeId === n.id);
           const my: TreeNode["my"] = {
             kinds,
             canAddPeople: governs,
@@ -110,11 +130,15 @@ export async function roleRoutes(app: FastifyInstance) {
             canCreateSubRole: can(placements, "create_sub_role", ref),
             canManageFlags: can(placements, "manage_flags", ref),
             canDelete,
-            canRequestDelete:
-              n.parentId !== null &&
-              !canDelete &&
-              placements.some((p) => p.kind === "OWNER" && p.roleNodeId === n.id),
-            canRequestJoin: n.isPublic && kinds.length === 0 && !governs,
+            canRequestDelete: n.parentId !== null && !canDelete && ownsNode,
+            canRequestJoin: effectivePublic && kinds.length === 0 && !governs,
+            // Owner published their node but a level above keeps it hidden — and they
+            // can't unhide that level themselves, so it goes by Visibility request.
+            canRequestVisibility:
+              ownsNode &&
+              n.isPublic &&
+              hiddenAnc !== null &&
+              !can(placements, "add_people", toRoleRef(hiddenAnc)),
           };
           return {
             id: n.id,
@@ -123,6 +147,7 @@ export async function roleRoutes(app: FastifyInstance) {
             roleNumber: n.roleNumber,
             path: n.path,
             isPublic: n.isPublic,
+            effectivePublic,
             ownerCount: counts.find((c) => c.roleNodeId === n.id && c.kind === "OWNER")?._count ?? 0,
             memberCount:
               counts.find((c) => c.roleNodeId === n.id && c.kind === "MEMBER")?._count ?? 0,

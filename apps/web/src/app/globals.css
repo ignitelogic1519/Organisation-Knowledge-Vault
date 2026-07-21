@@ -2232,6 +2232,16 @@ button {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
+.chip[data-kind="VISIBILITY"] {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.config-row-warn {
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent);
+  background: color-mix(in srgb, var(--warning) 6%, transparent);
+}
+
 /* ── Utility ───────────────────────────────────────────────────────────── */
 
 .sr-only {
