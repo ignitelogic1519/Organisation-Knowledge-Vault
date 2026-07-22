@@ -9,6 +9,7 @@ import {
   type MyLearningView,
 } from "@vault/shared";
 import { db } from "../db.js";
+import { broadcast } from "../events.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { coursesReaching, nextCourseCode, notify, toLearningItem } from "./helpers.js";
@@ -82,6 +83,7 @@ export async function courseRoutes(app: FastifyInstance) {
           },
         },
       });
+      broadcast(node.orgId, "courses");
       return { code: course.code, id: course.id };
     },
   );
@@ -171,6 +173,7 @@ export async function courseRoutes(app: FastifyInstance) {
             : {}),
         },
       });
+      broadcast(course.orgId, "courses");
       return { ok: true };
     },
   );
@@ -237,6 +240,7 @@ export async function courseRoutes(app: FastifyInstance) {
           },
         });
       }
+      broadcast(course.orgId, "courses");
       return { ok: true, validUntil: validUntil?.toISOString() ?? null };
     },
   );
@@ -284,6 +288,7 @@ export async function courseRoutes(app: FastifyInstance) {
           });
         }
       }
+      broadcast(course.orgId, "courses");
       return { ok: true, version: updated.version };
     },
   );
@@ -405,6 +410,7 @@ export async function courseRoutes(app: FastifyInstance) {
       await db.coursePlacement.deleteMany({
         where: { courseId: course.id, roleNodeId: node.id },
       });
+      broadcast(course.orgId, "courses");
       return { ok: true };
     },
   );
@@ -437,6 +443,7 @@ export async function courseRoutes(app: FastifyInstance) {
           : []),
         db.course.delete({ where: { id: course.id } }),
       ]);
+      broadcast(course.orgId, "courses");
       return { ok: true, releasedPrerequisiteLinks: releasedPrereqs };
     },
   );

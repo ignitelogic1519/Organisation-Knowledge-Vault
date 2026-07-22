@@ -9,6 +9,7 @@ import {
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
 import { useOrg } from "@/components/org-context";
+import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
 
 // Requests — the ask-and-approve center. Two views:
@@ -34,9 +35,11 @@ function StatusBadge({ status }: { status: RequestView["status"] }) {
 function InboxCard({
   r,
   onDone,
+  onRemove,
 }: {
   r: RequestView;
   onDone: () => void;
+  onRemove: () => void;
 }) {
   const dialogs = useDialogs();
   const [configOpen, setConfigOpen] = useState(false);
@@ -154,6 +157,14 @@ function InboxCard({
       ) : (
         <div className="request-actions">
           <button
+            className="btn btn-quiet btn-small"
+            disabled={busy}
+            title="Delete this request without deciding it"
+            onClick={onRemove}
+          >
+            Delete
+          </button>
+          <button
             className="btn btn-danger btn-small"
             disabled={busy}
             onClick={async () => {
@@ -222,6 +233,26 @@ export default function RequestsPage() {
   }, [org.id]);
 
   useEffect(load, [load]);
+  // Live: new requests and decisions appear without a refresh
+  useOrgEvent(["requests"], load);
+
+  const removeRequest = async (id: string, title: string, message: string) => {
+    if (
+      await dialogs.confirm({
+        title,
+        message,
+        confirmLabel: "Delete",
+        danger: true,
+      })
+    ) {
+      try {
+        await requests.withdraw(id);
+        load();
+      } catch (e) {
+        dialogs.toast(e instanceof ApiError ? e.message : "Could not delete", "danger");
+      }
+    }
+  };
 
   return (
     <div className="panel-grid stagger">
@@ -229,7 +260,8 @@ export default function RequestsPage() {
         <h2>Inbox — waiting on you</h2>
         <p className="auth-sub">
           Requests you have the authority to decide. Course requests are configured for the
-          branch before approval; deletions execute on approval.
+          branch before approval; deletions execute on approval. Decided requests clean up
+          automatically after 7 days.
         </p>
         {error && <p className="form-error">{error}</p>}
         {!data && !error && <div className="skeleton" style={{ minHeight: "5rem" }} />}
@@ -237,7 +269,20 @@ export default function RequestsPage() {
           <p className="auth-sub">Nothing waiting on you right now.</p>
         )}
         <ul className="request-list">
-          {data?.inbox.map((r) => <InboxCard key={r.id} r={r} onDone={load} />)}
+          {data?.inbox.map((r) => (
+            <InboxCard
+              key={r.id}
+              r={r}
+              onDone={load}
+              onRemove={() =>
+                removeRequest(
+                  r.id,
+                  "Delete request",
+                  `Delete this ${REQUEST_KIND_LABELS[r.kind].toLowerCase()} from ${r.requester.displayName} without deciding it? Their entry disappears too.`,
+                )
+              }
+            />
+          ))}
         </ul>
       </div>
 
@@ -283,34 +328,28 @@ export default function RequestsPage() {
                 <span className="auth-sub">· {r.createdAt.slice(0, 10)}</span>
               </p>
               {r.decisionNote && <p className="request-msg">Decision note: “{r.decisionNote}”</p>}
-              {r.status === "PENDING" && (
-                <div className="request-actions">
+              <div className="request-actions">
+                {r.status === "PENDING" ? (
                   <button
                     className="btn btn-quiet btn-small"
-                    onClick={async () => {
-                      if (
-                        await dialogs.confirm({
-                          title: "Withdraw request",
-                          message: "Withdraw this pending request?",
-                          confirmLabel: "Withdraw",
-                        })
-                      ) {
-                        try {
-                          await requests.withdraw(r.id);
-                          load();
-                        } catch (e) {
-                          dialogs.toast(
-                            e instanceof ApiError ? e.message : "Could not withdraw",
-                            "danger",
-                          );
-                        }
-                      }
-                    }}
+                    onClick={() =>
+                      removeRequest(r.id, "Withdraw request", "Withdraw this pending request?")
+                    }
                   >
                     Withdraw
                   </button>
-                </div>
-              )}
+                ) : (
+                  <button
+                    className="btn btn-quiet btn-small"
+                    title="Remove this entry from your history (auto-cleans after 7 days anyway)"
+                    onClick={() =>
+                      removeRequest(r.id, "Delete entry", "Remove this decided request from your history?")
+                    }
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

@@ -12,6 +12,7 @@ import { courseRoutes } from "./courses/routes.js";
 import { requestRoutes } from "./requests/routes.js";
 import { complianceRoutes } from "./compliance/routes.js";
 import { vaultFileRoutes } from "./vault-files/routes.js";
+import { eventRoutes } from "./events.js";
 
 const app = Fastify({ logger: true });
 
@@ -47,6 +48,7 @@ await app.register(courseRoutes);
 await app.register(requestRoutes);
 await app.register(complianceRoutes);
 await app.register(vaultFileRoutes);
+await app.register(eventRoutes);
 
 app.get("/health", async (): Promise<HealthResponse> => ({
   status: "ok",

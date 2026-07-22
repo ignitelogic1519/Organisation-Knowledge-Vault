@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LearningItem, MyLearningView } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
+import { useOrgEvent } from "./org-events";
 
 // My Learning — the member's course list, grouped by what matters to them:
 // pending (assigned / in progress / expired / overdue) first, completed below.
@@ -90,6 +91,8 @@ export function MyLearning({ orgId }: { orgId: string }) {
     courses.myLearning(orgId).then(setView).catch(() => setView(null));
   }, [orgId]);
   useEffect(reload, [reload]);
+  // Live: newly assigned/changed courses land without a refresh
+  useOrgEvent(["courses", "structure"], reload);
 
   const groups = useMemo(() => {
     if (!view) return null;

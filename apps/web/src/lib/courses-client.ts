@@ -67,6 +67,8 @@ export const courses = {
 export const notifications = {
   list: () => api<{ notifications: AppNotification[]; unread: number }>("/notifications"),
   markAllRead: () => api<{ ok: boolean }>("/notifications/read", { method: "POST", body: "{}" }),
+  remove: (id: string) => api<{ ok: boolean }>(`/notifications/${id}`, { method: "DELETE" }),
+  clearAll: () => api<{ ok: boolean }>("/notifications/clear", { method: "POST", body: "{}" }),
 };
 
 export const vaultFiles = {

@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
 import { useOrg } from "@/components/org-context";
+import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
 
 // The organization library — every course published to it, searchable by anyone in the
@@ -164,6 +165,8 @@ export default function LibraryPage() {
     const t = setTimeout(() => load(query), 250);
     return () => clearTimeout(t);
   }, [query, load]);
+  // Live: newly published/removed library courses appear without a refresh
+  useOrgEvent(["courses"], () => load(query));
 
   return (
     <div className="panel-grid stagger">

@@ -13,6 +13,7 @@ import {
   type TreeNode,
 } from "@vault/shared";
 import { db } from "../db.js";
+import { broadcast } from "../events.js";
 import { actorPlacements, placePerson, toRoleRef } from "./helpers.js";
 
 type RoleReq = FastifyRequest<{ Params: { roleId: string } }>;
@@ -193,6 +194,7 @@ export async function roleRoutes(app: FastifyInstance) {
           },
         });
       });
+      broadcast(ctx.node.orgId, "structure");
       return { id: child.id, roleNumber: child.roleNumber, path: child.path };
     },
   );
@@ -234,24 +236,11 @@ export async function roleRoutes(app: FastifyInstance) {
       const profile = await db.profile.findUnique({ where: { username } });
 
       if (!profile) {
-        const existing = await db.invitation.findFirst({
-          where: { orgId: ctx.node.orgId, username, roleNodeId: ctx.node.id, kind: body.kind, acceptedAt: null },
+        // A typo must not silently reserve a ghost placement — say it plainly.
+        // (Revival-pending members still re-attach through the invitation table.)
+        return reply.status(404).send({
+          error: `No user named @${username} exists — check the spelling`,
         });
-        if (existing) return reply.status(409).send({ error: "Already reserved for this role" });
-        await db.invitation.create({
-          data: {
-            orgId: ctx.node.orgId,
-            username,
-            roleNodeId: ctx.node.id,
-            kind: body.kind,
-            canCreateSubgroups: wantsSubgroups,
-            canAddCoOwners: wantsCoOwnerFlag,
-            invitedByProfileId: req.profileId,
-          },
-        });
-        // No profile with this username yet: the placement is reserved and applies
-        // automatically the moment someone registers with exactly this username.
-        return { ok: true, invited: true };
       }
 
       const dup = await db.placement.findFirst({
@@ -268,6 +257,7 @@ export async function roleRoutes(app: FastifyInstance) {
         canAddCoOwners: wantsCoOwnerFlag,
         addedByProfileId: req.profileId,
       });
+      broadcast(ctx.node.orgId, "structure");
       return { ok: true, invited: false };
     },
   );
@@ -314,6 +304,7 @@ export async function roleRoutes(app: FastifyInstance) {
       if (remaining === 0) {
         await db.membership.delete({ where: { id: target.membershipId } });
       }
+      broadcast(ctx.node.orgId, "structure");
       return { ok: true };
     },
   );
@@ -333,6 +324,7 @@ export async function roleRoutes(app: FastifyInstance) {
         where: { id: ctx.node.id },
         data: { isPublic: body.isPublic },
       });
+      broadcast(ctx.node.orgId, "structure");
       return { ok: true };
     },
   );
@@ -381,6 +373,7 @@ export async function roleRoutes(app: FastifyInstance) {
           ...(body.canAddCoOwners !== undefined ? { canAddCoOwners: body.canAddCoOwners } : {}),
         },
       });
+      broadcast(ctx.node.orgId, "structure");
       return { ok: true };
     },
   );
@@ -417,6 +410,7 @@ export async function roleRoutes(app: FastifyInstance) {
       await db.invitation.deleteMany({ where: { roleNodeId: ctx.node.id } });
       await db.vaultRequest.deleteMany({ where: { targetRoleNodeId: ctx.node.id } });
       await db.roleNode.delete({ where: { id: ctx.node.id } });
+      broadcast(ctx.node.orgId, "structure");
       return { ok: true };
     },
   );

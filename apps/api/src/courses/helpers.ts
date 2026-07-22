@@ -1,6 +1,7 @@
 import { formatCourseCode, isSelfOrAncestor, type LearningItem } from "@vault/shared";
 import type { Course, CoursePlacement, RoleNode } from "@prisma/client";
 import { db } from "../db.js";
+import { broadcast } from "../events.js";
 
 export async function nextCourseCode(node: RoleNode & { org: { orgNumber: number } }) {
   const updated = await db.roleNode.update({
@@ -147,6 +148,7 @@ export async function notify(
   await db.notification.create({
     data: { profileId, orgId, kind, payload: payload as object },
   });
+  broadcast(orgId, "notifications", profileId); // live bell update, only for the target
 }
 
 /**

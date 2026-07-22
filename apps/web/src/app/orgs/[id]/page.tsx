@@ -9,6 +9,7 @@ import { orgs, requests, roles } from "@/lib/orgs-client";
 import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { GraphLegend, OrgGraph } from "@/components/OrgGraph";
 import { useOrg } from "@/components/org-context";
+import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
 import {
   IconArchive,
@@ -46,7 +47,7 @@ function ConfigPanel({
   onClose,
 }: {
   node: TreeNode;
-  act: (fn: () => Promise<unknown>) => Promise<void>;
+  act: (fn: () => Promise<unknown>) => Promise<boolean>;
   onClose: () => void;
 }) {
   const { org, reload, isSupremeOwner } = useOrg();
@@ -396,7 +397,7 @@ function PeoplePanel({
   act,
 }: {
   node: TreeNode;
-  act: (fn: () => Promise<unknown>) => Promise<void>;
+  act: (fn: () => Promise<unknown>) => Promise<boolean>;
 }) {
   const dialogs = useDialogs();
   // Button-inside-button flow: "+ Add person" → choose member OR co-owner → the
@@ -448,18 +449,27 @@ function PeoplePanel({
       {(addStep === "MEMBER" || addStep === "OWNER") && (
         <form
           className="add-person-form"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             const d = new FormData(e.currentTarget);
-            act(() =>
+            const username = String(d.get("username")).toLowerCase();
+            // The form stays open on failure (e.g. "user doesn't exist") — never a
+            // silent close
+            const ok = await act(() =>
               roles.addPerson(node.id, {
-                username: String(d.get("username")),
+                username,
                 kind: addStep,
                 canCreateSubgroups: addStep === "OWNER" && d.get("delegate") === "on",
                 canAddCoOwners: addStep === "OWNER" && d.get("coowners") === "on",
               }),
             );
-            setAddStep("closed");
+            if (ok) {
+              dialogs.toast(
+                `Added @${username} to ${node.name} as ${addStep === "OWNER" ? "co-owner" : "member"}.`,
+                "success",
+              );
+              setAddStep("closed");
+            }
           }}
         >
           <div className="add-person-head">
@@ -625,7 +635,7 @@ function CoursesPanel({
 }: {
   node: TreeNode;
   orgId: string;
-  act: (fn: () => Promise<unknown>) => Promise<void>;
+  act: (fn: () => Promise<unknown>) => Promise<boolean>;
   onError: (m: string) => void;
 }) {
   const dialogs = useDialogs();
@@ -840,7 +850,7 @@ function BackupPanel({
   act,
 }: {
   node: TreeNode;
-  act: (fn: () => Promise<unknown>) => Promise<void>;
+  act: (fn: () => Promise<unknown>) => Promise<boolean>;
 }) {
   const dialogs = useDialogs();
   return (
@@ -970,6 +980,7 @@ function NodeDrawer({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const dialogs = useDialogs();
   const [section, setSection] = useState<Section | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -978,13 +989,19 @@ function NodeDrawer({
     setError(null);
   }, [node.id]);
 
-  const act = async (fn: () => Promise<unknown>) => {
+  // Runs an action; failures surface both inline AND as a bottom-center toast so a
+  // form never just "closes silently". Returns whether the action succeeded.
+  const act = async (fn: () => Promise<unknown>): Promise<boolean> => {
     setError(null);
     try {
       await fn();
       onChanged();
+      return true;
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Action failed");
+      const message = e instanceof ApiError ? e.message : "Action failed";
+      setError(message);
+      dialogs.toast(message, "danger");
+      return false;
     }
   };
 
@@ -1188,6 +1205,8 @@ export default function OrgConstellationPage() {
   }, [org.id]);
 
   useEffect(reload, [reload]);
+  // Live: structure and course changes made by anyone reflect without a refresh
+  useOrgEvent(["structure", "courses"], reload);
 
   // No redirects: nodes without access say so; joinable/own nodes open the info panel
   const onSelect = useCallback(

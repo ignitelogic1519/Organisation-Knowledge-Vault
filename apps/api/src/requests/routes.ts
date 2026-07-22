@@ -11,9 +11,14 @@ import {
 } from "@vault/shared";
 import type { RoleNode, VaultRequest } from "@prisma/client";
 import { db } from "../db.js";
+import { broadcast } from "../events.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { ownersAbove } from "../roles/routes.js";
+import { isSelfOrAncestor } from "@vault/shared";
 import { notify } from "../courses/helpers.js";
+
+/** Decided requests only live 7 days — history stays lean, the database stays clean. */
+const DECIDED_RETENTION_MS = 7 * 86400_000;
 
 // The ask-and-approve system (labeled categories):
 //  · Course request     — a member asks for a library course; the branch's handler
@@ -38,6 +43,23 @@ async function hiddenChainAbove(orgId: string, nodePath: string): Promise<RoleNo
 function canDecideVisibility(placements: PlacementRef[], chain: RoleNode[], node: RoleNode) {
   const gate = chain[0] ?? node;
   return can(placements, "add_people", toRoleRef(gate));
+}
+
+/**
+ * The branch's HANDLER decides course requests — the nearest level that actually has
+ * an owner (the node itself, else the closest ancestor with one), NOT every level up
+ * to the top. Returns that node's id, or null when the whole chain is ownerless.
+ */
+async function courseHandlerNodeId(orgId: string, nodePath: string): Promise<string | null> {
+  const nodes = await db.roleNode.findMany({ where: { orgId } });
+  const chain = nodes
+    .filter((n) => isSelfOrAncestor(n.path, nodePath))
+    .sort((a, b) => b.path.length - a.path.length); // deepest (the branch itself) first
+  for (const n of chain) {
+    const owners = await db.placement.count({ where: { roleNodeId: n.id, kind: "OWNER" } });
+    if (owners > 0) return n.id;
+  }
+  return null;
 }
 
 async function toView(r: VaultRequest): Promise<RequestView> {
@@ -103,6 +125,22 @@ export async function requestRoutes(app: FastifyInstance) {
             .status(403)
             .send({ error: "Request the course for a branch you belong to" });
         }
+        // Conflict guard: no requesting a course the branch already has (directly or
+        // inherited from a level above)
+        const orgNodes = await db.roleNode.findMany({ where: { orgId } });
+        const coursePlacements = await db.coursePlacement.findMany({
+          where: { courseId: course.id },
+        });
+        const alreadyReaches = coursePlacements.some((cp) => {
+          if (cp.roleNodeId === node.id) return true;
+          const cpNode = orgNodes.find((n) => n.id === cp.roleNodeId);
+          return !!cpNode && cp.inheritToDescendants && isSelfOrAncestor(cpNode.path, node.path);
+        });
+        if (alreadyReaches) {
+          return reply.status(409).send({
+            error: "This course is already assigned to that branch — requesting it again would conflict",
+          });
+        }
         courseId = course.id;
       } else if (body.kind === "JOIN_BRANCH") {
         // Hidden inherits down: a public node under a hidden ancestor is NOT joinable
@@ -166,17 +204,26 @@ export async function requestRoutes(app: FastifyInstance) {
         },
       });
 
-      // Tell the deciders: owners above for deletions, owners governing the topmost
-      // hidden level for visibility, governing owners otherwise
-      const deciderAnchor =
-        body.kind === "VISIBILITY"
-          ? ((await hiddenChainAbove(orgId, node.path))[0] ?? node)
-          : node;
-      const deciders = await ownersAbove(
-        orgId,
-        deciderAnchor.path,
-        body.kind !== "DELETE_BRANCH",
-      );
+      // Tell the deciders. Course requests go ONLY to the branch's handler (nearest
+      // level with an owner) — not every level up to the top. Deletions go to the
+      // owners above; visibility to the owners of the topmost hidden level.
+      let deciders: string[];
+      if (body.kind === "COURSE_ASSIGN") {
+        const handlerId = await courseHandlerNodeId(orgId, node.path);
+        const handlerOwners = handlerId
+          ? await db.placement.findMany({
+              where: { roleNodeId: handlerId, kind: "OWNER" },
+              include: { membership: true },
+            })
+          : [];
+        deciders = [...new Set(handlerOwners.map((o) => o.membership.profileId))];
+      } else {
+        const deciderAnchor =
+          body.kind === "VISIBILITY"
+            ? ((await hiddenChainAbove(orgId, node.path))[0] ?? node)
+            : node;
+        deciders = await ownersAbove(orgId, deciderAnchor.path, body.kind !== "DELETE_BRANCH");
+      }
       await Promise.all(
         deciders
           .filter((id) => id !== req.profileId)
@@ -189,6 +236,7 @@ export async function requestRoutes(app: FastifyInstance) {
             }),
           ),
       );
+      broadcast(orgId, "requests");
       return { ok: true, id: request.id };
     },
   );
@@ -205,6 +253,16 @@ export async function requestRoutes(app: FastifyInstance) {
       if (!membership) return reply.status(404).send({ error: "Organization not found" });
 
       const placements = await actorPlacements(req.profileId, orgId);
+
+      // Decided requests self-clean after 7 days — no clutter left in the database
+      await db.vaultRequest.deleteMany({
+        where: {
+          orgId,
+          status: { not: "PENDING" },
+          decidedAt: { lt: new Date(Date.now() - DECIDED_RETENTION_MS) },
+        },
+      });
+
       const mineRows = await db.vaultRequest.findMany({
         where: { orgId, requesterProfileId: req.profileId },
         orderBy: { createdAt: "desc" },
@@ -220,6 +278,20 @@ export async function requestRoutes(app: FastifyInstance) {
         allNodes
           .filter((n) => n.parentId !== null && !n.isPublic && isStrictAncestor(n.path, nodePath))
           .sort((a, b) => a.path.length - b.path.length);
+      const ownerNodeIds = new Set(
+        (
+          await db.placement.findMany({
+            where: { kind: "OWNER", roleNode: { orgId } },
+            select: { roleNodeId: true },
+          })
+        ).map((o) => o.roleNodeId),
+      );
+      // Course requests: decided only by owners ON the handler level, not every level up
+      const handlerOf = (nodePath: string) =>
+        allNodes
+          .filter((n) => isSelfOrAncestor(n.path, nodePath))
+          .sort((a, b) => b.path.length - a.path.length)
+          .find((n) => ownerNodeIds.has(n.id))?.id ?? null;
       const decidable = pending.filter((r) => {
         const node = allNodes.find((n) => n.id === r.targetRoleNodeId);
         if (!node) return false;
@@ -230,7 +302,8 @@ export async function requestRoutes(app: FastifyInstance) {
           return can(placements, r.joinAs === "OWNER" ? "add_co_owner" : "add_people", ref);
         if (r.kind === "VISIBILITY")
           return canDecideVisibility(placements, hiddenAbove(node.path), node);
-        return can(placements, "create_content", ref); // COURSE_ASSIGN
+        const handler = handlerOf(node.path); // COURSE_ASSIGN
+        return handler !== null && placements.some((p) => p.kind === "OWNER" && p.roleNodeId === handler);
       });
 
       return {
@@ -259,6 +332,10 @@ export async function requestRoutes(app: FastifyInstance) {
 
       const visibilityChain =
         request.kind === "VISIBILITY" ? await hiddenChainAbove(request.orgId, node.path) : [];
+      const courseHandler =
+        request.kind === "COURSE_ASSIGN"
+          ? await courseHandlerNodeId(request.orgId, node.path)
+          : null;
       const allowed =
         request.kind === "DELETE_BRANCH"
           ? can(placements, "delete_role", ref)
@@ -266,7 +343,8 @@ export async function requestRoutes(app: FastifyInstance) {
             ? can(placements, request.joinAs === "OWNER" ? "add_co_owner" : "add_people", ref)
             : request.kind === "VISIBILITY"
               ? canDecideVisibility(placements, visibilityChain, node)
-              : can(placements, "create_content", ref);
+              : courseHandler !== null &&
+                placements.some((p) => p.kind === "OWNER" && p.roleNodeId === courseHandler);
       if (!allowed) {
         return reply.status(403).send({ error: "You don't have authority over this request" });
       }
@@ -372,23 +450,56 @@ export async function requestRoutes(app: FastifyInstance) {
         approved: body.approve,
         note: body.decisionNote ?? null,
       });
+      broadcast(request.orgId, "requests");
+      if (body.approve) {
+        broadcast(request.orgId, request.kind === "COURSE_ASSIGN" ? "courses" : "structure");
+      }
       return { ok: true, status: decided.status };
     },
   );
 
-  // Withdraw one of my pending requests
+  // Delete a request: the requester clears their own (withdrawing if still pending),
+  // and anyone with decision authority can clear entries from their inbox/history.
   app.delete<{ Params: { requestId: string } }>(
     "/requests/:requestId",
     { preHandler: app.authenticate },
     async (req, reply) => {
       const request = await db.vaultRequest.findUnique({ where: { id: req.params.requestId } });
-      if (!request || request.requesterProfileId !== req.profileId) {
-        return reply.status(404).send({ error: "Request not found" });
+      if (!request) return reply.status(404).send({ error: "Request not found" });
+
+      if (request.requesterProfileId !== req.profileId) {
+        const node = await db.roleNode.findUnique({ where: { id: request.targetRoleNodeId } });
+        const placements = await actorPlacements(req.profileId, request.orgId);
+        let allowed = false;
+        if (node) {
+          const ref = toRoleRef(node);
+          if (request.kind === "DELETE_BRANCH") allowed = can(placements, "delete_role", ref);
+          else if (request.kind === "JOIN_BRANCH")
+            allowed = can(
+              placements,
+              request.joinAs === "OWNER" ? "add_co_owner" : "add_people",
+              ref,
+            );
+          else if (request.kind === "VISIBILITY")
+            allowed = canDecideVisibility(
+              placements,
+              await hiddenChainAbove(request.orgId, node.path),
+              node,
+            );
+          else {
+            const handler = await courseHandlerNodeId(request.orgId, node.path);
+            allowed =
+              handler !== null &&
+              placements.some((p) => p.kind === "OWNER" && p.roleNodeId === handler);
+          }
+        } else {
+          allowed = placements.some((p) => p.kind === "OWNER"); // orphaned row — any owner may clean it
+        }
+        if (!allowed) return reply.status(404).send({ error: "Request not found" });
       }
-      if (request.status !== "PENDING") {
-        return reply.status(409).send({ error: "Only pending requests can be withdrawn" });
-      }
+
       await db.vaultRequest.delete({ where: { id: request.id } });
+      broadcast(request.orgId, "requests");
       return { ok: true };
     },
   );

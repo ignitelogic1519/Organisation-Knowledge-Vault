@@ -10,6 +10,7 @@ import {
   type SupremeSession,
 } from "@vault/shared";
 import { db } from "../db.js";
+import { broadcast } from "../events.js";
 import {
   auditSupreme,
   checkSupremeRateLimit,
@@ -261,6 +262,7 @@ export async function orgRoutes(app: FastifyInstance) {
         ip: req.ip,
         detail: username,
       });
+      broadcast(req.params.id, "structure");
       return { ok: true };
     },
   );
@@ -293,6 +295,7 @@ export async function orgRoutes(app: FastifyInstance) {
         ip: req.ip,
         detail: req.params.profileId,
       });
+      broadcast(req.params.id, "structure");
       return { ok: true };
     },
   );

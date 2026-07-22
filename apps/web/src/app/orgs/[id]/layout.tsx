@@ -7,6 +7,7 @@ import { hasSession } from "@/lib/auth-client";
 import { orgs, requests } from "@/lib/orgs-client";
 import { AppShell, type ShellNavItem } from "@/components/AppShell";
 import { OrgContext } from "@/components/org-context";
+import { OrgEventsProvider, useOrgEvent } from "@/components/org-events";
 import {
   IconBack,
   IconBook,
@@ -42,27 +43,21 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   }, [reload, router]);
 
   // Ongoing-requests bubble on the Requests tab: your decidable inbox plus your own
-  // still-pending asks. Refreshes on navigation and every minute.
+  // still-pending asks. Live-updated over SSE; the minute poll is only a safety net.
+  const pollRequests = useCallback(() => {
+    requests
+      .overview(id)
+      .then((r) =>
+        setRequestCount(r.inbox.length + r.mine.filter((m) => m.status === "PENDING").length),
+      )
+      .catch(() => undefined);
+  }, [id]);
+
   useEffect(() => {
-    let cancelled = false;
-    const poll = () => {
-      requests
-        .overview(id)
-        .then((r) => {
-          if (cancelled) return;
-          setRequestCount(
-            r.inbox.length + r.mine.filter((m) => m.status === "PENDING").length,
-          );
-        })
-        .catch(() => undefined);
-    };
-    poll();
-    const timer = setInterval(poll, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [id, pathname]);
+    pollRequests();
+    const timer = setInterval(pollRequests, 60_000);
+    return () => clearInterval(timer);
+  }, [pollRequests, pathname]);
 
   const isAdmin = org?.myPlacements.some((p) => p.kind === "OWNER") ?? false;
   const isSupremeOwner =
@@ -107,8 +102,10 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <OrgContext.Provider value={{ org, reload, isAdmin, isSupremeOwner }}>
-      <AppShell
+    <OrgEventsProvider orgId={id}>
+      <LiveSync onStructure={reload} onRequests={pollRequests} />
+      <OrgContext.Provider value={{ org, reload, isAdmin, isSupremeOwner }}>
+        <AppShell
         nav={nav}
         title={
           <>
@@ -124,9 +121,23 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
               : "Your position: member"
             : section
         }
-      >
-        {children}
-      </AppShell>
-    </OrgContext.Provider>
+        >
+          {children}
+        </AppShell>
+      </OrgContext.Provider>
+    </OrgEventsProvider>
   );
+}
+
+/** Bridges the live channel to the layout's own state (must live INSIDE the provider). */
+function LiveSync({
+  onStructure,
+  onRequests,
+}: {
+  onStructure: () => void;
+  onRequests: () => void;
+}) {
+  useOrgEvent(["structure"], onStructure);
+  useOrgEvent(["requests"], onRequests);
+  return null;
 }

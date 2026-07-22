@@ -33,6 +33,17 @@ export function hasSession(): boolean {
   return typeof window !== "undefined" && !!localStorage.getItem(REFRESH_KEY);
 }
 
+/** Current access token — used by the SSE live-update channel (EventSource cannot set
+ *  headers, so the token travels as a query parameter). */
+export function getAccessToken(): string | null {
+  return typeof window !== "undefined" ? localStorage.getItem(ACCESS_KEY) : null;
+}
+
+/** Force a refresh-token rotation now (SSE reconnect path). */
+export function refreshSession(): Promise<boolean> {
+  return tryRefresh();
+}
+
 async function rawRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const access = localStorage.getItem(ACCESS_KEY);
   return fetch(`${API}${path}`, {
