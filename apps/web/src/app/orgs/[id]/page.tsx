@@ -81,22 +81,26 @@ function ConfigPanel({
 
   return (
     <div className="drawer-section">
-      {/* visibility — changeable any time; hidden inherits down from every level above */}
+      {/* visibility — public by default; hiding is the explicit checkbox choice and
+          inherits down from every level above. Owners above always keep seeing it. */}
       <div className="config-row">
         <div>
-          <strong>Public branch</strong>
+          <strong>Visibility</strong>
           <p className="auth-sub">
-            Public branches are visible to every member of the organization, who can ask to
-            join with a Join request. A hidden branch hides everything beneath it, down to
-            the last end.
+            Branches are public by default — every member sees them and can send a Join
+            request. Hiding removes the branch from people on the same layer and below;
+            it hides everything beneath it too, down to the last end. Owners above this
+            node always keep seeing it.
           </p>
+          <label className="ack-row" style={{ marginTop: "0.45rem" }}>
+            <input
+              type="checkbox"
+              checked={!node.isPublic}
+              onChange={() => act(() => roles.setPublic(node.id, !node.isPublic))}
+            />
+            <span>Hidden (private) branch</span>
+          </label>
         </div>
-        <button
-          className={node.isPublic ? "btn btn-primary btn-small" : "btn btn-quiet btn-small"}
-          onClick={() => act(() => roles.setPublic(node.id, !node.isPublic))}
-        >
-          {node.isPublic ? "Public ✓" : "Make public"}
-        </button>
       </div>
       {node.isPublic && !node.effectivePublic && (
         <div className="config-row config-row-warn">
@@ -158,13 +162,19 @@ function ConfigPanel({
           onSubmit={(e) => {
             e.preventDefault();
             const d = new FormData(e.currentTarget);
-            act(() => roles.createSubRole(node.id, String(d.get("name"))));
+            act(() =>
+              roles.createSubRole(node.id, String(d.get("name")), d.get("hidden") !== "on"),
+            );
             setSubRoleOpen(false);
           }}
         >
           <label className="field">
             <span>New sub-role name</span>
             <input name="name" required minLength={2} autoFocus />
+          </label>
+          <label className="ack-row">
+            <input type="checkbox" name="hidden" />
+            <span>Hidden (private)</span>
           </label>
           <button className="btn btn-primary btn-small">Create</button>
         </form>
@@ -964,9 +974,10 @@ function NodeDrawer({
       {!section && (
         <>
           <div className="drawer-badges">
-            {node.effectivePublic && <span className="badge badge-ok">public</span>}
-            {node.isPublic && !node.effectivePublic && (
-              <span className="badge">hidden by a level above</span>
+            {!node.effectivePublic && (
+              <span className="badge">
+                {node.isPublic ? "hidden by a level above" : "hidden"}
+              </span>
             )}
             {node.my.kinds.map((k) => (
               <span key={k} className="badge badge-ok">
@@ -1042,7 +1053,7 @@ function InfoDrawer({
         </button>
       </div>
       <div className="drawer-badges">
-        {node.effectivePublic && <span className="badge badge-ok">public</span>}
+        {!node.effectivePublic && <span className="badge">hidden</span>}
         {node.my.kinds.map((k) => (
           <span key={k} className="badge badge-ok">
             you: {k.toLowerCase()}

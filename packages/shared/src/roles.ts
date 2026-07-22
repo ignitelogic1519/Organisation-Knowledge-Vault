@@ -5,6 +5,8 @@ import type { PlacementKind } from "./types.js";
 
 export const createSubRoleSchema = z.object({
   name: z.string().min(2, "Role name is too short").max(40),
+  /** Branches are public by default — ticking "hidden" at creation opts out. */
+  isPublic: z.boolean().default(true),
 });
 export type CreateSubRoleInput = z.infer<typeof createSubRoleSchema>;
 

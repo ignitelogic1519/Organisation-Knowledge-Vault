@@ -71,11 +71,16 @@ const TOPICS = [
             grant a right they don&apos;t hold themselves.
           </li>
           <li>
-            A branch can be made <strong>public</strong>: every member sees it in the
-            constellation and can send a <strong>Join request</strong> to its owners.
-            Hidden inherits downward — a hidden branch hides its whole subtree, and a
-            public node under it stays invisible until the chain above is unhidden (its
-            owners can file a <strong>Visibility request</strong>).
+            Branches are <strong>public by default</strong>: every member sees them in
+            the constellation and can send a <strong>Join request</strong> to their
+            owners. A checkbox in Group configuration makes a branch{" "}
+            <strong>hidden</strong> from people on the same layer and below.
+          </li>
+          <li>
+            Hidden inherits downward — a hidden branch hides its whole subtree until the
+            chain above is unhidden (its owners can file a{" "}
+            <strong>Visibility request</strong>). Owners <em>above</em> a hidden branch
+            always keep seeing it, for hierarchy-wise transparency.
           </li>
         </ul>
       </>

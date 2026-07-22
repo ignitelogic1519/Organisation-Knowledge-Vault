@@ -188,6 +188,7 @@ export async function roleRoutes(app: FastifyInstance) {
             parentId: ctx.node.id,
             name: body.name,
             roleNumber,
+            isPublic: body.isPublic,
             path: `${ctx.node.path}.${roleNumber}`,
           },
         });

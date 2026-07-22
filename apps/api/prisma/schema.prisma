@@ -115,8 +115,10 @@ model RoleNode {
   parentId     String? // null only for the Owner role
   name         String // "HR", "Owner", "CEO", …
   roleNumber   Int // unique within org, NEVER reused
-  isPublic     Boolean      @default(false) // own flag; EFFECTIVE visibility also requires
-  // every ancestor below the root to be public — hidden inherits down to the last end
+  isPublic     Boolean      @default(true) // public by default; hiding is the explicit
+  // choice. EFFECTIVE visibility also requires every ancestor below the root to be
+  // public — hidden inherits down to the last end. Owners above a hidden node always
+  // still see it (hierarchy transparency).
   path         String // materialized path built from role numbers, e.g. "100.101"
   nextItemNumber Int        @default(1) // per-role course item counter, NEVER reused
   placements   Placement[]

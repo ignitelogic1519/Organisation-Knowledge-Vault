@@ -50,10 +50,10 @@ export const orgs = {
 
 export const roles = {
   structure: (orgId: string) => api<StructureView>(`/orgs/${orgId}/structure`),
-  createSubRole: (roleId: string, name: string) =>
+  createSubRole: (roleId: string, name: string, isPublic = true) =>
     api<{ id: string }>(`/roles/${roleId}/children`, {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, isPublic }),
     }),
   addPerson: (roleId: string, input: AddPersonInput) =>
     api<{ ok: boolean; invited: boolean }>(`/roles/${roleId}/people`, {

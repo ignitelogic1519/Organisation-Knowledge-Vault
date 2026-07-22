@@ -212,7 +212,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             parentId: r.parentId ? (roleIdMap.get(r.parentId) ?? null) : null,
             name: r.name,
             roleNumber: r.roleNumber,
-            isPublic: r.isPublic ?? false,
+            isPublic: r.isPublic ?? true, // pre-visibility .main files: public by default
             path: r.path,
             nextItemNumber: r.nextItemNumber,
           },
