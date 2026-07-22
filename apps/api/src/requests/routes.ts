@@ -52,6 +52,7 @@ async function toView(r: VaultRequest): Promise<RequestView> {
     status: r.status,
     targetRoleName: node?.name ?? "(deleted branch)",
     targetRoleNumber: node?.roleNumber ?? 0,
+    joinAs: r.joinAs,
     courseCode: course?.code ?? null,
     courseTitle: course?.title ?? null,
     requester: {
@@ -159,6 +160,7 @@ export async function requestRoutes(app: FastifyInstance) {
           kind: body.kind,
           requesterProfileId: req.profileId,
           targetRoleNodeId: node.id,
+          joinAs: body.kind === "JOIN_BRANCH" ? body.joinAs : "MEMBER",
           courseId,
           message: body.message ?? null,
         },
@@ -223,7 +225,9 @@ export async function requestRoutes(app: FastifyInstance) {
         if (!node) return false;
         const ref = toRoleRef(node);
         if (r.kind === "DELETE_BRANCH") return can(placements, "delete_role", ref);
-        if (r.kind === "JOIN_BRANCH") return can(placements, "add_people", ref);
+        if (r.kind === "JOIN_BRANCH")
+          // A sub-owner request needs co-owner appointment rights, not just add-people
+          return can(placements, r.joinAs === "OWNER" ? "add_co_owner" : "add_people", ref);
         if (r.kind === "VISIBILITY")
           return canDecideVisibility(placements, hiddenAbove(node.path), node);
         return can(placements, "create_content", ref); // COURSE_ASSIGN
@@ -259,7 +263,7 @@ export async function requestRoutes(app: FastifyInstance) {
         request.kind === "DELETE_BRANCH"
           ? can(placements, "delete_role", ref)
           : request.kind === "JOIN_BRANCH"
-            ? can(placements, "add_people", ref)
+            ? can(placements, request.joinAs === "OWNER" ? "add_co_owner" : "add_people", ref)
             : request.kind === "VISIBILITY"
               ? canDecideVisibility(placements, visibilityChain, node)
               : can(placements, "create_content", ref);
@@ -272,7 +276,7 @@ export async function requestRoutes(app: FastifyInstance) {
           const dup = await db.placement.findFirst({
             where: {
               roleNodeId: node.id,
-              kind: "MEMBER",
+              kind: request.joinAs,
               membership: { profileId: request.requesterProfileId },
             },
           });
@@ -284,11 +288,13 @@ export async function requestRoutes(app: FastifyInstance) {
               create: { profileId: request.requesterProfileId, orgId: request.orgId },
               update: {},
             });
+            // Sub-owners join with no delegation rights — the layer above grants
+            // those explicitly afterwards
             await db.placement.create({
               data: {
                 membershipId: membership.id,
                 roleNodeId: node.id,
-                kind: "MEMBER",
+                kind: request.joinAs,
                 addedByProfileId: req.profileId,
               },
             });

@@ -13,6 +13,8 @@ export interface ShellNavItem {
   icon: React.ReactNode;
   /** Match sub-paths too (e.g. /orgs matches /orgs/new). Defaults to exact. */
   prefix?: boolean;
+  /** Count bubble (e.g. pending requests) — hidden when 0/undefined. */
+  badge?: number;
 }
 
 function SignOutButton() {
@@ -70,6 +72,7 @@ export function AppShell({
             >
               {item.icon}
               {item.label}
+              {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
             </Link>
           ))}
         </nav>
@@ -103,7 +106,10 @@ export function AppShell({
             className="tab-link"
             data-active={isActive(item)}
           >
-            {item.icon}
+            <span className="tab-icon-wrap">
+              {item.icon}
+              {item.badge ? <span className="nav-badge nav-badge-tab">{item.badge}</span> : null}
+            </span>
             {item.label}
           </Link>
         ))}

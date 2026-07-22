@@ -2242,6 +2242,49 @@ button {
   background: color-mix(in srgb, var(--warning) 6%, transparent);
 }
 
+/* Count bubble on nav items (pending requests etc.) */
+.nav-badge {
+  margin-left: auto;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.4rem;
+  border-radius: 980px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-contrast);
+  background: var(--grad-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.side-link[data-active="true"] .nav-badge {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: none;
+}
+
+.tab-icon-wrap {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.nav-badge-tab {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.7rem;
+  margin-left: 0;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  font-size: 0.62rem;
+}
+
+.add-person-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* ── Utility ───────────────────────────────────────────────────────────── */
 
 .sr-only {

@@ -18,11 +18,14 @@ export const createRequestSchema = z.object({
   kind: z.enum(["COURSE_ASSIGN", "JOIN_BRANCH", "DELETE_BRANCH", "VISIBILITY"]),
   /** Branch to join / branch to delete / branch that should receive the course. */
   targetRoleNodeId: z.string().uuid(),
+  /** JOIN_BRANCH only: the position the requester wants — member or sub-owner. */
+  joinAs: z.enum(["MEMBER", "OWNER"]).default("MEMBER"),
   /** COURSE_ASSIGN only: the library course being requested. */
   courseCode: z.string().optional(),
   message: z.string().max(500).optional(),
 });
-export type CreateRequestInput = z.infer<typeof createRequestSchema>;
+// z.input: fields with defaults (joinAs) stay optional for callers
+export type CreateRequestInput = z.input<typeof createRequestSchema>;
 
 export const decideRequestSchema = z.object({
   approve: z.boolean(),
@@ -48,6 +51,8 @@ export interface RequestView {
   status: RequestStatus;
   targetRoleName: string;
   targetRoleNumber: number;
+  /** JOIN_BRANCH: the position being asked for. */
+  joinAs: "MEMBER" | "OWNER";
   courseCode: string | null;
   courseTitle: string | null;
   requester: { username: string; displayName: string };

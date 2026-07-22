@@ -14,6 +14,7 @@ import {
   IconArchive,
   IconBook,
   IconSettings,
+  IconUser,
   IconUsers,
 } from "@/components/icons";
 
@@ -398,20 +399,53 @@ function PeoplePanel({
   act: (fn: () => Promise<unknown>) => Promise<void>;
 }) {
   const dialogs = useDialogs();
-  const [addOpen, setAddOpen] = useState(false);
+  // Button-inside-button flow: "+ Add person" → choose member OR co-owner → the
+  // tailored form. Owner-only options never appear on the member form.
+  const [addStep, setAddStep] = useState<"closed" | "choose" | "MEMBER" | "OWNER">("closed");
   const owners = node.people?.filter((p) => p.kind === "OWNER") ?? [];
   const members = node.people?.filter((p) => p.kind === "MEMBER") ?? [];
 
   return (
     <div className="drawer-section">
       <button
-        className={addOpen ? "btn btn-quiet btn-small" : "btn btn-primary btn-small"}
-        onClick={() => setAddOpen((v) => !v)}
+        className={addStep === "closed" ? "btn btn-primary btn-small" : "btn btn-quiet btn-small"}
+        onClick={() => setAddStep(addStep === "closed" ? "choose" : "closed")}
       >
-        {addOpen ? "Close form" : "+ Add person"}
+        {addStep === "closed" ? "+ Add person" : "Cancel"}
       </button>
 
-      {addOpen && (
+      {addStep === "choose" && (
+        <div className="drawer-menu">
+          <button className="drawer-menu-item" onClick={() => setAddStep("MEMBER")}>
+            <span className="drawer-menu-icon">
+              <IconUser />
+            </span>
+            <span>
+              <span className="drawer-menu-label">Add a member</span>
+              <span className="drawer-menu-desc">They learn from this branch</span>
+            </span>
+            <span className="drawer-menu-arrow" aria-hidden>
+              ›
+            </span>
+          </button>
+          {node.my.canAddCoOwners && (
+            <button className="drawer-menu-item" onClick={() => setAddStep("OWNER")}>
+              <span className="drawer-menu-icon">
+                <IconUsers />
+              </span>
+              <span>
+                <span className="drawer-menu-label">Add a co-owner</span>
+                <span className="drawer-menu-desc">They help manage this branch</span>
+              </span>
+              <span className="drawer-menu-arrow" aria-hidden>
+                ›
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {(addStep === "MEMBER" || addStep === "OWNER") && (
         <form
           className="add-person-form"
           onSubmit={(e) => {
@@ -420,41 +454,49 @@ function PeoplePanel({
             act(() =>
               roles.addPerson(node.id, {
                 username: String(d.get("username")),
-                kind: d.get("kind") === "OWNER" ? "OWNER" : "MEMBER",
-                canCreateSubgroups: d.get("delegate") === "on",
-                canAddCoOwners: d.get("coowners") === "on",
+                kind: addStep,
+                canCreateSubgroups: addStep === "OWNER" && d.get("delegate") === "on",
+                canAddCoOwners: addStep === "OWNER" && d.get("coowners") === "on",
               }),
             );
-            setAddOpen(false);
+            setAddStep("closed");
           }}
         >
+          <div className="add-person-head">
+            <button
+              type="button"
+              className="drawer-back"
+              onClick={() => setAddStep("choose")}
+            >
+              ←
+            </button>
+            <strong>{addStep === "OWNER" ? "New co-owner" : "New member"}</strong>
+          </div>
           <label className="field">
             <span>Username</span>
             <input name="username" required placeholder="their-username" autoFocus />
             <small>Unknown usernames are reserved and attach when they register</small>
           </label>
-          <label className="field">
-            <span>Position</span>
-            <select name="kind" defaultValue="MEMBER">
-              <option value="MEMBER">Member — learns from this branch</option>
-              {node.my.canAddCoOwners && (
-                <option value="OWNER">Co-owner — manages this branch</option>
+          {addStep === "OWNER" && (
+            <>
+              <p className="auth-sub" style={{ fontSize: "0.8rem" }}>
+                Rights of the new co-owner — you can only grant what you hold yourself:
+              </p>
+              {node.my.canGrantSubgroups && (
+                <label className="ack-row">
+                  <input type="checkbox" name="delegate" />
+                  <span>May create sub-groups</span>
+                </label>
               )}
-            </select>
-          </label>
-          {node.my.canGrantSubgroups && (
-            <label className="ack-row">
-              <input type="checkbox" name="delegate" />
-              <span>Co-owner may create sub-groups</span>
-            </label>
+              <label className="ack-row">
+                <input type="checkbox" name="coowners" />
+                <span>May appoint further co-owners</span>
+              </label>
+            </>
           )}
-          {node.my.canAddCoOwners && (
-            <label className="ack-row">
-              <input type="checkbox" name="coowners" />
-              <span>Co-owner may appoint further co-owners</span>
-            </label>
-          )}
-          <button className="btn btn-primary btn-small">Add to {node.name}</button>
+          <button className="btn btn-primary btn-small">
+            Add {addStep === "OWNER" ? "co-owner" : "member"} to {node.name}
+          </button>
         </form>
       )}
 
@@ -1078,14 +1120,20 @@ function InfoDrawer({
           className="drawer-section"
           onSubmit={async (e) => {
             e.preventDefault();
-            const message = String(new FormData(e.currentTarget).get("message") || "");
+            const d = new FormData(e.currentTarget);
+            const joinAs = d.get("joinAs") === "OWNER" ? "OWNER" : "MEMBER";
+            const message = String(d.get("message") || "");
             try {
               await requests.create(orgId, {
                 kind: "JOIN_BRANCH",
                 targetRoleNodeId: node.id,
+                joinAs,
                 message: message || undefined,
               });
-              dialogs.toast("Join request sent to the branch owners.", "success");
+              dialogs.toast(
+                `Join request sent — asking to be a ${joinAs === "OWNER" ? "sub-owner" : "member"} of ${node.name}.`,
+                "success",
+              );
               onChanged();
               onClose();
             } catch (err) {
@@ -1097,13 +1145,21 @@ function InfoDrawer({
           }}
         >
           <p className="auth-sub">
-            This branch is public — you can ask its owners to add you as a member.
+            This branch is public — ask its owners to add you, and choose the position you
+            want.
           </p>
+          <label className="field">
+            <span>Join as</span>
+            <select name="joinAs" defaultValue="MEMBER">
+              <option value="MEMBER">Member — learn from this branch</option>
+              <option value="OWNER">Sub-owner — help manage this branch</option>
+            </select>
+          </label>
           <label className="field">
             <span>Message (optional)</span>
             <textarea name="message" rows={2} maxLength={500} placeholder="Why you belong here…" />
           </label>
-          <button className="btn btn-primary btn-small">Request to join</button>
+          <button className="btn btn-primary btn-small">Send join request</button>
         </form>
       ) : (
         <p className="auth-sub">

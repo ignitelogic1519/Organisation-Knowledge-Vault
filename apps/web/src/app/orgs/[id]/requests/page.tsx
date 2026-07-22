@@ -78,7 +78,8 @@ function InboxCard({
         <span className="auth-sub">@{r.requester.username}</span>{" "}
         {r.kind === "JOIN_BRANCH" && (
           <>
-            asks to join <strong>{r.targetRoleName}</strong>
+            asks to join <strong>{r.targetRoleName}</strong> as{" "}
+            <strong>{r.joinAs === "OWNER" ? "sub-owner" : "member"}</strong>
           </>
         )}
         {r.kind === "DELETE_BRANCH" && (
@@ -190,7 +191,7 @@ function InboxCard({
                         ? `Approving deletes the branch "${r.targetRoleName}" (it must be empty).`
                         : r.kind === "VISIBILITY"
                           ? `Approving unhides every hidden level above "${r.targetRoleName}" and makes the branch publicly visible.`
-                          : `Approving adds ${r.requester.displayName} as a member of "${r.targetRoleName}".`,
+                          : `Approving adds ${r.requester.displayName} as a ${r.joinAs === "OWNER" ? "sub-owner (no delegation rights until granted)" : "member"} of "${r.targetRoleName}".`,
                     confirmLabel: "Approve",
                     danger: r.kind === "DELETE_BRANCH",
                   })
@@ -259,7 +260,8 @@ export default function RequestsPage() {
               <p className="request-line">
                 {r.kind === "JOIN_BRANCH" && (
                   <>
-                    Join <strong>{r.targetRoleName}</strong>
+                    Join <strong>{r.targetRoleName}</strong> as{" "}
+                    {r.joinAs === "OWNER" ? "sub-owner" : "member"}
                   </>
                 )}
                 {r.kind === "DELETE_BRANCH" && (

@@ -275,6 +275,7 @@ model VaultRequest {
   status             RequestStatus @default(PENDING)
   requesterProfileId String
   targetRoleNodeId   String // branch to join / branch to delete / branch receiving the course
+  joinAs             PlacementKind @default(MEMBER) // JOIN_BRANCH only: member or sub-owner
   courseId           String? // COURSE_ASSIGN only
   message            String?
   decidedByProfileId String?

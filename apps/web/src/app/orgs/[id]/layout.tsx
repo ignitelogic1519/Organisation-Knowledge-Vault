@@ -4,7 +4,7 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OrgDetail } from "@vault/shared";
 import { hasSession } from "@/lib/auth-client";
-import { orgs } from "@/lib/orgs-client";
+import { orgs, requests } from "@/lib/orgs-client";
 import { AppShell, type ShellNavItem } from "@/components/AppShell";
 import { OrgContext } from "@/components/org-context";
 import {
@@ -24,6 +24,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { id } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
+  const [requestCount, setRequestCount] = useState(0);
 
   const reload = useCallback(() => {
     orgs
@@ -40,6 +41,29 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     reload();
   }, [reload, router]);
 
+  // Ongoing-requests bubble on the Requests tab: your decidable inbox plus your own
+  // still-pending asks. Refreshes on navigation and every minute.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      requests
+        .overview(id)
+        .then((r) => {
+          if (cancelled) return;
+          setRequestCount(
+            r.inbox.length + r.mine.filter((m) => m.status === "PENDING").length,
+          );
+        })
+        .catch(() => undefined);
+    };
+    poll();
+    const timer = setInterval(poll, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [id, pathname]);
+
   const isAdmin = org?.myPlacements.some((p) => p.kind === "OWNER") ?? false;
   const isSupremeOwner =
     org?.myPlacements.some(
@@ -52,10 +76,15 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       { href: `/orgs/${id}`, label: "Constellation", icon: <IconStars /> },
       { href: `/orgs/${id}/learning`, label: "My Learning", icon: <IconBook /> },
       { href: `/orgs/${id}/library`, label: "Library", icon: <IconLibrary /> },
-      { href: `/orgs/${id}/requests`, label: "Requests", icon: <IconInbox /> },
+      {
+        href: `/orgs/${id}/requests`,
+        label: "Requests",
+        icon: <IconInbox />,
+        badge: requestCount,
+      },
       { href: "/help", label: "Help", icon: <IconHelp /> },
     ],
-    [id],
+    [id, requestCount],
   );
 
   const section = pathname.endsWith("/learning")
