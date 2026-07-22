@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import {
   can,
   createCourseSchema,
   grantAdminAccessSchema,
   placeCourseSchema,
+  reviewCourseSchema,
   updateCourseSchema,
   type CourseAdminView,
   type MyLearningView,
@@ -74,6 +76,7 @@ export async function courseRoutes(app: FastifyInstance) {
           title: body.title,
           description: body.description,
           inLibrary: body.inLibrary,
+          category: body.category?.trim() ? body.category.trim() : null,
           storageRef: ref as object,
           deadlineDays: body.deadlineDays,
           retakeEveryNDays: body.retakeEveryNDays,
@@ -438,6 +441,7 @@ export async function courseRoutes(app: FastifyInstance) {
         }),
         db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
         db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
+        db.courseReview.deleteMany({ where: { courseId: course.id } }),
         ...(ref.adapter === "inline" && ref.fileId
           ? [db.storedFile.deleteMany({ where: { id: ref.fileId } })]
           : []),
@@ -471,6 +475,7 @@ export async function courseRoutes(app: FastifyInstance) {
             (c) =>
               c.title.toLowerCase().includes(q) ||
               (c.description ?? "").toLowerCase().includes(q) ||
+              (c.category ?? "").toLowerCase().includes(q) ||
               c.code.includes(q),
           )
         : list;
@@ -482,21 +487,162 @@ export async function courseRoutes(app: FastifyInstance) {
         where: { courseId: { in: filtered.map((c) => c.id) }, status: "COMPLETED" },
         _count: true,
       });
+      const ratings = await db.courseReview.groupBy({
+        by: ["courseId"],
+        where: { courseId: { in: filtered.map((c) => c.id) }, rating: { not: null } },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
 
       return {
-        courses: filtered.map((c) => ({
-          code: c.code,
-          title: c.title,
-          kind: c.kind,
-          description: c.description,
-          uploaderRoleName: nodes.find((n) => n.id === c.uploaderRoleNodeId)?.name ?? "—",
-          createdAt: c.createdAt.toISOString(),
-          completedCount: completions.find((x) => x.courseId === c.id)?._count ?? 0,
-          usedIn: c.placements
-            .map((p) => nodes.find((n) => n.id === p.roleNodeId)?.name)
-            .filter((n): n is string => Boolean(n)),
-        })),
+        courses: filtered.map((c) => {
+          const rating = ratings.find((r) => r.courseId === c.id);
+          return {
+            code: c.code,
+            title: c.title,
+            kind: c.kind,
+            description: c.description,
+            category: c.category,
+            uploaderRoleName: nodes.find((n) => n.id === c.uploaderRoleNodeId)?.name ?? "—",
+            createdAt: c.createdAt.toISOString(),
+            completedCount: completions.find((x) => x.courseId === c.id)?._count ?? 0,
+            usedIn: c.placements
+              .map((p) => nodes.find((n) => n.id === p.roleNodeId)?.name)
+              .filter((n): n is string => Boolean(n)),
+            avgRating: rating?._avg.rating ? Math.round(rating._avg.rating * 10) / 10 : null,
+            ratingCount: rating?._count.rating ?? 0,
+          };
+        }),
       };
+    },
+  );
+
+  // Category suggestion: matches the new course's words against existing shelves so
+  // similar content lands on the same shelf ("AI AWS doc" → suggests "AI"). The
+  // uploader can always override.
+  app.post<{ Params: { id: string } }>(
+    "/orgs/:id/library/suggest-category",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const member = await db.membership.findUnique({
+        where: { profileId_orgId: { profileId: req.profileId, orgId: req.params.id } },
+      });
+      if (!member) return reply.status(404).send({ error: "Organization not found" });
+      const { title, description } = z
+        .object({ title: z.string().default(""), description: z.string().default("") })
+        .parse(req.body ?? {});
+
+      const courses = await db.course.findMany({
+        where: { orgId: req.params.id, category: { not: null } },
+        select: { category: true, title: true, description: true },
+      });
+      const categories = [...new Set(courses.map((c) => c.category!))];
+
+      const tokenize = (s: string) =>
+        new Set(
+          s
+            .toLowerCase()
+            .split(/[^a-z0-9+#]+/)
+            .filter((w) => w.length > 1),
+        );
+      const inputTokens = tokenize(`${title} ${description}`);
+
+      // Score each shelf: direct name mention weighs most, then word overlap with the
+      // shelf's existing content
+      let best: { category: string; score: number } | null = null;
+      for (const category of categories) {
+        let score = 0;
+        for (const t of tokenize(category)) {
+          if (inputTokens.has(t)) score += 5;
+        }
+        for (const c of courses.filter((x) => x.category === category)) {
+          for (const t of tokenize(`${c.title} ${c.description ?? ""}`)) {
+            if (inputTokens.has(t)) score += 1;
+          }
+        }
+        if (score > 0 && (!best || score > best.score)) best = { category, score };
+      }
+      return { suggestion: best?.category ?? null, categories };
+    },
+  );
+
+  // Reviews: visible to every member on the library detail view
+  app.get<{ Params: { code: string } }>(
+    "/courses/:code/reviews",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      const member = await db.membership.findUnique({
+        where: { profileId_orgId: { profileId: req.profileId, orgId: course.orgId } },
+      });
+      if (!member) return reply.status(404).send({ error: "Course not found" });
+
+      const rows = await db.courseReview.findMany({
+        where: { courseId: course.id },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      });
+      const profiles = await db.profile.findMany({
+        where: { id: { in: rows.map((r) => r.profileId) } },
+      });
+      const rated = rows.filter((r) => r.rating !== null);
+      return {
+        reviews: rows.map((r) => {
+          const p = profiles.find((x) => x.id === r.profileId);
+          return {
+            displayName: p?.displayName ?? "Former member",
+            username: p?.username ?? "unknown",
+            rating: r.rating,
+            comment: r.comment,
+            updatedAt: r.updatedAt.toISOString(),
+          };
+        }),
+        avgRating: rated.length
+          ? Math.round((rated.reduce((s, r) => s + r.rating!, 0) / rated.length) * 10) / 10
+          : null,
+        count: rated.length,
+        mine: rows.find((r) => r.profileId === req.profileId)
+          ? {
+              rating: rows.find((r) => r.profileId === req.profileId)!.rating,
+              comment: rows.find((r) => r.profileId === req.profileId)!.comment,
+            }
+          : null,
+      };
+    },
+  );
+
+  // Rate & comment — only after completing the course; rating stays optional
+  app.post<{ Params: { code: string } }>(
+    "/courses/:code/review",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const body = reviewCourseSchema.parse(req.body);
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      const completed = await db.completionRecord.findFirst({
+        where: { courseId: course.id, profileId: req.profileId, status: "COMPLETED" },
+      });
+      if (!completed) {
+        return reply
+          .status(403)
+          .send({ error: "Complete the course before rating or reviewing it" });
+      }
+      await db.courseReview.upsert({
+        where: { courseId_profileId: { courseId: course.id, profileId: req.profileId } },
+        create: {
+          courseId: course.id,
+          profileId: req.profileId,
+          rating: body.rating ?? null,
+          comment: body.comment?.trim() ? body.comment.trim() : null,
+        },
+        update: {
+          rating: body.rating ?? null,
+          comment: body.comment?.trim() ? body.comment.trim() : null,
+        },
+      });
+      broadcast(course.orgId, "courses");
+      return { ok: true };
     },
   );
 

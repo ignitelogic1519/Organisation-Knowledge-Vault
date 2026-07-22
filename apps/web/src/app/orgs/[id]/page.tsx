@@ -641,6 +641,11 @@ function CoursesPanel({
   const dialogs = useDialogs();
   const [list, setList] = useState<RoleCourses | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [category, setCategory] = useState("");
+  const [catInfo, setCatInfo] = useState<{ suggestion: string | null; categories: string[] }>({
+    suggestion: null,
+    categories: [],
+  });
 
   const load = useCallback(() => {
     courses
@@ -649,6 +654,17 @@ function CoursesPanel({
       .catch((e) => onError(e instanceof ApiError ? e.message : "Could not load courses"));
   }, [node.id, onError]);
   useEffect(load, [load]);
+
+  // Shelf suggestion: match the draft's words against existing library categories so
+  // similar content lands together ("…AI AWS…" → suggests "AI"); always overridable.
+  const suggestShelf = (form: HTMLFormElement | null) => {
+    if (!form) return;
+    const d = new FormData(form);
+    courses
+      .suggestCategory(orgId, String(d.get("title") || ""), String(d.get("description") || ""))
+      .then(setCatInfo)
+      .catch(() => undefined);
+  };
 
   const run = async (fn: () => Promise<unknown>) => {
     await act(fn);
@@ -679,6 +695,7 @@ function CoursesPanel({
                 title: String(d.get("title")),
                 description: String(d.get("description")),
                 inLibrary: d.get("inLibrary") === "on",
+                category: category.trim() || undefined,
                 url: url || undefined,
                 fileBase64: file && file.size > 0 ? await fileToBase64(file) : undefined,
                 filename: file && file.size > 0 ? file.name : undefined,
@@ -703,7 +720,13 @@ function CoursesPanel({
         >
           <label className="field">
             <span>Title</span>
-            <input name="title" required minLength={2} autoFocus />
+            <input
+              name="title"
+              required
+              minLength={2}
+              autoFocus
+              onBlur={(e) => suggestShelf(e.currentTarget.form)}
+            />
           </label>
           <label className="field">
             <span>Short description</span>
@@ -714,7 +737,37 @@ function CoursesPanel({
               maxLength={500}
               rows={2}
               placeholder="What is this course for? Shown in the library and detail views."
+              onBlur={(e) => suggestShelf(e.currentTarget.form)}
             />
+          </label>
+          <label className="field">
+            <span>Library shelf (category)</span>
+            <input
+              name="category"
+              list="shelf-options"
+              maxLength={40}
+              placeholder="AI, Safety, Onboarding…"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            />
+            <datalist id="shelf-options">
+              {catInfo.categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            {catInfo.suggestion && catInfo.suggestion !== category && (
+              <small>
+                Similar content lives on the{" "}
+                <button
+                  type="button"
+                  className="chip chip-shelf"
+                  onClick={() => setCategory(catInfo.suggestion!)}
+                >
+                  {catInfo.suggestion}
+                </button>{" "}
+                shelf — click to use it, or keep your own tag.
+              </small>
+            )}
           </label>
           <label className="field">
             <span>Kind</span>

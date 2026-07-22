@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LearningItem, MyLearningView } from "@vault/shared";
-import { ApiError, authFetch } from "@/lib/auth-client";
+import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
+import { CourseViewer } from "./CourseViewer";
+import { useDialogs } from "./dialogs";
 import { useOrgEvent } from "./org-events";
 
 // My Learning — the member's course list, grouped by what matters to them:
@@ -25,22 +27,17 @@ function StatusBadge({ item }: { item: Item }) {
   }
 }
 
-function Row({ item, onChanged }: { item: Item; onChanged: () => void }) {
+function Row({
+  item,
+  onChanged,
+  onOpen,
+}: {
+  item: Item;
+  onChanged: () => void;
+  onOpen: (item: Item) => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const locked = item.missingPrerequisites.length > 0;
-
-  async function open() {
-    // Links redirect via JSON; files stream — open in a new tab either way
-    const res = await authFetch(`/courses/${item.code}/content`);
-    const type = res.headers.get("content-type") ?? "";
-    if (type.includes("application/json")) {
-      const { url } = (await res.json()) as { url?: string };
-      if (url) window.open(url, "_blank");
-    } else {
-      const blob = await res.blob();
-      window.open(URL.createObjectURL(blob), "_blank");
-    }
-  }
 
   return (
     <li className="learning-row">
@@ -59,7 +56,7 @@ function Row({ item, onChanged }: { item: Item; onChanged: () => void }) {
         {error && <p className="form-error">{error}</p>}
       </div>
       <div className="tree-actions">
-        <button className="btn btn-quiet btn-small" onClick={open}>
+        <button className="btn btn-quiet btn-small" onClick={() => onOpen(item)}>
           Open
         </button>
         {item.status !== "COMPLETED" && (
@@ -86,7 +83,9 @@ function Row({ item, onChanged }: { item: Item; onChanged: () => void }) {
 }
 
 export function MyLearning({ orgId }: { orgId: string }) {
+  const dialogs = useDialogs();
   const [view, setView] = useState<MyLearningView | null>(null);
+  const [viewerItem, setViewerItem] = useState<Item | null>(null);
   const reload = useCallback(() => {
     courses.myLearning(orgId).then(setView).catch(() => setView(null));
   }, [orgId]);
@@ -101,11 +100,19 @@ export function MyLearning({ orgId }: { orgId: string }) {
       ...view.optIn.map((i) => ({ ...i, mandatory: false })),
     ];
     return {
+      all,
       pending: all.filter((i) => i.status !== "COMPLETED"),
       completed: all.filter((i) => i.status === "COMPLETED"),
       overdue: all.filter((i) => i.overdue).length,
     };
   }, [view]);
+
+  // The viewer's item goes stale after reloads — keep it in sync
+  useEffect(() => {
+    if (!viewerItem || !groups) return;
+    const fresh = groups.all.find((i) => i.code === viewerItem.code);
+    if (fresh && fresh !== viewerItem) setViewerItem(fresh);
+  }, [groups, viewerItem]);
 
   if (!groups) {
     return (
@@ -147,7 +154,7 @@ export function MyLearning({ orgId }: { orgId: string }) {
           <h3 className="learning-h">Pending</h3>
           <ul className="owner-list">
             {groups.pending.map((i) => (
-              <Row key={i.code} item={i} onChanged={reload} />
+              <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
             ))}
           </ul>
         </>
@@ -158,10 +165,23 @@ export function MyLearning({ orgId }: { orgId: string }) {
           <h3 className="learning-h">Completed</h3>
           <ul className="owner-list">
             {groups.completed.map((i) => (
-              <Row key={i.code} item={i} onChanged={reload} />
+              <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
             ))}
           </ul>
         </>
+      )}
+
+      {viewerItem && (
+        <CourseViewer
+          item={viewerItem}
+          onClose={() => setViewerItem(null)}
+          onChanged={reload}
+          onOpenRelated={(code) => {
+            const related = groups.all.find((i) => i.code === code);
+            if (related) setViewerItem(related);
+            else dialogs.toast("That document doesn't reach your position.", "info");
+          }}
+        />
       )}
     </div>
   );

@@ -36,10 +36,12 @@ function InboxCard({
   r,
   onDone,
   onRemove,
+  focused,
 }: {
   r: RequestView;
   onDone: () => void;
   onRemove: () => void;
+  focused: boolean;
 }) {
   const dialogs = useDialogs();
   const [configOpen, setConfigOpen] = useState(false);
@@ -71,7 +73,7 @@ function InboxCard({
   };
 
   return (
-    <li className="request-card glass">
+    <li className="request-card glass" id={`request-${r.id}`} data-focus={focused}>
       <div className="request-head">
         <KindChip kind={r.kind} />
         <span className="auth-sub">{r.createdAt.slice(0, 10)}</span>
@@ -224,6 +226,13 @@ export default function RequestsPage() {
   const dialogs = useDialogs();
   const [data, setData] = useState<RequestsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  // Deep link from a notification: /requests?focus=<id> highlights that exact request
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get("focus");
+    if (f) setFocusId(f);
+  }, []);
 
   const load = useCallback(() => {
     requests
@@ -235,6 +244,13 @@ export default function RequestsPage() {
   useEffect(load, [load]);
   // Live: new requests and decisions appear without a refresh
   useOrgEvent(["requests"], load);
+
+  useEffect(() => {
+    if (!focusId || !data) return;
+    document
+      .getElementById(`request-${focusId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusId, data]);
 
   const removeRequest = async (id: string, title: string, message: string) => {
     if (
@@ -273,6 +289,7 @@ export default function RequestsPage() {
             <InboxCard
               key={r.id}
               r={r}
+              focused={r.id === focusId}
               onDone={load}
               onRemove={() =>
                 removeRequest(
@@ -297,7 +314,12 @@ export default function RequestsPage() {
         )}
         <ul className="request-list">
           {data?.mine.map((r) => (
-            <li key={r.id} className="request-card glass">
+            <li
+              key={r.id}
+              className="request-card glass"
+              id={`request-${r.id}`}
+              data-focus={r.id === focusId}
+            >
               <div className="request-head">
                 <KindChip kind={r.kind} />
                 <StatusBadge status={r.status} />

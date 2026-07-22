@@ -79,3 +79,33 @@ The button then appears on login/register automatically.
 v1 is **in-app only** (sole exception: the transactional org-deletion email). Email
 notifications are planned **after the incident management system** is established; later also
 push notifications (mobile) and richer escalation chains.
+
+## 11. AI library assistant (planned 2026-07-22)
+Two AI features scoped for the Library tab, in order:
+
+**11a. "Ask about this book" — per-course chat (first).**
+A limited chat on the library detail view that answers questions about ONE course:
+what it is for, its scope, who should take it, prerequisites, rough time investment.
+- Grounding: course title, description, category, prerequisites, reviews, and (where
+  the storage adapter allows) extracted text of the content itself.
+- Guardrails: answers only from the grounded material; explicit "I can only speak
+  about this course" refusal outside scope; no access to org structure or people data.
+- Serving: one API endpoint (`POST /courses/:code/ai/ask`) proxying an LLM with the
+  grounding stuffed into context — no persistent chat history in v1 of the feature.
+
+**11b. Recommendation chat — "what should I take?"**
+A library-level chat where a member describes what they want to learn in free text and
+gets recommendations from THEIR org's library only.
+- Retrieval: embed course title+description+category+reviews into a vector index per
+  org (pgvector on the existing Postgres keeps the stack unchanged); the chat retrieves
+  top-k courses and the model ranks/explains them.
+- Personalization: filter/boost by the member's placements (what already reaches them,
+  what their branch mandates) and completion history (skip what's done, respect
+  prerequisites).
+- Output is always a list of real course cards (code-linked) with a one-line "why" —
+  never invented titles.
+- Category suggestion (shipped, word-overlap based) upgrades to the same embedding
+  index once it exists.
+
+Prereqs for both: an LLM provider decision + per-org API budget, and a text-extraction
+step in the storage adapter port. Ship 11a first — it needs no index.

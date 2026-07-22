@@ -167,6 +167,8 @@ model Course {
   title                    String
   description              String? // short description shown in the library and admin views
   inLibrary                Boolean            @default(false) // discoverable in the org library
+  category                 String? // dynamic shelf tag ("AI", "Safety", …) — suggested from
+  // existing categories at upload time, always changeable by the uploader
   storageRef               Json // adapter-specific pointer: {adapter:"inline"|"link", ...}
   deadlineDays             Int?
   retakeEveryNDays         Int? // recurrence, applies to all kinds
@@ -177,6 +179,7 @@ model Course {
   prerequisites            CoursePrerequisite[] @relation("course")
   requiredBy               CoursePrerequisite[] @relation("requires")
   adminAccess              CourseAdminAccess[]
+  reviews                  CourseReview[]
 }
 
 model CoursePlacement {
@@ -227,6 +230,22 @@ model CourseAdminAccess {
   grantedBy String
 
   @@unique([courseId, profileId])
+}
+
+// After completing a course a member may rate it (1–5, optional) and leave a comment
+// other members see on the library detail view.
+model CourseReview {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  profileId String
+  rating    Int? // 1..5, optional
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, profileId])
+  @@index([courseId])
 }
 
 // ── Compliance ─────────────────────────────────────────────────────────────

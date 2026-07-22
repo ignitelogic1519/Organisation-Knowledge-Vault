@@ -2,11 +2,14 @@
 
 import type {
   AppNotification,
+  ComplianceReport,
   CourseAdminView,
+  CourseReviewView,
   CreateCourseInput,
   LibraryCourse,
   MyLearningView,
   PlaceCourseInput,
+  ReviewCourseInput,
 } from "@vault/shared";
 import { api, authFetch } from "./auth-client";
 
@@ -56,11 +59,37 @@ export const courses = {
     api<{ courses: LibraryCourse[] }>(
       `/orgs/${orgId}/library${q ? `?q=${encodeURIComponent(q)}` : ""}`,
     ),
+  suggestCategory: (orgId: string, title: string, description: string) =>
+    api<{ suggestion: string | null; categories: string[] }>(
+      `/orgs/${orgId}/library/suggest-category`,
+      { method: "POST", body: JSON.stringify({ title, description }) },
+    ),
+  reviews: (code: string) =>
+    api<{
+      reviews: CourseReviewView[];
+      avgRating: number | null;
+      count: number;
+      mine: { rating: number | null; comment: string | null } | null;
+    }>(`/courses/${code}/reviews`),
+  review: (code: string, input: ReviewCourseInput) =>
+    api<{ ok: boolean }>(`/courses/${code}/review`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   unplace: (code: string, roleNodeId: string) =>
     api<{ ok: boolean }>(`/courses/${code}/placements/${roleNodeId}`, { method: "DELETE" }),
   remove: (code: string) =>
     api<{ ok: boolean; releasedPrerequisiteLinks: number }>(`/courses/${code}`, {
       method: "DELETE",
+    }),
+};
+
+export const compliance = {
+  report: (roleId: string) => api<ComplianceReport>(`/roles/${roleId}/compliance`),
+  remind: (roleId: string, input: { courseCode: string; profileIds: string[]; message?: string }) =>
+    api<{ ok: boolean; reminded: number }>(`/roles/${roleId}/compliance/remind`, {
+      method: "POST",
+      body: JSON.stringify(input),
     }),
 };
 

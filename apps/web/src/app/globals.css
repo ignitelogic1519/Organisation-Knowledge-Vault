@@ -20,9 +20,9 @@
   --danger: #c92f45;
 
   /* glass */
-  --glass: color-mix(in srgb, var(--surface-solid) 66%, transparent);
+  --glass: color-mix(in srgb, var(--surface-solid) 60%, transparent);
   --glass-strong: color-mix(in srgb, var(--surface-solid) 84%, transparent);
-  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.5);
 
   /* neumorphic shadow pair */
   --neu-hi: rgba(255, 255, 255, 0.95);
@@ -214,10 +214,18 @@ button {
 
 .glass {
   background: var(--glass);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px rgba(10, 14, 30, 0.08);
+  box-shadow:
+    0 8px 32px rgba(10, 14, 30, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+[data-theme="dark"] .glass {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 [data-theme="dark"] .glass {
@@ -242,7 +250,12 @@ button {
 /* ── Typography helpers ────────────────────────────────────────────────── */
 
 .gradient-text {
-  background: var(--grad-accent);
+  /* calmer than a pure accent gradient — vivid text reads as noise at scale */
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 78%, var(--text)),
+    color-mix(in srgb, var(--accent-2) 70%, var(--text))
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -291,14 +304,14 @@ button {
   background: var(--grad-accent);
   color: var(--accent-contrast);
   box-shadow:
-    0 4px 16px color-mix(in srgb, var(--accent) 40%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    0 3px 12px color-mix(in srgb, var(--accent) 26%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.05);
   transform: translateY(-1px);
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .btn-quiet {
@@ -2319,6 +2332,362 @@ button {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+
+/* ── In-app course viewer ──────────────────────────────────────────────── */
+
+.viewer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: layer-in 200ms var(--ease) both;
+}
+
+.viewer {
+  width: min(64rem, 100%);
+  height: min(88svh, 52rem);
+  border-radius: calc(var(--radius) + 6px);
+  padding: 1rem 1.2rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  animation: sheet-up 320ms var(--spring) both;
+}
+
+.viewer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.viewer-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.viewer-title h3 {
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+.viewer-frame-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.viewer-frame-wrap:fullscreen {
+  border-radius: 0;
+  background: var(--bg);
+}
+
+.viewer-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.viewer-note {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 0.6rem;
+  right: 0.6rem;
+  font-size: 0.78rem;
+  pointer-events: auto;
+}
+
+.viewer-note a {
+  color: var(--accent);
+}
+
+.viewer-related {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+
+.viewer-related-chip[data-missing="true"] {
+  border: 1px dashed var(--warning);
+  color: var(--warning);
+  background: transparent;
+}
+
+.viewer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.viewer-review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+  animation: fade-up 240ms var(--ease) both;
+}
+
+.viewer-review-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+/* ── Star ratings ──────────────────────────────────────────────────────── */
+
+.stars {
+  display: inline-flex;
+  gap: 0.1rem;
+}
+
+.star {
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--border);
+  transition: color var(--dur-micro) var(--ease), transform var(--dur-micro) var(--spring);
+  padding: 0.05rem;
+}
+
+.star[data-on="true"] {
+  color: var(--warning);
+}
+
+.star:not(:disabled):hover {
+  transform: scale(1.2);
+}
+
+.star:disabled {
+  cursor: default;
+}
+
+.star-static {
+  font-size: 0.95rem;
+}
+
+.rating-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+}
+
+/* ── Library shelves & toolbar ─────────────────────────────────────────── */
+
+.library-toolbar {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.library-toolbar .library-search {
+  flex: 1;
+  min-width: min(16rem, 100%);
+}
+
+.library-toolbar .field {
+  min-width: 8rem;
+}
+
+.shelf {
+  margin-top: 1.4rem;
+}
+
+.shelf-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.shelf-head h3 {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.chip-shelf {
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  color: color-mix(in srgb, var(--accent-2) 75%, var(--text));
+  cursor: pointer;
+}
+
+.review-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.review-item {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+}
+
+.review-comment {
+  margin-top: 0.25rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+/* ── Compliance ────────────────────────────────────────────────────────── */
+
+.compliance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.compliance-card {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.compliance-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  flex-wrap: wrap;
+}
+
+.compliance-title {
+  flex: 1;
+  min-width: min(16rem, 100%);
+}
+
+.compliance-score {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 11rem;
+}
+
+.compliance-bar {
+  height: 7px;
+  border-radius: 980px;
+  background: var(--surface-2);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.compliance-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 980px;
+  background: var(--warning);
+  transition: width var(--dur-large) var(--ease);
+}
+
+.compliance-bar span[data-full="true"] {
+  background: var(--success);
+}
+
+.compliance-body {
+  padding: 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  animation: fade-up 240ms var(--ease) both;
+}
+
+.compliance-select-row {
+  padding: 0.3rem 0;
+}
+
+/* ── Bell: categorized, clickable items ────────────────────────────────── */
+
+.bell-item[data-unread="true"] {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border-radius: var(--radius-sm);
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.bell-item-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: left;
+  flex: 1;
+}
+
+.bell-item-main[data-clickable="true"]:hover strong {
+  color: var(--accent);
+}
+
+.bell-item-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.bell-cat {
+  font-size: 0.66rem;
+}
+
+.bell-cat[data-cat="Requests"] {
+  color: var(--accent);
+}
+
+.bell-cat[data-cat="Learning"] {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.bell-cat[data-cat="Inbox"] {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+/* ── Deep-linked request highlight ─────────────────────────────────────── */
+
+.request-card[data-focus="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 10px 30px color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: focus-pulse 1.6s var(--ease) 2;
+}
+
+@keyframes focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--accent-soft); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 28%, transparent); }
 }
 
 /* ── Shared animations & a11y ──────────────────────────────────────────── */

@@ -6,6 +6,7 @@ export async function purgeOrganization(orgId: string): Promise<void> {
   await db.$transaction([
     db.completionRecord.deleteMany({ where: { orgId } }),
     db.courseAdminAccess.deleteMany({ where: { course: { orgId } } }),
+    db.courseReview.deleteMany({ where: { course: { orgId } } }),
     db.coursePrerequisite.deleteMany({ where: { course: { orgId } } }),
     db.coursePlacement.deleteMany({ where: { course: { orgId } } }),
     db.course.deleteMany({ where: { orgId } }),

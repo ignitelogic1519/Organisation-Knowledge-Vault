@@ -11,6 +11,8 @@ export const createCourseSchema = z.object({
   description: z.string().min(8, "Describe the course in a sentence or two").max(500),
   /** Whether the course is discoverable in the organization library. */
   inLibrary: z.boolean().default(false),
+  /** Dynamic shelf tag ("AI", "Safety", …) — the library groups similar tags together. */
+  category: z.string().trim().max(40).optional(),
   /** LINK/AUDIO/VIDEO hosted elsewhere: external URL. */
   url: z.string().url().optional(),
   /** Small files (≤ 2 MB) via the inline adapter. */
@@ -67,12 +69,55 @@ export interface LibraryCourse {
   title: string;
   kind: CourseKind;
   description: string | null;
+  category: string | null;
   uploaderRoleName: string;
   createdAt: string;
   /** How many people completed it (org-wide, across versions). */
   completedCount: number;
   /** Branch names the course is currently placed on. */
   usedIn: string[];
+  /** Average rating (1–5) across reviews, null when unrated. */
+  avgRating: number | null;
+  ratingCount: number;
+}
+
+export const reviewCourseSchema = z.object({
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  comment: z.string().trim().max(1000).optional(),
+});
+export type ReviewCourseInput = z.infer<typeof reviewCourseSchema>;
+
+export interface CourseReviewView {
+  displayName: string;
+  username: string;
+  rating: number | null;
+  comment: string | null;
+  updatedAt: string;
+}
+
+/** Per-course compliance for a branch: who completed, who is pending/overdue. */
+export interface ComplianceCourse {
+  code: string;
+  title: string;
+  mandatory: boolean;
+  viaRoleName: string;
+  total: number;
+  compliant: number;
+  pending: {
+    profileId: string;
+    displayName: string;
+    username: string;
+    status: CompletionStatus | "AVAILABLE";
+    overdue: boolean;
+  }[];
+}
+
+export interface ComplianceReport {
+  roleId: string;
+  roleName: string;
+  /** Everyone in the branch's subtree the courses reach. */
+  peopleCount: number;
+  courses: ComplianceCourse[];
 }
 
 export interface LearningItem extends CourseInfo {
@@ -108,6 +153,8 @@ export interface CourseAdminView {
 export interface AppNotification {
   id: string;
   kind: string;
+  /** Org the event belongs to — lets the bell deep-link to the right place. */
+  orgId: string | null;
   payload: Record<string, unknown>;
   readAt: string | null;
   createdAt: string;

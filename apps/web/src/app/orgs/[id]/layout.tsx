@@ -14,6 +14,7 @@ import {
   IconHelp,
   IconInbox,
   IconLibrary,
+  IconShield,
   IconStars,
 } from "@/components/icons";
 
@@ -65,8 +66,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       (p) => p.roleNodeId === org.ownerRole.id && p.kind === "OWNER",
     ) ?? false;
 
-  const nav = useMemo<ShellNavItem[]>(
-    () => [
+  const nav = useMemo<ShellNavItem[]>(() => {
+    const items: ShellNavItem[] = [
       { href: "/orgs", label: "Organizations", icon: <IconBack /> },
       { href: `/orgs/${id}`, label: "Constellation", icon: <IconStars /> },
       { href: `/orgs/${id}/learning`, label: "My Learning", icon: <IconBook /> },
@@ -77,10 +78,13 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         icon: <IconInbox />,
         badge: requestCount,
       },
-      { href: "/help", label: "Help", icon: <IconHelp /> },
-    ],
-    [id, requestCount],
-  );
+    ];
+    if (isAdmin) {
+      items.push({ href: `/orgs/${id}/compliance`, label: "Compliance", icon: <IconShield /> });
+    }
+    items.push({ href: "/help", label: "Help", icon: <IconHelp /> });
+    return items;
+  }, [id, requestCount, isAdmin]);
 
   const section = pathname.endsWith("/learning")
     ? "My Learning"
@@ -88,7 +92,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       ? "Library"
       : pathname.endsWith("/requests")
         ? "Requests"
-        : "Constellation";
+        : pathname.endsWith("/compliance")
+          ? "Compliance"
+          : "Constellation";
 
   if (!org) {
     return (

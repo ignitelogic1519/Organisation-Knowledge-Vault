@@ -1,8 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import type { AppNotification } from "@vault/shared";
+import { z } from "zod";
+import {
+  can,
+  isSelfOrAncestor,
+  type AppNotification,
+  type ComplianceCourse,
+  type ComplianceReport,
+} from "@vault/shared";
 import { db } from "../db.js";
 import { env } from "../env.js";
 import { coursesReaching, escalationTargets, notify, toLearningItem } from "../courses/helpers.js";
+import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { purgeOrganization } from "../orgs/purge.js";
 
 /** Messages self-clean after 7 days — the database never accumulates stale noise. */
@@ -48,6 +56,7 @@ export async function complianceRoutes(app: FastifyInstance) {
         notifications: rows.map((n) => ({
           id: n.id,
           kind: n.kind,
+          orgId: n.orgId,
           payload: n.payload as Record<string, unknown>,
           readAt: n.readAt?.toISOString() ?? null,
           createdAt: n.createdAt.toISOString(),
@@ -82,6 +91,163 @@ export async function complianceRoutes(app: FastifyInstance) {
     await db.notification.deleteMany({ where: { profileId: req.profileId } });
     return { ok: true };
   });
+
+  // Branch compliance report — for the node's managers: per course, who is compliant
+  // and who is not, across the whole subtree the course reaches. Works for every node
+  // the actor owns (people hold ownership on multiple levels).
+  app.get<{ Params: { roleId: string } }>(
+    "/roles/:roleId/compliance",
+    { preHandler: app.authenticate },
+    async (req, reply): Promise<ComplianceReport> => {
+      const node = await db.roleNode.findUnique({
+        where: { id: req.params.roleId },
+        include: { org: true },
+      });
+      if (!node || node.org.deletedAt) return reply.status(404).send({ error: "Role not found" });
+      const placements = await actorPlacements(req.profileId, node.orgId);
+      if (!can(placements, "add_people", toRoleRef(node))) {
+        return reply.status(403).send({ error: "Only this branch's managers see compliance" });
+      }
+
+      const allNodes = await db.roleNode.findMany({ where: { orgId: node.orgId } });
+      const subtree = allNodes.filter((n) => isSelfOrAncestor(node.path, n.path));
+      const subtreeIds = new Set(subtree.map((n) => n.id));
+
+      // Course placements that touch this branch: on a subtree node, or inherited
+      // from a level above it
+      const cps = await db.coursePlacement.findMany({
+        where: { course: { orgId: node.orgId } },
+        include: { course: true },
+      });
+      const relevant = cps.filter((cp) => {
+        if (subtreeIds.has(cp.roleNodeId)) return true;
+        const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
+        return !!cpNode && cp.inheritToDescendants && isSelfOrAncestor(cpNode.path, node.path);
+      });
+
+      const occupants = await db.placement.findMany({
+        where: { roleNodeId: { in: [...subtreeIds] } },
+        include: { membership: { include: { profile: true } }, roleNode: true },
+      });
+      const peopleCount = new Set(occupants.map((o) => o.membership.profileId)).size;
+
+      const byCourse = new Map<string, { cp: (typeof relevant)[number]; audience: Set<string> }>();
+      for (const cp of relevant) {
+        const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
+        if (!cpNode) continue;
+        // Audience within this branch: occupants of the exact placement node, or —
+        // when the placement inherits — every subtree occupant the placement reaches.
+        // (`occupants` already holds only this branch's subtree.)
+        const audience = new Set(
+          occupants
+            .filter((o) =>
+              cp.inheritToDescendants
+                ? isSelfOrAncestor(cpNode.path, o.roleNode.path)
+                : o.roleNodeId === cp.roleNodeId,
+            )
+            .map((o) => o.membership.profileId),
+        );
+        const existing = byCourse.get(cp.courseId);
+        if (existing) {
+          for (const a of audience) existing.audience.add(a);
+          if (cp.mandatory && !existing.cp.mandatory) existing.cp = cp;
+        } else {
+          byCourse.set(cp.courseId, { cp, audience });
+        }
+      }
+
+      const records = await db.completionRecord.findMany({
+        where: { courseId: { in: [...byCourse.keys()] } },
+      });
+      const profileOf = new Map(
+        occupants.map((o) => [o.membership.profileId, o.membership.profile]),
+      );
+
+      const courses: ComplianceCourse[] = [...byCourse.values()].map(({ cp, audience }) => {
+        const pending: ComplianceCourse["pending"] = [];
+        let compliant = 0;
+        const deadlineDays = cp.deadlineDays ?? cp.course.deadlineDays;
+        for (const profileId of audience) {
+          const rec = records.find(
+            (r) => r.courseId === cp.courseId && r.profileId === profileId,
+          );
+          const done =
+            rec?.status === "COMPLETED" &&
+            (!rec.validUntil || rec.validUntil > new Date());
+          if (done) {
+            compliant++;
+            continue;
+          }
+          const profile = profileOf.get(profileId);
+          pending.push({
+            profileId,
+            displayName: profile?.displayName ?? "Unknown",
+            username: profile?.username ?? "unknown",
+            status: rec?.status ?? (cp.mandatory ? "ASSIGNED" : "AVAILABLE"),
+            overdue:
+              cp.mandatory &&
+              deadlineDays !== null &&
+              new Date(cp.createdAt.getTime() + deadlineDays * 86400_000) < new Date(),
+          });
+        }
+        const viaNode = allNodes.find((n) => n.id === cp.roleNodeId);
+        return {
+          code: cp.course.code,
+          title: cp.course.title,
+          mandatory: cp.mandatory,
+          viaRoleName: viaNode?.name ?? "—",
+          total: audience.size,
+          compliant,
+          pending,
+        };
+      });
+
+      return { roleId: node.id, roleName: node.name, peopleCount, courses };
+    },
+  );
+
+  // Nudge the non-compliant: the manager picks people and sends a custom (or default)
+  // message straight to their bell.
+  app.post<{ Params: { roleId: string } }>(
+    "/roles/:roleId/compliance/remind",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const body = z
+        .object({
+          courseCode: z.string(),
+          profileIds: z.array(z.string().uuid()).min(1).max(200),
+          message: z.string().trim().max(500).optional(),
+        })
+        .parse(req.body);
+      const node = await db.roleNode.findUnique({
+        where: { id: req.params.roleId },
+        include: { org: true },
+      });
+      if (!node || node.org.deletedAt) return reply.status(404).send({ error: "Role not found" });
+      const placements = await actorPlacements(req.profileId, node.orgId);
+      if (!can(placements, "add_people", toRoleRef(node))) {
+        return reply.status(403).send({ error: "Only this branch's managers send reminders" });
+      }
+      const course = await db.course.findUnique({ where: { code: body.courseCode } });
+      if (!course || course.orgId !== node.orgId) {
+        return reply.status(404).send({ error: "Course not found" });
+      }
+
+      const sender = await db.profile.findUnique({ where: { id: req.profileId } });
+      for (const profileId of new Set(body.profileIds)) {
+        await notify(profileId, node.orgId, "compliance_reminder", {
+          code: course.code,
+          title: course.title,
+          roleName: node.name,
+          from: sender?.displayName ?? "Your manager",
+          message:
+            body.message?.trim() ||
+            `Please complete "${course.title}" — your branch's compliance depends on it.`,
+        });
+      }
+      return { ok: true, reminded: new Set(body.profileIds).size };
+    },
+  );
 
   // The nightly job — triggered by an external scheduler (GitHub Actions) because Render's
   // free tier sleeps. Protected by JOB_SECRET. Idempotent: safe to run repeatedly.
