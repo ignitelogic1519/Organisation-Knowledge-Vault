@@ -194,13 +194,16 @@ export default function StudioPage() {
 }
 
 function StudioInner() {
-  const { org } = useOrg();
+  const { org, isSupremeOwner } = useOrg();
   const router = useRouter();
   const dialogs = useDialogs();
   const params = useSearchParams();
   const roleId = params.get("role");
 
   const [node, setNode] = useState<TreeNode | null>(null);
+  // Every branch the user owns — used to compute publish rights from the tree itself,
+  // robustly, rather than trusting a single per-node flag.
+  const [ownedPaths, setOwnedPaths] = useState<string[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([
     mk({ type: "heading", level: 1, html: "" }),
     mk({ type: "paragraph", html: "" }),
@@ -224,7 +227,10 @@ function StudioInner() {
     if (!roleId) return;
     roles
       .structure(org.id)
-      .then((v) => setNode(v.nodes.find((n) => n.id === roleId) ?? null))
+      .then((v) => {
+        setNode(v.nodes.find((n) => n.id === roleId) ?? null);
+        setOwnedPaths(v.nodes.filter((n) => n.my.kinds.includes("OWNER")).map((n) => n.path));
+      })
       .catch(() => setNode(null));
   }, [org.id, roleId]);
 
@@ -253,8 +259,15 @@ function StudioInner() {
     });
   };
 
-  const canProceed = node && (node.my.canPublishContent || node.my.canProposeContent);
-  const needsReview = node?.my.canProposeContent && !node?.my.canPublishContent;
+  // The root Owner (CEO) and any owner of this branch or a level above may publish
+  // directly. Compute it from the tree so a missing/stale per-node flag can't wrongly
+  // block someone who clearly governs the node.
+  const ownsHereOrAbove =
+    !!node && ownedPaths.some((p) => node.path === p || node.path.startsWith(`${p}.`));
+  const canPublish = isSupremeOwner || ownsHereOrAbove || !!node?.my.canPublishContent;
+  const canPropose = !!node?.my.canProposeContent;
+  const canProceed = node && (canPublish || canPropose);
+  const needsReview = !canPublish && canPropose;
 
   const cleanBlocks = (): AuthoredBlock[] =>
     blocks
@@ -337,7 +350,11 @@ function StudioInner() {
     return (
       <div className="empty-card glass">
         <h2>Studio</h2>
-        <p className="auth-sub">You don&apos;t have content-creation rights on {node.name}.</p>
+        <p className="auth-sub">
+          You don&apos;t have content-creation rights on <strong>{node.name}</strong>. An owner
+          of this branch (or the level above) can grant you content rights from the People
+          panel, or create the document themselves.
+        </p>
       </div>
     );
   }
