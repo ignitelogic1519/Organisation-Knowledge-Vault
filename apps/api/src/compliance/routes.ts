@@ -15,6 +15,8 @@ import { purgeOrganization } from "../orgs/purge.js";
 
 /** Messages self-clean after 7 days — the database never accumulates stale noise. */
 const NOTIFICATION_RETENTION_MS = 7 * 86400_000;
+/** Transient operational data (verification audits, spent tokens) clears after 15 days. */
+const TRANSIENT_RETENTION_MS = 15 * 86400_000;
 /** Above this many messages the user gets nudged to clear their inbox. */
 const CLUTTER_THRESHOLD = 10;
 
@@ -263,9 +265,11 @@ export async function complianceRoutes(app: FastifyInstance) {
       purgedOrgs: 0,
       prunedNotifications: 0,
       prunedRequests: 0,
+      prunedAudits: 0,
+      prunedTokens: 0,
     };
 
-    // 0. Retention: messages and decided requests older than 7 days are dropped
+    // 0a. 7-day retention: messages and decided requests
     const retentionCutoff = new Date(Date.now() - NOTIFICATION_RETENTION_MS);
     report.prunedNotifications = (
       await db.notification.deleteMany({ where: { createdAt: { lt: retentionCutoff } } })
@@ -273,6 +277,26 @@ export async function complianceRoutes(app: FastifyInstance) {
     report.prunedRequests = (
       await db.vaultRequest.deleteMany({
         where: { status: { not: "PENDING" }, decidedAt: { lt: retentionCutoff } },
+      })
+    ).count;
+
+    // 0b. 15-day retention: transient operational data not worth keeping forever —
+    //     Supreme verification audits (structural owner/deletion events are kept) and
+    //     spent refresh tokens (expired or long-revoked). Security hygiene + no clutter.
+    const cutoff15 = new Date(Date.now() - TRANSIENT_RETENTION_MS);
+    report.prunedAudits = (
+      await db.supremeAudit.deleteMany({
+        where: {
+          action: { in: ["verify_success", "verify_failed"] },
+          createdAt: { lt: cutoff15 },
+        },
+      })
+    ).count;
+    report.prunedTokens = (
+      await db.refreshToken.deleteMany({
+        where: {
+          OR: [{ expiresAt: { lt: cutoff15 } }, { revokedAt: { lt: cutoff15 } }],
+        },
       })
     ).count;
 

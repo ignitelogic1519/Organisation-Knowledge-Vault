@@ -94,7 +94,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         ? "Requests"
         : pathname.endsWith("/compliance")
           ? "Compliance"
-          : "Constellation";
+          : pathname.endsWith("/studio")
+            ? "Studio"
+            : "Constellation";
 
   if (!org) {
     return (

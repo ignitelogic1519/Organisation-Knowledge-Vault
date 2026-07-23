@@ -15,7 +15,7 @@ export default function LearningPage() {
         <p className="auth-sub">
           Every course that reaches your position — pending first, completed below.
         </p>
-        <MyLearning orgId={org.id} />
+        <MyLearning orgId={org.id} orgName={org.name} />
       </div>
     </div>
   );

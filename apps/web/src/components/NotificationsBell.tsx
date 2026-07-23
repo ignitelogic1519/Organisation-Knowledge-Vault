@@ -33,14 +33,15 @@ const KINDS: Record<string, KindMeta> = {
   escalation_overdue: { label: "Someone you added has an overdue course", category: "Learning", link: learningLink },
   course_updated_redo: { label: "A course was updated — completion reset", category: "Learning", link: learningLink },
   compliance_reminder: { label: "Reminder from your manager", category: "Learning", link: learningLink },
+  course_adopted: { label: "Your course was adopted — thank you!", category: "Learning", link: learningLink },
   inbox_cleanup: { label: "Your inbox is getting full — clear old messages", category: "Inbox", link: () => null },
 };
 
 function detailOf(n: AppNotification): string {
   const p = n.payload;
   if (n.kind === "inbox_cleanup") return `${String(p.count ?? "10+")} messages`;
-  if (n.kind === "compliance_reminder") {
-    return `${String(p.from ?? "Manager")} · "${String(p.title ?? p.code ?? "")}": ${String(p.message ?? "")}`;
+  if (n.kind === "compliance_reminder" || n.kind === "course_adopted") {
+    return `${String(p.from ?? "A manager")} · "${String(p.title ?? p.code ?? "")}"${p.roleName ? ` @ ${String(p.roleName)}` : ""}: ${String(p.message ?? "")}`;
   }
   if (typeof p.label === "string" && typeof p.roleName === "string") {
     const verdict = "approved" in p ? (p.approved ? " — approved ✓" : " — rejected ✕") : "";

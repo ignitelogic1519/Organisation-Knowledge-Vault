@@ -10,6 +10,7 @@ import type {
   MyLearningView,
   PlaceCourseInput,
   ReviewCourseInput,
+  UpdateCourseInput,
 } from "@vault/shared";
 import { api, authFetch } from "./auth-client";
 
@@ -38,8 +39,18 @@ export const courses = {
       method: "POST",
       body: JSON.stringify({ username, level, canGrant }),
     }),
-  /** Content opens in a new tab: links resolve to their URL; files stream from the API. */
+  /** Content endpoint — the in-app viewer fetches it; ?download=1 forces attachment. */
   contentUrl: (code: string) => `${API}/courses/${code}/content`,
+  archive: (code: string, archived: boolean) =>
+    api<{ ok: boolean; archived: boolean }>(`/courses/${code}/archive`, {
+      method: "POST",
+      body: JSON.stringify({ archived }),
+    }),
+  update: (code: string, input: UpdateCourseInput) =>
+    api<{ ok: boolean; version: number }>(`/courses/${code}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   listForRole: (roleId: string) =>
     api<{
       courses: {
@@ -47,11 +58,15 @@ export const courses = {
         title: string;
         kind: string;
         description: string | null;
+        classification: import("@vault/shared").Classification;
         inLibrary: boolean;
+        archived: boolean;
+        allowDownload: boolean;
         mandatory: boolean;
         inheritToDescendants: boolean;
         deadlineDays: number | null;
         retakeEveryNDays: number | null;
+        canManage: boolean;
         canDelete: boolean;
       }[];
     }>(`/roles/${roleId}/courses`),

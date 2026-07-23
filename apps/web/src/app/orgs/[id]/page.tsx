@@ -639,6 +639,7 @@ function CoursesPanel({
   onError: (m: string) => void;
 }) {
   const dialogs = useDialogs();
+  const router = useRouter();
   const [list, setList] = useState<RoleCourses | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [category, setCategory] = useState("");
@@ -673,12 +674,21 @@ function CoursesPanel({
 
   return (
     <div className="drawer-section">
-      <button
-        className={showNew ? "btn btn-quiet btn-small" : "btn btn-primary btn-small"}
-        onClick={() => setShowNew((v) => !v)}
-      >
-        {showNew ? "Close form" : "+ New course on this role"}
-      </button>
+      <div className="drawer-actions">
+        <button
+          className={showNew ? "btn btn-quiet btn-small" : "btn btn-primary btn-small"}
+          onClick={() => setShowNew((v) => !v)}
+        >
+          {showNew ? "Close form" : "+ Upload course"}
+        </button>
+        <button
+          className="btn btn-quiet btn-small"
+          title="Create an interactive document from scratch"
+          onClick={() => router.push(`/orgs/${orgId}/studio?role=${node.id}`)}
+        >
+          ✍ Create in Studio
+        </button>
+      </div>
 
       {showNew && (
         <form
@@ -694,6 +704,13 @@ function CoursesPanel({
                 kind: (d.get("kind") as "DOCUMENT") ?? "DOCUMENT",
                 title: String(d.get("title")),
                 description: String(d.get("description")),
+                scope: String(d.get("scope") || "") || undefined,
+                classification: d.get("classification") as
+                  | "PUBLIC"
+                  | "CONFIDENTIAL"
+                  | "PRIVATE"
+                  | "SECRET",
+                allowDownload: d.get("allowDownload") === "on",
                 inLibrary: d.get("inLibrary") === "on",
                 category: category.trim() || undefined,
                 url: url || undefined,
@@ -729,16 +746,37 @@ function CoursesPanel({
             />
           </label>
           <label className="field">
-            <span>Short description</span>
+            <span>Short description (cover page 2)</span>
             <textarea
               name="description"
               required
               minLength={8}
               maxLength={500}
               rows={2}
-              placeholder="What is this course for? Shown in the library and detail views."
+              placeholder="What is this course for? Shown in the library and the document's description page."
               onBlur={(e) => suggestShelf(e.currentTarget.form)}
             />
+          </label>
+          <label className="field">
+            <span>Scope (cover page 2)</span>
+            <textarea
+              name="scope"
+              maxLength={2000}
+              rows={2}
+              placeholder="Who this applies to and what it covers — added to the standardized cover."
+            />
+          </label>
+          <label className="field">
+            <span>Classification (compulsory)</span>
+            <select name="classification" required defaultValue="">
+              <option value="" disabled>
+                Choose classification…
+              </option>
+              <option value="PUBLIC">Public</option>
+              <option value="CONFIDENTIAL">Confidential</option>
+              <option value="PRIVATE">Private</option>
+              <option value="SECRET">Secret</option>
+            </select>
           </label>
           <label className="field">
             <span>Library shelf (category)</span>
@@ -800,6 +838,10 @@ function CoursesPanel({
             <input name="prereqs" placeholder="100-101-0001, …" />
           </label>
           <label className="ack-row">
+            <input type="checkbox" name="allowDownload" />
+            <span>Allow members to download from the preview</span>
+          </label>
+          <label className="ack-row">
             <input type="checkbox" name="inLibrary" defaultChecked />
             <span>Publish to the organization library</span>
           </label>
@@ -824,12 +866,16 @@ function CoursesPanel({
       {list?.length === 0 && <p className="auth-sub">No courses placed here yet.</p>}
       <ul className="people-list">
         {list?.map((c) => (
-          <li key={c.code} className="course-card">
+          <li key={c.code} className="course-card" data-archived={c.archived}>
             <div className="course-card-head">
               <span className="person-name">{c.title}</span>
               <span className="chip">{c.code}</span>
               <span className="badge">{c.kind.toLowerCase()}</span>
+              <span className={`badge class-badge class-${c.classification}`}>
+                {c.classification.toLowerCase()}
+              </span>
               {c.inLibrary && <span className="badge badge-ok">in library</span>}
+              {c.archived && <span className="badge badge-danger">archived</span>}
             </div>
             {c.description && <p className="person-sub">{c.description}</p>}
             <div className="person-actions">
@@ -870,6 +916,15 @@ function CoursesPanel({
               >
                 Unplace
               </button>
+              {c.canManage && (
+                <button
+                  className="btn btn-quiet btn-small"
+                  title={c.archived ? "Bring the course back into use" : "Archive: keep it but stop new assignments"}
+                  onClick={() => run(() => courses.archive(c.code, !c.archived))}
+                >
+                  {c.archived ? "Unarchive" : "Archive"}
+                </button>
+              )}
               {c.canDelete && (
                 <button
                   className="btn btn-danger btn-small"

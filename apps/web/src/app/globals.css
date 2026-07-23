@@ -2690,6 +2690,377 @@ button {
   50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 28%, transparent); }
 }
 
+/* ── Classification badges ─────────────────────────────────────────────── */
+
+.class-badge {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.class-PUBLIC {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 55%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.class-CONFIDENTIAL {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+.class-PRIVATE {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.class-SECRET {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* ── Standardized document frame in the viewer ─────────────────────────── */
+
+.doc-headerbar,
+.doc-footerbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.doc-headerbar .doc-org {
+  font-weight: 700;
+  color: var(--text);
+}
+.doc-headerbar .doc-class {
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.doc-footerbar {
+  margin-top: 0.5rem;
+}
+
+.class-strip-PUBLIC {
+  border-left: 3px solid var(--success);
+}
+.class-strip-CONFIDENTIAL {
+  border-left: 3px solid var(--warning);
+}
+.class-strip-PRIVATE {
+  border-left: 3px solid var(--accent);
+}
+.class-strip-SECRET {
+  border-left: 3px solid var(--danger);
+}
+
+.doc-cover-pages {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.2rem;
+}
+
+.doc-page {
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1.6rem;
+  box-shadow: 0 4px 14px rgba(10, 14, 30, 0.06);
+}
+
+.doc-cover {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 55%;
+  justify-content: center;
+  text-align: center;
+}
+
+.doc-cover-class {
+  align-self: center;
+}
+
+.doc-cover-org {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.doc-cover-title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.doc-cover-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+  text-align: left;
+  max-width: 30rem;
+  align-self: center;
+}
+
+.doc-cover-meta dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+.doc-cover-meta dd {
+  font-weight: 600;
+}
+
+.doc-scope-page h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.6rem;
+}
+.doc-scope-page h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-top: 0.8rem;
+}
+.doc-scope-page p {
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.doc-cover-skip {
+  align-self: center;
+}
+
+/* Authored (Studio) document rendering */
+.doc-authored {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--surface-2);
+  padding: 1.2rem;
+}
+.doc-sheet {
+  max-width: 46rem;
+  margin: 0 auto;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2rem 2.4rem;
+  box-shadow: 0 4px 14px rgba(10, 14, 30, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  line-height: 1.7;
+}
+.doc-sheet h1 {
+  font-size: 1.7rem;
+}
+.doc-sheet h2 {
+  font-size: 1.35rem;
+  margin-top: 0.4rem;
+}
+.doc-sheet h3 {
+  font-size: 1.1rem;
+}
+.doc-sheet ul,
+.doc-sheet ol {
+  padding-left: 1.4rem;
+}
+.doc-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.6rem 0;
+}
+.doc-card {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1.1rem;
+  background: var(--accent-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.doc-checklist {
+  list-style: none;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.doc-checklist li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.doc-check {
+  color: var(--accent);
+}
+.doc-table-wrap {
+  overflow-x: auto;
+}
+.doc-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+.doc-table th,
+.doc-table td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+}
+.doc-table th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+.doc-image {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+.doc-media {
+  width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Document Studio ───────────────────────────────────────────────────── */
+
+.studio-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.studio-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.studio-meta-wide {
+  grid-column: 1 / -1;
+}
+
+.studio-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.studio-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  overflow: hidden;
+}
+.studio-block-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.studio-block-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+.studio-block-actions .icon-btn {
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 0.85rem;
+}
+.studio-block-body {
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.studio-input,
+.studio-block-body select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.8rem;
+  width: 100%;
+}
+
+.studio-rich {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.studio-rich-tools {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+.studio-rich-tools button {
+  min-width: 1.9rem;
+  height: 1.7rem;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.studio-rich-tools button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.studio-rich-area {
+  padding: 0.6rem 0.8rem;
+  min-height: 3rem;
+  outline: none;
+  line-height: 1.6;
+}
+.studio-rich-area:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-secondary);
+}
+
+.studio-add {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0;
+}
+
+.studio-publish {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+}
+
+.course-card[data-archived="true"] {
+  opacity: 0.66;
+}
+
 /* ── Shared animations & a11y ──────────────────────────────────────────── */
 
 @keyframes fade-up {

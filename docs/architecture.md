@@ -299,3 +299,46 @@ mobile app's contract — no web-only shortcuts allowed.
 - All uploads virus-size-type checked before hitting the storage adapter.
 - Secrets (DB URL, JWT keys, Google OAuth creds, mail creds) live in Vercel/Render environment
   settings — never in the repo.
+
+---
+
+## 9. API & storage additions (post-v1)
+
+New endpoints layered on the v1 surface (all auth-gated; see `structure.md` §8 for behavior):
+
+```
+GET    /orgs/:id/events                     Server-Sent Events live channel (token in query)
+GET    /orgs/:id/structure                  visible tree slice (public branches + governed subtree)
+PATCH  /roles/:roleId                        branch visibility (isPublic)
+PATCH  /roles/:roleId/people/:profileId      owner capability flags (canCreateSubgroups / canAddCoOwners)
+
+GET    /orgs/:id/library[?q=]               shelved catalog (category, classification, ratings)
+POST   /orgs/:id/library/suggest-category   similarity-based shelf suggestion
+GET    /courses/:code/content[?download=1]  in-app viewer content; download gated by allowDownload
+POST   /courses/:code/archive               archive / unarchive
+GET    /courses/:code/reviews               ratings + comments
+POST   /courses/:code/review                rate & comment (after completion)
+
+GET    /orgs/:id/requests                    my requests + decidable inbox
+POST   /orgs/:id/requests                    file a request (COURSE_ASSIGN auto-approves for governing owners)
+POST   /requests/:id/decide                  approve (+configure) / reject
+DELETE /requests/:id                         withdraw / clear
+
+GET    /roles/:roleId/compliance             per-course compliance for a governed branch
+POST   /roles/:roleId/compliance/remind      nudge the non-compliant
+
+DELETE /notifications/:id                     dismiss one
+POST   /notifications/clear                   clear all
+POST   /jobs/run                              nightly: recurrence, escalation, 7- & 15-day retention, purge
+```
+
+### Storage adapters
+`storageRef.adapter` now includes `authored` — Studio documents store their block array
+inline in the ref and render natively in the viewer (no external fetch). `inline` (Postgres
+bytes, ≤2 MB) and `link` are unchanged; `unreachable` still marks post-revival media pending
+storage reconnection. Authored documents survive `.main` revival intact.
+
+### Live updates
+An in-memory per-org SSE registry (`apps/api/src/events.ts`) broadcasts `{topic}` hints
+(`structure` | `requests` | `courses` | `notifications`). This is single-instance; scaling
+horizontally requires Postgres `LISTEN/NOTIFY` or Redis pub/sub (tracked risk).

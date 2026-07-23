@@ -12,8 +12,10 @@ export interface StorageRef {
 export interface StoredContent {
   /** Either a URL the client can open… */
   url?: string;
-  /** …or raw bytes served through our API. */
+  /** …or raw bytes served through our API… */
   file?: { filename: string; mime: string; data: Buffer };
+  /** …or Studio-authored blocks rendered natively by the in-app viewer. */
+  authored?: unknown;
 }
 
 const MAX_INLINE_BYTES = 2 * 1024 * 1024;
@@ -45,10 +47,17 @@ export const storage = {
     return { adapter: "inline", fileId: row.id };
   },
 
+  /** Studio-authored interactive documents: the blocks live inside the ref itself. */
+  async saveAuthored(blocks: unknown): Promise<StorageRef> {
+    return { adapter: "authored", blocks };
+  },
+
   async resolve(ref: StorageRef): Promise<StoredContent> {
     switch (ref.adapter) {
       case "link":
         return { url: String(ref.url) };
+      case "authored":
+        return { authored: ref.blocks };
       case "inline": {
         const row = await db.storedFile.findUnique({ where: { id: String(ref.fileId) } });
         if (!row) throw Object.assign(new Error("Stored file is missing"), { statusCode: 404 });

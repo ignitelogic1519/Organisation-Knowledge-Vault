@@ -121,6 +121,8 @@ export async function toLearningItem(
     reach.deadlineDays !== null &&
     new Date(reach.anchor.getTime() + reach.deadlineDays * 86400_000) < new Date();
 
+  const creator = await db.profile.findUnique({ where: { id: course.createdByProfileId } });
+
   return {
     code: course.code,
     title: course.title,
@@ -136,6 +138,12 @@ export async function toLearningItem(
     validUntil: record?.validUntil?.toISOString() ?? null,
     missingPrerequisites: missing,
     overdue,
+    description: course.description,
+    scope: course.scope,
+    classification: course.classification,
+    allowDownload: course.allowDownload,
+    publishedAt: course.createdAt.toISOString(),
+    creatorName: creator?.displayName ?? "—",
   };
 }
 

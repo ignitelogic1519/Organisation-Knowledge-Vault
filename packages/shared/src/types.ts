@@ -9,6 +9,9 @@ export type CompletionStatus = "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "EXPIR
 
 export type AccessLevel = "VIEW" | "EDIT";
 
+/** Organization-standard document classification — compulsory on every course. */
+export type Classification = "PUBLIC" | "CONFIDENTIAL" | "PRIVATE" | "SECRET";
+
 /** Actions checked by the central policy function (v1 fixed capability bundle). */
 export type PolicyAction =
   | "create_content"

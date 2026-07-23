@@ -112,6 +112,8 @@ export async function requestRoutes(app: FastifyInstance) {
       const onNode = placements.filter((p) => p.roleNodeId === node.id);
 
       let courseId: string | null = null;
+      let autoApproveCourse = false;
+      let adoptedCourse: { id: string; code: string; title: string; uploaderRoleNodeId: string; createdByProfileId: string } | null = null;
       if (body.kind === "COURSE_ASSIGN") {
         if (!body.courseCode) {
           return reply.status(400).send({ error: "courseCode is required for a Course request" });
@@ -119,6 +121,9 @@ export async function requestRoutes(app: FastifyInstance) {
         const course = await db.course.findUnique({ where: { code: body.courseCode } });
         if (!course || course.orgId !== orgId || !course.inLibrary) {
           return reply.status(404).send({ error: "Course not found in this organization's library" });
+        }
+        if (course.archived) {
+          return reply.status(409).send({ error: "This course is archived and can't be requested" });
         }
         if (onNode.length === 0 && !can(placements, "create_content", toRoleRef(node))) {
           return reply
@@ -142,6 +147,11 @@ export async function requestRoutes(app: FastifyInstance) {
           });
         }
         courseId = course.id;
+        adoptedCourse = course;
+        // Boss call: an owner who governs the target branch is already authorized to
+        // place content there, so their library request auto-approves instead of
+        // waiting on a handler. The course's home owners get a courtesy adoption note.
+        autoApproveCourse = can(placements, "create_content", toRoleRef(node));
       } else if (body.kind === "JOIN_BRANCH") {
         // Hidden inherits down: a public node under a hidden ancestor is NOT joinable
         const hiddenAbove = await hiddenChainAbove(orgId, node.path);
@@ -196,6 +206,10 @@ export async function requestRoutes(app: FastifyInstance) {
         data: {
           orgId,
           kind: body.kind,
+          status: autoApproveCourse ? "APPROVED" : "PENDING",
+          decidedByProfileId: autoApproveCourse ? req.profileId : null,
+          decidedAt: autoApproveCourse ? new Date() : null,
+          decisionNote: autoApproveCourse ? "Auto-approved (requester governs this branch)" : null,
           requesterProfileId: req.profileId,
           targetRoleNodeId: node.id,
           joinAs: body.kind === "JOIN_BRANCH" ? body.joinAs : "MEMBER",
@@ -203,6 +217,49 @@ export async function requestRoutes(app: FastifyInstance) {
           message: body.message ?? null,
         },
       });
+
+      // Boss call: place the course now and thank its home owners for the adoption.
+      if (autoApproveCourse && adoptedCourse) {
+        await db.coursePlacement.upsert({
+          where: { courseId_roleNodeId: { courseId: adoptedCourse.id, roleNodeId: node.id } },
+          create: {
+            courseId: adoptedCourse.id,
+            roleNodeId: node.id,
+            mandatory: false,
+            inheritToDescendants: false,
+            placedByProfileId: req.profileId,
+          },
+          update: {},
+        });
+        // Notify the course's home-branch owners + creator (courtesy adoption note, from
+        // the requester, auto-cleaned after 7 days like every notification)
+        const homeOwners = await db.placement.findMany({
+          where: { roleNodeId: adoptedCourse.uploaderRoleNodeId, kind: "OWNER" },
+          include: { membership: true },
+        });
+        const requester = await db.profile.findUnique({ where: { id: req.profileId } });
+        const recipients = new Set([
+          ...homeOwners.map((o) => o.membership.profileId),
+          adoptedCourse.createdByProfileId,
+        ]);
+        recipients.delete(req.profileId);
+        await Promise.all(
+          [...recipients].map((profileId) =>
+            notify(profileId, orgId, "course_adopted", {
+              code: adoptedCourse!.code,
+              title: adoptedCourse!.title,
+              roleName: node.name,
+              from: requester?.displayName ?? "A manager",
+              message:
+                body.message?.trim() ||
+                `Thank you for creating "${adoptedCourse!.title}" — it's now in use at ${node.name}.`,
+            }),
+          ),
+        );
+        broadcast(orgId, "requests");
+        broadcast(orgId, "courses");
+        return { ok: true, id: request.id, autoApproved: true };
+      }
 
       // Tell the deciders. Course requests go ONLY to the branch's handler (nearest
       // level with an owner) — not every level up to the top. Deletions go to the

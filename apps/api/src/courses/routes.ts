@@ -29,6 +29,24 @@ async function adminLevel(profileId: string, courseId: string, createdBy: string
   return row ? { level: row.level, canGrant: row.canGrant } : null;
 }
 
+/**
+ * May the actor manage (edit / archive / delete) this course? True for anyone with EDIT
+ * admin access AND for owners governing the course's home branch — i.e. the branch owner
+ * where it lives and every owner above it (structure.md: authority flows down). This is
+ * what lets "the owner or the top branch owners" delete a course they no longer need.
+ */
+async function canManageCourse(
+  profileId: string,
+  course: { id: string; createdByProfileId: string; orgId: string; uploaderRoleNodeId: string },
+): Promise<boolean> {
+  const access = await adminLevel(profileId, course.id, course.createdByProfileId);
+  if (access?.level === "EDIT") return true;
+  const homeNode = await db.roleNode.findUnique({ where: { id: course.uploaderRoleNodeId } });
+  if (!homeNode) return false;
+  const placements = await actorPlacements(profileId, course.orgId);
+  return can(placements, "create_content", toRoleRef(homeNode));
+}
+
 export async function courseRoutes(app: FastifyInstance) {
   // Upload/create a knowledge item — code minted as <org>-<role>-<item>
   app.post<{ Params: { id: string } }>(
@@ -49,12 +67,14 @@ export async function courseRoutes(app: FastifyInstance) {
       }
 
       let ref: StorageRef;
-      if (body.url) {
+      if (body.blocks) {
+        ref = await storage.saveAuthored(body.blocks);
+      } else if (body.url) {
         ref = await storage.saveLink(body.url);
       } else if (body.fileBase64 && body.filename && body.mime) {
         ref = await storage.saveInline(node.orgId, body.filename, body.mime, body.fileBase64);
       } else {
-        return reply.status(400).send({ error: "Provide either a url or a file" });
+        return reply.status(400).send({ error: "Provide a file, a url, or authored content" });
       }
 
       // Hard prerequisites must exist inside the same org
@@ -75,6 +95,9 @@ export async function courseRoutes(app: FastifyInstance) {
           kind: body.kind,
           title: body.title,
           description: body.description,
+          scope: body.scope?.trim() ? body.scope.trim() : null,
+          classification: body.classification,
+          allowDownload: body.allowDownload,
           inLibrary: body.inLibrary,
           category: body.category?.trim() ? body.category.trim() : null,
           storageRef: ref as object,
@@ -118,8 +141,9 @@ export async function courseRoutes(app: FastifyInstance) {
     },
   );
 
-  // Open the actual content (link URL or inline file)
-  app.get<{ Params: { code: string } }>(
+  // Open the actual content (link URL, inline file, or authored blocks).
+  // ?download=1 serves the file as an attachment — only when the owner allowed it.
+  app.get<{ Params: { code: string }; Querystring: { download?: string } }>(
     "/courses/:code/content",
     { preHandler: app.authenticate },
     async (req, reply) => {
@@ -131,10 +155,22 @@ export async function courseRoutes(app: FastifyInstance) {
       if (!member) return reply.status(404).send({ error: "Course not found" });
 
       const content = await storage.resolve(course.storageRef as unknown as StorageRef);
+      if (content.authored !== undefined) {
+        // Native rendering by the viewer inside the standardized document frame
+        return { authored: content.authored };
+      }
       if (content.url) return { url: content.url };
+
+      const wantsDownload = req.query.download === "1";
+      if (wantsDownload && !course.allowDownload) {
+        return reply
+          .status(403)
+          .send({ error: "The owner has not enabled downloads for this document" });
+      }
+      const disposition = wantsDownload ? "attachment" : "inline";
       reply
         .header("content-type", content.file!.mime)
-        .header("content-disposition", `inline; filename="${content.file!.filename}"`);
+        .header("content-disposition", `${disposition}; filename="${content.file!.filename}"`);
       return reply.send(content.file!.data);
     },
   );
@@ -154,6 +190,16 @@ export async function courseRoutes(app: FastifyInstance) {
       const placements = await actorPlacements(req.profileId, course.orgId);
       if (!can(placements, "create_content", toRoleRef(node))) {
         return reply.status(403).send({ error: "You don't manage content in that layer" });
+      }
+      // Archived courses reach nobody new — but an existing placement may still be
+      // reconfigured (e.g. to make it opt-in before removal).
+      const alreadyPlaced = await db.coursePlacement.findUnique({
+        where: { courseId_roleNodeId: { courseId: course.id, roleNodeId: node.id } },
+      });
+      if (course.archived && !alreadyPlaced) {
+        return reply
+          .status(409)
+          .send({ error: "This course is archived — unarchive it before assigning it anew" });
       }
       // Placing twice reconfigures — mandatory/inheritance/override toggles come here too
       await db.coursePlacement.upsert({
@@ -248,7 +294,8 @@ export async function courseRoutes(app: FastifyInstance) {
     },
   );
 
-  // Modify content — version bump; reset flag expires old completions (docs/structure.md §5.7)
+  // Modify a course — metadata and/or content. A content change (new file/url/blocks)
+  // bumps the version; the reset flag then expires old completions (structure.md §5.7).
   app.patch<{ Params: { code: string } }>(
     "/courses/:code",
     { preHandler: app.authenticate },
@@ -262,21 +309,35 @@ export async function courseRoutes(app: FastifyInstance) {
       }
 
       let ref = course.storageRef as unknown as StorageRef;
-      if (body.url) ref = await storage.saveLink(body.url);
-      else if (body.fileBase64 && body.filename && body.mime) {
+      let contentChanged = false;
+      if (body.blocks) {
+        ref = await storage.saveAuthored(body.blocks);
+        contentChanged = true;
+      } else if (body.url) {
+        ref = await storage.saveLink(body.url);
+        contentChanged = true;
+      } else if (body.fileBase64 && body.filename && body.mime) {
         ref = await storage.saveInline(course.orgId, body.filename, body.mime, body.fileBase64);
+        contentChanged = true;
       }
 
       const updated = await db.course.update({
         where: { id: course.id },
         data: {
           title: body.title ?? course.title,
+          ...(body.description !== undefined ? { description: body.description } : {}),
+          ...(body.scope !== undefined ? { scope: body.scope } : {}),
+          ...(body.category !== undefined
+            ? { category: body.category?.trim() ? body.category.trim() : null }
+            : {}),
+          ...(body.classification !== undefined ? { classification: body.classification } : {}),
+          ...(body.allowDownload !== undefined ? { allowDownload: body.allowDownload } : {}),
           storageRef: ref as object,
-          version: { increment: 1 },
+          ...(contentChanged ? { version: { increment: 1 } } : {}),
         },
       });
 
-      if (course.resetsCompletionOnUpdate) {
+      if (contentChanged && course.resetsCompletionOnUpdate) {
         const outdated = await db.completionRecord.findMany({
           where: { courseId: course.id, status: "COMPLETED", courseVersion: { lt: updated.version } },
         });
@@ -293,6 +354,26 @@ export async function courseRoutes(app: FastifyInstance) {
       }
       broadcast(course.orgId, "courses");
       return { ok: true, version: updated.version };
+    },
+  );
+
+  // Archive / unarchive a course — archived courses stay in the library (badged) and keep
+  // their history, but new placements are refused so they reach nobody new.
+  app.post<{ Params: { code: string } }>(
+    "/courses/:code/archive",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const { archived } = z.object({ archived: z.boolean() }).parse(req.body);
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      if (!(await canManageCourse(req.profileId, course))) {
+        return reply
+          .status(403)
+          .send({ error: "Only the course's editors or its branch owners can archive it" });
+      }
+      await db.course.update({ where: { id: course.id }, data: { archived } });
+      broadcast(course.orgId, "courses");
+      return { ok: true, archived };
     },
   );
 
@@ -376,20 +457,25 @@ export async function courseRoutes(app: FastifyInstance) {
       });
       return {
         courses: await Promise.all(
-          rows.map(async (r) => ({
-            code: r.course.code,
-            title: r.course.title,
-            kind: r.course.kind,
-            description: r.course.description,
-            inLibrary: r.course.inLibrary,
-            mandatory: r.mandatory,
-            inheritToDescendants: r.inheritToDescendants,
-            deadlineDays: r.deadlineDays ?? r.course.deadlineDays,
-            retakeEveryNDays: r.retakeEveryNDays ?? r.course.retakeEveryNDays,
-            canDelete:
-              (await adminLevel(req.profileId, r.course.id, r.course.createdByProfileId))
-                ?.level === "EDIT",
-          })),
+          rows.map(async (r) => {
+            const manage = await canManageCourse(req.profileId, r.course);
+            return {
+              code: r.course.code,
+              title: r.course.title,
+              kind: r.course.kind,
+              description: r.course.description,
+              classification: r.course.classification,
+              inLibrary: r.course.inLibrary,
+              archived: r.course.archived,
+              allowDownload: r.course.allowDownload,
+              mandatory: r.mandatory,
+              inheritToDescendants: r.inheritToDescendants,
+              deadlineDays: r.deadlineDays ?? r.course.deadlineDays,
+              retakeEveryNDays: r.retakeEveryNDays ?? r.course.retakeEveryNDays,
+              canManage: manage,
+              canDelete: manage,
+            };
+          }),
         ),
       };
     },
@@ -418,17 +504,19 @@ export async function courseRoutes(app: FastifyInstance) {
     },
   );
 
-  // Delete a course everywhere — EDIT access required. Completion records survive (keyed by
-  // the never-reused course code); prerequisite links pointing at it are released.
+  // Delete a course everywhere — the course's editors OR the owners of its home branch
+  // (and above) may delete it. Completion records survive (keyed by the never-reused
+  // course code); prerequisite links pointing at it are released.
   app.delete<{ Params: { code: string } }>(
     "/courses/:code",
     { preHandler: app.authenticate },
     async (req, reply) => {
       const course = await courseByCode(req.params.code);
       if (!course) return reply.status(404).send({ error: "Course not found" });
-      const access = await adminLevel(req.profileId, course.id, course.createdByProfileId);
-      if (access?.level !== "EDIT") {
-        return reply.status(403).send({ error: "Edit access to this course is required" });
+      if (!(await canManageCourse(req.profileId, course))) {
+        return reply
+          .status(403)
+          .send({ error: "Only the course's editors or its branch owners can delete it" });
       }
 
       const releasedPrereqs = await db.coursePrerequisite.count({
@@ -503,6 +591,8 @@ export async function courseRoutes(app: FastifyInstance) {
             kind: c.kind,
             description: c.description,
             category: c.category,
+            classification: c.classification,
+            archived: c.archived,
             uploaderRoleName: nodes.find((n) => n.id === c.uploaderRoleNodeId)?.name ?? "—",
             createdAt: c.createdAt.toISOString(),
             completedCount: completions.find((x) => x.courseId === c.id)?._count ?? 0,

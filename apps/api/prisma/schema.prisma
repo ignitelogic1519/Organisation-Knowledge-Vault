@@ -36,6 +36,14 @@ enum AccessLevel {
   EDIT
 }
 
+// Organization-standard document classification — compulsory on every course.
+enum Classification {
+  PUBLIC
+  CONFIDENTIAL
+  PRIVATE
+  SECRET
+}
+
 enum RequestKind {
   COURSE_ASSIGN // "Course request" — assign a library course to the requester's branch
   JOIN_BRANCH // "Join request" — be added as member of a public branch
@@ -169,6 +177,10 @@ model Course {
   inLibrary                Boolean            @default(false) // discoverable in the org library
   category                 String? // dynamic shelf tag ("AI", "Safety", …) — suggested from
   // existing categories at upload time, always changeable by the uploader
+  scope                    String? // page-2 "scope" of the standardized document format
+  classification           Classification     @default(CONFIDENTIAL) // compulsory org standard
+  allowDownload            Boolean            @default(false) // owner-controlled download from preview
+  archived                 Boolean            @default(false) // archived: kept, but reaches nobody new
   storageRef               Json // adapter-specific pointer: {adapter:"inline"|"link", ...}
   deadlineDays             Int?
   retakeEveryNDays         Int? // recurrence, applies to all kinds

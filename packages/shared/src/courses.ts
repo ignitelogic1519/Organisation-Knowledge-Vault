@@ -1,7 +1,26 @@
 import { z } from "zod";
-import type { CompletionStatus, CourseKind } from "./types.js";
+import type { Classification, CompletionStatus, CourseKind } from "./types.js";
 
 // Course & learning contracts — docs/structure.md §3 (courses), §5 (assignment), §6 (surfaces).
+
+/**
+ * Authored (in-app created) document blocks — the Studio's storage format. Rendered by
+ * the viewer inside the standardized document frame. Rich text is stored as limited
+ * HTML and sanitized (whitelist) at render time.
+ */
+export const authoredBlockSchema = z.object({
+  type: z.enum(["heading", "paragraph", "table", "media", "card", "checklist", "image", "divider"]),
+  /** heading/paragraph/card: limited HTML; image/media: url; table: unused */
+  html: z.string().max(20_000).optional(),
+  level: z.number().int().min(1).max(3).optional(), // heading level
+  url: z.string().url().optional(), // media/image src
+  mediaKind: z.enum(["audio", "video"]).optional(),
+  title: z.string().max(200).optional(), // card/checklist/media title
+  rows: z.array(z.array(z.string().max(2_000))).max(50).optional(), // table: rows of cells
+  items: z.array(z.string().max(500)).max(50).optional(), // checklist entries
+});
+export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
+export const authoredBlocksSchema = z.array(authoredBlockSchema).min(1).max(200);
 
 export const createCourseSchema = z.object({
   roleNodeId: z.string().uuid(), // uploading role — its number goes into the code
@@ -13,12 +32,22 @@ export const createCourseSchema = z.object({
   inLibrary: z.boolean().default(false),
   /** Dynamic shelf tag ("AI", "Safety", …) — the library groups similar tags together. */
   category: z.string().trim().max(40).optional(),
+  /** Page-2 "scope" of the standardized document format. */
+  scope: z.string().trim().max(2000).optional(),
+  /** Compulsory organization-standard classification. */
+  classification: z.enum(["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"], {
+    errorMap: () => ({ message: "Pick the document's classification — it is compulsory" }),
+  }),
+  /** Owner-controlled: may members download the document from the preview? */
+  allowDownload: z.boolean().default(false),
   /** LINK/AUDIO/VIDEO hosted elsewhere: external URL. */
   url: z.string().url().optional(),
   /** Small files (≤ 2 MB) via the inline adapter. */
   fileBase64: z.string().optional(),
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),
+  /** Studio-authored interactive document. */
+  blocks: authoredBlocksSchema.optional(),
   deadlineDays: z.number().int().positive().max(3650).optional(),
   retakeEveryNDays: z.number().int().positive().max(3650).optional(),
   resetsCompletionOnUpdate: z.boolean().default(false),
@@ -46,10 +75,16 @@ export type GrantAdminAccessInput = z.infer<typeof grantAdminAccessSchema>;
 
 export const updateCourseSchema = z.object({
   title: z.string().min(2).max(120).optional(),
+  description: z.string().min(8).max(500).optional(),
+  scope: z.string().trim().max(2000).nullable().optional(),
+  category: z.string().trim().max(40).nullable().optional(),
+  classification: z.enum(["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"]).optional(),
+  allowDownload: z.boolean().optional(),
   url: z.string().url().optional(),
   fileBase64: z.string().optional(),
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),
+  blocks: authoredBlocksSchema.optional(),
 });
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
 
@@ -70,6 +105,8 @@ export interface LibraryCourse {
   kind: CourseKind;
   description: string | null;
   category: string | null;
+  classification: Classification;
+  archived: boolean;
   uploaderRoleName: string;
   createdAt: string;
   /** How many people completed it (org-wide, across versions). */
@@ -129,6 +166,13 @@ export interface LearningItem extends CourseInfo {
   /** Prerequisite codes not yet completed — non-empty blocks completion. */
   missingPrerequisites: string[];
   overdue: boolean;
+  /** Standardized-document metadata for the viewer's cover & header/footer. */
+  description: string | null;
+  scope: string | null;
+  classification: Classification;
+  allowDownload: boolean;
+  publishedAt: string;
+  creatorName: string;
 }
 
 export interface MyLearningView {

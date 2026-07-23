@@ -23,6 +23,13 @@ const KIND_LABELS: Record<string, string> = {
   VIDEO: "Video",
 };
 
+const CLASS_LABEL: Record<string, string> = {
+  PUBLIC: "Public",
+  CONFIDENTIAL: "Confidential",
+  PRIVATE: "Private",
+  SECRET: "Secret",
+};
+
 const UNSHELVED = "Uncategorised";
 
 function RatingLine({ avg, count }: { avg: number | null; count: number }) {
@@ -71,6 +78,10 @@ function CourseDetail({
             <h3>{course.title}</h3>
             <span className="chip">{course.code}</span>
             <span className="badge">{KIND_LABELS[course.kind] ?? course.kind}</span>
+            <span className={`badge class-badge class-${course.classification}`}>
+              {CLASS_LABEL[course.classification]}
+            </span>
+            {course.archived && <span className="badge badge-danger">archived</span>}
             {course.category && <span className="chip chip-shelf">{course.category}</span>}
           </div>
           <p className="sheet-msg">
@@ -203,7 +214,9 @@ export default function LibraryPage() {
   const [open, setOpen] = useState<LibraryCourse | null>(null);
   const [kindFilter, setKindFilter] = useState("all");
   const [shelfFilter, setShelfFilter] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
   const [minRating, setMinRating] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState<"newest" | "rating" | "completions" | "title">("newest");
 
   const load = useCallback(
@@ -227,8 +240,10 @@ export default function LibraryPage() {
     if (!list) return null;
     const filtered = list.filter(
       (c) =>
+        (showArchived || !c.archived) &&
         (kindFilter === "all" || c.kind === kindFilter) &&
         (shelfFilter === "all" || (c.category ?? UNSHELVED) === shelfFilter) &&
+        (classFilter === "all" || c.classification === classFilter) &&
         (minRating === 0 || (c.avgRating !== null && c.avgRating >= minRating)),
     );
     const sorted = [...filtered].sort((a, b) => {
@@ -246,7 +261,7 @@ export default function LibraryPage() {
     return [...grouped.entries()].sort(([a], [b]) =>
       a === UNSHELVED ? 1 : b === UNSHELVED ? -1 : a.localeCompare(b),
     );
-  }, [list, kindFilter, shelfFilter, minRating, sort]);
+  }, [list, kindFilter, shelfFilter, classFilter, minRating, showArchived, sort]);
 
   const allShelves = useMemo(
     () => [...new Set((list ?? []).map((c) => c.category ?? UNSHELVED))].sort(),
@@ -294,6 +309,17 @@ export default function LibraryPage() {
             </select>
           </label>
           <label className="field">
+            <span>Class</span>
+            <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+              <option value="all">All classes</option>
+              {Object.entries(CLASS_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
             <span>Rating</span>
             <select value={minRating} onChange={(e) => setMinRating(Number(e.target.value))}>
               <option value={0}>Any rating</option>
@@ -301,6 +327,10 @@ export default function LibraryPage() {
               <option value={3}>★ 3+</option>
               <option value={2}>★ 2+</option>
             </select>
+          </label>
+          <label className="ack-row" style={{ alignSelf: "center" }}>
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            <span>Show archived</span>
           </label>
           <label className="field">
             <span>Sort</span>
@@ -336,9 +366,15 @@ export default function LibraryPage() {
                 <button key={c.code} className="library-card glass" onClick={() => setOpen(c)}>
                   <div className="library-card-head">
                     <span className="badge">{KIND_LABELS[c.kind] ?? c.kind}</span>
+                    <span className={`badge class-badge class-${c.classification}`}>
+                      {CLASS_LABEL[c.classification]}
+                    </span>
                     <RatingLine avg={c.avgRating} count={c.ratingCount} />
                   </div>
-                  <h3>{c.title}</h3>
+                  <h3>
+                    {c.title}
+                    {c.archived && <span className="badge badge-danger" style={{ marginLeft: "0.4rem" }}>archived</span>}
+                  </h3>
                   <p className="library-desc">{c.description ?? "No description added."}</p>
                   <div className="library-meta">
                     <span>✓ {c.completedCount} completed</span>

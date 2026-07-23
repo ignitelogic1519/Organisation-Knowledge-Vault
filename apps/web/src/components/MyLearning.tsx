@@ -82,7 +82,7 @@ function Row({
   );
 }
 
-export function MyLearning({ orgId }: { orgId: string }) {
+export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string }) {
   const dialogs = useDialogs();
   const [view, setView] = useState<MyLearningView | null>(null);
   const [viewerItem, setViewerItem] = useState<Item | null>(null);
@@ -174,6 +174,7 @@ export function MyLearning({ orgId }: { orgId: string }) {
       {viewerItem && (
         <CourseViewer
           item={viewerItem}
+          orgName={orgName}
           onClose={() => setViewerItem(null)}
           onChanged={reload}
           onOpenRelated={(code) => {

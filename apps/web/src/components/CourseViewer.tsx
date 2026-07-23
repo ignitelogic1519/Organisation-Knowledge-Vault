@@ -1,28 +1,132 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LearningItem } from "@vault/shared";
+import type { AuthoredBlock, Classification, LearningItem } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
-import { courses } from "@/lib/courses-client";
+import { courses, downloadBlob } from "@/lib/courses-client";
 import { useDialogs } from "./dialogs";
 
-// The in-app course viewer: content opens INSIDE the app — no second tab. Files
-// stream into an inline frame; external links embed when the host allows it, with a
-// graceful fallback. The action bar carries everything the learner needs: mark
-// complete, fullscreen, related documents (prerequisites), rating & review after
-// completion, and an escape hatch to open externally.
+// The in-app course viewer: content opens INSIDE the app — no second tab. Every document
+// is wrapped in the organization's standard frame (cover with org / title / version /
+// date / creator / classification; a scope & description page; a header & footer on every
+// view). Uploaded files stream into an inline frame (NOT sandboxed — same-origin blobs,
+// so the browser's PDF viewer works); external links embed sandboxed with a fallback;
+// Studio-authored documents render natively. Downloads are offered only when the owner
+// enabled them.
 
 type ViewerItem = Pick<
   LearningItem,
   | "code"
   | "title"
   | "kind"
+  | "version"
   | "status"
   | "mandatory"
   | "missingPrerequisites"
   | "prerequisiteCodes"
   | "viaRoleName"
+  | "description"
+  | "scope"
+  | "classification"
+  | "allowDownload"
+  | "publishedAt"
+  | "creatorName"
 >;
+
+const CLASS_LABEL: Record<Classification, string> = {
+  PUBLIC: "Public",
+  CONFIDENTIAL: "Confidential",
+  PRIVATE: "Private",
+  SECRET: "Secret",
+};
+
+/** Minimal HTML whitelist for authored rich text (defence-in-depth on top of the API). */
+function sanitize(html: string): string {
+  if (typeof document === "undefined") return html;
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  const allowed = new Set(["B", "STRONG", "I", "EM", "U", "BR", "UL", "OL", "LI", "P", "H1", "H2", "H3", "A", "CODE", "SPAN"]);
+  tpl.content.querySelectorAll("*").forEach((el) => {
+    if (!allowed.has(el.tagName)) {
+      el.replaceWith(...Array.from(el.childNodes));
+      return;
+    }
+    for (const attr of Array.from(el.attributes)) {
+      const isSafeHref =
+        el.tagName === "A" && attr.name === "href" && /^https?:\/\//i.test(attr.value);
+      if (!isSafeHref) el.removeAttribute(attr.name);
+    }
+    if (el.tagName === "A") {
+      el.setAttribute("target", "_blank");
+      el.setAttribute("rel", "noreferrer");
+    }
+  });
+  return tpl.innerHTML;
+}
+
+function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
+  switch (block.type) {
+    case "heading": {
+      const Tag = (`h${block.level ?? 2}`) as "h1" | "h2" | "h3";
+      return <Tag dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />;
+    }
+    case "paragraph":
+      return <p dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />;
+    case "divider":
+      return <hr className="doc-divider" />;
+    case "card":
+      return (
+        <div className="doc-card">
+          {block.title && <strong>{block.title}</strong>}
+          <div dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />
+        </div>
+      );
+    case "checklist":
+      return (
+        <ul className="doc-checklist">
+          {(block.items ?? []).map((it, i) => (
+            <li key={i}>
+              <span className="doc-check" aria-hidden>
+                ☐
+              </span>
+              {it}
+            </li>
+          ))}
+        </ul>
+      );
+    case "table":
+      return (
+        <div className="doc-table-wrap">
+          <table className="doc-table">
+            <tbody>
+              {(block.rows ?? []).map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, c) =>
+                    r === 0 ? <th key={c}>{cell}</th> : <td key={c}>{cell}</td>,
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    case "image":
+      return block.url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="doc-image" src={block.url} alt={block.title ?? ""} />
+      ) : null;
+    case "media":
+      return block.url ? (
+        block.mediaKind === "audio" ? (
+          <audio className="doc-media" controls src={block.url} />
+        ) : (
+          <video className="doc-media" controls src={block.url} />
+        )
+      ) : null;
+    default:
+      return null;
+  }
+}
 
 function Stars({
   value,
@@ -52,32 +156,39 @@ function Stars({
 
 export function CourseViewer({
   item,
+  orgName,
   onClose,
   onChanged,
   onOpenRelated,
 }: {
   item: ViewerItem;
+  orgName: string;
   onClose: () => void;
   onChanged: () => void;
-  /** Open a prerequisite in the viewer if it's available to the user. */
   onOpenRelated?: (code: string) => void;
 }) {
   const dialogs = useDialogs();
   const frameWrapRef = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
+  const [authored, setAuthored] = useState<AuthoredBlock[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
+  const [showCover, setShowCover] = useState(true);
   const locked = item.missingPrerequisites.length > 0;
   const completed = item.status === "COMPLETED";
 
-  // Load the content into the viewer: files become blob URLs, links embed directly
+  // Load the content: files → blob URL, links → embed URL, authored → block array
   useEffect(() => {
     let blobUrl: string | null = null;
     let cancelled = false;
+    setSrc(null);
+    setAuthored(null);
+    setExternalUrl(null);
+    setLoadError(null);
     (async () => {
       try {
         const res = await authFetch(`/courses/${item.code}/content`);
@@ -87,10 +198,12 @@ export function CourseViewer({
         }
         const type = res.headers.get("content-type") ?? "";
         if (type.includes("application/json")) {
-          const { url } = (await res.json()) as { url?: string };
-          if (!cancelled && url) {
-            setExternalUrl(url);
-            setSrc(url); // may be refused by the host — the fallback stays visible
+          const data = (await res.json()) as { url?: string; authored?: AuthoredBlock[] };
+          if (cancelled) return;
+          if (data.authored) setAuthored(data.authored);
+          else if (data.url) {
+            setExternalUrl(data.url);
+            setSrc(data.url);
           }
         } else {
           const blob = await res.blob();
@@ -107,7 +220,6 @@ export function CourseViewer({
     };
   }, [item.code]);
 
-  // Prefill my existing review
   useEffect(() => {
     if (!completed) return;
     courses
@@ -128,6 +240,23 @@ export function CourseViewer({
     else void el.requestFullscreen().catch(() => undefined);
   }, []);
 
+  const download = useCallback(async () => {
+    try {
+      const res = await authFetch(`/courses/${item.code}/content?download=1`);
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? "Download failed");
+      }
+      const cd = res.headers.get("content-disposition") ?? "";
+      const name = /filename="?([^"]+)"?/.exec(cd)?.[1] ?? `${item.code}`;
+      downloadBlob(await res.blob(), name);
+    } catch (e) {
+      dialogs.toast(e instanceof Error ? e.message : "Download failed", "danger");
+    }
+  }, [item.code, dialogs]);
+
+  const publishedDate = item.publishedAt.slice(0, 10);
+
   return (
     <div className="viewer-layer" role="presentation">
       <div className="viewer glass-strong" role="dialog" aria-modal="true" aria-label={item.title}>
@@ -135,7 +264,9 @@ export function CourseViewer({
           <div className="viewer-title">
             <h3>{item.title}</h3>
             <span className="chip">{item.code}</span>
-            <span className="badge">{item.kind.toLowerCase()}</span>
+            <span className={`badge class-badge class-${item.classification}`}>
+              {CLASS_LABEL[item.classification]}
+            </span>
             <span className="badge">{item.mandatory ? "mandatory" : "opt-in"}</span>
             {completed && <span className="badge badge-ok">completed</span>}
           </div>
@@ -144,25 +275,106 @@ export function CourseViewer({
           </button>
         </div>
 
+        {/* Standard header bar — org, classification, version on every document */}
+        <div className={`doc-headerbar class-strip-${item.classification}`}>
+          <span className="doc-org">{orgName}</span>
+          <span className="doc-class">{CLASS_LABEL[item.classification]}</span>
+          <span className="doc-ver">v{item.version}</span>
+        </div>
+
         <div className="viewer-frame-wrap" ref={frameWrapRef}>
-          {loadError && <p className="form-error viewer-note">{loadError}</p>}
-          {!src && !loadError && <div className="skeleton" style={{ position: "absolute", inset: 0 }} />}
-          {src && (
-            <iframe
-              className="viewer-frame"
-              src={src}
-              title={item.title}
-              sandbox="allow-scripts allow-same-origin allow-popups"
-              allowFullScreen
-            />
+          {/* Auto-generated cover + scope pages (the "first two pages" standard) */}
+          {showCover && (
+            <div className="doc-cover-pages">
+              <section className="doc-page doc-cover">
+                <span className={`doc-cover-class class-badge class-${item.classification}`}>
+                  {CLASS_LABEL[item.classification]}
+                </span>
+                <span className="doc-cover-org">{orgName}</span>
+                <h1 className="doc-cover-title">{item.title}</h1>
+                <dl className="doc-cover-meta">
+                  <div>
+                    <dt>Published</dt>
+                    <dd>{publishedDate}</dd>
+                  </div>
+                  <div>
+                    <dt>Version</dt>
+                    <dd>{item.version}</dd>
+                  </div>
+                  <div>
+                    <dt>Author</dt>
+                    <dd>{item.creatorName}</dd>
+                  </div>
+                  <div>
+                    <dt>Reference</dt>
+                    <dd>{item.code}</dd>
+                  </div>
+                </dl>
+              </section>
+              <section className="doc-page doc-scope-page">
+                <h2>Description &amp; scope</h2>
+                <h3>Description</h3>
+                <p>{item.description ?? "—"}</p>
+                <h3>Scope</h3>
+                <p>{item.scope ?? "—"}</p>
+              </section>
+              <button className="btn btn-quiet btn-small doc-cover-skip" onClick={() => setShowCover(false)}>
+                Skip to content ↓
+              </button>
+            </div>
           )}
-          {externalUrl && (
-            <p className="viewer-note auth-sub">
-              External content — if the frame stays blank, its host refuses embedding:{" "}
-              <a href={externalUrl} target="_blank" rel="noreferrer">
-                open it in a new tab ↗
-              </a>
-            </p>
+
+          {!showCover && (
+            <>
+              {loadError && <p className="form-error viewer-note">{loadError}</p>}
+              {!src && !authored && !loadError && (
+                <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
+              )}
+              {/* Studio-authored: render natively inside the standard document sheet */}
+              {authored && (
+                <div className="doc-authored">
+                  <article className="doc-sheet">
+                    {authored.map((b, i) => (
+                      <AuthoredBlockView key={i} block={b} />
+                    ))}
+                  </article>
+                </div>
+              )}
+              {/* Uploaded file: same-origin blob, NOT sandboxed → PDF viewer works */}
+              {src && !externalUrl && (
+                <iframe className="viewer-frame" src={src} title={item.title} allowFullScreen />
+              )}
+              {/* External link: sandboxed, with a fallback when the host refuses embedding */}
+              {src && externalUrl && (
+                <>
+                  <iframe
+                    className="viewer-frame"
+                    src={src}
+                    title={item.title}
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                    allowFullScreen
+                  />
+                  <p className="viewer-note auth-sub">
+                    External content — if the frame stays blank the host refuses embedding:{" "}
+                    <a href={externalUrl} target="_blank" rel="noreferrer">
+                      open it in a new tab ↗
+                    </a>
+                  </p>
+                </>
+              )}
+            </>
+          )}
+
+          {/* Standard footer on the framed content */}
+          {!showCover && (
+            <div className={`doc-footerbar class-strip-${item.classification}`}>
+              <span>
+                {orgName} · {CLASS_LABEL[item.classification]}
+              </span>
+              <span>
+                {item.code} · v{item.version} · {publishedDate}
+              </span>
+            </div>
           )}
         </div>
 
@@ -188,19 +400,26 @@ export function CourseViewer({
         )}
 
         <div className="viewer-actions">
+          {!showCover && (
+            <button className="btn btn-quiet btn-small" onClick={() => setShowCover(true)}>
+              ↑ Cover
+            </button>
+          )}
           <button className="btn btn-quiet btn-small" onClick={toggleFullscreen}>
             ⛶ Fullscreen
           </button>
+          {item.allowDownload && !authored && (
+            <button className="btn btn-quiet btn-small" onClick={download}>
+              ⬇ Download
+            </button>
+          )}
           {externalUrl && (
             <a className="btn btn-quiet btn-small" href={externalUrl} target="_blank" rel="noreferrer">
               Open externally ↗
             </a>
           )}
           {completed && (
-            <button
-              className="btn btn-quiet btn-small"
-              onClick={() => setReviewOpen((v) => !v)}
-            >
+            <button className="btn btn-quiet btn-small" onClick={() => setReviewOpen((v) => !v)}>
               {reviewOpen ? "Hide review" : "★ Rate & review"}
             </button>
           )}
@@ -209,9 +428,7 @@ export function CourseViewer({
               className="btn btn-primary btn-small"
               disabled={locked || busy}
               title={
-                locked
-                  ? `Prerequisites pending: ${item.missingPrerequisites.join(", ")}`
-                  : undefined
+                locked ? `Prerequisites pending: ${item.missingPrerequisites.join(", ")}` : undefined
               }
               onClick={async () => {
                 setBusy(true);
@@ -238,10 +455,7 @@ export function CourseViewer({
             onSubmit={async (e) => {
               e.preventDefault();
               try {
-                await courses.review(item.code, {
-                  rating,
-                  comment: comment || undefined,
-                });
+                await courses.review(item.code, { rating, comment: comment || undefined });
                 dialogs.toast("Thanks — your review is saved.", "success");
                 setReviewOpen(false);
                 onChanged();

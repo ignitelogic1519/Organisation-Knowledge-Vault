@@ -242,3 +242,74 @@ position(s) highlighted with layers above/below, role click → people list with
   escalation target), retake unlocked, invitation received, restore/deletion events.
 - No email exists in v1 at all (owner decision 2026-07-19 — `future.md` §10): all
   notifications are in-app; the `.main` file is download-only.
+
+---
+
+## 8. Evolution log (post-v1 shipped changes)
+
+The platform has moved well past the original v1 slice. This section is the normative
+record of what shipped after the base spec above; where they conflict, this section wins.
+
+### 8.1 Governance & structure
+- **Terminal roles removed.** Any non-root role may hold sub-roles.
+- **Granted capabilities.** Owner rights are individual flags — `canCreateSubgroups` and
+  `canAddCoOwners` — and **no one may grant a capability they do not hold** (see
+  `canGrantCapability` in `packages/shared/src/policy.ts`). Appointing co-owners is its own
+  policy action (`add_co_owner`).
+- **Visibility.** Branches are **public by default**; a per-node `isPublic=false` hides the
+  branch from same-layer and lower personnel and **cascades down the whole subtree** (hidden
+  inherits to the last end). Owners above a hidden node always still see it (hierarchy
+  transparency). A node is *effectively* public only when it and every ancestor below the
+  root are public.
+- **Branch deletion** by a branch's own owners goes through a **Deletion request** to the
+  level above; the level above can delete directly.
+
+### 8.2 Requests (ask-and-approve)
+Labeled categories, each routed to the right decider, with a live count badge:
+- **Course request** → the branch **handler** (nearest level with an owner) configures it
+  (mandatory / inheritance / deadline / recurrence) on approval. **Boss auto-approve:** when
+  the requester already governs the target branch, the request is approved immediately, the
+  course is placed, and the course's home owners get a courtesy **adoption** notification.
+- **Join request** → carries the desired position (member or sub-owner); owners of the
+  target decide (sub-owner needs `add_co_owner`).
+- **Deletion request** / **Visibility request** → owners above / owners of the topmost
+  hidden level.
+Requesters and deciders can delete request entries; decided requests auto-purge after 7 days.
+
+### 8.3 Library, documents & the Studio
+- **Library** groups courses into shelves by a dynamic **category** tag (similarity-suggested
+  at upload, always overridable), filterable by type / shelf / **classification** / rating,
+  with member **ratings & comments** (post-completion) shown on the detail view.
+- **Document standard.** Every course carries a compulsory **classification**
+  (Public / Confidential / Private / Secret), an optional **scope**, and an owner-controlled
+  **allowDownload** flag. The in-app viewer wraps all content in the standard frame: an
+  auto-generated **cover** (org, title, classification, version, published date, author) and
+  a **description & scope** page, plus a header/footer on the framed content. Downloads are
+  offered only when the owner enabled them (`GET /courses/:code/content?download=1`).
+- **Document Studio** (`/orgs/:id/studio`): node owners author interactive documents from
+  blocks (heading, rich text, table, checklist, card, image, audio/video, divider), stored as
+  an `authored` storage adapter and rendered natively inside the standard frame.
+- **Archival**: `POST /courses/:code/archive` keeps the course and its history but refuses new
+  placements. **Deletion** is allowed for the course's editors **and the owners of its home
+  branch** (and above).
+- **In-app viewer only.** Content never opens in a second tab. Uploaded files stream as a
+  same-origin blob into a **non-sandboxed** iframe (so the browser PDF viewer works — the old
+  "blocked by Chrome" sandbox bug); external links embed sandboxed with an open-externally
+  fallback.
+
+### 8.4 Compliance
+`Compliance` tab (managers): pick any branch you govern (ownership can sit on several
+levels), see per-course compliance across its subtree, list the non-compliant, and send them
+a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom message.
+
+### 8.5 Real-time & retention
+- **Live updates** over per-org Server-Sent Events (`GET /orgs/:id/events`): mutations
+  broadcast which slice changed (structure / requests / courses / notifications) and clients
+  refetch — no page refresh.
+- **Notifications** are categorized, informative and clickable (deep-link to the exact
+  request); per-message dismiss + clear-all; a cleanup nudge past 10 messages.
+- **Retention:** notifications and decided requests self-clean after **7 days**; transient
+  operational data (Supreme verification audits, spent refresh tokens) clears after **15
+  days** (nightly job + opportunistic on read).
+- **Passwords**: every new password (registration, org creation, backup export) must be
+  retyped to confirm.

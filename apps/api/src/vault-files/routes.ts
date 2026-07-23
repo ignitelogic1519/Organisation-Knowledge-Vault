@@ -273,9 +273,17 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       const courseIdMap = new Map<string, string>();
       for (const c of payload.courses as {
         id: string; code: string; uploaderRoleNodeId: string; kind: never; title: string;
+        description: string | null; scope: string | null; category: string | null;
+        classification: never; allowDownload: boolean; archived: boolean; inLibrary: boolean;
+        storageRef: unknown;
         deadlineDays: number | null; retakeEveryNDays: number | null;
         resetsCompletionOnUpdate: boolean; version: number; createdByProfileId: string;
       }[]) {
+        // Authored (Studio) documents live inside storageRef itself — they survive
+        // revival intact; file/link media still needs storage reconnection.
+        const srcRef = c.storageRef as { adapter?: string } | null;
+        const storageRef =
+          srcRef?.adapter === "authored" ? (srcRef as object) : { adapter: "unreachable" };
         const course = await tx.course.create({
           data: {
             orgId: created.id,
@@ -284,8 +292,14 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             createdByProfileId: profileIdMap.get(c.createdByProfileId) ?? req.profileId,
             kind: c.kind,
             title: c.title,
-            // Media needs the storage reconnection step — marked unreachable until then
-            storageRef: { adapter: "unreachable" },
+            description: c.description ?? null,
+            scope: c.scope ?? null,
+            category: c.category ?? null,
+            classification: c.classification ?? "CONFIDENTIAL",
+            allowDownload: c.allowDownload ?? false,
+            archived: c.archived ?? false,
+            inLibrary: c.inLibrary ?? false,
+            storageRef,
             deadlineDays: c.deadlineDays,
             retakeEveryNDays: c.retakeEveryNDays,
             resetsCompletionOnUpdate: c.resetsCompletionOnUpdate,
