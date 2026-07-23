@@ -276,6 +276,16 @@ Labeled categories, each routed to the right decider, with a live count badge:
   hidden level.
 Requesters and deciders can delete request entries; decided requests auto-purge after 7 days.
 
+### 8.3a Member-authored content & document review
+- Adding a MEMBER can carry a `canCreateContent` grant (settable later too by any branch
+  owner). Granted members may **propose** documents for their branch via the Studio or a
+  file upload — the content is created as a **draft** (never in the library, reaching
+  nobody) and a **Document-review** request (`CONTENT_REVIEW`) is filed to the branch's
+  handler.
+- The handler **previews** the draft in a read-only viewer, then **approves** (configures
+  mandatory / inheritance / deadline / recurrence + library, un-drafts and places it) or
+  **rejects** (the draft is discarded). Owners still publish directly, no review.
+
 ### 8.3 Library, documents & the Studio
 - **Library** groups courses into shelves by a dynamic **category** tag (similarity-suggested
   at upload, always overridable), filterable by type / shelf / **classification** / rating,
@@ -286,9 +296,11 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   auto-generated **cover** (org, title, classification, version, published date, author) and
   a **description & scope** page, plus a header/footer on the framed content. Downloads are
   offered only when the owner enabled them (`GET /courses/:code/content?download=1`).
-- **Document Studio** (`/orgs/:id/studio`): node owners author interactive documents from
-  blocks (heading, rich text, table, checklist, card, image, audio/video, divider), stored as
-  an `authored` storage adapter and rendered natively inside the standard frame.
+- **Document Studio** (`/orgs/:id/studio`): a visual drag-and-drop builder — a block palette,
+  a canvas of draggable cards (heading, rich text, table, checklist, callout, image,
+  audio/video, divider), and a live **Preview** rendering the finished document in the
+  standard frame. Stored as an `authored` storage adapter and rendered natively. Owners
+  publish; granted members submit for review (§8.3a).
 - **Archival**: `POST /courses/:code/archive` keeps the course and its history but refuses new
   placements. **Deletion** is allowed for the course's editors **and the owners of its home
   branch** (and above).

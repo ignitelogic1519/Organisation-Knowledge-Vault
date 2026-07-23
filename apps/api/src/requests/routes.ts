@@ -15,7 +15,7 @@ import { broadcast } from "../events.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { ownersAbove } from "../roles/routes.js";
 import { isSelfOrAncestor } from "@vault/shared";
-import { notify } from "../courses/helpers.js";
+import { courseHandlerNodeId, notify } from "../courses/helpers.js";
 
 /** Decided requests only live 7 days — history stays lean, the database stays clean. */
 const DECIDED_RETENTION_MS = 7 * 86400_000;
@@ -43,23 +43,6 @@ async function hiddenChainAbove(orgId: string, nodePath: string): Promise<RoleNo
 function canDecideVisibility(placements: PlacementRef[], chain: RoleNode[], node: RoleNode) {
   const gate = chain[0] ?? node;
   return can(placements, "add_people", toRoleRef(gate));
-}
-
-/**
- * The branch's HANDLER decides course requests — the nearest level that actually has
- * an owner (the node itself, else the closest ancestor with one), NOT every level up
- * to the top. Returns that node's id, or null when the whole chain is ownerless.
- */
-async function courseHandlerNodeId(orgId: string, nodePath: string): Promise<string | null> {
-  const nodes = await db.roleNode.findMany({ where: { orgId } });
-  const chain = nodes
-    .filter((n) => isSelfOrAncestor(n.path, nodePath))
-    .sort((a, b) => b.path.length - a.path.length); // deepest (the branch itself) first
-  for (const n of chain) {
-    const owners = await db.placement.count({ where: { roleNodeId: n.id, kind: "OWNER" } });
-    if (owners > 0) return n.id;
-  }
-  return null;
 }
 
 async function toView(r: VaultRequest): Promise<RequestView> {
@@ -359,7 +342,7 @@ export async function requestRoutes(app: FastifyInstance) {
           return can(placements, r.joinAs === "OWNER" ? "add_co_owner" : "add_people", ref);
         if (r.kind === "VISIBILITY")
           return canDecideVisibility(placements, hiddenAbove(node.path), node);
-        const handler = handlerOf(node.path); // COURSE_ASSIGN
+        const handler = handlerOf(node.path); // COURSE_ASSIGN & CONTENT_REVIEW
         return handler !== null && placements.some((p) => p.kind === "OWNER" && p.roleNodeId === handler);
       });
 
@@ -390,7 +373,7 @@ export async function requestRoutes(app: FastifyInstance) {
       const visibilityChain =
         request.kind === "VISIBILITY" ? await hiddenChainAbove(request.orgId, node.path) : [];
       const courseHandler =
-        request.kind === "COURSE_ASSIGN"
+        request.kind === "COURSE_ASSIGN" || request.kind === "CONTENT_REVIEW"
           ? await courseHandlerNodeId(request.orgId, node.path)
           : null;
       const allowed =
@@ -456,7 +439,7 @@ export async function requestRoutes(app: FastifyInstance) {
           });
           await db.roleNode.delete({ where: { id: node.id } });
         } else {
-          // COURSE_ASSIGN: the approving manager's configuration is required
+          // COURSE_ASSIGN & CONTENT_REVIEW: the approving manager's configuration is required
           if (!body.config) {
             return reply
               .status(400)
@@ -468,6 +451,13 @@ export async function requestRoutes(app: FastifyInstance) {
           const course = await db.course.findUnique({ where: { id: request.courseId } });
           if (!course) {
             return reply.status(409).send({ error: "The requested course no longer exists" });
+          }
+          // A member's draft is published on approval — off draft, optionally into the library
+          if (request.kind === "CONTENT_REVIEW" && course.draft) {
+            await db.course.update({
+              where: { id: course.id },
+              data: { draft: false, inLibrary: body.config.inLibrary ?? course.inLibrary },
+            });
           }
           await db.coursePlacement.upsert({
             where: { courseId_roleNodeId: { courseId: course.id, roleNodeId: node.id } },
@@ -487,6 +477,24 @@ export async function requestRoutes(app: FastifyInstance) {
               retakeEveryNDays: body.config.retakeEveryNDays ?? null,
             },
           });
+        }
+      } else if (request.kind === "CONTENT_REVIEW" && request.courseId) {
+        // Rejected draft: remove it entirely (its file/blocks + admin/review rows)
+        const course = await db.course.findUnique({ where: { id: request.courseId } });
+        if (course?.draft) {
+          const sref = course.storageRef as { adapter?: string; fileId?: string };
+          await db.$transaction([
+            db.coursePrerequisite.deleteMany({
+              where: { OR: [{ courseId: course.id }, { requiresCourseId: course.id }] },
+            }),
+            db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
+            db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
+            db.courseReview.deleteMany({ where: { courseId: course.id } }),
+            ...(sref.adapter === "inline" && sref.fileId
+              ? [db.storedFile.deleteMany({ where: { id: sref.fileId } })]
+              : []),
+            db.course.delete({ where: { id: course.id } }),
+          ]);
         }
       }
 
@@ -508,9 +516,12 @@ export async function requestRoutes(app: FastifyInstance) {
         note: body.decisionNote ?? null,
       });
       broadcast(request.orgId, "requests");
-      if (body.approve) {
-        broadcast(request.orgId, request.kind === "COURSE_ASSIGN" ? "courses" : "structure");
-      }
+      broadcast(
+        request.orgId,
+        request.kind === "COURSE_ASSIGN" || request.kind === "CONTENT_REVIEW"
+          ? "courses"
+          : "structure",
+      );
       return { ok: true, status: decided.status };
     },
   );
@@ -553,6 +564,26 @@ export async function requestRoutes(app: FastifyInstance) {
           allowed = placements.some((p) => p.kind === "OWNER"); // orphaned row — any owner may clean it
         }
         if (!allowed) return reply.status(404).send({ error: "Request not found" });
+      }
+
+      // Withdrawing an undecided document review discards its draft course too
+      if (request.kind === "CONTENT_REVIEW" && request.status === "PENDING" && request.courseId) {
+        const course = await db.course.findUnique({ where: { id: request.courseId } });
+        if (course?.draft) {
+          const sref = course.storageRef as { adapter?: string; fileId?: string };
+          await db.$transaction([
+            db.coursePrerequisite.deleteMany({
+              where: { OR: [{ courseId: course.id }, { requiresCourseId: course.id }] },
+            }),
+            db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
+            db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
+            db.courseReview.deleteMany({ where: { courseId: course.id } }),
+            ...(sref.adapter === "inline" && sref.fileId
+              ? [db.storedFile.deleteMany({ where: { id: sref.fileId } })]
+              : []),
+            db.course.delete({ where: { id: course.id } }),
+          ]);
+        }
       }
 
       await db.vaultRequest.delete({ where: { id: request.id } });

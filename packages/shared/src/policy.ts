@@ -58,6 +58,18 @@ export function can(
 }
 
 /**
+ * A member may PROPOSE content for a node when they hold a placement on that exact node
+ * carrying the `canCreateContent` grant. Proposals become drafts that publish only after
+ * a manager review (owners publish directly via `create_content`).
+ */
+export function canProposeContent(
+  placements: readonly PlacementRef[],
+  node: RoleNodeRef,
+): boolean {
+  return placements.some((p) => p.roleNodeId === node.id && p.canCreateContent);
+}
+
+/**
  * Nobody hands out a capability they don't hold themselves: granting a flag to another
  * owner requires the actor to hold that same flag on a governing placement — or to sit
  * strictly above the node, where the layer-above rule (invariant I6) applies.

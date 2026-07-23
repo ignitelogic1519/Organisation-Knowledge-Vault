@@ -15,6 +15,8 @@ export const addPersonSchema = z.object({
   kind: z.enum(["OWNER", "MEMBER"]),
   canCreateSubgroups: z.boolean().default(false),
   canAddCoOwners: z.boolean().default(false),
+  /** MEMBER: may propose content for this branch (published only after manager review). */
+  canCreateContent: z.boolean().default(false),
 });
 export type AddPersonInput = z.infer<typeof addPersonSchema>;
 
@@ -26,6 +28,7 @@ export type UpdateRoleFlagsInput = z.infer<typeof updateRoleFlagsSchema>;
 export const updatePersonFlagsSchema = z.object({
   canCreateSubgroups: z.boolean().optional(),
   canAddCoOwners: z.boolean().optional(),
+  canCreateContent: z.boolean().optional(),
 });
 export type UpdatePersonFlagsInput = z.infer<typeof updatePersonFlagsSchema>;
 
@@ -36,6 +39,7 @@ export interface RolePerson {
   kind: PlacementKind;
   canCreateSubgroups: boolean;
   canAddCoOwners: boolean;
+  canCreateContent: boolean;
 }
 
 export interface TreeNode {
@@ -63,6 +67,10 @@ export interface TreeNode {
     canCreateSubRole: boolean;
     canManageFlags: boolean;
     canDelete: boolean;
+    /** May create content here directly (owner) — publishes immediately. */
+    canPublishContent: boolean;
+    /** May propose content here (member with the flag) — needs manager review. */
+    canProposeContent: boolean;
     /** Owner of this node without direct delete rights — deletion goes by request. */
     canRequestDelete: boolean;
     /** Public branch the user isn't part of — joining goes by request. */

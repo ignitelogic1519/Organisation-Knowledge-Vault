@@ -6,19 +6,37 @@ import type { AuthoredBlock, Classification, TreeNode } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { roles } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
+import { AuthoredBlockView } from "@/components/CourseViewer";
 import { useOrg } from "@/components/org-context";
 import { useDialogs } from "@/components/dialogs";
 
-// The Document Studio: a node owner authors a full interactive document — headings,
-// rich text, tables, checklists, cards, images, audio/video — and publishes it as a
-// course with the organization's standard cover, classification and versioning. This is
-// the "create from scratch" counterpart to uploading a file.
+// The Document Studio: a visual, drag-and-drop document builder. A palette of blocks on
+// the left, a canvas of draggable cards in the middle, and a live Preview that renders the
+// finished document in the organization's standard frame. Owners publish directly; members
+// with the content-creation grant submit a draft for manager review.
 
 type Block = AuthoredBlock & { _id: number };
 let nextId = 1;
 const mk = (b: AuthoredBlock): Block => ({ ...b, _id: nextId++ });
 
 const CLASSES: Classification[] = ["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"];
+const CLASS_LABEL: Record<Classification, string> = {
+  PUBLIC: "Public",
+  CONFIDENTIAL: "Confidential",
+  PRIVATE: "Private",
+  SECRET: "Secret",
+};
+
+const PALETTE: { type: AuthoredBlock["type"]; label: string; icon: string; hint: string }[] = [
+  { type: "heading", label: "Heading", icon: "H", hint: "Section title" },
+  { type: "paragraph", label: "Text", icon: "¶", hint: "Rich paragraph" },
+  { type: "table", label: "Table", icon: "▦", hint: "Rows & columns" },
+  { type: "checklist", label: "Checklist", icon: "☑", hint: "Steps to tick" },
+  { type: "card", label: "Callout", icon: "▤", hint: "Highlighted note" },
+  { type: "image", label: "Image", icon: "🖼", hint: "Picture by URL" },
+  { type: "media", label: "Media", icon: "▶", hint: "Audio or video" },
+  { type: "divider", label: "Divider", icon: "—", hint: "Section break" },
+];
 
 function RichArea({
   html,
@@ -41,19 +59,19 @@ function RichArea({
   return (
     <div className="studio-rich">
       <div className="studio-rich-tools">
-        <button type="button" onClick={() => cmd("bold")} title="Bold">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("bold")}>
           <b>B</b>
         </button>
-        <button type="button" onClick={() => cmd("italic")} title="Italic">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("italic")}>
           <i>I</i>
         </button>
-        <button type="button" onClick={() => cmd("underline")} title="Underline">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("underline")}>
           <u>U</u>
         </button>
-        <button type="button" onClick={() => cmd("insertUnorderedList")} title="Bullet list">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("insertUnorderedList")}>
           •
         </button>
-        <button type="button" onClick={() => cmd("insertOrderedList")} title="Numbered list">
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("insertOrderedList")}>
           1.
         </button>
       </div>
@@ -69,18 +87,13 @@ function RichArea({
   );
 }
 
-function BlockEditor({
-  block,
-  onChange,
-}: {
-  block: Block;
-  onChange: (b: Block) => void;
-}) {
+function BlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
   switch (block.type) {
     case "heading":
       return (
         <div className="studio-block-body">
           <select
+            className="studio-input"
             value={block.level ?? 2}
             onChange={(e) => onChange({ ...block, level: Number(e.target.value) })}
           >
@@ -88,11 +101,7 @@ function BlockEditor({
             <option value={2}>Heading 2</option>
             <option value={3}>Heading 3</option>
           </select>
-          <RichArea
-            html={block.html ?? ""}
-            onChange={(html) => onChange({ ...block, html })}
-            placeholder="Heading text…"
-          />
+          <RichArea html={block.html ?? ""} onChange={(html) => onChange({ ...block, html })} placeholder="Heading text…" />
         </div>
       );
     case "paragraph":
@@ -102,7 +111,7 @@ function BlockEditor({
           {block.type === "card" && (
             <input
               className="studio-input"
-              placeholder="Card title (optional)"
+              placeholder="Callout title (optional)"
               value={block.title ?? ""}
               onChange={(e) => onChange({ ...block, title: e.target.value })}
             />
@@ -110,7 +119,7 @@ function BlockEditor({
           <RichArea
             html={block.html ?? ""}
             onChange={(html) => onChange({ ...block, html })}
-            placeholder={block.type === "card" ? "Card content…" : "Write a paragraph…"}
+            placeholder={block.type === "card" ? "Callout text…" : "Write a paragraph…"}
           />
         </div>
       );
@@ -122,9 +131,7 @@ function BlockEditor({
             rows={4}
             placeholder="One item per line"
             value={(block.items ?? []).join("\n")}
-            onChange={(e) =>
-              onChange({ ...block, items: e.target.value.split("\n").map((s) => s).filter(Boolean) })
-            }
+            onChange={(e) => onChange({ ...block, items: e.target.value.split("\n").filter(Boolean) })}
           />
         </div>
       );
@@ -134,7 +141,7 @@ function BlockEditor({
           <textarea
             className="studio-input"
             rows={4}
-            placeholder={"First row is the header. Cells separated by | , rows by new lines.\nName | Role | Owner\nHR | Manager | Yes"}
+            placeholder={"First row is the header. Cells split by | , rows by new lines.\nName | Role | Owner\nHR | Manager | Yes"}
             value={(block.rows ?? []).map((r) => r.join(" | ")).join("\n")}
             onChange={(e) =>
               onChange({
@@ -154,6 +161,7 @@ function BlockEditor({
         <div className="studio-block-body">
           {block.type === "media" && (
             <select
+              className="studio-input"
               value={block.mediaKind ?? "video"}
               onChange={(e) => onChange({ ...block, mediaKind: e.target.value as "audio" | "video" })}
             >
@@ -177,17 +185,6 @@ function BlockEditor({
   }
 }
 
-const BLOCK_TYPES: { type: AuthoredBlock["type"]; label: string }[] = [
-  { type: "heading", label: "Heading" },
-  { type: "paragraph", label: "Text" },
-  { type: "table", label: "Table" },
-  { type: "checklist", label: "Checklist" },
-  { type: "card", label: "Card" },
-  { type: "image", label: "Image" },
-  { type: "media", label: "Audio / Video" },
-  { type: "divider", label: "Divider" },
-];
-
 export default function StudioPage() {
   return (
     <Suspense fallback={<div className="skeleton" style={{ minHeight: "12rem" }} />}>
@@ -208,7 +205,20 @@ function StudioInner() {
     mk({ type: "heading", level: 1, html: "" }),
     mk({ type: "paragraph", html: "" }),
   ]);
+  const [meta, setMeta] = useState({
+    title: "",
+    classification: "" as "" | Classification,
+    category: "",
+    description: "",
+    scope: "",
+    inLibrary: true,
+    mandatory: false,
+    inherit: true,
+    resets: true,
+  });
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [busy, setBusy] = useState(false);
+  const dragIndex = useRef<number | null>(null);
 
   useEffect(() => {
     if (!roleId) return;
@@ -221,180 +231,293 @@ function StudioInner() {
   const update = useCallback((id: number, b: Block) => {
     setBlocks((prev) => prev.map((x) => (x._id === id ? b : x)));
   }, []);
-  const move = (id: number, dir: -1 | 1) => {
+  const remove = (id: number) => setBlocks((prev) => prev.filter((x) => x._id !== id));
+  const add = (type: AuthoredBlock["type"], at?: number) =>
     setBlocks((prev) => {
-      const i = prev.findIndex((x) => x._id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= prev.length) return prev;
-      const copy = [...prev];
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-      return copy;
+      const next = [...prev];
+      next.splice(at ?? next.length, 0, mk({ type }));
+      return next;
+    });
+
+  // Drag-to-reorder within the canvas
+  const onDragStart = (i: number) => (dragIndex.current = i);
+  const onDropAt = (i: number) => {
+    const from = dragIndex.current;
+    dragIndex.current = null;
+    if (from === null || from === i) return;
+    setBlocks((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(from < i ? i - 1 : i, 0, moved);
+      return next;
     });
   };
-  const remove = (id: number) => setBlocks((prev) => prev.filter((x) => x._id !== id));
-  const add = (type: AuthoredBlock["type"]) => setBlocks((prev) => [...prev, mk({ type })]);
 
-  if (!roleId || (node === null && roleId)) {
+  const canProceed = node && (node.my.canPublishContent || node.my.canProposeContent);
+  const needsReview = node?.my.canProposeContent && !node?.my.canPublishContent;
+
+  const cleanBlocks = (): AuthoredBlock[] =>
+    blocks
+      .map(({ _id, ...b }) => b)
+      .filter(
+        (b) =>
+          (b.html && b.html.replace(/<[^>]*>/g, "").trim()) ||
+          b.url ||
+          (b.rows && b.rows.length) ||
+          (b.items && b.items.length) ||
+          b.type === "divider",
+      );
+
+  const publish = async () => {
+    if (!node) return;
+    if (!meta.title.trim() || meta.title.trim().length < 2) {
+      dialogs.toast("Give the document a title.", "danger");
+      return;
+    }
+    if (!meta.classification) {
+      dialogs.toast("Classification is compulsory.", "danger");
+      return;
+    }
+    if (meta.description.trim().length < 8) {
+      dialogs.toast("Add a short description (cover page).", "danger");
+      return;
+    }
+    const body = cleanBlocks();
+    if (body.length === 0) {
+      dialogs.toast("Add some content before publishing.", "danger");
+      return;
+    }
+    setBusy(true);
+    try {
+      const created = await courses.create(org.id, {
+        roleNodeId: node.id,
+        kind: "DOCUMENT",
+        title: meta.title.trim(),
+        description: meta.description.trim(),
+        scope: meta.scope.trim() || undefined,
+        classification: meta.classification,
+        allowDownload: false,
+        inLibrary: meta.inLibrary,
+        category: meta.category.trim() || undefined,
+        blocks: body,
+        resetsCompletionOnUpdate: meta.resets,
+        prerequisiteCodes: [],
+      });
+      // Owners place immediately; a member's draft is placed by the reviewer on approval
+      if (!created.draft) {
+        await courses.place(created.code, {
+          roleNodeId: node.id,
+          mandatory: meta.mandatory,
+          inheritToDescendants: meta.inherit,
+        });
+        dialogs.toast(`Published ${created.code} to ${node.name}.`, "success");
+      } else {
+        dialogs.toast("Sent to your branch manager for review.", "success");
+      }
+      router.push(created.draft ? `/orgs/${org.id}/requests` : `/orgs/${org.id}`);
+    } catch (err) {
+      dialogs.toast(err instanceof ApiError ? err.message : "Publish failed", "danger");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!roleId) {
     return (
       <div className="empty-card glass">
         <h2>Studio</h2>
         <p className="auth-sub">
-          Open the Studio from a branch you own — its Courses panel has a “Create in Studio”
-          button.
+          Open the Studio from a branch — its panel has a “Create in Studio” button.
         </p>
       </div>
     );
   }
   if (!node) return <div className="skeleton" style={{ minHeight: "12rem" }} />;
+  if (!canProceed) {
+    return (
+      <div className="empty-card glass">
+        <h2>Studio</h2>
+        <p className="auth-sub">You don&apos;t have content-creation rights on {node.name}.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="panel glass panel-wide studio">
-      <div className="studio-head">
-        <div>
-          <h2>Document Studio</h2>
-          <p className="auth-sub">
-            Authoring for <strong>{node.name}</strong> — publishes with the organization&apos;s
-            standard cover, classification and versioning.
-          </p>
+    <div className="studio-shell">
+      <div className="studio-topbar glass">
+        <div className="studio-topbar-main">
+          <button className="btn btn-quiet btn-small" onClick={() => router.back()}>
+            ← Back
+          </button>
+          <input
+            className="studio-title-input"
+            placeholder="Untitled document"
+            value={meta.title}
+            onChange={(e) => setMeta({ ...meta, title: e.target.value })}
+          />
+          {needsReview && <span className="badge">draft · needs review</span>}
         </div>
-        <button className="btn btn-quiet btn-small" onClick={() => router.back()}>
-          ← Back
-        </button>
-      </div>
-
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const clean: AuthoredBlock[] = blocks.map(({ _id, ...b }) => b);
-          const meaningful = clean.filter(
-            (b) =>
-              (b.html && b.html.replace(/<[^>]*>/g, "").trim()) ||
-              b.url ||
-              (b.rows && b.rows.length) ||
-              (b.items && b.items.length) ||
-              b.type === "divider",
-          );
-          if (meaningful.length === 0) {
-            dialogs.toast("Add some content before publishing.", "danger");
-            return;
-          }
-          const d = new FormData(e.currentTarget);
-          setBusy(true);
-          try {
-            const created = await courses.create(org.id, {
-              roleNodeId: node.id,
-              kind: "DOCUMENT",
-              title: String(d.get("title")),
-              description: String(d.get("description")),
-              scope: String(d.get("scope") || "") || undefined,
-              classification: d.get("classification") as Classification,
-              allowDownload: false, // authored docs aren't file downloads
-              inLibrary: d.get("inLibrary") === "on",
-              category: String(d.get("category") || "").trim() || undefined,
-              blocks: meaningful,
-              resetsCompletionOnUpdate: d.get("resets") === "on",
-              prerequisiteCodes: [],
-            });
-            await courses.place(created.code, {
-              roleNodeId: node.id,
-              mandatory: d.get("mandatory") === "on",
-              inheritToDescendants: d.get("inherit") === "on",
-            });
-            dialogs.toast(`Published ${created.code} to ${node.name}.`, "success");
-            router.push(`/orgs/${org.id}`);
-          } catch (err) {
-            dialogs.toast(err instanceof ApiError ? err.message : "Publish failed", "danger");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <div className="studio-meta">
-          <label className="field">
-            <span>Title</span>
-            <input name="title" required minLength={2} placeholder="Document title" />
-          </label>
-          <label className="field">
-            <span>Classification (compulsory)</span>
-            <select name="classification" required defaultValue="">
-              <option value="" disabled>
-                Choose…
-              </option>
-              {CLASSES.map((c) => (
-                <option key={c} value={c}>
-                  {c[0] + c.slice(1).toLowerCase()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Library shelf (category)</span>
-            <input name="category" maxLength={40} placeholder="AI, Safety, Onboarding…" />
-          </label>
-          <label className="field studio-meta-wide">
-            <span>Description (cover page 2)</span>
-            <textarea name="description" required minLength={8} maxLength={500} rows={2} />
-          </label>
-          <label className="field studio-meta-wide">
-            <span>Scope (cover page 2)</span>
-            <textarea name="scope" maxLength={2000} rows={2} />
-          </label>
-        </div>
-
-        <h3 className="learning-h">Document body</h3>
-        <div className="studio-blocks">
-          {blocks.map((b, i) => (
-            <div key={b._id} className="studio-block">
-              <div className="studio-block-bar">
-                <span className="badge">{b.type}</span>
-                <span className="studio-block-actions">
-                  <button type="button" className="icon-btn" onClick={() => move(b._id, -1)} disabled={i === 0} aria-label="Move up">
-                    ↑
-                  </button>
-                  <button type="button" className="icon-btn" onClick={() => move(b._id, 1)} disabled={i === blocks.length - 1} aria-label="Move down">
-                    ↓
-                  </button>
-                  <button type="button" className="icon-btn" onClick={() => remove(b._id)} aria-label="Delete block">
-                    ✕
-                  </button>
-                </span>
-              </div>
-              <BlockEditor block={b} onChange={(nb) => update(b._id, nb)} />
-            </div>
-          ))}
-        </div>
-
-        <div className="studio-add">
-          <span className="auth-sub">Add block:</span>
-          {BLOCK_TYPES.map((t) => (
-            <button key={t.type} type="button" className="btn btn-quiet btn-small" onClick={() => add(t.type)}>
-              + {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="studio-publish">
-          <label className="ack-row">
-            <input type="checkbox" name="inLibrary" defaultChecked />
-            <span>Publish to library</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="mandatory" />
-            <span>Mandatory</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="inherit" defaultChecked />
-            <span>Inherit to lower branches</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="resets" defaultChecked />
-            <span>New versions reset completion</span>
-          </label>
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? "Publishing…" : "Publish document"}
+        <div className="studio-topbar-actions">
+          <button
+            className={mode === "preview" ? "btn btn-primary btn-small" : "btn btn-quiet btn-small"}
+            onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
+          >
+            {mode === "preview" ? "✎ Edit" : "👁 Preview"}
+          </button>
+          <button className="btn btn-primary btn-small" disabled={busy} onClick={publish}>
+            {busy ? "Working…" : needsReview ? "Submit for review" : "Publish"}
           </button>
         </div>
-      </form>
+      </div>
+
+      {mode === "preview" ? (
+        <div className="studio-preview">
+          <div className="doc-headerbar class-strip-CONFIDENTIAL">
+            <span className="doc-org">{org.name}</span>
+            <span className="doc-class">{meta.classification ? CLASS_LABEL[meta.classification] : "—"}</span>
+            <span className="doc-ver">draft</span>
+          </div>
+          <div className="doc-authored" style={{ position: "static" }}>
+            <article className="doc-sheet">
+              <section className="doc-cover" style={{ minHeight: "auto", paddingBottom: "1rem", borderBottom: "1px solid var(--border)" }}>
+                <span className="doc-cover-org">{org.name}</span>
+                <h1 className="doc-cover-title">{meta.title || "Untitled document"}</h1>
+                <p className="auth-sub">{meta.description || "No description yet."}</p>
+                {meta.scope && <p className="auth-sub">Scope: {meta.scope}</p>}
+              </section>
+              {cleanBlocks().map((b, i) => (
+                <AuthoredBlockView key={i} block={b} />
+              ))}
+            </article>
+          </div>
+        </div>
+      ) : (
+        <div className="studio-workspace">
+          <aside className="studio-palette glass">
+            <h3 className="learning-h">Blocks</h3>
+            <p className="auth-sub" style={{ fontSize: "0.75rem" }}>
+              Click to add, or drag onto the page.
+            </p>
+            {PALETTE.map((p) => (
+              <button
+                key={p.type}
+                className="studio-palette-item"
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData("new-block", p.type)}
+                onClick={() => add(p.type)}
+              >
+                <span className="studio-palette-icon">{p.icon}</span>
+                <span>
+                  <span className="studio-palette-label">{p.label}</span>
+                  <span className="studio-palette-hint">{p.hint}</span>
+                </span>
+              </button>
+            ))}
+
+            <h3 className="learning-h">Details</h3>
+            <label className="field">
+              <span>Classification*</span>
+              <select
+                value={meta.classification}
+                onChange={(e) => setMeta({ ...meta, classification: e.target.value as Classification })}
+              >
+                <option value="">Choose…</option>
+                {CLASSES.map((c) => (
+                  <option key={c} value={c}>
+                    {CLASS_LABEL[c]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Shelf (category)</span>
+              <input value={meta.category} onChange={(e) => setMeta({ ...meta, category: e.target.value })} maxLength={40} />
+            </label>
+            <label className="field">
+              <span>Description* (cover)</span>
+              <textarea rows={2} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} maxLength={500} />
+            </label>
+            <label className="field">
+              <span>Scope (cover)</span>
+              <textarea rows={2} value={meta.scope} onChange={(e) => setMeta({ ...meta, scope: e.target.value })} maxLength={2000} />
+            </label>
+            <label className="ack-row">
+              <input type="checkbox" checked={meta.inLibrary} onChange={(e) => setMeta({ ...meta, inLibrary: e.target.checked })} />
+              <span>Publish to library</span>
+            </label>
+            {!needsReview && (
+              <>
+                <label className="ack-row">
+                  <input type="checkbox" checked={meta.mandatory} onChange={(e) => setMeta({ ...meta, mandatory: e.target.checked })} />
+                  <span>Mandatory</span>
+                </label>
+                <label className="ack-row">
+                  <input type="checkbox" checked={meta.inherit} onChange={(e) => setMeta({ ...meta, inherit: e.target.checked })} />
+                  <span>Inherit to lower branches</span>
+                </label>
+              </>
+            )}
+          </aside>
+
+          <div
+            className="studio-canvas"
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("new-block") || dragIndex.current !== null)
+                e.preventDefault();
+            }}
+            onDrop={(e) => {
+              const nb = e.dataTransfer.getData("new-block");
+              if (nb) add(nb as AuthoredBlock["type"]);
+            }}
+          >
+            <div className="studio-canvas-sheet">
+              <div className="studio-canvas-cover">
+                <span className="doc-cover-org">{org.name}</span>
+                <h1>{meta.title || "Untitled document"}</h1>
+                <p className="auth-sub">Cover, header &amp; footer are added automatically on publish.</p>
+              </div>
+
+              {blocks.length === 0 && (
+                <p className="auth-sub studio-empty">Drag a block here, or pick one from the left.</p>
+              )}
+
+              {blocks.map((b, i) => (
+                <div
+                  key={b._id}
+                  className="studio-block"
+                  onDragOver={(e) => {
+                    if (dragIndex.current !== null) e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    if (dragIndex.current !== null) {
+                      e.stopPropagation();
+                      onDropAt(i);
+                    }
+                  }}
+                >
+                  <div className="studio-block-bar">
+                    <span
+                      className="studio-drag-handle"
+                      draggable
+                      onDragStart={() => onDragStart(i)}
+                      title="Drag to reorder"
+                    >
+                      ⠿
+                    </span>
+                    <span className="badge">{b.type}</span>
+                    <span className="studio-block-actions">
+                      <button type="button" className="icon-btn" onClick={() => remove(b._id)} aria-label="Delete block">
+                        ✕
+                      </button>
+                    </span>
+                  </div>
+                  <BlockEditor block={b} onChange={(nb) => update(b._id, nb)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

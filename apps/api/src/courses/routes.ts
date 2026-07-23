@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   can,
+  canProposeContent,
   createCourseSchema,
   grantAdminAccessSchema,
   placeCourseSchema,
@@ -14,7 +15,13 @@ import { db } from "../db.js";
 import { broadcast } from "../events.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
-import { coursesReaching, nextCourseCode, notify, toLearningItem } from "./helpers.js";
+import {
+  courseHandlerNodeId,
+  coursesReaching,
+  nextCourseCode,
+  notify,
+  toLearningItem,
+} from "./helpers.js";
 
 async function courseByCode(code: string) {
   return db.course.findUnique({ where: { code }, include: { org: true } });
@@ -62,9 +69,13 @@ export async function courseRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Role not found" });
       }
       const placements = await actorPlacements(req.profileId, node.orgId);
-      if (!can(placements, "create_content", toRoleRef(node))) {
+      const canPublish = can(placements, "create_content", toRoleRef(node));
+      const canPropose = canProposeContent(placements, toRoleRef(node));
+      if (!canPublish && !canPropose) {
         return reply.status(403).send({ error: "You don't create content in this layer" });
       }
+      // A member's content is a DRAFT that a manager must review before it publishes.
+      const asDraft = !canPublish;
 
       let ref: StorageRef;
       if (body.blocks) {
@@ -98,7 +109,9 @@ export async function courseRoutes(app: FastifyInstance) {
           scope: body.scope?.trim() ? body.scope.trim() : null,
           classification: body.classification,
           allowDownload: body.allowDownload,
-          inLibrary: body.inLibrary,
+          // A draft is never in the library and reaches nobody until it's approved
+          inLibrary: asDraft ? false : body.inLibrary,
+          draft: asDraft,
           category: body.category?.trim() ? body.category.trim() : null,
           storageRef: ref as object,
           deadlineDays: body.deadlineDays,
@@ -109,8 +122,47 @@ export async function courseRoutes(app: FastifyInstance) {
           },
         },
       });
+
+      if (asDraft) {
+        // File a Document-review request to the branch's handler (nearest owner level)
+        const req0 = await db.vaultRequest.create({
+          data: {
+            orgId: node.orgId,
+            kind: "CONTENT_REVIEW",
+            requesterProfileId: req.profileId,
+            targetRoleNodeId: node.id,
+            courseId: course.id,
+            message: body.description,
+          },
+        });
+        const handlerId = await courseHandlerNodeId(node.orgId, node.path);
+        const handlerOwners = handlerId
+          ? await db.placement.findMany({
+              where: { roleNodeId: handlerId, kind: "OWNER" },
+              include: { membership: true },
+            })
+          : [];
+        const requester = await db.profile.findUnique({ where: { id: req.profileId } });
+        await Promise.all(
+          [...new Set(handlerOwners.map((o) => o.membership.profileId))]
+            .filter((id) => id !== req.profileId)
+            .map((profileId) =>
+              notify(profileId, node.orgId, "request_created", {
+                requestId: req0.id,
+                kind: "CONTENT_REVIEW",
+                label: "Document review",
+                roleName: node.name,
+                from: requester?.displayName ?? "A member",
+                title: course.title,
+              }),
+            ),
+        );
+        broadcast(node.orgId, "requests");
+        return { code: course.code, id: course.id, draft: true };
+      }
+
       broadcast(node.orgId, "courses");
-      return { code: course.code, id: course.id };
+      return { code: course.code, id: course.id, draft: false };
     },
   );
 
@@ -125,10 +177,16 @@ export async function courseRoutes(app: FastifyInstance) {
         where: { profileId_orgId: { profileId: req.profileId, orgId: course.orgId } },
       });
       if (!member) return reply.status(404).send({ error: "Course not found" });
+      if (course.draft && course.createdByProfileId !== req.profileId) {
+        if (!(await canManageCourse(req.profileId, course))) {
+          return reply.status(404).send({ error: "Course not found" });
+        }
+      }
       const prereqs = await db.coursePrerequisite.findMany({
         where: { courseId: course.id },
         include: { requires: true },
       });
+      const creator = await db.profile.findUnique({ where: { id: course.createdByProfileId } });
       return {
         code: course.code,
         title: course.title,
@@ -137,6 +195,13 @@ export async function courseRoutes(app: FastifyInstance) {
         deadlineDays: course.deadlineDays,
         retakeEveryNDays: course.retakeEveryNDays,
         prerequisiteCodes: prereqs.map((p) => p.requires.code),
+        description: course.description,
+        scope: course.scope,
+        classification: course.classification,
+        allowDownload: course.allowDownload,
+        publishedAt: course.createdAt.toISOString(),
+        creatorName: creator?.displayName ?? "—",
+        draft: course.draft,
       };
     },
   );
@@ -153,6 +218,12 @@ export async function courseRoutes(app: FastifyInstance) {
         where: { profileId_orgId: { profileId: req.profileId, orgId: course.orgId } },
       });
       if (!member) return reply.status(404).send({ error: "Course not found" });
+      // A draft is visible only to its creator and the branch's reviewers (for preview)
+      if (course.draft && course.createdByProfileId !== req.profileId) {
+        if (!(await canManageCourse(req.profileId, course))) {
+          return reply.status(404).send({ error: "Course not found" });
+        }
+      }
 
       const content = await storage.resolve(course.storageRef as unknown as StorageRef);
       if (content.authored !== undefined) {

@@ -8,9 +8,13 @@ import {
 } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
+import { courses } from "@/lib/courses-client";
+import { CourseViewer } from "@/components/CourseViewer";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
+
+type PreviewItem = React.ComponentProps<typeof CourseViewer>["item"];
 
 // Requests — the ask-and-approve center. Two views:
 //  · Inbox: pending requests the signed-in user has the authority to decide. Course
@@ -36,16 +40,19 @@ function InboxCard({
   r,
   onDone,
   onRemove,
+  onPreview,
   focused,
 }: {
   r: RequestView;
   onDone: () => void;
   onRemove: () => void;
+  onPreview: (code: string) => void;
   focused: boolean;
 }) {
   const dialogs = useDialogs();
   const [configOpen, setConfigOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const needsConfig = r.kind === "COURSE_ASSIGN" || r.kind === "CONTENT_REVIEW";
 
   const decide = async (
     approve: boolean,
@@ -54,6 +61,7 @@ function InboxCard({
       inheritToDescendants: boolean;
       deadlineDays?: number | null;
       retakeEveryNDays?: number | null;
+      inLibrary?: boolean;
     },
     note?: string,
   ) => {
@@ -105,10 +113,17 @@ function InboxCard({
             <strong>{r.targetRoleName}</strong>
           </>
         )}
+        {r.kind === "CONTENT_REVIEW" && (
+          <>
+            submitted the document <strong>{r.courseTitle ?? r.courseCode}</strong>{" "}
+            {r.courseCode && <span className="chip">{r.courseCode}</span>} for{" "}
+            <strong>{r.targetRoleName}</strong> — review before it publishes
+          </>
+        )}
       </p>
       {r.message && <p className="request-msg">“{r.message}”</p>}
 
-      {r.kind === "COURSE_ASSIGN" && configOpen ? (
+      {needsConfig && configOpen ? (
         <form
           className="request-config"
           onSubmit={(e) => {
@@ -119,11 +134,15 @@ function InboxCard({
               inheritToDescendants: d.get("inherit") === "on",
               deadlineDays: d.get("deadline") ? Number(d.get("deadline")) : null,
               retakeEveryNDays: d.get("retake") ? Number(d.get("retake")) : null,
+              inLibrary: d.get("inLibrary") === "on",
             });
           }}
         >
           <p className="auth-sub">
-            Tune the course for <strong>{r.targetRoleName}</strong> before it lands:
+            {r.kind === "CONTENT_REVIEW"
+              ? "Configure and publish this document for "
+              : "Tune the course for "}
+            <strong>{r.targetRoleName}</strong>:
           </p>
           <div className="request-config-grid">
             <label className="ack-row">
@@ -134,6 +153,12 @@ function InboxCard({
               <input type="checkbox" name="inherit" />
               <span>Inherit to sub-branches</span>
             </label>
+            {r.kind === "CONTENT_REVIEW" && (
+              <label className="ack-row">
+                <input type="checkbox" name="inLibrary" defaultChecked />
+                <span>Publish to library</span>
+              </label>
+            )}
             <label className="field">
               <span>Deadline (days)</span>
               <input name="deadline" type="number" min={1} placeholder="course default" />
@@ -152,12 +177,21 @@ function InboxCard({
               Back
             </button>
             <button className="btn btn-primary btn-small" disabled={busy}>
-              Approve &amp; assign
+              {r.kind === "CONTENT_REVIEW" ? "Approve & publish" : "Approve & assign"}
             </button>
           </div>
         </form>
       ) : (
         <div className="request-actions">
+          {r.kind === "CONTENT_REVIEW" && r.courseCode && (
+            <button
+              className="btn btn-quiet btn-small"
+              disabled={busy}
+              onClick={() => onPreview(r.courseCode!)}
+            >
+              👁 Preview document
+            </button>
+          )}
           <button
             className="btn btn-quiet btn-small"
             disabled={busy}
@@ -183,7 +217,7 @@ function InboxCard({
           >
             Reject
           </button>
-          {r.kind === "COURSE_ASSIGN" ? (
+          {needsConfig ? (
             <button
               className="btn btn-primary btn-small"
               disabled={busy}
@@ -227,6 +261,36 @@ export default function RequestsPage() {
   const [data, setData] = useState<RequestsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewItem | null>(null);
+
+  // Open a draft in the read-only viewer for review
+  const openPreview = useCallback(
+    async (code: string) => {
+      try {
+        const c = await courses.info(code);
+        setPreview({
+          code: c.code,
+          title: c.title,
+          kind: c.kind,
+          version: c.version,
+          status: "AVAILABLE",
+          mandatory: false,
+          missingPrerequisites: [],
+          prerequisiteCodes: c.prerequisiteCodes,
+          viaRoleName: "",
+          description: c.description,
+          scope: c.scope,
+          classification: c.classification,
+          allowDownload: c.allowDownload,
+          publishedAt: c.publishedAt,
+          creatorName: c.creatorName,
+        });
+      } catch (e) {
+        dialogs.toast(e instanceof ApiError ? e.message : "Could not open the document", "danger");
+      }
+    },
+    [dialogs],
+  );
 
   // Deep link from a notification: /requests?focus=<id> highlights that exact request
   useEffect(() => {
@@ -291,6 +355,7 @@ export default function RequestsPage() {
               r={r}
               focused={r.id === focusId}
               onDone={load}
+              onPreview={openPreview}
               onRemove={() =>
                 removeRequest(
                   r.id,
@@ -346,6 +411,12 @@ export default function RequestsPage() {
                     <strong>{r.courseTitle ?? r.courseCode}</strong> for{" "}
                     <strong>{r.targetRoleName}</strong>
                   </>
+                )}
+                {r.kind === "CONTENT_REVIEW" && (
+                  <>
+                    Document <strong>{r.courseTitle ?? r.courseCode}</strong> for{" "}
+                    <strong>{r.targetRoleName}</strong> (review)
+                  </>
                 )}{" "}
                 <span className="auth-sub">· {r.createdAt.slice(0, 10)}</span>
               </p>
@@ -376,6 +447,16 @@ export default function RequestsPage() {
           ))}
         </ul>
       </div>
+
+      {preview && (
+        <CourseViewer
+          item={preview}
+          orgName={org.name}
+          readOnly
+          onClose={() => setPreview(null)}
+          onChanged={() => undefined}
+        />
+      )}
     </div>
   );
 }

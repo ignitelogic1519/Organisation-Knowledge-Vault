@@ -147,6 +147,23 @@ export async function toLearningItem(
   };
 }
 
+/**
+ * The branch's HANDLER for content decisions — the nearest level that actually has an
+ * owner (the node itself, else the closest ancestor with one), NOT every level up to the
+ * top. Returns that node's id, or null when the whole chain is ownerless.
+ */
+export async function courseHandlerNodeId(orgId: string, nodePath: string): Promise<string | null> {
+  const nodes = await db.roleNode.findMany({ where: { orgId } });
+  const chain = nodes
+    .filter((n) => isSelfOrAncestor(n.path, nodePath))
+    .sort((a, b) => b.path.length - a.path.length); // deepest (the branch itself) first
+  for (const n of chain) {
+    const owners = await db.placement.count({ where: { roleNodeId: n.id, kind: "OWNER" } });
+    if (owners > 0) return n.id;
+  }
+  return null;
+}
+
 export async function notify(
   profileId: string,
   orgId: string | null,

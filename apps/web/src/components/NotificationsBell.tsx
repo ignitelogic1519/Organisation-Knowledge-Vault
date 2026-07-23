@@ -40,6 +40,9 @@ const KINDS: Record<string, KindMeta> = {
 function detailOf(n: AppNotification): string {
   const p = n.payload;
   if (n.kind === "inbox_cleanup") return `${String(p.count ?? "10+")} messages`;
+  if (n.kind === "request_created" && p.kind === "CONTENT_REVIEW") {
+    return `Document review · "${String(p.title ?? "")}" for ${String(p.roleName ?? "")} from ${String(p.from ?? "a member")}`;
+  }
   if (n.kind === "compliance_reminder" || n.kind === "course_adopted") {
     return `${String(p.from ?? "A manager")} · "${String(p.title ?? p.code ?? "")}"${p.roleName ? ` @ ${String(p.roleName)}` : ""}: ${String(p.message ?? "")}`;
   }

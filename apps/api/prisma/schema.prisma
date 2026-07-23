@@ -49,6 +49,7 @@ enum RequestKind {
   JOIN_BRANCH // "Join request" — be added as member of a public branch
   DELETE_BRANCH // "Deletion request" — branch owners asking the layer above to delete it
   VISIBILITY // "Visibility request" — unhide the chain above so a public branch shows
+  CONTENT_REVIEW // "Document review" — a member's draft awaiting manager approval to publish
 }
 
 enum RequestStatus {
@@ -156,6 +157,7 @@ model Placement {
   kind               PlacementKind
   canCreateSubgroups Boolean       @default(false) // meaningful for OWNER
   canAddCoOwners     Boolean       @default(false) // OWNER only: may appoint co-owners here
+  canCreateContent   Boolean       @default(false) // MEMBER: may propose content (needs review)
   addedByProfileId   String // escalation target (docs/structure.md §3.4)
   createdAt          DateTime      @default(now())
 
@@ -181,6 +183,7 @@ model Course {
   classification           Classification     @default(CONFIDENTIAL) // compulsory org standard
   allowDownload            Boolean            @default(false) // owner-controlled download from preview
   archived                 Boolean            @default(false) // archived: kept, but reaches nobody new
+  draft                    Boolean            @default(false) // member proposal pending manager review
   storageRef               Json // adapter-specific pointer: {adapter:"inline"|"link", ...}
   deadlineDays             Int?
   retakeEveryNDays         Int? // recurrence, applies to all kinds
@@ -289,6 +292,7 @@ model Invitation {
   kind               PlacementKind
   canCreateSubgroups Boolean       @default(false)
   canAddCoOwners     Boolean       @default(false)
+  canCreateContent   Boolean       @default(false)
   invitedByProfileId String
   acceptedAt         DateTime?
   createdAt          DateTime      @default(now())

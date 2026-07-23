@@ -39,6 +39,7 @@ export interface PlacementRef {
   kind: PlacementKind;
   canCreateSubgroups: boolean;
   canAddCoOwners: boolean;
+  canCreateContent: boolean;
 }
 
 export interface HealthResponse {

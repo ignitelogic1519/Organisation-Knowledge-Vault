@@ -3,7 +3,12 @@ import { z } from "zod";
 // Ask-and-approve contracts: every request on the platform carries an explicit
 // category so both inboxes and history read unambiguously.
 
-export type RequestKind = "COURSE_ASSIGN" | "JOIN_BRANCH" | "DELETE_BRANCH" | "VISIBILITY";
+export type RequestKind =
+  | "COURSE_ASSIGN"
+  | "JOIN_BRANCH"
+  | "DELETE_BRANCH"
+  | "VISIBILITY"
+  | "CONTENT_REVIEW";
 export type RequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 /** Human labels for the request categories — the single source for UI text. */
@@ -12,6 +17,7 @@ export const REQUEST_KIND_LABELS: Record<RequestKind, string> = {
   JOIN_BRANCH: "Join request",
   DELETE_BRANCH: "Deletion request",
   VISIBILITY: "Visibility request",
+  CONTENT_REVIEW: "Document review",
 };
 
 export const createRequestSchema = z.object({
@@ -40,6 +46,8 @@ export const decideRequestSchema = z.object({
       inheritToDescendants: z.boolean(),
       deadlineDays: z.number().int().positive().max(3650).nullable().optional(),
       retakeEveryNDays: z.number().int().positive().max(3650).nullable().optional(),
+      /** CONTENT_REVIEW approval: also publish the newly-approved document to the library. */
+      inLibrary: z.boolean().optional(),
     })
     .optional(),
 });

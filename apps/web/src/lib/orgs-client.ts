@@ -70,7 +70,7 @@ export const roles = {
   setPersonFlags: (
     roleId: string,
     profileId: string,
-    flags: { canCreateSubgroups?: boolean; canAddCoOwners?: boolean },
+    flags: { canCreateSubgroups?: boolean; canAddCoOwners?: boolean; canCreateContent?: boolean },
   ) =>
     api<{ ok: boolean }>(`/roles/${roleId}/people/${profileId}`, {
       method: "PATCH",

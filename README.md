@@ -28,10 +28,14 @@ The platform is live end-to-end. What works today:
   inheritance, deadline, recurrence), prerequisites, manual completion, recurrence
   expiry, overdue escalation. Content opens in the **in-app viewer** (complete,
   fullscreen, related documents, rate & review) — never a second tab.
-- **Library** — an organization-wide catalog shelved by dynamic **category tags** (with
-  similarity-based shelf suggestions at upload), filterable by type / shelf / rating,
-  sortable, searchable; detail view shows description, completions, branches using it,
-  and member ratings & comments (written after completing a course).
+- **Library & documents** — an org-wide catalog shelved by dynamic **category tags**,
+  filterable by type / shelf / classification / rating; every document carries a compulsory
+  **classification** (Public/Confidential/Private/Secret), a standard auto-generated cover
+  (org, title, version, date, author) + scope page and header/footer, and an
+  owner-controlled download option. Ratings & comments after completion.
+- **Authoring** — a **Studio** (visual drag-and-drop document builder with live preview)
+  and file upload. Owners publish directly; **members granted content rights propose**
+  documents that publish only after a manager's **Document-review** approval.
 - **Compliance** — a manager tab: per-course compliance for any branch you govern
   (ownership can sit on several levels), non-compliant lists, and one-click reminders
   with a default or custom message.

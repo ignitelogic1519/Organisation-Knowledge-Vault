@@ -3,6 +3,7 @@ import {
   addPersonSchema,
   can,
   canGrantCapability,
+  canProposeContent,
   createSubRoleSchema,
   isSelfOrAncestor,
   isStrictAncestor,
@@ -48,6 +49,7 @@ async function peopleOf(roleNodeId: string): Promise<RolePerson[]> {
     kind: p.kind,
     canCreateSubgroups: p.canCreateSubgroups,
     canAddCoOwners: p.canAddCoOwners,
+    canCreateContent: p.canCreateContent,
   }));
 }
 
@@ -140,6 +142,9 @@ export async function roleRoutes(app: FastifyInstance) {
               n.isPublic &&
               hiddenAnc !== null &&
               !can(placements, "add_people", toRoleRef(hiddenAnc)),
+            canPublishContent: can(placements, "create_content", ref),
+            canProposeContent:
+              !can(placements, "create_content", ref) && canProposeContent(placements, ref),
           };
           return {
             id: n.id,
@@ -216,6 +221,8 @@ export async function roleRoutes(app: FastifyInstance) {
 
       const wantsSubgroups = body.kind === "OWNER" && body.canCreateSubgroups;
       const wantsCoOwnerFlag = body.kind === "OWNER" && body.canAddCoOwners;
+      // Content-creation is a MEMBER grant (owners already publish directly)
+      const wantsCreateContent = body.kind === "MEMBER" && body.canCreateContent;
       if (body.kind === "OWNER" && !can(ctx.placements, "add_co_owner", ref)) {
         return reply.status(403).send({
           error: "You don't have co-owner appointment rights on this branch",
@@ -255,6 +262,7 @@ export async function roleRoutes(app: FastifyInstance) {
         kind: body.kind,
         canCreateSubgroups: wantsSubgroups,
         canAddCoOwners: wantsCoOwnerFlag,
+        canCreateContent: wantsCreateContent,
         addedByProfileId: req.profileId,
       });
       broadcast(ctx.node.orgId, "structure");
@@ -329,8 +337,9 @@ export async function roleRoutes(app: FastifyInstance) {
     },
   );
 
-  // Owner flags — invariant I6: only the layer above (or the root Owner role) may change
-  // them, and never beyond what the granter holds themselves.
+  // Person flags. Content-creation is a MEMBER grant a branch's own owner may set;
+  // owner delegation flags follow invariant I6 (only the layer above), never beyond what
+  // the granter holds themselves.
   app.patch<{ Params: { roleId: string; profileId: string } }>(
     "/roles/:roleId/people/:profileId",
     { preHandler: app.authenticate },
@@ -339,6 +348,24 @@ export async function roleRoutes(app: FastifyInstance) {
       const ctx = await loadContext(req as unknown as RoleReq);
       if (!ctx) return reply.status(404).send({ error: "Role not found" });
       const ref = toRoleRef(ctx.node);
+
+      // MEMBER content-creation grant — set by anyone governing the branch (add_people)
+      if (body.canCreateContent !== undefined) {
+        if (!can(ctx.placements, "add_people", ref)) {
+          return reply.status(403).send({ error: "You don't manage this role" });
+        }
+        const member = await db.placement.findFirst({
+          where: { roleNodeId: ctx.node.id, kind: "MEMBER", membership: { profileId: req.params.profileId } },
+        });
+        if (!member) return reply.status(404).send({ error: "They are not a member of this role" });
+        await db.placement.update({
+          where: { id: member.id },
+          data: { canCreateContent: body.canCreateContent },
+        });
+        broadcast(ctx.node.orgId, "structure");
+        return { ok: true };
+      }
+
       if (!can(ctx.placements, "manage_flags", ref)) {
         return reply
           .status(403)

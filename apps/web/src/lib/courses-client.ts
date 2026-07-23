@@ -18,7 +18,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export const courses = {
   create: (orgId: string, input: CreateCourseInput) =>
-    api<{ code: string }>(`/orgs/${orgId}/courses`, {
+    api<{ code: string; id: string; draft: boolean }>(`/orgs/${orgId}/courses`, {
       method: "POST",
       body: JSON.stringify(input),
     }),
@@ -33,6 +33,23 @@ export const courses = {
       method: "POST",
       body: "{}",
     }),
+  info: (code: string) =>
+    api<{
+      code: string;
+      title: string;
+      kind: import("@vault/shared").CourseKind;
+      version: number;
+      deadlineDays: number | null;
+      retakeEveryNDays: number | null;
+      prerequisiteCodes: string[];
+      description: string | null;
+      scope: string | null;
+      classification: import("@vault/shared").Classification;
+      allowDownload: boolean;
+      publishedAt: string;
+      creatorName: string;
+      draft: boolean;
+    }>(`/courses/${code}`),
   admin: (code: string) => api<CourseAdminView>(`/courses/${code}/admin`),
   grantAccess: (code: string, username: string, level: "VIEW" | "EDIT", canGrant: boolean) =>
     api<{ ok: boolean }>(`/courses/${code}/admin/access`, {

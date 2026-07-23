@@ -461,6 +461,7 @@ function PeoplePanel({
                 kind: addStep,
                 canCreateSubgroups: addStep === "OWNER" && d.get("delegate") === "on",
                 canAddCoOwners: addStep === "OWNER" && d.get("coowners") === "on",
+                canCreateContent: addStep === "MEMBER" && d.get("createContent") === "on",
               }),
             );
             if (ok) {
@@ -487,6 +488,12 @@ function PeoplePanel({
             <input name="username" required placeholder="their-username" autoFocus />
             <small>Unknown usernames are reserved and attach when they register</small>
           </label>
+          {addStep === "MEMBER" && (
+            <label className="ack-row">
+              <input type="checkbox" name="createContent" />
+              <span>May create content (documents publish after your review)</span>
+            </label>
+          )}
           {addStep === "OWNER" && (
             <>
               <p className="auth-sub" style={{ fontSize: "0.8rem" }}>
@@ -597,8 +604,26 @@ function PeoplePanel({
                 <span className="person-main">
                   <span className="person-name">{p.displayName}</span>
                   <span className="person-sub">@{p.username}</span>
+                  {p.canCreateContent && (
+                    <span className="person-chips">
+                      <span className="badge badge-ok">creates content</span>
+                    </span>
+                  )}
                 </span>
                 <span className="person-actions">
+                  <button
+                    className="btn btn-quiet btn-small"
+                    title="Toggle whether this member may propose documents (published after your review)"
+                    onClick={() =>
+                      act(() =>
+                        roles.setPersonFlags(node.id, p.profileId, {
+                          canCreateContent: !p.canCreateContent,
+                        }),
+                      )
+                    }
+                  >
+                    {p.canCreateContent ? "Revoke content" : "Allow content"}
+                  </button>
                   <button
                     className="btn btn-danger btn-small"
                     onClick={async () => {
@@ -1236,9 +1261,25 @@ function InfoDrawer({
           <p className="auth-sub">
             This is one of your positions — your assigned knowledge lives in My Learning.
           </p>
-          <Link className="btn btn-primary btn-small" href={`/orgs/${orgId}/learning`}>
-            Open My Learning
-          </Link>
+          <div className="drawer-actions">
+            <Link className="btn btn-primary btn-small" href={`/orgs/${orgId}/learning`}>
+              Open My Learning
+            </Link>
+            {node.my.canProposeContent && (
+              <Link
+                className="btn btn-quiet btn-small"
+                href={`/orgs/${orgId}/studio?role=${node.id}`}
+              >
+                ✍ Propose a document
+              </Link>
+            )}
+          </div>
+          {node.my.canProposeContent && (
+            <p className="auth-sub" style={{ fontSize: "0.8rem" }}>
+              You can create documents for this branch — they publish after your manager
+              reviews them.
+            </p>
+          )}
         </>
       ) : node.my.canRequestJoin ? (
         <form

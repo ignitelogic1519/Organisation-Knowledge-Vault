@@ -64,7 +64,7 @@ function sanitize(html: string): string {
   return tpl.innerHTML;
 }
 
-function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
+export function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
   switch (block.type) {
     case "heading": {
       const Tag = (`h${block.level ?? 2}`) as "h1" | "h2" | "h3";
@@ -160,12 +160,15 @@ export function CourseViewer({
   onClose,
   onChanged,
   onOpenRelated,
+  readOnly = false,
 }: {
   item: ViewerItem;
   orgName: string;
   onClose: () => void;
   onChanged: () => void;
   onOpenRelated?: (code: string) => void;
+  /** Preview only — hides Mark-complete and Rate & review (e.g. reviewing a draft). */
+  readOnly?: boolean;
 }) {
   const dialogs = useDialogs();
   const frameWrapRef = useRef<HTMLDivElement>(null);
@@ -418,12 +421,12 @@ export function CourseViewer({
               Open externally ↗
             </a>
           )}
-          {completed && (
+          {completed && !readOnly && (
             <button className="btn btn-quiet btn-small" onClick={() => setReviewOpen((v) => !v)}>
               {reviewOpen ? "Hide review" : "★ Rate & review"}
             </button>
           )}
-          {!completed && (
+          {!completed && !readOnly && (
             <button
               className="btn btn-primary btn-small"
               disabled={locked || busy}

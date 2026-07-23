@@ -275,7 +275,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
         id: string; code: string; uploaderRoleNodeId: string; kind: never; title: string;
         description: string | null; scope: string | null; category: string | null;
         classification: never; allowDownload: boolean; archived: boolean; inLibrary: boolean;
-        storageRef: unknown;
+        draft: boolean; storageRef: unknown;
         deadlineDays: number | null; retakeEveryNDays: number | null;
         resetsCompletionOnUpdate: boolean; version: number; createdByProfileId: string;
       }[]) {
@@ -299,6 +299,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             allowDownload: c.allowDownload ?? false,
             archived: c.archived ?? false,
             inLibrary: c.inLibrary ?? false,
+            draft: c.draft ?? false,
             storageRef,
             deadlineDays: c.deadlineDays,
             retakeEveryNDays: c.retakeEveryNDays,

@@ -14,6 +14,7 @@ export async function actorPlacements(profileId: string, orgId: string): Promise
     kind: p.kind,
     canCreateSubgroups: p.canCreateSubgroups,
     canAddCoOwners: p.canAddCoOwners,
+    canCreateContent: p.canCreateContent,
   }));
 }
 
@@ -29,6 +30,7 @@ export async function placePerson(opts: {
   kind: "OWNER" | "MEMBER";
   canCreateSubgroups: boolean;
   canAddCoOwners?: boolean;
+  canCreateContent?: boolean;
   addedByProfileId: string;
 }): Promise<void> {
   await db.$transaction(async (tx) => {
@@ -51,6 +53,7 @@ export async function placePerson(opts: {
         kind: opts.kind,
         canCreateSubgroups: opts.canCreateSubgroups,
         canAddCoOwners: opts.canAddCoOwners ?? false,
+        canCreateContent: opts.canCreateContent ?? false,
         addedByProfileId: opts.addedByProfileId,
       },
       update: {},
@@ -71,6 +74,7 @@ export async function acceptPendingInvitations(profileId: string, username: stri
       kind: invite.kind,
       canCreateSubgroups: invite.canCreateSubgroups,
       canAddCoOwners: invite.canAddCoOwners,
+      canCreateContent: invite.canCreateContent,
       addedByProfileId: invite.invitedByProfileId,
     });
     await db.invitation.update({
