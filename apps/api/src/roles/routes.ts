@@ -15,6 +15,7 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { audit } from "../security.js";
 import { actorPlacements, placePerson, toRoleRef } from "./helpers.js";
 
 type RoleReq = FastifyRequest<{ Params: { roleId: string } }>;
@@ -264,6 +265,11 @@ export async function roleRoutes(app: FastifyInstance) {
         canAddCoOwners: wantsCoOwnerFlag,
         canCreateContent: wantsCreateContent,
         addedByProfileId: req.profileId,
+      });
+      await audit(ctx.node.orgId, "person.add", {
+        actorProfileId: req.profileId,
+        ip: req.ip,
+        detail: { username, kind: body.kind, roleId: ctx.node.id },
       });
       broadcast(ctx.node.orgId, "structure");
       return { ok: true, invited: false };

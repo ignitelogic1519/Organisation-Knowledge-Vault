@@ -13,6 +13,7 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { audit, sanitizeBlocks } from "../security.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import {
@@ -79,7 +80,7 @@ export async function courseRoutes(app: FastifyInstance) {
 
       let ref: StorageRef;
       if (body.blocks) {
-        ref = await storage.saveAuthored(body.blocks);
+        ref = await storage.saveAuthored(sanitizeBlocks(body.blocks));
       } else if (body.url) {
         ref = await storage.saveLink(body.url);
       } else if (body.fileBase64 && body.filename && body.mime) {
@@ -239,9 +240,15 @@ export async function courseRoutes(app: FastifyInstance) {
           .send({ error: "The owner has not enabled downloads for this document" });
       }
       const disposition = wantsDownload ? "attachment" : "inline";
+      // Harden inline serving: an uploaded HTML/SVG must never run with our privileges.
+      // A locked-down CSP, no MIME sniffing, and frame limits neutralize stored-content XSS.
       reply
         .header("content-type", content.file!.mime)
-        .header("content-disposition", `${disposition}; filename="${content.file!.filename}"`);
+        .header("content-disposition", `${disposition}; filename="${content.file!.filename}"`)
+        .header("content-security-policy", "default-src 'none'; img-src data: blob:; media-src blob: data:; style-src 'unsafe-inline'; sandbox")
+        .header("x-content-type-options", "nosniff")
+        .header("x-frame-options", "SAMEORIGIN")
+        .header("referrer-policy", "no-referrer");
       return reply.send(content.file!.data);
     },
   );
@@ -382,7 +389,7 @@ export async function courseRoutes(app: FastifyInstance) {
       let ref = course.storageRef as unknown as StorageRef;
       let contentChanged = false;
       if (body.blocks) {
-        ref = await storage.saveAuthored(body.blocks);
+        ref = await storage.saveAuthored(sanitizeBlocks(body.blocks));
         contentChanged = true;
       } else if (body.url) {
         ref = await storage.saveLink(body.url);
@@ -606,6 +613,11 @@ export async function courseRoutes(app: FastifyInstance) {
           : []),
         db.course.delete({ where: { id: course.id } }),
       ]);
+      await audit(course.orgId, "course.delete", {
+        actorProfileId: req.profileId,
+        ip: req.ip,
+        detail: { code: course.code, title: course.title },
+      });
       broadcast(course.orgId, "courses");
       return { ok: true, releasedPrerequisiteLinks: releasedPrereqs };
     },

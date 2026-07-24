@@ -36,6 +36,7 @@ const PALETTE: { type: AuthoredBlock["type"]; label: string; icon: string; hint:
   { type: "image", label: "Image", icon: "🖼", hint: "Picture by URL" },
   { type: "media", label: "Media", icon: "▶", hint: "Audio or video" },
   { type: "divider", label: "Divider", icon: "—", hint: "Section break" },
+  { type: "pagebreak", label: "New page", icon: "⤓", hint: "Start a new page (books)" },
 ];
 
 function RichArea({
@@ -180,6 +181,8 @@ function BlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) =
       );
     case "divider":
       return <hr className="doc-divider" />;
+    case "pagebreak":
+      return <div className="studio-pagebreak">⤓ New page starts here</div>;
     default:
       return null;
   }
@@ -221,7 +224,9 @@ function StudioInner() {
   });
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [busy, setBusy] = useState(false);
+  const [restored, setRestored] = useState(false);
   const dragIndex = useRef<number | null>(null);
+  const draftKey = `kv.studio.${org.id}.${roleId ?? "none"}`;
 
   useEffect(() => {
     if (!roleId) return;
@@ -233,6 +238,38 @@ function StudioInner() {
       })
       .catch(() => setNode(null));
   }, [org.id, roleId]);
+
+  // Autosave recovery: restore an unsaved draft for this branch (survives reloads/crashes)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { blocks?: AuthoredBlock[]; meta?: typeof meta };
+        if (parsed.blocks?.length) setBlocks(parsed.blocks.map(mk));
+        if (parsed.meta) setMeta((m) => ({ ...m, ...parsed.meta }));
+      }
+    } catch {
+      /* ignore corrupt draft */
+    }
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  // Debounced autosave — only after the initial restore, so we don't overwrite it
+  useEffect(() => {
+    if (!restored) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify({ blocks: blocks.map(({ _id, ...b }) => b), meta }),
+        );
+      } catch {
+        /* storage full — ignore */
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [blocks, meta, restored, draftKey]);
 
   const update = useCallback((id: number, b: Block) => {
     setBlocks((prev) => prev.map((x) => (x._id === id ? b : x)));
@@ -326,6 +363,11 @@ function StudioInner() {
         dialogs.toast(`Published ${created.code} to ${node.name}.`, "success");
       } else {
         dialogs.toast("Sent to your branch manager for review.", "success");
+      }
+      try {
+        localStorage.removeItem(draftKey); // published — clear the recovery draft
+      } catch {
+        /* ignore */
       }
       router.push(created.draft ? `/orgs/${org.id}/requests` : `/orgs/${org.id}`);
     } catch (err) {

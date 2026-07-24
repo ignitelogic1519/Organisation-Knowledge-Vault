@@ -1,3 +1,4 @@
+import { gzipSync, gunzipSync } from "node:zlib";
 import { db } from "../db.js";
 
 // The storage adapter PORT (docs/architecture.md §4). Each organization's media lives behind
@@ -26,7 +27,9 @@ export const storage = {
     return { adapter: "link", url };
   },
 
-  /** Inline adapter: small files in Postgres — free-tier friendly, capped at 2 MB. */
+  /** Inline adapter: small files in Postgres — free-tier friendly, capped at 2 MB.
+   *  Bytes are gzip-compressed at rest (transparently inflated on read) so the DB stays
+   *  lean; the user always sees the original, correctly-formatted file. */
   async saveInline(
     orgId: string,
     filename: string,
@@ -41,10 +44,19 @@ export const storage = {
         { statusCode: 413 },
       );
     }
+    // Store the smaller of {gzipped, raw} — tiny/already-compressed files don't shrink
+    const gz = gzipSync(data);
+    const useGz = gz.length < data.length;
     const row = await db.storedFile.create({
-      data: { orgId, filename, mime, size: data.length, data },
+      data: {
+        orgId,
+        filename,
+        mime,
+        size: data.length, // original size (what the user downloads)
+        data: useGz ? gz : data,
+      },
     });
-    return { adapter: "inline", fileId: row.id };
+    return { adapter: "inline", fileId: row.id, gz: useGz };
   },
 
   /** Studio-authored interactive documents: the blocks live inside the ref itself. */
@@ -61,7 +73,10 @@ export const storage = {
       case "inline": {
         const row = await db.storedFile.findUnique({ where: { id: String(ref.fileId) } });
         if (!row) throw Object.assign(new Error("Stored file is missing"), { statusCode: 404 });
-        return { file: { filename: row.filename, mime: row.mime, data: Buffer.from(row.data) } };
+        const stored = Buffer.from(row.data);
+        // Inflate when compressed; fall back to raw for legacy rows without the flag
+        const data = ref.gz ? gunzipSync(stored) : stored;
+        return { file: { filename: row.filename, mime: row.mime, data } };
       }
       case "unreachable":
         // Post-revival marker (docs/structure.md §5.1): media listed but needs reconnection

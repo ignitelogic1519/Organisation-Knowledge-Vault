@@ -117,6 +117,8 @@ export const auth = {
     authCall("/auth/register", { username, password, displayName }),
   login: (username: string, password: string) => authCall("/auth/login", { username, password }),
   me: () => api<{ profile: PublicProfile }>("/me"),
+  updateMe: (input: { displayName?: string; avatar?: string | null }) =>
+    api<{ profile: PublicProfile }>("/me", { method: "PATCH", body: JSON.stringify(input) }),
   deleteMe: () => api<{ ok: boolean }>("/me", { method: "DELETE" }),
   logout: async () => {
     const refreshToken = localStorage.getItem(REFRESH_KEY);

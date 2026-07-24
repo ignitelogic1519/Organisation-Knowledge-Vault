@@ -124,8 +124,18 @@ export function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
         )
       ) : null;
     default:
-      return null;
+      return null; // pagebreak is handled by the pager, not rendered inline
   }
+}
+
+/** Split authored blocks into pages on every pagebreak. */
+export function paginate(blocks: AuthoredBlock[]): AuthoredBlock[][] {
+  const pages: AuthoredBlock[][] = [[]];
+  for (const b of blocks) {
+    if (b.type === "pagebreak") pages.push([]);
+    else pages[pages.length - 1].push(b);
+  }
+  return pages.filter((p) => p.length > 0);
 }
 
 function Stars({
@@ -181,8 +191,10 @@ export function CourseViewer({
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [showCover, setShowCover] = useState(true);
+  const [page, setPage] = useState(0);
   const locked = item.missingPrerequisites.length > 0;
   const completed = item.status === "COMPLETED";
+  const pages = authored ? paginate(authored) : [];
 
   // Load the content: files → blob URL, links → embed URL, authored → block array
   useEffect(() => {
@@ -333,14 +345,35 @@ export function CourseViewer({
               {!src && !authored && !loadError && (
                 <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
               )}
-              {/* Studio-authored: render natively inside the standard document sheet */}
+              {/* Studio-authored: render natively, paginated (books turn page by page) */}
               {authored && (
                 <div className="doc-authored">
                   <article className="doc-sheet">
-                    {authored.map((b, i) => (
+                    {(pages[page] ?? []).map((b, i) => (
                       <AuthoredBlockView key={i} block={b} />
                     ))}
                   </article>
+                  {pages.length > 1 && (
+                    <div className="doc-pager glass-strong">
+                      <button
+                        className="btn btn-quiet btn-small"
+                        disabled={page === 0}
+                        onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      >
+                        ← Prev
+                      </button>
+                      <span className="auth-sub">
+                        Page {page + 1} of {pages.length}
+                      </span>
+                      <button
+                        className="btn btn-quiet btn-small"
+                        disabled={page >= pages.length - 1}
+                        onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               {/* Uploaded file: same-origin blob, NOT sandboxed → PDF viewer works */}

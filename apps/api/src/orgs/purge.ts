@@ -17,6 +17,7 @@ export async function purgeOrganization(orgId: string): Promise<void> {
     db.membership.deleteMany({ where: { orgId } }),
     db.roleNode.deleteMany({ where: { orgId } }),
     db.supremeAudit.deleteMany({ where: { orgId } }),
+    db.auditLog.deleteMany({ where: { orgId } }),
     db.organization.delete({ where: { id: orgId } }),
   ]);
 }

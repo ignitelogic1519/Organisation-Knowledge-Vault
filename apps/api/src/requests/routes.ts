@@ -12,6 +12,7 @@ import {
 import type { RoleNode, VaultRequest } from "@prisma/client";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { audit } from "../security.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { ownersAbove } from "../roles/routes.js";
 import { isSelfOrAncestor } from "@vault/shared";
@@ -514,6 +515,11 @@ export async function requestRoutes(app: FastifyInstance) {
         roleName: node.name,
         approved: body.approve,
         note: body.decisionNote ?? null,
+      });
+      await audit(request.orgId, "request.decide", {
+        actorProfileId: req.profileId,
+        ip: req.ip,
+        detail: { kind: request.kind, approved: body.approve, roleName: node.name },
       });
       broadcast(request.orgId, "requests");
       broadcast(

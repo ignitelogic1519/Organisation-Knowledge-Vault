@@ -299,6 +299,10 @@ export async function complianceRoutes(app: FastifyInstance) {
         },
       })
     ).count;
+    // Forensic audit log kept longer (90 days) — trimmed here so it can't grow unbounded
+    await db.auditLog.deleteMany({
+      where: { createdAt: { lt: new Date(Date.now() - 90 * 86400_000) } },
+    });
 
     // 1. Recurrence: completions past validUntil expire and re-assign (structure.md §3.4)
     const dueRecords = await db.completionRecord.findMany({

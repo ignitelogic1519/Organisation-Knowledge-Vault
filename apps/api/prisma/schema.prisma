@@ -67,9 +67,24 @@ model Profile {
   username     String       @unique
   passwordHash String?
   displayName  String
+  avatar       String? // small data-URL profile picture (optional)
   createdAt    DateTime     @default(now())
   memberships  Membership[]
   refreshTokens RefreshToken[]
+}
+
+// Tamper-evident record of sensitive governance actions (people, courses, requests,
+// backups, deletions). Append-only; the nightly job trims entries past retention.
+model AuditLog {
+  id             String   @id @default(uuid())
+  orgId          String
+  actorProfileId String?
+  action         String // e.g. "person.add" | "course.delete" | "request.decide"
+  detail         Json?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  @@index([orgId, createdAt])
 }
 
 // Opaque rotating refresh tokens — only the hash is stored (architecture.md §8)

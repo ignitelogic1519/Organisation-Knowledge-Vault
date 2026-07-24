@@ -9,7 +9,17 @@ import type { Classification, CompletionStatus, CourseKind } from "./types.js";
  * HTML and sanitized (whitelist) at render time.
  */
 export const authoredBlockSchema = z.object({
-  type: z.enum(["heading", "paragraph", "table", "media", "card", "checklist", "image", "divider"]),
+  type: z.enum([
+    "heading",
+    "paragraph",
+    "table",
+    "media",
+    "card",
+    "checklist",
+    "image",
+    "divider",
+    "pagebreak", // starts a new page — books & multi-page documents
+  ]),
   /** heading/paragraph/card: limited HTML; image/media: url; table: unused */
   html: z.string().max(20_000).optional(),
   level: z.number().int().min(1).max(3).optional(), // heading level

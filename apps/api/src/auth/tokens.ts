@@ -20,6 +20,7 @@ export function toPublicProfile(p: Profile): PublicProfile {
     id: p.id,
     username: p.username,
     displayName: p.displayName,
+    avatar: p.avatar ?? null,
     createdAt: p.createdAt.toISOString(),
   };
 }

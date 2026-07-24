@@ -325,3 +325,22 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
   days** (nightly job + opportunistic on read).
 - **Passwords**: every new password (registration, org creation, backup export) must be
   retyped to confirm.
+
+### 8.6 Security, storage & authoring hardening (2026-07-24)
+- **Rate limiting**: credential endpoints (`/auth/login`, `/auth/register`) are throttled
+  per IP (10 / 5 min); `/auth/refresh` looser (60 / 5 min). In-memory (single-instance).
+- **Content sanitization**: authored document HTML is sanitized server-side (tag/attribute
+  whitelist) on create AND update — defence-in-depth over the client sanitizer — so a
+  member author cannot land stored XSS.
+- **Content-route hardening**: inline file serving carries a locked-down CSP
+  (`default-src 'none'; … sandbox`), `X-Content-Type-Options: nosniff`, `X-Frame-Options`
+  and `Referrer-Policy` — an uploaded HTML/SVG can never execute with our privileges.
+- **Audit log**: a general append-only `AuditLog` records sensitive governance actions
+  (`person.add`, `course.delete`, `request.decide`, …) with actor + ip; 90-day retention.
+- **Inline files are gzip-compressed at rest** (transparently inflated on read); the user
+  always gets the original, correctly-formatted file. Storage adapter port stays open for
+  NAS / Google Drive / OneDrive backends (client's choice, TBD).
+- **Studio**: multi-page documents via a `pagebreak` block (books turn page-by-page in the
+  viewer) and **localStorage autosave** (draft recovery, cleared on publish).
+- **Profiles**: optional profile picture — a client-downscaled 256px JPEG data URL,
+  size-capped and type-checked server-side.

@@ -109,3 +109,34 @@ gets recommendations from THEIR org's library only.
 
 Prereqs for both: an LLM provider decision + per-org API budget, and a text-extraction
 step in the storage adapter port. Ship 11a first — it needs no index.
+
+
+## 12. Storage backends — NAS / Google Drive / OneDrive (open)
+The storage adapter port (`apps/api/src/storage/adapter.ts`, `storageRef.adapter`) is kept
+deliberately open. v1 ships `inline` (gzip-compressed Postgres bytes, ≤2 MB), `link`, and
+`authored` (Studio blocks). The organization's real media backend — NAS, Google Drive,
+OneDrive, or S3 — is a client decision still TBD; each becomes a new adapter behind the same
+`saveInline`/`resolve` port with no course-logic changes. Large-media upload pipelines,
+previews, and per-org backend selection land here.
+
+## 13. Enterprise features to consider (SNOW / Veeva Vault / Confluence)
+A running backlog of proven ideas from mature platforms, ranked roughly by value/effort:
+- **Document lifecycle & e-signatures (Veeva Vault)**: Draft → In Review → Approved →
+  Effective → Superseded states, controlled-copy watermarks, and 21 CFR Part 11-style signed
+  approvals. Our draft/review flow is the seed; add explicit states + signature capture.
+- **Version history & compare (Confluence)**: per-document version list with restore and a
+  visual diff. Version already increments; surface history + rollback.
+- **Full-text search (Confluence/SNOW)**: Postgres `tsvector` across titles, descriptions and
+  authored/extracted text; later the pgvector semantic search (see §11).
+- **Spaces / labels / templates (Confluence)**: reusable document templates in the Studio,
+  cross-branch label taxonomy, saved views.
+- **Approvals & flows (ServiceNow)**: multi-step approval chains, SLAs on requests, escalation
+  timers, and a visual flow designer for course assignment rules.
+- **Knowledge feedback loop (SNOW KB)**: "was this helpful?", flag-for-review, and staleness
+  reminders that nudge owners to re-verify aging documents.
+- **Audit & reporting (all)**: surface the AuditLog in an owner-facing report; CSV/PDF export
+  of compliance; scheduled digest emails once a channel exists.
+- **Delegated administration & groups (SNOW)**: reusable people-groups placed as a unit, and
+  time-boxed/temporary access grants.
+- **Bulk operations**: bulk assign/remove people, bulk course placement, CSV import of an org
+  structure.

@@ -37,8 +37,16 @@ export interface PublicProfile {
   id: string;
   username: string;
   displayName: string;
+  avatar: string | null;
   createdAt: string;
 }
+
+export const updateProfileSchema = z.object({
+  displayName: z.string().min(1).max(80).optional(),
+  /** Small data-URL image (validated & size-capped server-side), or null to clear. */
+  avatar: z.string().max(400_000).nullable().optional(),
+});
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 export interface AuthTokens {
   /** Short-lived JWT sent as `Authorization: Bearer <token>`. */

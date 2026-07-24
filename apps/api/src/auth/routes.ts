@@ -2,11 +2,17 @@ import { hash, verify as argonVerify } from "@node-rs/argon2";
 import type { FastifyInstance } from "fastify";
 import { loginSchema, refreshSchema, registerSchema, type AuthResponse } from "@vault/shared";
 import { db } from "../db.js";
+import { rateLimiter } from "../security.js";
 import { acceptPendingInvitations } from "../roles/helpers.js";
 import { issueTokens, revokeRefreshToken, rotateRefreshToken, toPublicProfile } from "./tokens.js";
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/auth/register", async (req, reply): Promise<AuthResponse> => {
+  // Credential endpoints are the classic brute-force / enumeration surface — throttle
+  // hard per IP (10 login/register attempts per 5 min; refresh a bit looser).
+  const authLimit = { preHandler: rateLimiter("auth", 10, 5 * 60_000) };
+  const refreshLimit = { preHandler: rateLimiter("refresh", 60, 5 * 60_000) };
+
+  app.post("/auth/register", authLimit, async (req, reply): Promise<AuthResponse> => {
     const body = registerSchema.parse(req.body);
     const username = body.username.toLowerCase();
 
@@ -28,7 +34,7 @@ export async function authRoutes(app: FastifyInstance) {
     return { profile: toPublicProfile(profile), tokens: await issueTokens(profile) };
   });
 
-  app.post("/auth/login", async (req, reply): Promise<AuthResponse> => {
+  app.post("/auth/login", authLimit, async (req, reply): Promise<AuthResponse> => {
     const body = loginSchema.parse(req.body);
     const profile = await db.profile.findUnique({
       where: { username: body.username.toLowerCase() },
@@ -40,7 +46,7 @@ export async function authRoutes(app: FastifyInstance) {
     return { profile: toPublicProfile(profile), tokens: await issueTokens(profile) };
   });
 
-  app.post("/auth/refresh", async (req, reply): Promise<AuthResponse> => {
+  app.post("/auth/refresh", refreshLimit, async (req, reply): Promise<AuthResponse> => {
     const body = refreshSchema.parse(req.body);
     const profile = await rotateRefreshToken(body.refreshToken);
     if (!profile) {

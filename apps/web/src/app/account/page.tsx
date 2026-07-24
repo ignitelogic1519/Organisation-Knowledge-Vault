@@ -15,6 +15,34 @@ const NAV = [
   { href: "/help", label: "Help", icon: <IconHelp /> },
 ];
 
+// Downscale + re-encode a chosen image to a small square JPEG data URL (client-side),
+// so the avatar upload stays tiny regardless of the source photo.
+function fileToAvatar(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas unavailable"));
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const dialogs = useDialogs();
@@ -31,6 +59,16 @@ export default function AccountPage() {
       .then((res) => setProfile(res.profile))
       .catch(() => router.replace("/login"));
   }, [router]);
+
+  const saveAvatar = async (avatar: string | null) => {
+    try {
+      const res = await auth.updateMe({ avatar });
+      setProfile(res.profile);
+      dialogs.toast(avatar ? "Profile picture updated." : "Profile picture removed.", "success");
+    } catch (e) {
+      dialogs.toast(e instanceof ApiError ? e.message : "Could not update", "danger");
+    }
+  };
 
   return (
     <AppShell
@@ -54,10 +92,52 @@ export default function AccountPage() {
       ) : (
         <div className="panel-grid stagger">
           <div className="panel glass">
-            <h2>{profile.displayName}</h2>
-            <p className="auth-sub">
-              @{profile.username} · joined {profile.createdAt.slice(0, 10)}
-            </p>
+            <div className="avatar-edit">
+              {profile.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="avatar-xl avatar-img" src={profile.avatar} alt="" />
+              ) : (
+                <span className="avatar avatar-xl" aria-hidden>
+                  {profile.displayName
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w) => w[0]!.toUpperCase())
+                    .join("")}
+                </span>
+              )}
+              <div>
+                <h2>{profile.displayName}</h2>
+                <p className="auth-sub">
+                  @{profile.username} · joined {profile.createdAt.slice(0, 10)}
+                </p>
+                <div className="tree-actions" style={{ marginTop: "0.4rem" }}>
+                  <label className="btn btn-quiet btn-small" style={{ cursor: "pointer" }}>
+                    {profile.avatar ? "Change picture" : "Upload picture"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        try {
+                          await saveAvatar(await fileToAvatar(file));
+                        } catch {
+                          dialogs.toast("Could not read that image.", "danger");
+                        }
+                      }}
+                    />
+                  </label>
+                  {profile.avatar && (
+                    <button className="btn btn-quiet btn-small" onClick={() => saveAvatar(null)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="account-row">
               <span>Username</span>
               <span className="badge badge-ok">@{profile.username}</span>
