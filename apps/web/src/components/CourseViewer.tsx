@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuthoredBlock, Classification, LearningItem } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
+import { PdfView } from "./PdfView";
 import { useDialogs } from "./dialogs";
 
 // The in-app course viewer: content opens INSIDE the app — no second tab. Every document
@@ -40,23 +41,6 @@ const CLASS_LABEL: Record<Classification, string> = {
   SECRET: "Secret",
 };
 
-/** Types the browser renders safely inline — everything else is download-only. */
-const SAFE_INLINE = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/gif",
-  "image/webp",
-  "image/bmp",
-  "audio/mpeg",
-  "audio/mp4",
-  "audio/ogg",
-  "audio/wav",
-  "video/mp4",
-  "video/webm",
-  "video/ogg",
-  "text/plain",
-]);
 
 /** Minimal HTML whitelist for authored rich text (defence-in-depth on top of the API). */
 function sanitize(html: string): string {
@@ -200,9 +184,11 @@ export function CourseViewer({
 }) {
   const dialogs = useDialogs();
   const frameWrapRef = useRef<HTMLDivElement>(null);
-  const [src, setSrc] = useState<string | null>(null);
+  const [src, setSrc] = useState<string | null>(null); // external link URL only
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
   const [authored, setAuthored] = useState<AuthoredBlock[] | null>(null);
+  // Uploaded file: rendered natively by kind (pdf via PDF.js, image/media via tags)
+  const [file, setFile] = useState<{ kind: "pdf" | "image" | "audio" | "video" | "text"; url: string; buf: ArrayBuffer; text?: string } | null>(null);
   const [unpreviewable, setUnpreviewable] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -215,13 +201,15 @@ export function CourseViewer({
   const completed = item.status === "COMPLETED";
   const pages = authored ? paginate(authored) : [];
 
-  // Load the content: files → blob URL, links → embed URL, authored → block array
+  // Load the content: files render natively by kind (PDF via PDF.js so it never depends
+  // on the browser's flaky iframe PDF viewer); links embed; authored → block array.
   useEffect(() => {
     let blobUrl: string | null = null;
     let cancelled = false;
     setSrc(null);
     setAuthored(null);
     setExternalUrl(null);
+    setFile(null);
     setUnpreviewable(null);
     setLoadError(null);
     (async () => {
@@ -231,7 +219,7 @@ export function CourseViewer({
           const err = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(err.error ?? "Could not load the content");
         }
-        const type = res.headers.get("content-type") ?? "";
+        const type = (res.headers.get("content-type") ?? "").split(";")[0];
         if (type.includes("application/json")) {
           const data = (await res.json()) as { url?: string; authored?: AuthoredBlock[] };
           if (cancelled) return;
@@ -241,16 +229,32 @@ export function CourseViewer({
             setSrc(data.url);
           }
         } else {
-          const blob = await res.blob();
-          // Only render types the browser shows safely inline; a blob: URL is
-          // same-origin, so an HTML/SVG blob would execute in our context — those are
-          // offered as a download instead of framed.
-          if (SAFE_INLINE.has((blob.type || "").split(";")[0])) {
-            blobUrl = URL.createObjectURL(blob);
-            if (!cancelled) setSrc(blobUrl);
-          } else if (!cancelled) {
-            setUnpreviewable(blob.type || "this file type");
+          const buf = await res.arrayBuffer();
+          if (cancelled) return;
+          const kind =
+            type === "application/pdf"
+              ? "pdf"
+              : type.startsWith("image/")
+                ? "image"
+                : type.startsWith("audio/")
+                  ? "audio"
+                  : type.startsWith("video/")
+                    ? "video"
+                    : type === "text/plain"
+                      ? "text"
+                      : null;
+          if (!kind) {
+            // Not a browser-renderable type (e.g. an Office doc) — offer a download
+            setUnpreviewable(type || "this file type");
+            return;
           }
+          blobUrl = URL.createObjectURL(new Blob([buf], { type }));
+          setFile({
+            kind,
+            url: blobUrl,
+            buf,
+            text: kind === "text" ? new TextDecoder().decode(buf) : undefined,
+          });
         }
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Could not load");
@@ -369,7 +373,7 @@ export function CourseViewer({
           {!showCover && (
             <>
               {loadError && <p className="form-error viewer-note">{loadError}</p>}
-              {!src && !authored && !unpreviewable && !loadError && (
+              {!src && !authored && !file && !unpreviewable && !loadError && (
                 <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
               )}
               {/* Type that can't render safely inline (e.g. an Office doc) — offer download */}
@@ -421,10 +425,25 @@ export function CourseViewer({
                   )}
                 </div>
               )}
-              {/* Uploaded file: same-origin blob, NOT sandboxed → PDF viewer works */}
-              {src && !externalUrl && (
-                <iframe className="viewer-frame" src={src} title={item.title} allowFullScreen />
+              {/* Uploaded file: rendered natively by kind (never the flaky iframe PDF) */}
+              {file?.kind === "pdf" && <PdfView data={file.buf} />}
+              {file?.kind === "image" && (
+                <div className="viewer-media-wrap">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img className="viewer-media-img" src={file.url} alt={item.title} />
+                </div>
               )}
+              {file?.kind === "video" && (
+                <div className="viewer-media-wrap">
+                  <video className="viewer-media-el" controls src={file.url} />
+                </div>
+              )}
+              {file?.kind === "audio" && (
+                <div className="viewer-media-wrap">
+                  <audio className="viewer-media-el" controls src={file.url} />
+                </div>
+              )}
+              {file?.kind === "text" && <pre className="viewer-text">{file.text}</pre>}
               {/* External link: sandboxed, with a fallback when the host refuses embedding */}
               {src && externalUrl && (
                 <>
