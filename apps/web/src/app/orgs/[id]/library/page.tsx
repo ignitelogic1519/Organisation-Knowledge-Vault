@@ -149,8 +149,8 @@ function CourseDetail({
           </div>
 
           {compliance && showCompliance && (
-            <div className="compliance-panel glass">
-              <div className="compliance-head">
+            <div className="libc-panel glass">
+              <div className="libc-head">
                 <h4 className="learning-h" style={{ margin: 0 }}>
                   {compliance.mandatory ? "Mandatory compliance" : "Completion"}
                 </h4>
@@ -160,13 +160,13 @@ function CourseDetail({
               </div>
               {compliance.mandatory ? (
                 <>
-                  <div className="compliance-bar" role="img" aria-label={`${pct}% compliant`}>
+                  <div className="libc-bar" role="img" aria-label={`${pct}% compliant`}>
                     <div
-                      className="compliance-bar-fill"
+                      className="libc-bar-fill"
                       style={{ width: `${pct}%` }}
                       data-level={pct >= 80 ? "ok" : pct >= 50 ? "warn" : "low"}
                     />
-                    <span className="compliance-bar-label">{pct}% compliant</span>
+                    <span className="libc-bar-label">{pct}% compliant</span>
                   </div>
                   <div className="library-facts" style={{ marginTop: "0.7rem" }}>
                     <div className="library-fact">
@@ -200,11 +200,11 @@ function CourseDetail({
 
               {compliance.nonCompliantMembers.length > 0 && (
                 <>
-                  <h5 className="compliance-sub">
+                  <h5 className="libc-sub">
                     {compliance.mandatory ? "Non-compliant" : "Not yet completed"} ·{" "}
                     {compliance.nonCompliantMembers.length}
                   </h5>
-                  <ul className="people-list compliance-list">
+                  <ul className="people-list libc-list">
                     {compliance.nonCompliantMembers.map((m) => (
                       <li key={`${m.profileId}:${m.viaRoleName}`} className="person-card">
                         <span className="person-main">
@@ -225,11 +225,11 @@ function CourseDetail({
 
               {compliance.compliantMembers.length > 0 && (
                 <>
-                  <h5 className="compliance-sub">
+                  <h5 className="libc-sub">
                     {compliance.mandatory ? "Compliant" : "Completed"} ·{" "}
                     {compliance.compliantMembers.length}
                   </h5>
-                  <ul className="people-list compliance-list">
+                  <ul className="people-list libc-list">
                     {compliance.compliantMembers.map((m) => (
                       <li key={`${m.profileId}:${m.viaRoleName}`} className="person-card">
                         <span className="person-main">
