@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "prisma migrate deploy && tsx watch src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "start": "prisma migrate deploy && node dist/server.js",
     "start:prod": "prisma migrate deploy && node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -18,10 +18,10 @@
     "fastify": "^5.2.0",
     "fastify-plugin": "^6.0.0",
     "jose": "^6.2.3",
+    "prisma": "6",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "prisma": "6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

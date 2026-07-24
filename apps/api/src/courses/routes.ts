@@ -277,19 +277,18 @@ export async function courseRoutes(app: FastifyInstance) {
           .send({ error: "The owner has not enabled downloads for this document" });
       }
 
-      // Serve the CORRECT, sniffed content-type — many files are uploaded as a generic
-      // "application/octet-stream", which the browser (with nosniff) then refuses to
-      // render. Safe types (PDF, images, media, plain text) may render inline; anything
-      // that could execute in our origin (HTML, SVG, scripts) is forced to download so
-      // nosniff can't be defeated. This keeps stored-XSS neutralized WITHOUT breaking
-      // legitimate document viewing.
+      // Serve the CORRECT content-type sniffed from magic bytes (many files upload as a
+      // generic "application/octet-stream"). Security comes from WHAT we allow inline:
+      // only safe-to-render types (PDF, images, media, plain text) are shown in-page;
+      // anything that could execute in our origin (HTML, SVG, unknown) is forced to
+      // download. We deliberately do NOT send `nosniff` here — it broke legitimate PDF
+      // rendering across browsers, and the download-gating already neutralizes the risk.
       const served = sniffMime(content.file!.data, content.file!.mime);
       const dangerous = !SAFE_INLINE_TYPES.has(served);
       const disposition = wantsDownload || dangerous ? "attachment" : "inline";
       reply
         .header("content-type", served)
         .header("content-disposition", `${disposition}; filename="${content.file!.filename}"`)
-        .header("x-content-type-options", "nosniff")
         .header("x-frame-options", "SAMEORIGIN")
         .header("referrer-policy", "no-referrer");
       return reply.send(content.file!.data);

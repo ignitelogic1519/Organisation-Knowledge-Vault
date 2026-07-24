@@ -36,7 +36,18 @@ app.setErrorHandler((err: unknown, _req, reply) => {
     typeof err === "object" && err !== null && "statusCode" in err
       ? Number((err as { statusCode?: number }).statusCode) || 500
       : 500;
-  return reply.status(statusCode).send({ error: "Something went wrong" });
+  // Surface a readable reason instead of a blank "Something went wrong" — a bare generic
+  // message makes real problems (e.g. a schema drift after a missed migration)
+  // undebuggable. We send the error's message text only (never a stack trace).
+  const message =
+    err instanceof Error && err.message
+      ? err.message
+      : "Something went wrong";
+  // Prisma "column does not exist" errors mean the database is behind the code
+  const hint = /column .* does not exist|relation .* does not exist/i.test(message)
+    ? " (the database is missing a migration — run `prisma migrate deploy`)"
+    : "";
+  return reply.status(statusCode).send({ error: `${message}${hint}` });
 });
 
 await app.register(authenticatePlugin);
