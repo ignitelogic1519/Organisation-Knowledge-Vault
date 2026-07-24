@@ -2411,6 +2411,24 @@ button {
   pointer-events: auto;
 }
 
+.viewer-unpreviewable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+}
+
+.viewer-unprev-icon {
+  font-size: 2.4rem;
+  color: var(--accent);
+}
+
 .viewer-note a {
   color: var(--accent);
 }

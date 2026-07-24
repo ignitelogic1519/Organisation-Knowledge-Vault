@@ -40,6 +40,24 @@ const CLASS_LABEL: Record<Classification, string> = {
   SECRET: "Secret",
 };
 
+/** Types the browser renders safely inline — everything else is download-only. */
+const SAFE_INLINE = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/wav",
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "text/plain",
+]);
+
 /** Minimal HTML whitelist for authored rich text (defence-in-depth on top of the API). */
 function sanitize(html: string): string {
   if (typeof document === "undefined") return html;
@@ -185,6 +203,7 @@ export function CourseViewer({
   const [src, setSrc] = useState<string | null>(null);
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
   const [authored, setAuthored] = useState<AuthoredBlock[] | null>(null);
+  const [unpreviewable, setUnpreviewable] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -203,6 +222,7 @@ export function CourseViewer({
     setSrc(null);
     setAuthored(null);
     setExternalUrl(null);
+    setUnpreviewable(null);
     setLoadError(null);
     (async () => {
       try {
@@ -222,8 +242,15 @@ export function CourseViewer({
           }
         } else {
           const blob = await res.blob();
-          blobUrl = URL.createObjectURL(blob);
-          if (!cancelled) setSrc(blobUrl);
+          // Only render types the browser shows safely inline; a blob: URL is
+          // same-origin, so an HTML/SVG blob would execute in our context — those are
+          // offered as a download instead of framed.
+          if (SAFE_INLINE.has((blob.type || "").split(";")[0])) {
+            blobUrl = URL.createObjectURL(blob);
+            if (!cancelled) setSrc(blobUrl);
+          } else if (!cancelled) {
+            setUnpreviewable(blob.type || "this file type");
+          }
         }
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Could not load");
@@ -342,8 +369,26 @@ export function CourseViewer({
           {!showCover && (
             <>
               {loadError && <p className="form-error viewer-note">{loadError}</p>}
-              {!src && !authored && !loadError && (
+              {!src && !authored && !unpreviewable && !loadError && (
                 <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
+              )}
+              {/* Type that can't render safely inline (e.g. an Office doc) — offer download */}
+              {unpreviewable && (
+                <div className="viewer-unpreviewable">
+                  <span className="viewer-unprev-icon" aria-hidden>
+                    ⤓
+                  </span>
+                  <p>This file type can&apos;t be previewed in the browser.</p>
+                  {item.allowDownload ? (
+                    <button className="btn btn-primary btn-small" onClick={download}>
+                      ⬇ Download to open
+                    </button>
+                  ) : (
+                    <p className="auth-sub">
+                      The owner hasn&apos;t enabled downloads for this document.
+                    </p>
+                  )}
+                </div>
               )}
               {/* Studio-authored: render natively, paginated (books turn page by page) */}
               {authored && (

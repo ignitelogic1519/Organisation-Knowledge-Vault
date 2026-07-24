@@ -28,6 +28,43 @@ async function courseByCode(code: string) {
   return db.course.findUnique({ where: { code }, include: { org: true } });
 }
 
+// Types the browser may render inline safely (no script execution). Everything else
+// (HTML, SVG, unknown) is served as a download so it can never run in our origin.
+const SAFE_INLINE_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/wav",
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "text/plain",
+]);
+
+/** Detect a trustworthy content-type from magic bytes; fall back to the stored mime only
+ *  when it is a specific, non-generic type. */
+function sniffMime(buf: Buffer, stored: string): string {
+  const b = buf.subarray(0, 16);
+  const startsWith = (sig: number[]) => sig.every((v, i) => b[i] === v);
+  if (startsWith([0x25, 0x50, 0x44, 0x46])) return "application/pdf"; // %PDF
+  if (startsWith([0x89, 0x50, 0x4e, 0x47])) return "image/png";
+  if (startsWith([0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (startsWith([0x47, 0x49, 0x46, 0x38])) return "image/gif";
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[8] === 0x57) return "image/webp"; // RIFF…WEBP
+  if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) return "video/mp4"; // ftyp
+  if (startsWith([0x1a, 0x45, 0xdf, 0xa3])) return "video/webm";
+  if (startsWith([0x49, 0x44, 0x33]) || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+  // Trust a specific stored type; distrust generic/empty ones
+  const generic = !stored || stored === "application/octet-stream" || stored === "binary/octet-stream";
+  return generic ? "application/octet-stream" : stored;
+}
+
 /** VIEW/EDIT level on the course admin page — creator has implicit EDIT+grant. */
 async function adminLevel(profileId: string, courseId: string, createdBy: string) {
   if (profileId === createdBy) return { level: "EDIT" as const, canGrant: true };
@@ -239,13 +276,19 @@ export async function courseRoutes(app: FastifyInstance) {
           .status(403)
           .send({ error: "The owner has not enabled downloads for this document" });
       }
-      const disposition = wantsDownload ? "attachment" : "inline";
-      // Harden inline serving: an uploaded HTML/SVG must never run with our privileges.
-      // A locked-down CSP, no MIME sniffing, and frame limits neutralize stored-content XSS.
+
+      // Serve the CORRECT, sniffed content-type — many files are uploaded as a generic
+      // "application/octet-stream", which the browser (with nosniff) then refuses to
+      // render. Safe types (PDF, images, media, plain text) may render inline; anything
+      // that could execute in our origin (HTML, SVG, scripts) is forced to download so
+      // nosniff can't be defeated. This keeps stored-XSS neutralized WITHOUT breaking
+      // legitimate document viewing.
+      const served = sniffMime(content.file!.data, content.file!.mime);
+      const dangerous = !SAFE_INLINE_TYPES.has(served);
+      const disposition = wantsDownload || dangerous ? "attachment" : "inline";
       reply
-        .header("content-type", content.file!.mime)
+        .header("content-type", served)
         .header("content-disposition", `${disposition}; filename="${content.file!.filename}"`)
-        .header("content-security-policy", "default-src 'none'; img-src data: blob:; media-src blob: data:; style-src 'unsafe-inline'; sandbox")
         .header("x-content-type-options", "nosniff")
         .header("x-frame-options", "SAMEORIGIN")
         .header("referrer-policy", "no-referrer");
