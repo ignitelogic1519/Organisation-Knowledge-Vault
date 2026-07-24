@@ -33,6 +33,8 @@ export const courses = {
       method: "POST",
       body: "{}",
     }),
+  compliance: (code: string) =>
+    api<import("@vault/shared").CourseComplianceView>(`/courses/${code}/compliance`),
   info: (code: string) =>
     api<{
       code: string;

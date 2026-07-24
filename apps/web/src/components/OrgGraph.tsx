@@ -134,16 +134,41 @@ export function OrgGraph({
   nodes,
   selectedId,
   onSelect,
+  highlightIds,
 }: {
   nodes: TreeNode[];
   selectedId: string | null;
   onSelect: (node: TreeNode | null) => void;
+  /** When non-empty, spotlight these nodes and dim the rest (library "where published"). */
+  highlightIds?: Set<string>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const camRef = useRef<Cam>({ x: 0, y: 0, zoom: 1 });
   const fittedRef = useRef(false);
   const selectedRef = useRef<string | null>(selectedId);
   selectedRef.current = selectedId;
+  const highlightRef = useRef<Set<string>>(highlightIds ?? new Set());
+  highlightRef.current = highlightIds ?? new Set();
+  const starsRef = useRef<Star[]>([]);
+
+  // Fly the camera to frame the highlighted nodes when a spotlight is requested
+  useEffect(() => {
+    const stars = starsRef.current;
+    if (!highlightIds || highlightIds.size === 0 || stars.length === 0) return;
+    const hit = stars.filter((s) => highlightIds.has(s.node.id));
+    if (hit.length === 0) return;
+    const xs = hit.map((s) => s.x);
+    const ys = hit.map((s) => s.y);
+    const canvas = canvasRef.current;
+    const w = canvas?.clientWidth ?? 800;
+    const h = canvas?.clientHeight ?? 500;
+    const spanX = Math.max(...xs) - Math.min(...xs) + 260;
+    const spanY = Math.max(...ys) - Math.min(...ys) + 260;
+    const cam = camRef.current;
+    cam.x = (Math.min(...xs) + Math.max(...xs)) / 2;
+    cam.y = (Math.min(...ys) + Math.max(...ys)) / 2;
+    cam.zoom = Math.min(1.6, Math.max(0.4, Math.min(w / spanX, h / spanY)));
+  }, [highlightIds, nodes]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -153,6 +178,7 @@ export function OrgGraph({
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const stars = layoutTree(nodes);
+    starsRef.current = stars;
     const cam = camRef.current;
 
     // ambient background dust
@@ -241,6 +267,9 @@ export function OrgGraph({
 
     const draw = (t: number) => {
       ctx.clearRect(0, 0, width, height);
+      const hl = highlightRef.current;
+      const spotOn = hl.size > 0;
+      const lit = (s: Star) => !spotOn || hl.has(s.node.id);
 
       // dust field (deep background, strongest parallax)
       ctx.fillStyle = colors.star;
@@ -260,11 +289,16 @@ export function OrgGraph({
         const a = project(s.parent, t); // top (parent)
         const b = project(s, t); // bottom (child)
         const onMyPath = s.mark !== "none" && s.parent.mark !== "none";
+        const linkLit = lit(s) && lit(s.parent);
         const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-        grad.addColorStop(0, colors.accent);
-        grad.addColorStop(1, colors.accent2);
-        ctx.strokeStyle = grad;
-        ctx.globalAlpha = onMyPath ? 0.85 : 0.32;
+        if (spotOn && !linkLit) {
+          ctx.strokeStyle = colors.muted;
+        } else {
+          grad.addColorStop(0, colors.accent);
+          grad.addColorStop(1, colors.accent2);
+          ctx.strokeStyle = grad;
+        }
+        ctx.globalAlpha = spotOn && !linkLit ? 0.08 : onMyPath ? 0.85 : 0.32;
         ctx.lineWidth = Math.max(0.6, (onMyPath ? 2 : 1.1) * cam.zoom);
         const midY = (a.y + b.y) / 2;
         ctx.beginPath();
@@ -280,6 +314,29 @@ export function OrgGraph({
         const mine = s.mark === "owner" || s.mark === "member";
         const isSel = s.node.id === selectedRef.current;
         const isHov = s === hovered;
+        const dimmed = spotOn && !lit(s);
+
+        // spotlight mode: everything not lit fades to a faint gray dot
+        if (dimmed) {
+          ctx.globalAlpha = 0.14;
+          ctx.fillStyle = colors.muted;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          continue;
+        }
+
+        // spotlighted node gets an extra expanding pulse ring
+        if (spotOn && !reducedMotion) {
+          const pulse = (t / 1000) % 1;
+          ctx.globalAlpha = (1 - pulse) * 0.7;
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r + pulse * r * 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
         // glow halo
         const glowR = r * (isSel ? 3.4 : isHov ? 2.9 : mine ? 2.6 : 2.2);

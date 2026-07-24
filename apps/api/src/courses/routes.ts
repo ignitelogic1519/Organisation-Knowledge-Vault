@@ -5,10 +5,12 @@ import {
   canProposeContent,
   createCourseSchema,
   grantAdminAccessSchema,
+  isSelfOrAncestor,
   placeCourseSchema,
   reviewCourseSchema,
   updateCourseSchema,
   type CourseAdminView,
+  type CourseComplianceView,
   type MyLearningView,
 } from "@vault/shared";
 import { db } from "../db.js";
@@ -724,6 +726,7 @@ export async function courseRoutes(app: FastifyInstance) {
             usedIn: c.placements
               .map((p) => nodes.find((n) => n.id === p.roleNodeId)?.name)
               .filter((n): n is string => Boolean(n)),
+            usedInNodeIds: c.placements.map((p) => p.roleNodeId),
             avgRating: rating?._avg.rating ? Math.round(rating._avg.rating * 10) / 10 : null,
             ratingCount: rating?._count.rating ?? 0,
           };
@@ -778,6 +781,105 @@ export async function courseRoutes(app: FastifyInstance) {
         if (score > 0 && (!best || score > best.score)) best = { category, score };
       }
       return { suggestion: best?.category ?? null, categories };
+    },
+  );
+
+  // Per-course compliance across EVERY branch it reaches — course managers and the owners
+  // of any branch it's placed on (or above). Mandatory courses report compliant vs
+  // non-compliant; opt-in courses report who completed. Not visible to plain members.
+  app.get<{ Params: { code: string } }>(
+    "/courses/:code/compliance",
+    { preHandler: app.authenticate },
+    async (req, reply): Promise<CourseComplianceView> => {
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      const member = await db.membership.findUnique({
+        where: { profileId_orgId: { profileId: req.profileId, orgId: course.orgId } },
+      });
+      if (!member) return reply.status(404).send({ error: "Course not found" });
+
+      const placements = await db.coursePlacement.findMany({ where: { courseId: course.id } });
+      const allNodes = await db.roleNode.findMany({ where: { orgId: course.orgId } });
+      const actor = await actorPlacements(req.profileId, course.orgId);
+
+      // Access: the course's managers, OR an owner governing any branch it's placed on
+      const manages = await canManageCourse(req.profileId, course);
+      const governsAPlacement = placements.some((cp) => {
+        const n = allNodes.find((x) => x.id === cp.roleNodeId);
+        return n && can(actor, "add_people", toRoleRef(n));
+      });
+      if (!manages && !governsAPlacement) {
+        return reply
+          .status(403)
+          .send({ error: "Only this course's managers can see its compliance" });
+      }
+
+      // Audience = union of each placement's occupants (subtree occupants when inheriting)
+      const occupants = await db.placement.findMany({
+        where: { roleNode: { orgId: course.orgId } },
+        include: { membership: { include: { profile: true } }, roleNode: true },
+      });
+      const mandatory = placements.some((cp) => cp.mandatory);
+      const audience = new Map<string, { profile: (typeof occupants)[number]["membership"]["profile"]; viaRoleName: string }>();
+      for (const cp of placements) {
+        const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
+        if (!cpNode) continue;
+        for (const o of occupants) {
+          const reaches = cp.inheritToDescendants
+            ? isSelfOrAncestor(cpNode.path, o.roleNode.path)
+            : o.roleNodeId === cp.roleNodeId;
+          if (reaches && !audience.has(o.membership.profileId)) {
+            audience.set(o.membership.profileId, {
+              profile: o.membership.profile,
+              viaRoleName: cpNode.name,
+            });
+          }
+        }
+      }
+
+      const records = await db.completionRecord.findMany({ where: { courseId: course.id } });
+      const compliantMembers: CourseComplianceView["compliantMembers"] = [];
+      const nonCompliantMembers: CourseComplianceView["nonCompliantMembers"] = [];
+      for (const [profileId, { profile, viaRoleName }] of audience) {
+        const rec = records.find((r) => r.profileId === profileId);
+        const done =
+          rec?.status === "COMPLETED" && (!rec.validUntil || rec.validUntil > new Date());
+        if (done) {
+          compliantMembers.push({
+            profileId,
+            displayName: profile.displayName,
+            username: profile.username,
+            viaRoleName,
+            completedAt: rec?.completedAt?.toISOString() ?? null,
+          });
+        } else {
+          nonCompliantMembers.push({
+            profileId,
+            displayName: profile.displayName,
+            username: profile.username,
+            viaRoleName,
+            status: rec?.status ?? (mandatory ? "ASSIGNED" : "AVAILABLE"),
+            overdue: false,
+          });
+        }
+      }
+
+      return {
+        code: course.code,
+        title: course.title,
+        mandatory,
+        total: audience.size,
+        compliant: compliantMembers.length,
+        usedIn: [
+          ...new Set(
+            placements
+              .map((cp) => allNodes.find((n) => n.id === cp.roleNodeId)?.name)
+              .filter((n): n is string => Boolean(n)),
+          ),
+        ],
+        compliantMembers,
+        nonCompliantMembers,
+      };
     },
   );
 

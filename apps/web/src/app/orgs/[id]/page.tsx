@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TreeNode } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { orgs, requests, roles } from "@/lib/orgs-client";
@@ -1342,9 +1342,26 @@ function InfoDrawer({
 export default function OrgConstellationPage() {
   const { org } = useOrg();
   const dialogs = useDialogs();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [nodes, setNodes] = useState<TreeNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // "Show where it's published" from the library deep-links here with ?focus=id,id,…
+  // The constellation spotlights those nodes and dims the rest until the user clears
+  // it (dismiss button) or leaves the page — going back / switching tabs resets it.
+  const focusParam = searchParams.get("focus");
+  const [dismissedFocus, setDismissedFocus] = useState(false);
+  const highlightIds = useMemo(() => {
+    if (!focusParam || dismissedFocus) return undefined;
+    const set = new Set(focusParam.split(",").filter(Boolean));
+    return set.size > 0 ? set : undefined;
+  }, [focusParam, dismissedFocus]);
+  const focusedNames = useMemo(() => {
+    if (!highlightIds || !nodes) return [];
+    return nodes.filter((n) => highlightIds.has(n.id)).map((n) => n.name);
+  }, [highlightIds, nodes]);
 
   const reload = useCallback(() => {
     roles
@@ -1386,11 +1403,36 @@ export default function OrgConstellationPage() {
       )}
       {nodes && (
         <>
-          <OrgGraph nodes={nodes} selectedId={selectedId} onSelect={onSelect} />
-          <span className="graph-hint glass">
-            Drag to pan · scroll or pinch to zoom · click a star to act on it
-          </span>
-          {!selected && <GraphLegend />}
+          <OrgGraph
+            nodes={nodes}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            highlightIds={highlightIds}
+          />
+          {highlightIds ? (
+            <div className="graph-spotlight glass">
+              <span>
+                Published on{" "}
+                <strong>
+                  {focusedNames.length > 0 ? focusedNames.join(", ") : "this branch"}
+                </strong>
+              </span>
+              <button
+                className="btn btn-quiet btn-small"
+                onClick={() => {
+                  setDismissedFocus(true);
+                  router.replace(`/orgs/${org.id}`);
+                }}
+              >
+                Reset view
+              </button>
+            </div>
+          ) : (
+            <span className="graph-hint glass">
+              Drag to pan · scroll or pinch to zoom · click a star to act on it
+            </span>
+          )}
+          {!selected && !highlightIds && <GraphLegend />}
           {selected &&
             (governs(selected) ? (
               <NodeDrawer

@@ -1539,6 +1539,36 @@ button {
   z-index: 2;
 }
 
+/* Spotlight banner shown when the library deep-links "where is this published" */
+.graph-spotlight {
+  position: absolute;
+  top: 0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text);
+  padding: 0.4rem 0.5rem 0.4rem 0.9rem;
+  border-radius: 980px;
+  z-index: 3;
+  animation: spotlight-in 0.35s ease;
+}
+.graph-spotlight strong {
+  color: var(--accent);
+}
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .node-drawer {
   position: absolute;
   top: 0.9rem;
@@ -2192,6 +2222,76 @@ button {
   gap: 0.7rem;
   border-top: 1px solid var(--border);
   padding-top: 0.8rem;
+}
+
+/* ── Per-course compliance (manager & owner only) ──────────────────────── */
+
+.library-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.2rem;
+}
+
+.compliance-panel {
+  margin-top: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.compliance-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+
+.compliance-bar {
+  position: relative;
+  height: 1.5rem;
+  border-radius: 980px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.compliance-bar-fill {
+  height: 100%;
+  border-radius: 980px;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+.compliance-bar-fill[data-level="warn"] {
+  background: linear-gradient(90deg, var(--warning), var(--accent));
+}
+.compliance-bar-fill[data-level="low"] {
+  background: linear-gradient(90deg, var(--danger, #e5484d), var(--warning));
+}
+
+.compliance-bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.compliance-sub {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.compliance-list {
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 /* ── Requests ──────────────────────────────────────────────────────────── */

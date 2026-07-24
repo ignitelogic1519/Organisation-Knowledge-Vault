@@ -123,9 +123,38 @@ export interface LibraryCourse {
   completedCount: number;
   /** Branch names the course is currently placed on. */
   usedIn: string[];
+  /** Role-node IDs the course is placed on — used to spotlight them in the constellation. */
+  usedInNodeIds: string[];
   /** Average rating (1–5) across reviews, null when unrated. */
   avgRating: number | null;
   ratingCount: number;
+}
+
+/** Compliance for ONE course across every branch it reaches — for its managers only. */
+export interface CourseComplianceView {
+  code: string;
+  title: string;
+  /** Mandatory on at least one placement. */
+  mandatory: boolean;
+  total: number;
+  /** Completed & still valid. */
+  compliant: number;
+  usedIn: string[];
+  compliantMembers: {
+    profileId: string;
+    displayName: string;
+    username: string;
+    viaRoleName: string;
+    completedAt: string | null;
+  }[];
+  nonCompliantMembers: {
+    profileId: string;
+    displayName: string;
+    username: string;
+    viaRoleName: string;
+    status: CompletionStatus | "AVAILABLE";
+    overdue: boolean;
+  }[];
 }
 
 export const reviewCourseSchema = z.object({

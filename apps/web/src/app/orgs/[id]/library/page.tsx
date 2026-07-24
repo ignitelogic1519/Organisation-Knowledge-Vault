@@ -1,7 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CourseReviewView, LibraryCourse } from "@vault/shared";
+import type { CourseComplianceView, CourseReviewView, LibraryCourse } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
@@ -53,15 +54,29 @@ function CourseDetail({
 }) {
   const { org } = useOrg();
   const dialogs = useDialogs();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [reviews, setReviews] = useState<CourseReviewView[] | null>(null);
+  // Compliance is manager-only: the endpoint returns 403 for everyone else, so we
+  // simply hide the panel unless the fetch succeeds (branch manager or course owner).
+  const [compliance, setCompliance] = useState<CourseComplianceView | null>(null);
+  const [showCompliance, setShowCompliance] = useState(false);
 
   useEffect(() => {
     courses
       .reviews(course.code)
       .then((r) => setReviews(r.reviews))
       .catch(() => setReviews([]));
+    courses
+      .compliance(course.code)
+      .then(setCompliance)
+      .catch(() => setCompliance(null));
   }, [course.code]);
+
+  const pct =
+    compliance && compliance.total > 0
+      ? Math.round((compliance.compliant / compliance.total) * 100)
+      : 0;
 
   return (
     <div
@@ -109,6 +124,131 @@ function CourseDetail({
           </div>
           {course.usedIn.length > 0 && (
             <p className="auth-sub">Used in: {[...new Set(course.usedIn)].join(" · ")}</p>
+          )}
+
+          <div className="library-detail-actions">
+            {course.usedInNodeIds.length > 0 && (
+              <button
+                className="btn btn-quiet btn-small"
+                title="Highlight this course's branches in the constellation"
+                onClick={() =>
+                  router.push(`/orgs/${org.id}?focus=${course.usedInNodeIds.join(",")}`)
+                }
+              >
+                ✦ Show where it&apos;s published
+              </button>
+            )}
+            {compliance && (
+              <button
+                className="btn btn-quiet btn-small"
+                onClick={() => setShowCompliance((v) => !v)}
+              >
+                {showCompliance ? "Hide compliance" : "📊 View compliance"}
+              </button>
+            )}
+          </div>
+
+          {compliance && showCompliance && (
+            <div className="compliance-panel glass">
+              <div className="compliance-head">
+                <h4 className="learning-h" style={{ margin: 0 }}>
+                  {compliance.mandatory ? "Mandatory compliance" : "Completion"}
+                </h4>
+                <span className="auth-sub">
+                  Visible to this course&apos;s owner and the assigning branch managers only
+                </span>
+              </div>
+              {compliance.mandatory ? (
+                <>
+                  <div className="compliance-bar" role="img" aria-label={`${pct}% compliant`}>
+                    <div
+                      className="compliance-bar-fill"
+                      style={{ width: `${pct}%` }}
+                      data-level={pct >= 80 ? "ok" : pct >= 50 ? "warn" : "low"}
+                    />
+                    <span className="compliance-bar-label">{pct}% compliant</span>
+                  </div>
+                  <div className="library-facts" style={{ marginTop: "0.7rem" }}>
+                    <div className="library-fact">
+                      <span className="stat-n">{compliance.compliant}</span>
+                      <span className="stat-l">compliant</span>
+                    </div>
+                    <div className="library-fact">
+                      <span className="stat-n">
+                        {compliance.total - compliance.compliant}
+                      </span>
+                      <span className="stat-l">non-compliant</span>
+                    </div>
+                    <div className="library-fact">
+                      <span className="stat-n">{compliance.total}</span>
+                      <span className="stat-l">people assigned</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="library-facts">
+                  <div className="library-fact">
+                    <span className="stat-n">{compliance.compliant}</span>
+                    <span className="stat-l">completed</span>
+                  </div>
+                  <div className="library-fact">
+                    <span className="stat-n">{compliance.total}</span>
+                    <span className="stat-l">people it reaches</span>
+                  </div>
+                </div>
+              )}
+
+              {compliance.nonCompliantMembers.length > 0 && (
+                <>
+                  <h5 className="compliance-sub">
+                    {compliance.mandatory ? "Non-compliant" : "Not yet completed"} ·{" "}
+                    {compliance.nonCompliantMembers.length}
+                  </h5>
+                  <ul className="people-list compliance-list">
+                    {compliance.nonCompliantMembers.map((m) => (
+                      <li key={`${m.profileId}:${m.viaRoleName}`} className="person-card">
+                        <span className="person-main">
+                          <span className="person-name">{m.displayName}</span>
+                          <span className="person-sub">
+                            @{m.username} · {m.viaRoleName}
+                          </span>
+                        </span>
+                        <span className="person-chips">
+                          {m.overdue && <span className="badge badge-danger">overdue</span>}
+                          <span className="badge">{m.status.toLowerCase()}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {compliance.compliantMembers.length > 0 && (
+                <>
+                  <h5 className="compliance-sub">
+                    {compliance.mandatory ? "Compliant" : "Completed"} ·{" "}
+                    {compliance.compliantMembers.length}
+                  </h5>
+                  <ul className="people-list compliance-list">
+                    {compliance.compliantMembers.map((m) => (
+                      <li key={`${m.profileId}:${m.viaRoleName}`} className="person-card">
+                        <span className="person-main">
+                          <span className="person-name">{m.displayName}</span>
+                          <span className="person-sub">
+                            @{m.username} · {m.viaRoleName}
+                          </span>
+                        </span>
+                        <span className="person-chips">
+                          <span className="badge badge-ok">
+                            {m.completedAt ? m.completedAt.slice(0, 10) : "done"}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
           )}
 
           <h4 className="learning-h">Member reviews</h4>
