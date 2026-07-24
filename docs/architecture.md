@@ -335,7 +335,7 @@ POST   /jobs/run                              nightly: recurrence, escalation, 7
 ### Storage adapters
 `storageRef.adapter` now includes `authored` — Studio documents store their block array
 inline in the ref and render natively in the viewer (no external fetch). `inline` (Postgres
-bytes, ≤2 MB) and `link` are unchanged; `unreachable` still marks post-revival media pending
+bytes, ≤10 MB) and `link` are unchanged; `unreachable` still marks post-revival media pending
 storage reconnection. Authored documents survive `.main` revival intact.
 
 ### Live updates

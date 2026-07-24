@@ -19,7 +19,7 @@ export interface StoredContent {
   authored?: unknown;
 }
 
-const MAX_INLINE_BYTES = 2 * 1024 * 1024;
+const MAX_INLINE_BYTES = 10 * 1024 * 1024;
 
 export const storage = {
   /** External link "storage" — video/audio/docs hosted anywhere (YouTube, Drive share, …). */
@@ -27,9 +27,9 @@ export const storage = {
     return { adapter: "link", url };
   },
 
-  /** Inline adapter: small files in Postgres — free-tier friendly, capped at 2 MB.
-   *  Bytes are gzip-compressed at rest (transparently inflated on read) so the DB stays
-   *  lean; the user always sees the original, correctly-formatted file. */
+  /** Inline adapter: small files in Postgres — capped at 10 MB. Bytes are gzip-compressed
+   *  at rest (transparently inflated on read) so the DB stays lean; the user always sees
+   *  the original, correctly-formatted file. */
   async saveInline(
     orgId: string,
     filename: string,
@@ -40,7 +40,7 @@ export const storage = {
     if (data.length === 0) throw Object.assign(new Error("Empty file"), { statusCode: 400 });
     if (data.length > MAX_INLINE_BYTES) {
       throw Object.assign(
-        new Error("Inline storage is capped at 2 MB — host larger media as a LINK course"),
+        new Error("Inline storage is capped at 10 MB — host larger media as a LINK course"),
         { statusCode: 413 },
       );
     }

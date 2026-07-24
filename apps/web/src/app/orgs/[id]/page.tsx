@@ -847,7 +847,7 @@ function CoursesPanel({
             <input name="url" type="url" placeholder="https://…" />
           </label>
           <label className="field">
-            <span>…or small file (≤ 2 MB)</span>
+            <span>…or a file (≤ 10 MB)</span>
             <input name="file" type="file" />
           </label>
           <label className="field">

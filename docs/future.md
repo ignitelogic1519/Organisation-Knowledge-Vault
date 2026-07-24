@@ -113,7 +113,7 @@ step in the storage adapter port. Ship 11a first — it needs no index.
 
 ## 12. Storage backends — NAS / Google Drive / OneDrive (open)
 The storage adapter port (`apps/api/src/storage/adapter.ts`, `storageRef.adapter`) is kept
-deliberately open. v1 ships `inline` (gzip-compressed Postgres bytes, ≤2 MB), `link`, and
+deliberately open. v1 ships `inline` (gzip-compressed Postgres bytes, ≤10 MB), `link`, and
 `authored` (Studio blocks). The organization's real media backend — NAS, Google Drive,
 OneDrive, or S3 — is a client decision still TBD; each becomes a new adapter behind the same
 `saveInline`/`resolve` port with no course-logic changes. Large-media upload pipelines,

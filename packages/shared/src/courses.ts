@@ -52,7 +52,7 @@ export const createCourseSchema = z.object({
   allowDownload: z.boolean().default(false),
   /** LINK/AUDIO/VIDEO hosted elsewhere: external URL. */
   url: z.string().url().optional(),
-  /** Small files (≤ 2 MB) via the inline adapter. */
+  /** Files (≤ 10 MB) via the inline adapter. */
   fileBase64: z.string().optional(),
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),

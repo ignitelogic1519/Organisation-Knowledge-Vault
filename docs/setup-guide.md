@@ -152,7 +152,7 @@ Deploys with the normal git push. Two one-time setups:
 
 ### 5.2 Storage in v1 (no Google account needed)
 The storage adapter port ships with two live backends:
-- **Inline** — files up to 2 MB stored in Neon (documents, small PDFs).
+- **Inline** — files up to 10 MB stored in Neon (documents, small PDFs).
 - **Link** — external URLs for anything big (YouTube videos, Drive share links, podcasts…).
 The **Google Drive adapter** (org connects its own Drive, `drive.file` scope) plugs into the
 same port later — its Google Cloud walkthrough activates together with Google sign-in

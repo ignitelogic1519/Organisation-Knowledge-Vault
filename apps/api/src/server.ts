@@ -14,7 +14,9 @@ import { complianceRoutes } from "./compliance/routes.js";
 import { vaultFileRoutes } from "./vault-files/routes.js";
 import { eventRoutes } from "./events.js";
 
-const app = Fastify({ logger: true });
+// Body limit must clear a 10 MB inline file: base64 inflates by ~33% (~13.3 MB) plus the
+// surrounding JSON, so allow 16 MB of request body.
+const app = Fastify({ logger: true, bodyLimit: 16 * 1024 * 1024 });
 
 // An unset OR blank WEB_ORIGIN means "allow any origin"; a blank string must not reach
 // @fastify/cors — it rejects "" as an invalid origin option.
