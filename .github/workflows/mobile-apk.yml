@@ -39,6 +39,10 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Pinned to the AGP-8 era: flutter_inappwebview 6.1.5 builds cleanly
+          # here. Newer Flutter ships AGP 9, which removed proguard-android.txt
+          # and breaks the plugin (pichillilorenzo/flutter_inappwebview#2765).
+          flutter-version: 3.24.5
           channel: stable
           cache: true
 
@@ -54,6 +58,13 @@ jobs:
 
       - name: Resolve dependencies
         run: flutter pub get
+
+      - name: Safety-net — use the optimized default ProGuard file
+        # Belt-and-suspenders in case a future AGP rejects proguard-android.txt:
+        # proguard-android-optimize.txt is valid on both AGP 8 and 9.
+        run: |
+          find "$HOME/.pub-cache/hosted/pub.dev" -path '*flutter_inappwebview_android*/android/build.gradle' -print0 \
+            | xargs -0 -r sed -i 's/proguard-android\.txt/proguard-android-optimize.txt/g'
 
       - name: Build release APK
         run: |
