@@ -1,0 +1,22 @@
+name: knowledge_vault
+description: Knowledge Vault — native Android shell that loads the live web app.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Full-featured WebView (file upload/download, JS, cookies, pull-to-refresh).
+  # Its Android platform layer is Kotlin.
+  flutter_inappwebview: ^6.1.5
+  # Opens mailto:/tel:/external links and downloads in the system apps.
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

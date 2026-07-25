@@ -1,0 +1,75 @@
+name: Build mobile APK
+
+# Produces an installable Android APK for the Knowledge Vault mobile shell.
+# Download it from the run's "Artifacts" section (Actions tab → this run).
+#
+# The shell just loads the deployed web app, so you rarely need to rebuild:
+# web changes appear in the installed APK on the next launch. Rebuild only when
+# the shell itself changes, or to point at a different site URL.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-apk.yml"
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Web app URL the shell loads (overrides the repo SITE_URL variable)"
+        required: false
+        type: string
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android platform scaffold
+        run: flutter create --org com.knowledgevault --project-name knowledge_vault --platforms=android .
+
+      - name: Restore committed Dart sources
+        # flutter create rewrites these from its template — put ours back.
+        run: git checkout -- pubspec.yaml analysis_options.yaml lib
+
+      - name: Apply Android overlay (manifest, Kotlin host, icons, splash)
+        run: cp -R android_overlay/app/src/main/. android/app/src/main/
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: |
+          SITE_URL="${{ github.event.inputs.site_url }}"
+          if [ -z "$SITE_URL" ]; then SITE_URL="${{ vars.SITE_URL }}"; fi
+          if [ -n "$SITE_URL" ]; then
+            echo "Building for site: $SITE_URL"
+            flutter build apk --release --dart-define=SITE_URL="$SITE_URL"
+          else
+            echo "No SITE_URL provided — building with the default from lib/config.dart"
+            flutter build apk --release
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-vault-apk
+          path: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

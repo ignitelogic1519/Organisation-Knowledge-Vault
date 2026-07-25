@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Four-pointed brand star, centred within the adaptive-icon safe zone. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,28 C55.95,46.2 61.8,52.05 80,54 C61.8,55.95 55.95,61.8 54,80 C52.05,61.8 46.2,55.95 28,54 C46.2,52.05 52.05,46.2 54,28 Z" />
+</vector>
