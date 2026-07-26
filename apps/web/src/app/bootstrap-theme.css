@@ -48,7 +48,9 @@
   border-bottom: 1px solid var(--border);
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
-  z-index: 1040;
+  /* Above page content, but below the course-viewer (85) and dialogs (90/95)
+     so those overlays still cover the bar when open. */
+  z-index: 80;
 }
 
 .kv-brand,
@@ -153,10 +155,12 @@
 
 /* ── Page shell under the fixed navbar ──────────────────────────────────── */
 
+/* The navbar is sticky (in normal flow), so it reserves its own space — content
+   can never hide behind it, whatever its height. Just a small gap below it. */
 .kv-main {
-  padding-top: 5.25rem;
+  padding-top: 1.5rem;
   padding-bottom: 3rem;
-  min-height: 100svh;
+  min-height: calc(100svh - 4.5rem);
   animation: kv-fade-up 450ms var(--ease) both;
 }
 

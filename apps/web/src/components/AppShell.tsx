@@ -81,7 +81,7 @@ export function AppShell({
 
   return (
     <div className="kv-app">
-      <nav className="navbar navbar-expand-lg fixed-top kv-navbar" aria-label="Main">
+      <nav className="navbar navbar-expand-lg sticky-top kv-navbar" aria-label="Main">
         <div className="container-xxl">
           <Link href="/orgs" className="navbar-brand kv-brand">
             <span className="brand-mark" aria-hidden>
@@ -90,9 +90,10 @@ export function AppShell({
             Knowledge Vault
           </Link>
 
-          {/* Controls + toggler stay to the right and visible at every size. */}
+          {/* Controls + toggler stay to the right and visible at every size.
+              Page-level actions live in the page header, not here, so the navbar
+              keeps a stable single-row height. */}
           <div className="d-flex align-items-center order-lg-last kv-navbar-controls">
-            {actions}
             <NotificationsBell />
             <ThemeMenu />
             <SignOutButton />
@@ -139,6 +140,7 @@ export function AppShell({
               <h1>{title}</h1>
               {subtitle && <p>{subtitle}</p>}
             </div>
+            {actions && <div className="kv-page-head-actions">{actions}</div>}
           </header>
           {children}
         </div>
