@@ -1160,30 +1160,47 @@ button {
 
   .shell-main {
     margin-left: 0;
-    padding: 1rem 1rem 6.5rem;
+    padding: 1rem 1rem calc(6rem + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Full-width bottom bar: tabs grow to fill when they fit, and the bar scrolls
+     horizontally (instead of clipping) when there are enough tabs to overflow —
+     e.g. owners who also see Compliance + Help. */
   .tabbar {
     position: fixed;
-    bottom: 0.75rem;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(96vw, 30rem);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
     display: flex;
-    justify-content: space-around;
-    padding: 0.45rem 0.6rem;
-    border-radius: 980px;
+    justify-content: flex-start;
+    gap: 0.1rem;
+    padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--radius) var(--radius) 0 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     z-index: 50;
   }
 
+  .tabbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .tab-link {
+    flex: 1 0 auto;
+    min-width: 4rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.15rem;
-    font-size: 0.65rem;
+    justify-content: center;
+    gap: 0.2rem;
+    font-size: 0.66rem;
+    line-height: 1.1;
+    white-space: nowrap;
     color: var(--text-secondary);
-    padding: 0.3rem 0.7rem;
+    padding: 0.35rem 0.4rem;
     border-radius: var(--radius-sm);
     transition: color var(--dur-micro) var(--ease), transform var(--dur-micro) var(--spring);
   }
@@ -1701,6 +1718,30 @@ button {
 
 .legend-row svg {
   flex: none;
+}
+
+/* On phones the graph overlays used to collide: the bottom-right legend ran on
+   top of the bottom-left zoom controls, and the long hint pill overflowed. Cap
+   the legend so it always clears the zoom column, and let the hint wrap. */
+@media (max-width: 640px) {
+  .graph-hint {
+    font-size: 0.7rem;
+    max-width: calc(100% - 1.5rem);
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .graph-legend {
+    padding: 0.55rem 0.7rem;
+    font-size: 0.68rem;
+    gap: 0.3rem;
+    /* keep the legend out of the ~3.3rem-wide zoom column at bottom-left */
+    max-width: calc(100% - 4.75rem);
+  }
+
+  .legend-row {
+    gap: 0.4rem;
+  }
 }
 
 /* ── Help page ─────────────────────────────────────────────────────────── */

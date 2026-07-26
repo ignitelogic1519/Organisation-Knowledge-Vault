@@ -27,7 +27,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await auth.login(parsed.data.username, parsed.data.password);
-      router.push("/account");
+      router.push("/orgs");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the server");
       setBusy(false);
