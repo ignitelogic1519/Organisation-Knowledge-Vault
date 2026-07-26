@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { auth } from "@/lib/auth-client";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeMenu } from "./ThemeMenu";
@@ -34,8 +35,26 @@ function SignOutButton() {
   );
 }
 
-// Authenticated app chrome: glass sidebar on desktop, floating tab bar on mobile,
-// glass top row with title + notifications + theme + sign-out controls.
+function MenuIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ) : (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M4 12h16M4 17h16"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// Authenticated app chrome, rebuilt on Bootstrap: a responsive top navbar that
+// collapses into a hamburger menu on mobile (no bottom tab bar, no sidebar),
+// with the brand identity layered on via bootstrap-theme.css.
 export function AppShell({
   nav,
   title,
@@ -50,86 +69,80 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  // Collapse the mobile menu whenever the route changes.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const isActive = (item: ShellNavItem) =>
     item.prefix ? pathname.startsWith(item.href) : pathname === item.href;
 
   return (
-    <div className="shell">
-      <aside className="shell-side glass">
-        <Link href="/orgs" className="side-brand">
-          <span className="brand-mark" aria-hidden>
-            ✦
-          </span>
-          Knowledge Vault
-        </Link>
-        <nav className="side-nav" aria-label="Main">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="side-link"
-              data-active={isActive(item)}
-            >
-              {item.icon}
-              {item.label}
-              {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
-            </Link>
-          ))}
-        </nav>
-        <div className="side-foot">
-          <NotificationsBell />
-          <ThemeMenu />
-          <SignOutButton />
-        </div>
-      </aside>
-
-      <main className="shell-main">
-        <header className="shell-top">
-          <div className="shell-title">
-            <h1>{title}</h1>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-          <div className="shell-top-actions">
-            {actions}
-            {/* bell + theme + sign-out live in the sidebar on desktop; surface them here on mobile */}
-            <MobileExtras />
-          </div>
-        </header>
-        {children}
-      </main>
-
-      <nav className="tabbar glass" aria-label="Main">
-        {nav.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="tab-link"
-            data-active={isActive(item)}
-          >
-            <span className="tab-icon-wrap">
-              {item.icon}
-              {item.badge ? <span className="nav-badge nav-badge-tab">{item.badge}</span> : null}
+    <div className="kv-app">
+      <nav className="navbar navbar-expand-lg fixed-top kv-navbar" aria-label="Main">
+        <div className="container-xxl">
+          <Link href="/orgs" className="navbar-brand kv-brand">
+            <span className="brand-mark" aria-hidden>
+              ✦
             </span>
-            {item.label}
+            Knowledge Vault
           </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
 
-function MobileExtras() {
-  return (
-    <span className="mobile-extras">
-      <style>{`
-        .mobile-extras { display: none; }
-        @media (max-width: 900px) {
-          .mobile-extras { display: inline-flex; align-items: center; gap: 0.6rem; }
-        }
-      `}</style>
-      <NotificationsBell />
-      <ThemeMenu />
-      <SignOutButton />
-    </span>
+          {/* Controls + toggler stay to the right and visible at every size. */}
+          <div className="d-flex align-items-center order-lg-last kv-navbar-controls">
+            {actions}
+            <NotificationsBell />
+            <ThemeMenu />
+            <SignOutButton />
+            <button
+              className="navbar-toggler kv-toggler d-lg-none p-0 border-0"
+              type="button"
+              aria-controls="kv-navbar-nav"
+              aria-expanded={open}
+              aria-label="Toggle navigation"
+              onClick={() => setOpen((v) => !v)}
+            >
+              <MenuIcon open={open} />
+            </button>
+          </div>
+
+          <div
+            id="kv-navbar-nav"
+            className={`collapse navbar-collapse${open ? " show" : ""}`}
+          >
+            <ul className="navbar-nav me-auto kv-nav">
+              {nav.map((item) => (
+                <li key={item.href} className="nav-item">
+                  <Link
+                    href={item.href}
+                    className="nav-link"
+                    data-active={isActive(item)}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.icon}
+                    {item.label}
+                    {item.badge ? <span className="kv-nav-badge">{item.badge}</span> : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+      <main className="kv-main">
+        <div className="container-xxl">
+          <header className="kv-page-head">
+            <div>
+              <h1>{title}</h1>
+              {subtitle && <p>{subtitle}</p>}
+            </div>
+          </header>
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }

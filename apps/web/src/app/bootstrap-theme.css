@@ -1,0 +1,273 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Knowledge Vault — branded theme layer OVER Bootstrap 5.3.
+   Bootstrap provides the structure (grid, navbar, cards, forms, dropdowns,
+   utilities); this file maps Bootstrap's design variables onto our brand tokens
+   (defined in globals.css) so every Bootstrap component adopts the dark /
+   gradient / glass identity instead of looking like stock Bootstrap.
+
+   Because our brand tokens (--bg, --text, --accent, …) already switch with
+   [data-theme="dark"] and [data-accent], pointing Bootstrap's variables at them
+   makes Bootstrap components theme- and accent-aware automatically.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Surfaces & text */
+  --bs-body-bg: var(--bg);
+  --bs-body-color: var(--text);
+  --bs-body-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --bs-emphasis-color: var(--text);
+  --bs-secondary-color: var(--text-secondary);
+  --bs-secondary-bg: var(--surface-2);
+  --bs-tertiary-bg: var(--surface-solid);
+  --bs-tertiary-color: var(--text-secondary);
+  --bs-border-color: var(--border);
+  --bs-heading-color: var(--text);
+
+  /* Brand accent */
+  --bs-primary: var(--accent);
+  --bs-primary-rgb: 124, 124, 255; /* default (aurora dark); buttons are re-styled below */
+  --bs-link-color: var(--accent);
+  --bs-link-hover-color: var(--accent-2);
+  --bs-link-color-rgb: 124, 124, 255;
+
+  /* Shape & focus */
+  --bs-border-radius: var(--radius-sm);
+  --bs-border-radius-sm: 10px;
+  --bs-border-radius-lg: var(--radius);
+  --bs-border-radius-xl: var(--radius);
+  --bs-focus-ring-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ── Branded top navbar (replaces the old sidebar + bottom tab bar) ──────── */
+
+.kv-navbar {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  z-index: 1040;
+}
+
+.kv-brand,
+.kv-brand:hover,
+.kv-brand:focus {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* Nav links — pill style, gradient when active. The `.nav-link` combinator gives
+   us the specificity to win over Bootstrap's and globals' base `.nav-link`. */
+.kv-nav .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  border-radius: 980px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  transition:
+    color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease);
+}
+
+.kv-nav .nav-link:hover {
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
+.kv-nav .nav-link[data-active="true"] {
+  color: var(--accent-contrast);
+  background: var(--grad-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.kv-nav .nav-link svg {
+  flex: none;
+}
+
+/* Count bubble on a nav link (e.g. pending requests) */
+.kv-nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.32rem;
+  margin-left: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 980px;
+}
+
+.kv-nav .nav-link[data-active="true"] .kv-nav-badge {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent);
+}
+
+/* Hamburger / close toggler — theme-agnostic (uses currentColor) */
+.kv-toggler {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.5rem;
+}
+
+.kv-toggler:focus {
+  outline: none;
+  box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
+}
+
+/* Right-hand controls cluster (bell · theme · sign out) */
+.kv-navbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* On mobile the collapse opens below the bar; give the links room to breathe. */
+@media (max-width: 991.98px) {
+  .kv-nav {
+    padding-top: 0.6rem;
+    padding-bottom: 0.2rem;
+    gap: 0.15rem;
+  }
+  .kv-nav .nav-link {
+    padding: 0.55rem 0.85rem;
+  }
+}
+
+/* ── Page shell under the fixed navbar ──────────────────────────────────── */
+
+.kv-main {
+  padding-top: 5.25rem;
+  padding-bottom: 3rem;
+  min-height: 100svh;
+  animation: kv-fade-up 450ms var(--ease) both;
+}
+
+@keyframes kv-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.kv-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.4rem;
+}
+
+.kv-page-head h1 {
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.kv-page-head p {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  margin-top: 0.15rem;
+}
+
+.kv-page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* ── Bootstrap component branding (cards, forms, dropdowns) ──────────────── */
+
+.card {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.form-control,
+.form-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
+}
+
+.form-control::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.form-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.dropdown-menu {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+/* Auth card used by login/register */
+.kv-auth-wrap {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 6rem 1rem 3rem;
+}
+
+.kv-auth-card {
+  width: 100%;
+  max-width: 26rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.kv-auth-card .brand-mark {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.4rem;
+  margin: 0 auto 0.5rem;
+}

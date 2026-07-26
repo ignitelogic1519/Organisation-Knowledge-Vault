@@ -42,60 +42,85 @@ export default function RegisterPage() {
   return (
     <main>
       <SiteNav right={<Link href="/login" className="nav-link">Sign in</Link>} />
-      <section className="auth-wrap">
-        <form className="auth-card glass" onSubmit={submit}>
+      <div className="kv-auth-wrap">
+        <form className="card kv-auth-card" onSubmit={submit}>
           <span className="brand-mark" aria-hidden>
             ✦
           </span>
-          <h1>
+          <h1 className="h3 mb-1">
             Create your <span className="gradient-text">profile</span>
           </h1>
-          <p className="auth-sub">
+          <p className="auth-sub mb-4">
             One global profile — join or create any number of organizations with it.
           </p>
-          <label className="field">
-            <span>Name</span>
-            <input name="displayName" autoComplete="name" required />
-          </label>
-          <label className="field">
-            <span>Username</span>
-            <input name="username" autoComplete="username" required minLength={3} />
-            <small>
+          <div className="mb-3 text-start">
+            <label className="form-label" htmlFor="displayName">
+              Name
+            </label>
+            <input
+              id="displayName"
+              name="displayName"
+              className="form-control"
+              autoComplete="name"
+              required
+            />
+          </div>
+          <div className="mb-3 text-start">
+            <label className="form-label" htmlFor="username">
+              Username
+            </label>
+            <input
+              id="username"
+              name="username"
+              className="form-control"
+              autoComplete="username"
+              required
+              minLength={3}
+            />
+            <div className="form-text">
               Your unique identity on the platform — admins add you to organizations by this
               exact username
-            </small>
-          </label>
-          <label className="field">
-            <span>Password</span>
+            </div>
+          </div>
+          <div className="mb-3 text-start">
+            <label className="form-label" htmlFor="password">
+              Password
+            </label>
             <input
+              id="password"
               name="password"
               type="password"
+              className="form-control"
               autoComplete="new-password"
               minLength={10}
               required
             />
-            <small>At least 10 characters</small>
-          </label>
-          <label className="field">
-            <span>Retype password</span>
+            <div className="form-text">At least 10 characters</div>
+          </div>
+          <div className="mb-3 text-start">
+            <label className="form-label" htmlFor="password2">
+              Retype password
+            </label>
             <input
+              id="password2"
               name="password2"
               type="password"
+              className="form-control"
               autoComplete="new-password"
               minLength={10}
               required
             />
-            <small>Type it again to confirm you got it right</small>
-          </label>
+            <div className="form-text">Type it again to confirm you got it right</div>
+          </div>
           {error && <p className="form-error">{error}</p>}
-          <button className="btn btn-primary btn-block" disabled={busy}>
+          <button className="btn btn-primary w-100" disabled={busy}>
             {busy ? "Creating…" : "Create profile"}
           </button>
-          <p className="auth-alt">
+          <p className="auth-alt mt-3">
             Already have a profile? <Link href="/login">Sign in</Link>
           </p>
         </form>
-      </section>
+      </div>
     </main>
   );
 }

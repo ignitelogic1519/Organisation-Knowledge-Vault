@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
 import { DialogProvider } from "@/components/dialogs";
+// Load order matters: Bootstrap base first, then the app's custom design tokens
+// (which win on the few shared class names), then the branded Bootstrap theme
+// layer that maps Bootstrap's components onto our brand ("custom UI over Bootstrap").
+import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
+import "./bootstrap-theme.css";
 
 export const metadata: Metadata = {
   title: "Knowledge Vault",

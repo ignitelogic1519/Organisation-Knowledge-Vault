@@ -37,32 +37,49 @@ export default function LoginPage() {
   return (
     <main>
       <SiteNav right={<Link href="/register" className="nav-link">Create profile</Link>} />
-      <section className="auth-wrap">
-        <form className="auth-card glass" onSubmit={submit}>
+      <div className="kv-auth-wrap">
+        <form className="card kv-auth-card" onSubmit={submit}>
           <span className="brand-mark" aria-hidden>
             ✦
           </span>
-          <h1>
+          <h1 className="h3 mb-1">
             Welcome <span className="gradient-text">back</span>
           </h1>
-          <p className="auth-sub">Sign in to your Knowledge Vault profile.</p>
-          <label className="field">
-            <span>Username</span>
-            <input name="username" autoComplete="username" required />
-          </label>
-          <label className="field">
-            <span>Password</span>
-            <input name="password" type="password" autoComplete="current-password" required />
-          </label>
+          <p className="auth-sub mb-4">Sign in to your Knowledge Vault profile.</p>
+          <div className="mb-3 text-start">
+            <label className="form-label" htmlFor="username">
+              Username
+            </label>
+            <input
+              id="username"
+              name="username"
+              className="form-control"
+              autoComplete="username"
+              required
+            />
+          </div>
+          <div className="mb-3 text-start">
+            <label className="form-label" htmlFor="password">
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              className="form-control"
+              autoComplete="current-password"
+              required
+            />
+          </div>
           {error && <p className="form-error">{error}</p>}
-          <button className="btn btn-primary btn-block" disabled={busy}>
+          <button className="btn btn-primary w-100" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
-          <p className="auth-alt">
+          <p className="auth-alt mt-3">
             New here? <Link href="/register">Create a profile</Link>
           </p>
         </form>
-      </section>
+      </div>
     </main>
   );
 }
