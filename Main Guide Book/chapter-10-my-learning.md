@@ -64,6 +64,25 @@ content itself. From the viewer you can also:
 
 ---
 
+## Flow at a glance
+
+**Completing a course:**
+
+```mermaid
+flowchart TD
+    A["Course reaches your position - appears in My Learning"] --> B["Open in the in-app viewer"]
+    B --> C{"Prerequisites completed?"}
+    C -->|No| D["Mark complete is locked - finish the prerequisite first"]
+    D --> C
+    C -->|Yes| E["Mark complete"]
+    E --> F["Rate and review"]
+    E --> G{"Does it recur?"}
+    G -->|Yes| H["Re-opens as pending when it expires"]
+    G -->|No| I["Stays completed"]
+```
+
+---
+
 ## Tips
 
 - **Do prerequisites first.** If *Mark complete* is locked, open the course to see what's

@@ -55,6 +55,8 @@ To create one:
 2. Choose **⬇ Download .bkp of this branch** and set a backup password (you'll need it to
    restore).
 
+![The Backup section — export or restore a branch as an encrypted .bkp](images/backup-panel.png)
+
 To restore, upload a `.bkp` into a node and enter its password; the platform shows a report
 of what was **applied** and what was **skipped**.
 
@@ -70,6 +72,41 @@ page:
 
 Without both the file and the password, revival is impossible — which is precisely what keeps
 your organization in your custody and no one else's.
+
+---
+
+## Flows at a glance
+
+**Supreme-protected actions (on the root):**
+
+```mermaid
+flowchart TD
+    A["Root star -> Group configuration -> Supreme zone"] --> B["Enter the Supreme password - 10-minute access"]
+    B --> C["Add or remove a top-level owner"]
+    B --> D["Download the .main existence backup"]
+    B --> E["Delete the organization"]
+    E --> F["30-day retention, then purged"]
+    F --> G["Revive only with .main + Supreme password"]
+```
+
+**Branch backup and restore (`.bkp`):**
+
+```mermaid
+flowchart TD
+    A["Branch -> Backup"] --> B["Download .bkp - set a backup password"]
+    A --> C["Restore: upload a .bkp + its password"]
+    C --> D["Report: what was applied / skipped"]
+```
+
+**Reviving a deleted organization:**
+
+```mermaid
+flowchart LR
+    A["Organizations page"] --> B["Revive from a .main file"]
+    B --> C["Upload .main + enter the Supreme password"]
+    C -->|Both correct| D["Organization restored"]
+    C -->|Missing either| E["Revival impossible"]
+```
 
 ---
 

@@ -50,7 +50,14 @@ Each chapter is self-contained, with a short **"What it is"**, a step-by-step
 | 13 | [Notifications](chapter-13-notifications.md) | Stay on top of what needs you |
 | 14 | [The Supreme zone — custody & recovery](chapter-14-supreme-and-custody.md) | Backups, `.main`, `.bkp`, deletion |
 | 15 | [Help & support](chapter-15-help-and-support.md) | Where to find answers in-app |
+| 16 | [Flow diagrams — every setting at a glance](chapter-16-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
 | A | [Appendix — Glossary & quick reference](appendix-glossary-and-reference.md) | Every term and code, at a glance |
+
+> **Looking for flow diagrams?** Every feature chapter now ends with a **"Flows at a glance"**
+> section (flow diagrams shown next to the screenshots, topic by topic), and
+> **[Chapter 16](chapter-16-flow-diagrams.md)** collects them all in one place — a diagram
+> paired with a screenshot for *each* setting an owner can do, each capability a member can
+> have, and each request-and-response flow.
 
 ---
 

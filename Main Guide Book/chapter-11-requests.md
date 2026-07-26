@@ -56,6 +56,64 @@ You can always **withdraw** a request you raised while it's still pending.
 
 ---
 
+## Flows at a glance
+
+**The request lifecycle (all types share this shape):**
+
+```mermaid
+flowchart TD
+    A["Someone raises a request"] --> B["Lands in the decider's Inbox - live badge on the tab"]
+    B --> C{"Decision"}
+    C -->|Approve| D["The action takes effect"]
+    C -->|Reject| E["Marked rejected"]
+    D --> F["Requester notified live - status updates"]
+    E --> F
+    F --> G["Decided requests auto-clean after 7 days"]
+    A -. withdraw while still pending .-> H["Removed"]
+```
+
+**Course request** — configured *before* approval:
+
+```mermaid
+flowchart LR
+    A["Find a course in the Library"] --> B["Request it for my branch"]
+    B --> C["Branch handler's Inbox"]
+    C --> D["Configure: mandatory, inherit, deadline, recurrence"]
+    D --> E["Approve - placed already configured"]
+```
+
+**Join request** — carries the desired position:
+
+```mermaid
+flowchart LR
+    A["A public star on the constellation"] --> B["Send Join request as member or sub-owner"]
+    B --> C["Owners / the level above decide"]
+    C -->|Approve| D["Added to the branch in that role"]
+    C -->|Reject| E["Not added"]
+```
+
+**Deletion request** — needs the level above:
+
+```mermaid
+flowchart LR
+    A["Branch owner wants it deleted"] --> B["Request deletion"]
+    B --> C["Level above decides"]
+    C -->|Approve| D["Branch deleted - must be empty"]
+    C -->|Reject| E["Kept"]
+```
+
+**Visibility request** — unhide a chain:
+
+```mermaid
+flowchart LR
+    A["Branch hidden by a level above"] --> B["Request visibility"]
+    B --> C["Level above decides"]
+    C -->|Approve| D["Chain unhidden - branch becomes visible"]
+    C -->|Reject| E["Stays hidden"]
+```
+
+---
+
 ## Tips
 
 - **Watch the badge.** The live count on the Requests tab is your cue that a colleague is

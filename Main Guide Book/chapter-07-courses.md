@@ -23,7 +23,11 @@ You have two ways to create one:
 - **+ Upload course** — bring in an existing file, or point to an external URL.
 - **✍ Create in Studio** — build an interactive document from scratch (Chapter 8).
 
-Choosing **Upload course** opens a form. The key fields:
+Choosing **Upload course** opens a form:
+
+![The upload-course form and its settings](images/upload-course-form.png)
+
+The key fields:
 
 | Field | What it does |
 |-------|--------------|
@@ -87,6 +91,38 @@ If you granted a member the **create content** right (Chapter 6), the documents 
 arrive as a **draft** and enter **Document review**. As an owner, you approve or reject the
 draft; only on approval does it publish. This lets teams contribute knowledge while keeping
 a manager in the loop.
+
+---
+
+## Flows at a glance
+
+**Publishing a course:**
+
+```mermaid
+flowchart TD
+    A["Courses on a branch"] --> B{"Upload or Studio?"}
+    B -->|Upload| C["Fill the form: title, description, scope, classification, shelf, kind, file/URL, deadline, recurrence"]
+    B -->|Studio| D["Build it block by block"]
+    C --> E{"Who is publishing?"}
+    D --> E
+    E -->|Owner| F["Publishes immediately"]
+    E -->|Member with content right| G["Draft goes to Document review"]
+    G --> H{"Owner approves?"}
+    H -->|Yes| F
+    H -->|No| I["Stays a draft"]
+    F --> J["Placed on the branch - set mandatory and inherit"]
+```
+
+**Configuring a placed course (owner controls, anytime):**
+
+```mermaid
+flowchart LR
+    A["A course on a role"] --> B["mandatory or opt-in"]
+    A --> C["inherits down or this role only"]
+    A --> D["Unplace - this branch only"]
+    A --> E["Archive - keep it, stop new assignments"]
+    A --> F["Delete everywhere - completion history kept"]
+```
 
 ---
 

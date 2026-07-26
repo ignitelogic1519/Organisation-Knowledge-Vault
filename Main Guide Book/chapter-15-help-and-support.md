@@ -56,4 +56,4 @@ product.
 - **This guide book goes deeper.** Help is the quick tour; the chapters here are the full
   walkthrough with real screenshots.
 
-**Next:** [Appendix — Glossary & quick reference →](appendix-glossary-and-reference.md)
+**Next:** [Chapter 16 — Flow diagrams: every setting at a glance →](chapter-16-flow-diagrams.md)

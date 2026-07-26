@@ -23,6 +23,9 @@ chips.
 2. Choose whether to add **a member** ("they learn from this branch") or **a co-owner**
    ("they help manage this branch"). The co-owner option only appears if you're allowed to
    appoint co-owners.
+
+   ![Choosing to add a member or a co-owner](images/add-person-choose.png)
+
 3. Enter their **username**.
    - Unknown usernames are **reserved** — when that person registers, they're attached
      automatically.
@@ -42,6 +45,8 @@ documents don't go live immediately; they publish only after an owner approves t
 **Document review** (see Chapter 7). In the sample, *Marco Diaz* is a Firmware member with
 this content-creation grant.
 
+![Adding a member, with the optional "may create content" right](images/add-member-form.png)
+
 ### Owners (and co-owners)
 Owners manage the branch. When you appoint a co-owner, you choose which rights they get —
 and here's the golden rule of the whole platform:
@@ -57,6 +62,11 @@ The grantable rights are:
 | **May appoint further co-owners** | Add other owners to the branch |
 | **May create content** *(members)* | Propose documents for manager review |
 
+When you add a co-owner, you tick only the rights you want them to hold — and you'll only be
+*offered* the rights you hold yourself:
+
+![Adding a co-owner and granting only rights you hold](images/add-coowner-form.png)
+
 In the People panel, these appear as chips like **sub-groups** and **appoints co-owners** on
 an owner's card — in the screenshot, *Priya Raman* holds both.
 
@@ -70,6 +80,47 @@ Each person's card carries quick actions:
   rights*, or *Allow / Revoke content* for members. Changes take effect immediately.
 - **Remove** — take the person off this branch (with a confirmation). Removing someone from a
   branch doesn't delete their profile or their other positions.
+
+---
+
+## Flows at a glance
+
+**Adding a person (member or co-owner):**
+
+```mermaid
+flowchart TD
+    A["Owner opens People on a branch"] --> B["Click + Add person"]
+    B --> C{"Member or co-owner?"}
+    C -->|Member| D["Enter username - optionally: may create content"]
+    C -->|Co-owner| E["Enter username - grant only rights you hold: sub-groups / appoint co-owners"]
+    D --> F{"Username valid?"}
+    E --> F
+    F -->|No| G["Form stays open and shows the error"]
+    G --> C
+    F -->|Yes or unknown| H["Person placed - unknown usernames are reserved until they register"]
+    H --> I["Appears under Owners or Members"]
+```
+
+**Least-privilege granting (the golden rule):**
+
+```mermaid
+flowchart LR
+    A["A right you want to grant"] --> B{"Do YOU hold this right?"}
+    B -->|No| C["The option is never offered - you cannot grant what you lack"]
+    B -->|Yes| D["Grant it to the co-owner"]
+    D --> E["Toggle any time: Allow / Revoke"]
+```
+
+**A member proposing content:**
+
+```mermaid
+flowchart LR
+    A["Member with 'create content'"] --> B["Author a document in Studio"]
+    B --> C["Submitted as a draft"]
+    C --> D["Document review - an owner decides"]
+    D -->|Approve| E["Publishes to the branch"]
+    D -->|Reject| F["Stays a draft"]
+```
 
 ---
 

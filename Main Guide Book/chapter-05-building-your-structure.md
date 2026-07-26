@@ -25,6 +25,8 @@ Branches only ever grow **downward**. To add a new role beneath the one you're o
    (see visibility below).
 5. Select **Create**.
 
+![Creating a sub-role from Group configuration](images/sub-role-form.png)
+
 The new star appears immediately on the constellation, connected beneath the current role.
 
 > You'll only see the **+ Sub-role** option if you hold the *"may create sub-groups"* right
@@ -67,6 +69,47 @@ How you delete depends on your authority:
   they approve or reject it from their Requests inbox (Chapter 11).
 
 The platform always confirms before deleting.
+
+---
+
+## Flows at a glance
+
+**Creating a sub-role:**
+
+```mermaid
+flowchart TD
+    A["Group configuration"] --> B{"Hold 'create sub-groups'?"}
+    B -->|No| X["+ Sub-role is not shown"]
+    B -->|Yes| C["Click + Sub-role"]
+    C --> D["Name it - optionally tick Hidden (private)"]
+    D --> E["Create"]
+    E --> F["New star appears below on the constellation"]
+```
+
+**Setting visibility:**
+
+```mermaid
+flowchart TD
+    A["Group configuration - Visibility"] --> B{"Hidden checkbox"}
+    B -->|Unticked| C["Public: everyone sees it and can send Join requests"]
+    B -->|Ticked| D["Hidden: removed from the same layer and below"]
+    D --> E["The whole subtree is hidden too"]
+    D --> F["Owners above always keep seeing it"]
+    C --> G{"Is a level above hidden?"}
+    G -->|Yes| H["Branch stays hidden - use Request visibility"]
+    G -->|No| I["Visible to everyone"]
+```
+
+**Deleting a branch:**
+
+```mermaid
+flowchart TD
+    A["Want to delete a branch"] --> B{"Is it empty? no sub-roles, no people"}
+    B -->|No| C["Empty it first"]
+    B -->|Yes| D{"Do you own the level above?"}
+    D -->|Yes| E["Delete directly (with confirmation)"]
+    D -->|No - you own the branch| F["Request deletion - the level above decides"]
+```
 
 ---
 
