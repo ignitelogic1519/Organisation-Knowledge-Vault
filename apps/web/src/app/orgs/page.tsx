@@ -19,6 +19,25 @@ const NAV = [
   { href: "/help", label: "Help", icon: <IconHelp /> },
 ];
 
+// The countdown chip shown above an org's name: remaining time for time-bounded plans
+// (Demo, Monthly, custom), or the plan/lapsed state otherwise.
+function PlanTimer({ status, planKey, expiresAt }: { status: string; planKey: string | null; expiresAt: string | null }) {
+  if (status === "NONE") return null;
+  if (status === "EXPIRED") {
+    return <span className="org-plan-timer" data-danger="true">⏰ {planKey ?? "Plan"} expired — upgrade to keep it</span>;
+  }
+  if (!expiresAt) {
+    return <span className="org-plan-timer">{planKey ?? "Active"} · no expiry</span>;
+  }
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  const days = Math.floor(ms / 86400_000);
+  const hours = Math.floor((ms % 86400_000) / 3600_000);
+  const danger = ms < 3 * 86400_000;
+  const label = status === "DEMO" ? "Demo" : planKey ?? "Plan";
+  const remaining = ms <= 0 ? "expired" : days >= 1 ? `${days}d ${hours}h left` : `${hours}h left`;
+  return <span className="org-plan-timer" data-danger={danger}>⏳ {label} · {remaining}</span>;
+}
+
 // Dashboard — every organization the signed-in profile belongs to.
 export default function OrgsPage() {
   const router = useRouter();
@@ -114,6 +133,7 @@ export default function OrgsPage() {
       <div className="org-grid stagger">
         {list?.map((o) => (
           <Link key={o.id} href={`/orgs/${o.id}`} className="org-card glass">
+            <PlanTimer status={o.planStatus} planKey={o.planKey} expiresAt={o.planExpiresAt} />
             <div className="org-card-head">
               <h2>{o.name}</h2>
               <span className="chip">#{o.orgNumber}</span>

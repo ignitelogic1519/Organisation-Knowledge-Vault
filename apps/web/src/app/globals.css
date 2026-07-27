@@ -3963,3 +3963,96 @@ button {
   border-radius: 10px;
   z-index: 50;
 }
+
+/* ── Pricing page ────────────────────────────────────────────────────────── */
+.coins-badge {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  margin-top: 0.8rem;
+  font-size: 0.95rem;
+}
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.2rem;
+  max-width: 1000px;
+  margin: 1.5rem auto 0;
+}
+.pricing-card {
+  position: relative;
+  padding: 1.4rem 1.3rem;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pricing-card h3 { margin: 0.2rem 0 0; }
+.pricing-badge {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  background: linear-gradient(120deg, var(--accent, #7c7cff), var(--accent-2, #c06bff));
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+}
+.pricing-img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 0.4rem;
+}
+.pricing-price {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  margin: 0.3rem 0;
+}
+.pricing-criteria {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  border-left: 3px solid var(--accent, #7c7cff);
+  padding-left: 0.6rem;
+}
+.pricing-highlights {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0.9rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.pricing-highlights li { margin: 0.25rem 0; }
+.pricing-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+/* Admin messages panel on the Account page */
+.admin-inbox .bell-item-top { display: flex; gap: 0.5rem; align-items: center; }
+.admin-otp-code {
+  font-family: monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.3rem;
+  font-weight: 700;
+  color: var(--accent-2, #c06bff);
+  margin: 0.2rem 0;
+}
+.org-plan-timer {
+  display: inline-block;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  margin-bottom: 0.4rem;
+  background: rgba(124, 124, 255, 0.15);
+  color: var(--accent-2, #c06bff);
+  font-weight: 600;
+}
+.org-plan-timer[data-danger="true"] {
+  background: rgba(255, 90, 90, 0.16);
+  color: #ff8a8a;
+}

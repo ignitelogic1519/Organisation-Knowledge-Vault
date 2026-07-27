@@ -29,6 +29,7 @@ export const orgs = {
     ownerRoleName: string;
     supremePassword: string;
     acknowledgedUnrecoverable: true;
+    accessCode: string;
   }) => api<OrgSummary>("/orgs", { method: "POST", body: JSON.stringify(input) }),
   supremeVerify: (id: string, password: string) =>
     api<SupremeSession>(`/orgs/${id}/supreme/verify`, {

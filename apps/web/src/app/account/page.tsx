@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { PublicProfile } from "@vault/shared";
+import type { AppNotification } from "@vault/shared";
 import { auth, ApiError, hasSession } from "@/lib/auth-client";
+import { notifications } from "@/lib/courses-client";
 import { AppShell } from "@/components/AppShell";
 import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconLogout, IconUser } from "@/components/icons";
@@ -151,6 +153,8 @@ export default function AccountPage() {
             {notice && <p className="auth-sub">{notice}</p>}
           </div>
 
+          <AdminMessages />
+
           <div className="panel glass danger-zone">
             <h2>Danger zone</h2>
             <p className="auth-sub">
@@ -184,5 +188,64 @@ export default function AccountPage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+// Admin messages (OTPs, plan decisions, coin gifts) shown right on the Account page so a
+// user can read their access code any time — even before they belong to any organization.
+const ADMIN_KINDS = new Set([
+  "admin_otp",
+  "admin_denied",
+  "admin_message",
+  "coins_gift",
+  "plan_upgraded",
+  "plan_expiring",
+  "plan_expired",
+]);
+
+function AdminMessages() {
+  const [items, setItems] = useState<AppNotification[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    notifications
+      .list()
+      .then((r) => setItems(r.notifications.filter((n) => ADMIN_KINDS.has(n.kind))))
+      .catch(() => undefined)
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded) return null;
+
+  return (
+    <div className="panel glass admin-inbox" style={{ gridColumn: "1 / -1" }}>
+      <h2>Messages from the Super Admin</h2>
+      <p className="auth-sub">
+        Access codes and plan decisions land here and stay for 30 days — read your code any time.
+      </p>
+      {items.length === 0 && <p className="auth-sub">No messages yet.</p>}
+      <ul className="owner-list">
+        {items.map((n) => {
+          const p = n.payload as Record<string, unknown>;
+          const otp = typeof p.otp === "string" ? p.otp : null;
+          return (
+            <li key={n.id} className="bell-item" data-unread={!n.readAt} style={{ display: "block" }}>
+              <span className="bell-item-top">
+                <span className="chip bell-cat">{String(p.category ?? "Admin")}</span>
+                <strong>{String(p.title ?? "Message")}</strong>
+              </span>
+              {otp && <div className="admin-otp-code">{otp}</div>}
+              {otp && typeof p.expiresAt === "string" && (
+                <span className="auth-sub">Use it within 24h · expires {new Date(p.expiresAt).toLocaleString()}</span>
+              )}
+              <p className="auth-sub" style={{ marginTop: "0.2rem" }}>{String(p.message ?? "")}</p>
+              <span className="auth-sub" style={{ fontSize: "0.75rem" }}>
+                {new Date(n.createdAt).toLocaleString()}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

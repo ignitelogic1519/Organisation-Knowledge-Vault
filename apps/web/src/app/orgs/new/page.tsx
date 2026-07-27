@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createOrgSchema } from "@vault/shared";
@@ -32,6 +33,7 @@ export default function NewOrgPage() {
       ownerRoleName: data.get("ownerRoleName"),
       supremePassword: data.get("supremePassword"),
       acknowledgedUnrecoverable: data.get("ack") === "on" ? true : false,
+      accessCode: String(data.get("accessCode") ?? "").trim(),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
@@ -54,6 +56,19 @@ export default function NewOrgPage() {
       subtitle="This creates the organization's Supreme — its root object — and its first role, with you as the first owner."
     >
       <form className="auth-card auth-card-wide glass" onSubmit={submit} style={{ margin: 0 }}>
+        <div className="warn-box" style={{ marginTop: 0 }}>
+          <strong>You need an access code to create an organization.</strong>
+          <p>
+            Choose a plan on the <Link href="/pricing">Pricing page</Link> to request one. The
+            Knowledge Base team reviews it and sends your one-time code to your{" "}
+            <Link href="/account">notifications</Link>.
+          </p>
+        </div>
+        <label className="field">
+          <span>Access code</span>
+          <input name="accessCode" required placeholder="8-character code from your notifications" autoCapitalize="characters" />
+          <small>The super-admin sends this after approving your plan request.</small>
+        </label>
         <label className="field">
           <span>Organization name</span>
           <input name="name" required minLength={2} />
