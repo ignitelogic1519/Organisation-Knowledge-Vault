@@ -14,7 +14,12 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        sync: false # Neon connection string
+        # Neon connection string. IMPORTANT: use the DIRECT (non-pooled) endpoint — the host
+        # WITHOUT "-pooler". `prisma migrate deploy` needs a session advisory lock, which
+        # Neon's pooler (PgBouncer, transaction mode) can't hold → deploys fail with P1002
+        # "Timed out trying to acquire a postgres advisory lock". The direct endpoint is fine
+        # at this scale (WEB_CONCURRENCY=1). See docs/setup-guide.md.
+        sync: false
       - key: JWT_SECRET
         generateValue: true # random secret minted by Render — never commit one
       - key: WEB_ORIGIN

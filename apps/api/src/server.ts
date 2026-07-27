@@ -6,6 +6,7 @@ import { env } from "./env.js";
 import { authenticatePlugin } from "./plugins/authenticate.js";
 import { authenticateAdminPlugin } from "./platform/authenticate.js";
 import { platformRoutes } from "./platform/routes.js";
+import { ensurePlatformBootstrap } from "./platform/bootstrap.js";
 import { pricingRoutes } from "./pricing/routes.js";
 import { authRoutes } from "./auth/routes.js";
 import { meRoutes } from "./me/routes.js";
@@ -77,6 +78,8 @@ app.get("/health", async (): Promise<HealthResponse> => ({
 
 try {
   await app.listen({ port: env.port, host: "0.0.0.0" });
+  // Ensure the first super-admin + starter plans exist (idempotent; never fatal).
+  await ensurePlatformBootstrap();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

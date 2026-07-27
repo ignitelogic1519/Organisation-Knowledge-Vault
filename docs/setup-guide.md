@@ -171,3 +171,29 @@ re-adding them.
 | Browser console CORS error | `WEB_ORIGIN` mismatch | Set it to the exact Vercel URL (scheme included) |
 | Vercel build fails | Root directory not set | Project Settings → Root Directory → `apps/web` |
 | Render build: `EROFS: read-only file system, unlink '/usr/bin/pnpm'` | `corepack enable` in the build command | Remove `corepack enable &&` — Render pre-installs pnpm; build command is just `pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build` |
+
+## Troubleshooting: Render deploy fails with `P1002` advisory-lock timeout (Neon)
+
+If `prisma migrate deploy` fails with:
+
+```
+Error: P1002 — Timed out trying to acquire a postgres advisory lock
+(SELECT pg_advisory_lock(...)).
+```
+
+your `DATABASE_URL` is pointing at Neon's **pooler** endpoint (host contains `-pooler`).
+Prisma migrations need a **session-level advisory lock**, which PgBouncer (transaction mode)
+can't hold. Fix: set `DATABASE_URL` to the **direct, non-pooled** endpoint — the same string
+with `-pooler` removed from the host, e.g.
+
+```
+# pooled (fails migrations):
+postgresql://user:pass@ep-xxxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+# direct (use this):
+postgresql://user:pass@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
+```
+
+The direct endpoint is fine at small scale (`WEB_CONCURRENCY=1`). After redeploy, the server's
+idempotent bootstrap creates the first super-admin (`adminbase`) and the starter plans
+automatically — no separate seed step is needed. To create/reset the admin manually instead,
+run `pnpm --filter @vault/api db:admin` (honours `ADMIN_USERNAME` / `ADMIN_PASSWORD`).
