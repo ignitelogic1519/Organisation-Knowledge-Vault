@@ -9,7 +9,7 @@ const db = new PrismaClient();
 
 // The first super-super-admin. NOTE: this password is a bootstrap credential only —
 // it is stored hashed and `mustChangePassword` forces a rotation on first login.
-const FIRST_ADMIN = { username: "admin-kwbase", password: "CJP@2000", displayName: "Knowledge Base Admin" };
+const FIRST_ADMIN = { username: "adminbase", password: "CJP@2000", displayName: "Knowledge Base Admin" };
 
 // Default Knowledge Coins every profile starts with (also the Profile.coins default).
 const DEFAULT_COINS = 150;

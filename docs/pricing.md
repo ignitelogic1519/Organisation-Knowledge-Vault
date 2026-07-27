@@ -16,7 +16,7 @@ paid for with **Knowledge Coins** (a virtual currency; a real payment gateway is
 | Model | Purpose |
 |-------|---------|
 | `PricingPlan` | One active row = one card on `/pricing`; `category` is its tab. `priceCoins`, `durationDays` (null = admin-set/unlimited), `isCustom`, `imageUrl`, `criteria`, `badge`, `highlights`, `validFrom/validUntil` (offer window), `active`, `sortOrder`. |
-| `PlatformAdmin` | Super-admin accounts (separate realm). Seeded with `admin-kwbase`. `mustChangePassword` forces a first-login rotation. |
+| `PlatformAdmin` | Super-admin accounts (separate realm). Seeded with `adminbase`. `mustChangePassword` forces a first-login rotation. |
 | `PlatformRequest` | The user↔admin channel: `CREATE_ORG` / `CUSTOM_PLAN` / `RESTORE_ORG`, with the proposal (`requestedDays`, `offeredCoins`, `message`), the decision (`grantedDays`, `priceCoins`, `adminMessage`), and the hashed OTP (`otpHash`, `otpExpiresAt` = 24h). |
 | `CoinTransaction` | Ledger of every coin change (`SIGNUP_GRANT`, `ADMIN_GIFT`, `ADMIN_DEDUCT`, `PLAN_SPEND`, `REFUND`) with a balance snapshot. |
 | `PlatformAdminAudit` | Append-only log of every super-admin action. |
@@ -24,7 +24,7 @@ paid for with **Knowledge Coins** (a virtual currency; a real payment gateway is
 | `Organization.plan*` | `planKey`, `planStatus` (`NONE`/`DEMO`/`ACTIVE`/`EXPIRED`), `planActivatedAt`, `planExpiresAt`, `planIsCustom`, `planGrantedById`. **This is the authoritative plan state** — the super-admin edits it directly (the Supreme *password* is unknown to the server). `NONE` = legacy/grandfathered org (no timer, no restriction). |
 
 ### Starter seed
-- Admin `admin-kwbase` (hashed, must-change-on-first-login).
+- Admin `adminbase` (hashed, must-change-on-first-login).
 - Plans: **Demo** (free, 60 days), **Monthly** (50 coins, 30 days — placeholder price), **Organisation** (150 coins, admin-set duration, `isCustom`).
 - Every profile backfilled to 150 coins.
 
