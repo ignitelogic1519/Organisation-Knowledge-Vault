@@ -1,5 +1,6 @@
 import { hash } from "@node-rs/argon2";
 import { db } from "../db.js";
+import { ensureDefaultCoinsSetting } from "./settings.js";
 
 // Self-healing platform bootstrap — runs on every server start (idempotent). Guarantees the
 // first super-admin and the starter pricing plans exist, so a fresh deploy (e.g. Render +
@@ -38,6 +39,7 @@ export async function ensurePlatformBootstrap(): Promise<void> {
       await db.pricingPlan.createMany({ data: STARTER_PLANS });
       console.log(`[bootstrap] seeded ${STARTER_PLANS.length} starter pricing plans`);
     }
+    await ensureDefaultCoinsSetting();
   } catch (err) {
     // Never let bootstrap crash the server — log and continue (e.g. if migrations haven't
     // applied yet). The admin can be created later with `db:admin`.

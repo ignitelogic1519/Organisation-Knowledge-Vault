@@ -2,6 +2,7 @@ import { hash, verify as argonVerify } from "@node-rs/argon2";
 import type { FastifyInstance } from "fastify";
 import { loginSchema, refreshSchema, registerSchema, type AuthResponse } from "@vault/shared";
 import { db } from "../db.js";
+import { getDefaultCoins } from "../platform/settings.js";
 import { rateLimiter } from "../security.js";
 import { acceptPendingInvitations } from "../roles/helpers.js";
 import { issueTokens, revokeRefreshToken, rotateRefreshToken, toPublicProfile } from "./tokens.js";
@@ -21,13 +22,20 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(409).send({ error: "This username is already taken" });
     }
 
+    const startingCoins = await getDefaultCoins();
     const profile = await db.profile.create({
       data: {
         username,
         displayName: body.displayName,
         passwordHash: await hash(body.password),
+        coins: startingCoins,
       },
     });
+    if (startingCoins > 0) {
+      await db.coinTransaction.create({
+        data: { profileId: profile.id, delta: startingCoins, balance: startingCoins, reason: "SIGNUP_GRANT" },
+      });
+    }
     // Joining completes on registration for anyone placed before they had a profile
     await acceptPendingInvitations(profile.id, username);
 

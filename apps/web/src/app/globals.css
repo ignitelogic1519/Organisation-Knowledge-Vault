@@ -4110,3 +4110,43 @@ button {
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
 }
+
+/* ── Admin panel: header tools, search, sortable table, row actions ───────── */
+.kbase-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.kbase-panel-head h2 { margin: 0; }
+.kbase-tools {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.kbase-search {
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  min-width: 240px;
+  border: 1px solid var(--border, rgba(255,255,255,0.14));
+  background: var(--surface-2, rgba(255,255,255,0.04));
+  color: inherit;
+}
+.kbase-table th { user-select: none; }
+.kbase-row-actions {
+  display: flex;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+/* Coin balance + buy button pinned to the pricing nav (top-right) */
+.pricing-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.pricing-wallet .coins-chip {
+  font-weight: 600;
+  font-size: 0.92rem;
+  opacity: 0.95;
+}

@@ -98,37 +98,110 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
   );
 }
 
+type SortKey = "orgNumber" | "name" | "planKey" | "planStatus" | "planExpiresAt" | "memberCount" | "roleCount" | "treeDepth";
+
 function OrgsTab({ flash }: { flash: (m: string) => void }) {
   const [orgs, setOrgs] = useState<AdminOrgRow[] | null>(null);
   const [upgrading, setUpgrading] = useState<AdminOrgRow | null>(null);
-  const load = useCallback(() => admin.orgs().then((r) => setOrgs(r.orgs)).catch(() => setOrgs([])), []);
-  useEffect(() => { load(); }, [load]);
+  const [q, setQ] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("orgNumber");
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+
+  const load = useCallback(
+    () => admin.orgs().then((r) => { setOrgs(r.orgs); setUpdatedAt(new Date()); }).catch(() => setOrgs([])),
+    [],
+  );
+  // Initial load + live auto-refresh every 8s so coins/depth/status changes show up.
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 8000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const sortBy = (k: SortKey) => {
+    if (k === sortKey) setSortDir((d) => (d === 1 ? -1 : 1));
+    else { setSortKey(k); setSortDir(1); }
+  };
+
+  const rows = (orgs ?? [])
+    .filter((o) => {
+      if (!q.trim()) return true;
+      const s = q.toLowerCase();
+      return (
+        o.name.toLowerCase().includes(s) ||
+        String(o.orgNumber).includes(s) ||
+        (o.planKey ?? "").toLowerCase().includes(s) ||
+        o.planStatus.toLowerCase().includes(s) ||
+        o.ownerUsernames.some((u) => u.toLowerCase().includes(s))
+      );
+    })
+    .sort((a, b) => {
+      const av = a[sortKey] ?? "";
+      const bv = b[sortKey] ?? "";
+      if (av < bv) return -1 * sortDir;
+      if (av > bv) return 1 * sortDir;
+      return 0;
+    });
+
+  const arrow = (k: SortKey) => (sortKey === k ? (sortDir === 1 ? " ▲" : " ▼") : "");
+  const th = (k: SortKey, label: string) => (
+    <th onClick={() => sortBy(k)} style={{ cursor: "pointer" }} title="Click to sort">{label}{arrow(k)}</th>
+  );
+
+  const purge = async (o: AdminOrgRow) => {
+    if (!confirm(`Permanently delete "${o.name}" (#${o.orgNumber}) right now?\n\nThis removes it from existence immediately (no 30-day retention). The owner can only bring it back from its .main file.`)) return;
+    try {
+      await admin.purgeOrg(o.orgNumber);
+      flash(`Permanently deleted ${o.name}`);
+      load();
+    } catch (e) {
+      flash(e instanceof AdminApiError ? e.message : "Delete failed");
+    }
+  };
 
   return (
     <div className="kbase-panel glass">
-      <h2>All organizations</h2>
-      <p className="auth-sub">Every organization on the platform, with its plan, expiry and structure depth.</p>
+      <div className="kbase-panel-head">
+        <div>
+          <h2>All organizations</h2>
+          <p className="auth-sub">
+            Live view — auto-refreshes every 8s{updatedAt ? ` · updated ${updatedAt.toLocaleTimeString()}` : ""}.
+          </p>
+        </div>
+        <div className="kbase-tools">
+          <input className="kbase-search" placeholder="Search name, #, owner, plan…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="btn btn-quiet btn-small" onClick={load}>↻ Refresh</button>
+        </div>
+      </div>
       <div className="table-scroll">
         <table className="kbase-table">
           <thead>
-            <tr><th>#</th><th>Name</th><th>Owners</th><th>Plan</th><th>Status</th><th>Expires</th><th>Members</th><th>Roles</th><th>Depth</th><th></th></tr>
+            <tr>
+              {th("orgNumber", "#")}{th("name", "Name")}<th>Owners</th>{th("planKey", "Plan")}
+              {th("planStatus", "Status")}{th("planExpiresAt", "Expires")}{th("memberCount", "Members")}
+              {th("roleCount", "Roles")}{th("treeDepth", "Depth")}<th></th>
+            </tr>
           </thead>
           <tbody>
-            {orgs?.map((o) => (
+            {rows.map((o) => (
               <tr key={o.id} data-deleted={!!o.deletedAt}>
                 <td>{o.orgNumber}</td>
                 <td>{o.name}{o.deletedAt && <span className="badge badge-danger"> deleted</span>}</td>
-                <td>{o.ownerUsernames.map((u) => `@${u}`).join(", ")}</td>
+                <td>{o.ownerUsernames.map((u) => `@${u}`).join(", ") || "—"}</td>
                 <td>{o.planKey ?? "—"}</td>
                 <td><span className={`badge ${o.planStatus === "ACTIVE" ? "badge-ok" : o.planStatus === "EXPIRED" ? "badge-danger" : ""}`}>{o.planStatus.toLowerCase()}</span></td>
                 <td>{o.planExpiresAt ? o.planExpiresAt.slice(0, 10) : "—"}</td>
                 <td>{o.memberCount}</td>
                 <td>{o.roleCount}</td>
                 <td>{o.treeDepth}</td>
-                <td><button className="btn btn-quiet btn-small" onClick={() => setUpgrading(o)}>Set plan</button></td>
+                <td className="kbase-row-actions">
+                  <button className="btn btn-quiet btn-small" onClick={() => setUpgrading(o)}>Set plan</button>
+                  <button className="btn btn-danger btn-small" onClick={() => purge(o)} title="Delete permanently (immediate)">Delete</button>
+                </td>
               </tr>
             ))}
-            {orgs?.length === 0 && <tr><td colSpan={10} className="auth-sub">No organizations yet.</td></tr>}
+            {orgs && rows.length === 0 && <tr><td colSpan={10} className="auth-sub">{q ? "No matches." : "No organizations yet."}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -179,12 +252,21 @@ function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () =
 function RequestsTab({ flash }: { flash: (m: string) => void }) {
   const [reqs, setReqs] = useState<AdminRequestRow[] | null>(null);
   const load = useCallback(() => admin.requests().then((r) => setReqs(r.requests)).catch(() => setReqs([])), []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 8000); // live: new requests appear without a manual refresh
+    return () => clearInterval(t);
+  }, [load]);
 
   return (
     <div className="kbase-panel glass">
-      <h2>Requests</h2>
-      <p className="auth-sub">Users asking to create an organization, propose a custom plan, or restore an expired org.</p>
+      <div className="kbase-panel-head">
+        <div>
+          <h2>Requests</h2>
+          <p className="auth-sub">Users asking to create an organization, propose a custom plan, or restore an expired org. Live — refreshes every 8s.</p>
+        </div>
+        <button className="btn btn-quiet btn-small" onClick={load}>↻ Refresh</button>
+      </div>
       {reqs?.length === 0 && <p className="auth-sub">No requests yet.</p>}
       <ul className="owner-list">
         {reqs?.map((r) => (
@@ -256,9 +338,35 @@ function DecideForm({ r, onDone }: { r: AdminRequestRow; onDone: (m: string) => 
 
 function CoinsTab({ flash }: { flash: (m: string) => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [defaultCoins, setDefaultCoins] = useState<number | null>(null);
+  useEffect(() => { admin.getSettings().then((s) => setDefaultCoins(s.defaultCoins)).catch(() => undefined); }, []);
   return (
     <div className="kbase-panel glass">
       <h2>Knowledge Coins</h2>
+
+      <div className="kbase-inline" style={{ marginTop: 0 }}>
+        <strong>Default coins for new users</strong>
+        <p className="auth-sub" style={{ margin: 0 }}>How many coins every newly-registered profile starts with. Change it any time (e.g. from 150 to 50).</p>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const d = new FormData(e.currentTarget);
+            try {
+              const res = await admin.setDefaultCoins(Number(d.get("defaultCoins")));
+              setDefaultCoins(res.defaultCoins);
+              flash(`New users now start with ${res.defaultCoins} coins`);
+            } catch (err) {
+              flash(err instanceof AdminApiError ? err.message : "Failed");
+            }
+          }}
+          style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+        >
+          <input name="defaultCoins" type="number" min={0} defaultValue={defaultCoins ?? 150} key={defaultCoins ?? "x"} style={{ maxWidth: 140 }} />
+          <button className="btn btn-primary btn-small">Save default</button>
+        </form>
+      </div>
+
+      <h3 className="learning-h" style={{ marginTop: "1.2rem" }}>Gift / adjust a user</h3>
       <p className="auth-sub">Gift or adjust a user's coin balance (top-up from your end). Positive adds, negative deducts.</p>
       <form
         className="kbase-inline"

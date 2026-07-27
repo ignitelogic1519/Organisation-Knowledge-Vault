@@ -15,6 +15,8 @@ import { db } from "../db.js";
 import { issueAdminToken } from "./tokens.js";
 import { generateOtp, hashOtp } from "./otp.js";
 import { notifyFromAdmin } from "./notify.js";
+import { getDefaultCoins, setDefaultCoins } from "./settings.js";
+import { purgeOrganization } from "../orgs/purge.js";
 
 const OTP_TTL_MS = 24 * 3600_000;
 
@@ -356,6 +358,35 @@ export async function platformRoutes(app: FastifyInstance) {
       const plan = await db.pricingPlan.update({ where: { id: req.params.id }, data });
       await audit(req.adminId, "update_plan", { key: plan.key });
       return { ok: true, plan };
+    },
+  );
+
+  // ── Platform settings (default coins for new users) ──────────────────────────
+  app.get("/admin/settings", { preHandler: app.authenticateAdmin }, async () => {
+    return { defaultCoins: await getDefaultCoins() };
+  });
+
+  app.put("/admin/settings", { preHandler: app.authenticateAdmin }, async (req, reply) => {
+    const value = Number((req.body as { defaultCoins?: unknown })?.defaultCoins);
+    if (!Number.isFinite(value) || value < 0 || value > 1_000_000) {
+      return reply.status(400).send({ error: "Enter a coin amount between 0 and 1,000,000" });
+    }
+    await setDefaultCoins(value);
+    await audit(req.adminId, "set_default_coins", { value: Math.floor(value) });
+    return { ok: true, defaultCoins: Math.floor(value) };
+  });
+
+  // ── Permanent, immediate deletion (bypasses the 30-day retention) ────────────
+  // The org is purged now; a user can only bring it back from its .main file.
+  app.post<{ Params: { orgNumber: string } }>(
+    "/admin/orgs/:orgNumber/purge",
+    { preHandler: app.authenticateAdmin },
+    async (req, reply) => {
+      const org = await db.organization.findUnique({ where: { orgNumber: Number(req.params.orgNumber) } });
+      if (!org) return reply.status(404).send({ error: "No such organization" });
+      await purgeOrganization(org.id);
+      await audit(req.adminId, "purge_org", { orgNumber: org.orgNumber, name: org.name });
+      return { ok: true };
     },
   );
 

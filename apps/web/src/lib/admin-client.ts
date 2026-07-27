@@ -83,6 +83,14 @@ export const admin = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  purgeOrg: (orgNumber: number) =>
+    call<{ ok: boolean }>(`/admin/orgs/${orgNumber}/purge`, { method: "POST", body: "{}" }),
+  getSettings: () => call<{ defaultCoins: number }>("/admin/settings"),
+  setDefaultCoins: (defaultCoins: number) =>
+    call<{ ok: boolean; defaultCoins: number }>("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ defaultCoins }),
+    }),
   plans: () => call<{ plans: unknown[] }>("/admin/plans"),
   admins: () =>
     call<{ admins: { id: string; username: string; displayName: string; active: boolean; createdAt: string; lastLoginAt: string | null }[] }>(

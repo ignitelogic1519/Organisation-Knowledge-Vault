@@ -54,15 +54,20 @@ export default function PricingPage() {
 
   return (
     <main className="landing">
-      <SiteNav right={<Link href={authed ? "/orgs" : "/login"} className="nav-link">{authed ? "My organizations" : "Sign in"}</Link>} />
+      <SiteNav
+        right={
+          <span className="pricing-wallet">
+            {authed && coins !== null && <span className="coins-chip">🪙 {coins} coins</span>}
+            {authed && <Link href="/payment" className="btn btn-primary btn-small">Buy coins</Link>}
+            <Link href={authed ? "/orgs" : "/login"} className="nav-link">{authed ? "My organizations" : "Sign in"}</Link>
+          </span>
+        }
+      />
       <section className="section" style={{ paddingTop: "6rem" }}>
         <div className="section-head">
           <span className="eyebrow">Pricing</span>
           <h2>Choose a plan to <span className="gradient-text">found your organization</span></h2>
           <p>Every organization runs on a plan. Pick one, and the Knowledge Base team sends you a one-time access code to create it.</p>
-          {authed && coins !== null && (
-            <p className="coins-badge glass">🪙 Your balance: <strong>{coins}</strong> Knowledge Coins <Link href="/payment" className="nav-link"> · Buy more</Link></p>
-          )}
         </div>
 
         {view && view.tabs.length > 1 && (

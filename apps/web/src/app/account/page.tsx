@@ -216,7 +216,8 @@ function AdminMessages() {
       .finally(() => setLoaded(true));
   }, []);
 
-  if (!loaded) return null;
+  // Hide the whole block when there's nothing to show — an empty panel is just noise.
+  if (!loaded || items.length === 0) return null;
 
   return (
     <div className="panel glass admin-inbox" style={{ gridColumn: "1 / -1" }}>
@@ -224,7 +225,6 @@ function AdminMessages() {
       <p className="auth-sub">
         Access codes and plan decisions land here and stay for 30 days — read your code any time.
       </p>
-      {items.length === 0 && <p className="auth-sub">No messages yet.</p>}
       <ul className="owner-list">
         {items.map((n) => {
           const p = n.payload as Record<string, unknown>;

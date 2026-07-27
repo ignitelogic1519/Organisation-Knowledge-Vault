@@ -486,6 +486,13 @@ model CoinTransaction {
   @@index([profileId, createdAt])
 }
 
+// Platform-wide settings the super-admin can tune (e.g. default_coins for new profiles).
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // Append-only audit of every super-admin action (god-mode needs a trail).
 model PlatformAdminAudit {
   id        String   @id @default(uuid())
