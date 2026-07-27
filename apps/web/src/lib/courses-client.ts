@@ -149,10 +149,10 @@ export const vaultFiles = {
       `/roles/${roleId}/restore-bkp`,
       { method: "POST", body: JSON.stringify({ fileBase64, password }) },
     ),
-  revive: (fileBase64: string, password: string) =>
+  revive: (fileBase64: string, password: string, accessCode?: string) =>
     api<{ ok: boolean; orgId: string; report: Record<string, number> }>("/orgs/revive", {
       method: "POST",
-      body: JSON.stringify({ fileBase64, password }),
+      body: JSON.stringify({ fileBase64, password, ...(accessCode ? { accessCode } : {}) }),
     }),
 };
 

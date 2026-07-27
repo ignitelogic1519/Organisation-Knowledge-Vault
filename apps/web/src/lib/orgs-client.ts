@@ -18,10 +18,10 @@ export const orgs = {
     api<{ id: string; name: string; orgNumber: number; deletedAt: string; purgeAt: string }[]>(
       "/orgs/deleted",
     ),
-  undelete: (id: string, password: string) =>
+  undelete: (id: string, password: string, accessCode?: string) =>
     api<{ ok: boolean }>(`/orgs/${id}/undelete`, {
       method: "POST",
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, ...(accessCode ? { accessCode } : {}) }),
     }),
   get: (id: string) => api<OrgDetail>(`/orgs/${id}`),
   create: (input: {

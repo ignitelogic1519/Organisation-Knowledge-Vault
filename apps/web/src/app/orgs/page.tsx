@@ -105,7 +105,39 @@ export default function OrgsPage() {
                       await orgs.undelete(d.id, pw);
                       load();
                     } catch (err) {
-                      dialogs.toast(err instanceof Error ? err.message : "Undelete failed", "danger");
+                      const msg = err instanceof Error ? err.message : "Undelete failed";
+                      // Expired plan: explain clearly and let them enter a restore code.
+                      if (/expired/i.test(msg)) {
+                        await dialogs.alert({ title: "Plan expired", message: msg, tone: "danger" });
+                        if (
+                          await dialogs.confirm({
+                            title: "Have a restore code?",
+                            message:
+                              "If the super-admin sent you a restore code (check your Account notifications), enter it next. Otherwise, choose a plan on the Pricing page first.",
+                            confirmLabel: "Enter restore code",
+                            cancelLabel: "Go to Pricing",
+                          })
+                        ) {
+                          const code = await dialogs.promptPassword({
+                            title: "Restore code",
+                            message: "Paste the one-time restore code from your notifications.",
+                            label: "Restore code",
+                            minLength: 8,
+                            submitLabel: "Restore",
+                          });
+                          if (!code) return;
+                          try {
+                            await orgs.undelete(d.id, pw, code);
+                            load();
+                          } catch (e2) {
+                            dialogs.toast(e2 instanceof Error ? e2.message : "Restore failed", "danger");
+                          }
+                        } else {
+                          router.push("/pricing");
+                        }
+                      } else {
+                        dialogs.toast(msg, "danger");
+                      }
                     }
                   }}
                 >
@@ -157,15 +189,45 @@ export default function OrgsPage() {
             e.preventDefault();
             const d = new FormData(e.currentTarget);
             const file = d.get("main") as File;
-            try {
-              const b64 = await fileToBase64(file);
-              const res = await vaultFiles.revive(b64, String(d.get("password")));
-              await dialogs.alert({
+            const password = String(d.get("password"));
+            const done = (res: Awaited<ReturnType<typeof vaultFiles.revive>>) => {
+              dialogs.alert({
                 title: "Organization revived",
                 message: `Roles: ${res.report.rolesRestored}, matched people: ${res.report.peopleMatched}, pending (re-attach on registration): ${res.report.peoplePending}, courses: ${res.report.coursesRestored}. Media is marked unreachable until storage is reconnected.`,
                 tone: "success",
               });
               router.push(`/orgs/${res.orgId}`);
+            };
+            try {
+              const b64 = await fileToBase64(file);
+              try {
+                done(await vaultFiles.revive(b64, password));
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : "Revival failed";
+                if (!/expired/i.test(msg)) throw err;
+                // Expired/legacy plan: explain, then let them supply a restore code.
+                await dialogs.alert({ title: "Plan expired", message: msg, tone: "danger" });
+                if (
+                  await dialogs.confirm({
+                    title: "Have a restore code?",
+                    message:
+                      "Enter the one-time restore code from your notifications, or choose a plan on the Pricing page to get one.",
+                    confirmLabel: "Enter restore code",
+                    cancelLabel: "Go to Pricing",
+                  })
+                ) {
+                  const code = await dialogs.promptPassword({
+                    title: "Restore code",
+                    message: "Paste the restore code from your notifications.",
+                    label: "Restore code",
+                    minLength: 8,
+                    submitLabel: "Restore",
+                  });
+                  if (code) done(await vaultFiles.revive(b64, password, code));
+                } else {
+                  router.push("/pricing");
+                }
+              }
             } catch (err) {
               dialogs.toast(err instanceof Error ? err.message : "Revival failed", "danger");
             }

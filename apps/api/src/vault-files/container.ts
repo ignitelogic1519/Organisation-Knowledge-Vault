@@ -13,7 +13,10 @@ import {
 // forever. The header carries a formatVersion so future schemas ship import migrations.
 
 const MAGIC = Buffer.from("KVAULT01");
-export const FORMAT_VERSION = 1;
+// v2 adds the signed plan snapshot to .main payloads (docs/pricing.md). v1 files stay
+// readable — the reader tolerates a lower formatVersion and the revive path treats a
+// missing/legacy plan claim as "needs a fresh plan".
+export const FORMAT_VERSION = 2;
 
 export interface ContainerHeader {
   formatVersion: number;

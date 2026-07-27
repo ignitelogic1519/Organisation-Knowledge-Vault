@@ -11,7 +11,7 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
-import { redeemAccessCode, planStatusFor, expiryFrom } from "./plan.js";
+import { redeemAccessCode, planStatusFor, expiryFrom, effectivePlanStatus } from "./plan.js";
 import {
   auditSupreme,
   checkSupremeRateLimit,
@@ -151,7 +151,7 @@ export async function orgRoutes(app: FastifyInstance) {
         name: m.org.name,
         orgNumber: m.org.orgNumber,
         myPlacements: await myPlacements(req.profileId, m.orgId),
-        planStatus: m.org.planStatus,
+        planStatus: effectivePlanStatus(m.org.planStatus, m.org.planExpiresAt),
         planKey: m.org.planKey,
         planExpiresAt: m.org.planExpiresAt?.toISOString() ?? null,
       })),
@@ -214,7 +214,7 @@ export async function orgRoutes(app: FastifyInstance) {
           username: p.membership.profile.username,
         })),
         myPlacements: await myPlacements(req.profileId, org.id),
-        planStatus: org.planStatus,
+        planStatus: effectivePlanStatus(org.planStatus, org.planExpiresAt),
         planKey: org.planKey,
         planExpiresAt: org.planExpiresAt?.toISOString() ?? null,
       };

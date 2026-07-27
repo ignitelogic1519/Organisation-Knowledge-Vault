@@ -7,12 +7,16 @@ import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { requireSupreme, auditSupreme } from "../orgs/supreme.js";
 import { purgeOrganization } from "../orgs/purge.js";
 import { openContainer, readHeader, sealContainer, structureFingerprint } from "./container.js";
+import { buildPlanClaim, signPlanClaim, claimAllowsFreeRevive, type PlanClaim } from "./plan-sign.js";
+import { redeemAccessCode, planStatusFor, expiryFrom } from "../orgs/plan.js";
 
 // .main / .bkp / deletion lifecycle — docs/structure.md §4.3 & §5.
 
 const uploadSchema = z.object({
   fileBase64: z.string().min(10),
   password: z.string().min(1),
+  /** RESTORE_ORG access code — required when the file's plan is expired/demo/legacy. */
+  accessCode: z.string().trim().optional(),
 });
 
 interface MainPayload {
@@ -115,7 +119,14 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       }
 
       const payload = await buildMainPayload(org.id);
-      const file = sealContainer(password, { scope: "main", orgNumber: org.orgNumber }, payload);
+      // Embed the signed plan snapshot so a revive-after-purge knows the plan/expiry.
+      const planClaim = buildPlanClaim(org);
+      const planSig = signPlanClaim(org.orgNumber, planClaim);
+      const file = sealContainer(
+        password,
+        { scope: "main", orgNumber: org.orgNumber },
+        { ...payload, plan: planClaim, planSig },
+      );
       await auditSupreme(org.id, "main_exported", { actorProfileId: req.profileId, ip: req.ip });
 
 
@@ -151,7 +162,9 @@ export async function vaultFileRoutes(app: FastifyInstance) {
     "/orgs/:id/undelete",
     { preHandler: app.authenticate },
     async (req, reply) => {
-      const { password } = z.object({ password: z.string().min(1) }).parse(req.body);
+      const { password, accessCode } = z
+        .object({ password: z.string().min(1), accessCode: z.string().trim().optional() })
+        .parse(req.body);
       const org = await db.organization.findFirst({
         where: { id: req.params.id, deletedAt: { not: null } },
       });
@@ -159,7 +172,54 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       if (!(await argonVerify(org.supremeHash, password))) {
         return reply.status(401).send({ error: "Wrong Supreme password" });
       }
-      await db.organization.update({ where: { id: org.id }, data: { deletedAt: null } });
+
+      // A lapsed plan (Demo, or any plan past its expiry) can't be restored for free.
+      const expired =
+        org.planStatus === "EXPIRED" ||
+        org.planStatus === "DEMO" ||
+        (org.planExpiresAt != null && org.planExpiresAt < new Date());
+      const patch: Record<string, unknown> = { deletedAt: null };
+      if (expired) {
+        if (!accessCode) {
+          return reply.status(402).send({
+            error:
+              `This organization's ${org.planKey ?? "current"} plan has expired, so it can't be ` +
+              `restored for free. Choose a plan on the Pricing page — you'll receive a one-time ` +
+              `restore code in your notifications, then try again with that code.`,
+            reason: "plan_expired",
+            orgNumber: org.orgNumber,
+          });
+        }
+        const redeemed = await redeemAccessCode(req.profileId, accessCode, ["RESTORE_ORG"]);
+        const profile = await db.profile.findUniqueOrThrow({ where: { id: req.profileId } });
+        if (profile.coins < redeemed.priceCoins) {
+          return reply
+            .status(402)
+            .send({ error: `Restoring on this plan costs ${redeemed.priceCoins} coins — you have ${profile.coins}.` });
+        }
+        if (redeemed.priceCoins > 0) {
+          const updated = await db.profile.update({
+            where: { id: req.profileId },
+            data: { coins: { decrement: redeemed.priceCoins } },
+          });
+          await db.coinTransaction.create({
+            data: {
+              profileId: req.profileId,
+              delta: -redeemed.priceCoins,
+              balance: updated.coins,
+              reason: "PLAN_SPEND",
+              note: `Restored organization on the ${redeemed.planKey} plan`,
+            },
+          });
+        }
+        await db.platformRequest.update({ where: { id: redeemed.requestId }, data: { status: "USED", usedAt: new Date() } });
+        patch.planKey = redeemed.planKey;
+        patch.planStatus = planStatusFor(redeemed.planKey);
+        patch.planActivatedAt = new Date();
+        patch.planExpiresAt = expiryFrom(redeemed.days);
+        patch.planIsCustom = redeemed.isCustom;
+      }
+      await db.organization.update({ where: { id: org.id }, data: patch });
       await auditSupreme(org.id, "org_undeleted", { actorProfileId: req.profileId, ip: req.ip });
       return { ok: true };
     },
@@ -191,16 +251,86 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       await purgeOrganization(existing.id);
     }
 
-    const { payload } = openContainer<MainPayload>(file, body.password);
+    const { payload } = openContainer<MainPayload & { plan?: PlanClaim; planSig?: string }>(
+      file,
+      body.password,
+    );
+
+    // ── Plan gate ────────────────────────────────────────────────────────────
+    // A file whose signed plan is still ACTIVE & unexpired revives directly. Otherwise
+    // (Demo, expired, or a legacy pre-plan file) the user must supply a RESTORE_ORG code
+    // obtained by choosing a plan on the Pricing page — with a clear message telling them why.
+    let stampPlanKey: string;
+    let stampStatus: ReturnType<typeof planStatusFor>;
+    let stampExpiresAt: Date | null;
+    let stampIsCustom = false;
+    let restoreRedemption: { requestId: string; priceCoins: number } | null = null;
+
+    if (claimAllowsFreeRevive(payload.plan, payload.planSig, header.orgNumber)) {
+      stampPlanKey = payload.plan!.planKey ?? "custom";
+      stampStatus = "ACTIVE";
+      stampExpiresAt = payload.plan!.planExpiresAt ? new Date(payload.plan!.planExpiresAt) : null;
+      stampIsCustom = payload.plan!.planIsCustom;
+    } else {
+      const priorPlan = payload.plan?.planKey ?? "free";
+      if (!body.accessCode) {
+        return reply.status(402).send({
+          error:
+            `This organization's ${priorPlan} plan has expired, so it can't be restored for free. ` +
+            `Choose a plan on the Pricing page — you'll receive a one-time restore code in your ` +
+            `notifications, then upload the .main again with that code.`,
+          reason: "plan_expired",
+          orgNumber: header.orgNumber,
+        });
+      }
+      const redeemed = await redeemAccessCode(req.profileId, body.accessCode, ["RESTORE_ORG"]);
+      const profile = await db.profile.findUniqueOrThrow({ where: { id: req.profileId } });
+      if (profile.coins < redeemed.priceCoins) {
+        return reply
+          .status(402)
+          .send({ error: `Restoring on this plan costs ${redeemed.priceCoins} coins — you have ${profile.coins}.` });
+      }
+      stampPlanKey = redeemed.planKey;
+      stampStatus = planStatusFor(redeemed.planKey);
+      stampExpiresAt = expiryFrom(redeemed.days);
+      stampIsCustom = redeemed.isCustom;
+      restoreRedemption = { requestId: redeemed.requestId, priceCoins: redeemed.priceCoins };
+    }
 
     const report = { rolesRestored: 0, peopleMatched: 0, peoplePending: 0, coursesRestored: 0 };
     const org = await db.$transaction(async (tx) => {
+      if (restoreRedemption) {
+        if (restoreRedemption.priceCoins > 0) {
+          const updated = await tx.profile.update({
+            where: { id: req.profileId },
+            data: { coins: { decrement: restoreRedemption.priceCoins } },
+          });
+          await tx.coinTransaction.create({
+            data: {
+              profileId: req.profileId,
+              delta: -restoreRedemption.priceCoins,
+              balance: updated.coins,
+              reason: "PLAN_SPEND",
+              note: `Restored organization on the ${stampPlanKey} plan`,
+            },
+          });
+        }
+        await tx.platformRequest.update({
+          where: { id: restoreRedemption.requestId },
+          data: { status: "USED", usedAt: new Date() },
+        });
+      }
       const created = await tx.organization.create({
         data: {
           name: payload.org.name,
           orgNumber: payload.org.orgNumber, // number preserved — never reissued to anyone else
           supremeHash: await argonHash(body.password),
           nextRoleNumber: payload.org.nextRoleNumber,
+          planKey: stampPlanKey,
+          planStatus: stampStatus,
+          planActivatedAt: new Date(),
+          planExpiresAt: stampExpiresAt,
+          planIsCustom: stampIsCustom,
         },
       });
 

@@ -47,3 +47,11 @@ export function planStatusFor(planKey: string | null): PlanStatus {
 export function expiryFrom(days: number | null): Date | null {
   return days ? new Date(Date.now() + days * 86400_000) : null;
 }
+
+/** DEMO/ACTIVE plans past their expiry read as EXPIRED (without needing a write). */
+export function effectivePlanStatus(status: PlanStatus, expiresAt: Date | null): PlanStatus {
+  if ((status === "DEMO" || status === "ACTIVE") && expiresAt && expiresAt < new Date()) {
+    return "EXPIRED";
+  }
+  return status;
+}
