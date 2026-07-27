@@ -15,6 +15,7 @@ type DeletedOrg = Awaited<ReturnType<typeof orgs.listDeleted>>[number];
 
 const NAV = [
   { href: "/orgs", label: "Organizations", icon: <IconGrid /> },
+  { href: "/pricing", label: "Pricing", icon: <span aria-hidden>🪙</span> },
   { href: "/account", label: "Account", icon: <IconUser /> },
   { href: "/help", label: "Help", icon: <IconHelp /> },
 ];

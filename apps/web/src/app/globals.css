@@ -4056,3 +4056,57 @@ button {
   background: rgba(255, 90, 90, 0.16);
   color: #ff8a8a;
 }
+
+/* ── Create-organization: form + plan chooser side by side ───────────────── */
+.create-org-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .create-org-grid { grid-template-columns: 1fr; }
+}
+.plan-chooser {
+  padding: 1.1rem 1.2rem;
+  border-radius: 14px;
+  position: sticky;
+  top: 1rem;
+}
+.plan-chooser-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.plan-chooser-head h2 { margin: 0; font-size: 1.15rem; }
+.plan-mini {
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  margin-top: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.plan-mini-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.plan-mini-price {
+  font-weight: 700;
+  color: var(--accent-2, #c06bff);
+}
+.plan-mini .btn { align-self: flex-start; margin-top: 0.3rem; }
+.plan-mini-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+.plan-mini-custom input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+}
