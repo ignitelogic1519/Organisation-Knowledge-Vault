@@ -55,7 +55,8 @@ export async function platformRoutes(app: FastifyInstance) {
   // ── Auth ──────────────────────────────────────────────────────────────────
   app.post("/admin/login", async (req, reply) => {
     const body = adminLoginSchema.parse(req.body);
-    const admin = await db.platformAdmin.findUnique({ where: { username: body.username.toLowerCase() } });
+    // Trim as well as lowercase — autofill/mobile keyboards often add a stray space.
+    const admin = await db.platformAdmin.findUnique({ where: { username: body.username.trim().toLowerCase() } });
     const ok = admin && admin.active && (await argonVerify(admin.passwordHash, body.password).catch(() => false));
     if (!admin || !ok) return reply.status(401).send({ error: "Wrong admin username or password" });
     await db.platformAdmin.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });

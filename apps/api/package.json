@@ -10,6 +10,7 @@
     "start:prod": "prisma migrate deploy && node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:seed": "tsx prisma/seed.ts",
+    "db:admin": "tsx prisma/create-admin.ts",
     "db:reset": "node -e \"if(process.env.NODE_ENV==='production'){console.error('Refusing to reset in production');process.exit(1)}\" && prisma migrate reset --force",
     "db:reset:data": "node -e \"if(process.env.NODE_ENV==='production'){console.error('Refusing to wipe data in production');process.exit(1)}\" && psql \"$DATABASE_URL\" -f prisma/reset.sql && pnpm db:seed"
   },
