@@ -14,6 +14,7 @@ import {
   type TreeNode,
 } from "@vault/shared";
 import { db } from "../db.js";
+import { assertMemberLimit } from "../orgs/plan.js";
 import { broadcast } from "../events.js";
 import { audit } from "../security.js";
 import { actorPlacements, placePerson, toRoleRef } from "./helpers.js";
@@ -255,6 +256,15 @@ export async function roleRoutes(app: FastifyInstance) {
         where: { roleNodeId: ctx.node.id, kind: body.kind, membership: { profileId: profile.id } },
       });
       if (dup) return reply.status(409).send({ error: "They already hold this position" });
+
+      // Plan member cap — reject a brand-new member once the org is at its limit.
+      try {
+        await assertMemberLimit(ctx.node.orgId, profile.id);
+      } catch (e) {
+        return reply
+          .status(403)
+          .send({ error: e instanceof Error ? e.message : "Member limit reached" });
+      }
 
       await placePerson({
         profileId: profile.id,

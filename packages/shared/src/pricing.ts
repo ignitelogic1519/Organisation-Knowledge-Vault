@@ -24,6 +24,7 @@ export interface PricingPlanView {
   category: string; // the tab this card sits under
   priceCoins: number;
   durationDays: number | null;
+  memberLimit: number | null; // max people in an org on this plan; null = unlimited
   isCustom: boolean;
   imageUrl: string | null;
   criteria: string | null;

@@ -32,6 +32,7 @@ export async function pricingRoutes(app: FastifyInstance) {
       category: p.category,
       priceCoins: p.priceCoins,
       durationDays: p.durationDays,
+      memberLimit: p.memberLimit,
       isCustom: p.isCustom,
       imageUrl: p.imageUrl,
       criteria: p.criteria,

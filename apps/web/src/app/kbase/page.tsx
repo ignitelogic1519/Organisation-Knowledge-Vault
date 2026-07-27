@@ -98,11 +98,22 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
   );
 }
 
-type SortKey = "orgNumber" | "name" | "planKey" | "planStatus" | "planExpiresAt" | "memberCount" | "roleCount" | "treeDepth";
+type SortKey = "orgNumber" | "name" | "planKey" | "planStatus" | "planExpiresAt" | "memberCount" | "roleCount" | "treeDepth" | "lastActivityAt";
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "—";
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day ago";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? "1 month ago" : `${months} months ago`;
+}
 
 function OrgsTab({ flash }: { flash: (m: string) => void }) {
   const [orgs, setOrgs] = useState<AdminOrgRow[] | null>(null);
   const [upgrading, setUpgrading] = useState<AdminOrgRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("orgNumber");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
@@ -149,8 +160,9 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
     <th onClick={() => sortBy(k)} style={{ cursor: "pointer" }} title="Click to sort">{label}{arrow(k)}</th>
   );
 
-  const purge = async (o: AdminOrgRow) => {
-    if (!confirm(`Permanently delete "${o.name}" (#${o.orgNumber}) right now?\n\nThis removes it from existence immediately (no 30-day retention). The owner can only bring it back from its .main file.`)) return;
+  // Inline confirm (no native confirm() — it's blocked in some embedded browsers).
+  const doPurge = async (o: AdminOrgRow) => {
+    setConfirmDelete(null);
     try {
       await admin.purgeOrg(o.orgNumber);
       flash(`Permanently deleted ${o.name}`);
@@ -180,7 +192,7 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
             <tr>
               {th("orgNumber", "#")}{th("name", "Name")}<th>Owners</th>{th("planKey", "Plan")}
               {th("planStatus", "Status")}{th("planExpiresAt", "Expires")}{th("memberCount", "Members")}
-              {th("roleCount", "Roles")}{th("treeDepth", "Depth")}<th></th>
+              {th("roleCount", "Roles")}{th("treeDepth", "Depth")}{th("lastActivityAt", "Last activity")}<th></th>
             </tr>
           </thead>
           <tbody>
@@ -192,16 +204,27 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
                 <td>{o.planKey ?? "—"}</td>
                 <td><span className={`badge ${o.planStatus === "ACTIVE" ? "badge-ok" : o.planStatus === "EXPIRED" ? "badge-danger" : ""}`}>{o.planStatus.toLowerCase()}</span></td>
                 <td>{o.planExpiresAt ? o.planExpiresAt.slice(0, 10) : "—"}</td>
-                <td>{o.memberCount}</td>
+                <td>{o.memberCount}{o.memberLimit != null ? ` / ${o.memberLimit}` : ""}</td>
                 <td>{o.roleCount}</td>
                 <td>{o.treeDepth}</td>
+                <td title={o.lastActivityAt ?? ""}>{timeAgo(o.lastActivityAt)}</td>
                 <td className="kbase-row-actions">
-                  <button className="btn btn-quiet btn-small" onClick={() => setUpgrading(o)}>Set plan</button>
-                  <button className="btn btn-danger btn-small" onClick={() => purge(o)} title="Delete permanently (immediate)">Delete</button>
+                  {confirmDelete === o.orgNumber ? (
+                    <>
+                      <span className="auth-sub" style={{ fontSize: "0.75rem" }}>Delete forever?</span>
+                      <button className="btn btn-danger btn-small" onClick={() => doPurge(o)}>Yes, delete</button>
+                      <button className="btn btn-quiet btn-small" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn btn-quiet btn-small" onClick={() => setUpgrading(o)}>Set plan</button>
+                      <button className="btn btn-danger btn-small" onClick={() => setConfirmDelete(o.orgNumber)} title="Delete permanently and immediately">Delete</button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
-            {orgs && rows.length === 0 && <tr><td colSpan={10} className="auth-sub">{q ? "No matches." : "No organizations yet."}</td></tr>}
+            {orgs && rows.length === 0 && <tr><td colSpan={11} className="auth-sub">{q ? "No matches." : "No organizations yet."}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -222,8 +245,9 @@ function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () =
         setError(null);
         const d = new FormData(e.currentTarget);
         const days = d.get("days") ? Number(d.get("days")) : null;
+        const memberLimit = d.get("memberLimit") ? Number(d.get("memberLimit")) : null;
         try {
-          const res = await admin.upgradePlan({ orgNumber: org.orgNumber, planKey: String(d.get("planKey")), durationDays: days, message: String(d.get("message") || "") || undefined });
+          const res = await admin.upgradePlan({ orgNumber: org.orgNumber, planKey: String(d.get("planKey")), durationDays: days, memberLimit, message: String(d.get("message") || "") || undefined });
           onDone(`${org.name} → ${res.planKey}${res.expiresAt ? ` (until ${res.expiresAt.slice(0, 10)})` : ""}`);
         } catch (err) {
           setError(err instanceof AdminApiError ? err.message : "Failed");
@@ -239,6 +263,7 @@ function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () =
         </select>
       </label>
       <label className="field"><span>Duration (days — blank = unlimited/plan default)</span><input name="days" type="number" min={1} /></label>
+      <label className="field"><span>Member limit (blank = use the plan&apos;s limit)</span><input name="memberLimit" type="number" min={1} defaultValue={org.memberLimit ?? undefined} /></label>
       <label className="field"><span>Message to owners (optional)</span><input name="message" /></label>
       {error && <p className="form-error">{error}</p>}
       <div className="tree-actions">

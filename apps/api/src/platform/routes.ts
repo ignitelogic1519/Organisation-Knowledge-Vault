@@ -102,13 +102,32 @@ export async function platformRoutes(app: FastifyInstance) {
   // ── Organizations (god view) ────────────────────────────────────────────────
   app.get("/admin/orgs", { preHandler: app.authenticateAdmin }, async (): Promise<{ orgs: AdminOrgRow[] }> => {
     const orgs = await db.organization.findMany({ orderBy: { orgNumber: "asc" } });
+    const plans = await db.pricingPlan.findMany({ select: { key: true, memberLimit: true } });
+    const planLimit = new Map(plans.map((p) => [p.key, p.memberLimit]));
     const rows: AdminOrgRow[] = [];
     for (const o of orgs) {
-      const [roles, memberCount, owners] = await Promise.all([
-        db.roleNode.findMany({ where: { orgId: o.id }, select: { path: true } }),
-        db.membership.count({ where: { orgId: o.id } }),
-        ownerUsernames(o.id),
-      ]);
+      const [roles, memberCount, owners, lastAudit, lastCompletion, lastCourse, lastMembership] =
+        await Promise.all([
+          db.roleNode.findMany({ where: { orgId: o.id }, select: { path: true } }),
+          db.membership.count({ where: { orgId: o.id } }),
+          ownerUsernames(o.id),
+          db.auditLog.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+          db.completionRecord.findFirst({ where: { orgId: o.id, completedAt: { not: null } }, orderBy: { completedAt: "desc" }, select: { completedAt: true } }),
+          db.course.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+          db.membership.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+        ]);
+      // "Last activity" = the most recent user action we can see (governance, learning,
+      // publishing, joining), falling back to when the org was created.
+      const lastActivity = [
+        o.createdAt,
+        lastAudit?.createdAt,
+        lastCompletion?.completedAt,
+        lastCourse?.createdAt,
+        lastMembership?.createdAt,
+      ]
+        .filter(Boolean)
+        .map((d) => (d as Date).getTime())
+        .reduce((a, b) => Math.max(a, b), 0);
       rows.push({
         id: o.id,
         name: o.name,
@@ -119,9 +138,11 @@ export async function platformRoutes(app: FastifyInstance) {
         planExpiresAt: o.planExpiresAt?.toISOString() ?? null,
         planIsCustom: o.planIsCustom,
         memberCount,
+        memberLimit: o.memberLimit ?? (o.planKey ? planLimit.get(o.planKey) ?? null : null),
         roleCount: roles.length,
         treeDepth: treeDepth(roles.map((r) => r.path)),
         createdAt: o.createdAt.toISOString(),
+        lastActivityAt: lastActivity ? new Date(lastActivity).toISOString() : null,
         deletedAt: o.deletedAt?.toISOString() ?? null,
       });
     }
@@ -295,6 +316,7 @@ export async function platformRoutes(app: FastifyInstance) {
         planExpiresAt: expiresAt,
         planIsCustom: body.durationDays != null,
         planGrantedById: req.adminId,
+        memberLimit: body.memberLimit, // undefined = leave as-is; null = use plan default
       },
     });
     for (const pid of await ownerProfileIds(org.id)) {

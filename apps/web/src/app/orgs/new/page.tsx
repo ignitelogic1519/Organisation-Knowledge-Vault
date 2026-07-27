@@ -169,7 +169,7 @@ export default function NewOrgPage() {
                   <strong>{p.name}</strong>
                   <span className="plan-mini-price">{p.priceCoins === 0 ? "Free" : `${p.priceCoins} 🪙`}</span>
                 </div>
-                <span className="auth-sub">{p.durationDays ? `${p.durationDays} days` : p.isCustom ? "Custom duration" : "Unlimited"}</span>
+                <span className="auth-sub">{p.durationDays ? `${p.durationDays} days` : p.isCustom ? "Custom duration" : "Unlimited"} · 👥 {p.memberLimit != null ? `up to ${p.memberLimit}` : p.isCustom ? "custom limit" : "unlimited"}</span>
                 {p.tagline && <p className="auth-sub" style={{ fontSize: "0.8rem" }}>{p.tagline}</p>}
 
                 {req ? (

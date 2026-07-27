@@ -38,9 +38,11 @@ export interface AdminOrgRow {
   planExpiresAt: string | null;
   planIsCustom: boolean;
   memberCount: number;
+  memberLimit: number | null; // effective cap (per-org override, else the plan's)
   roleCount: number;
   treeDepth: number;
   createdAt: string;
+  lastActivityAt: string | null; // most recent user action — spot abandoned orgs
   deletedAt: string | null;
 }
 
@@ -91,6 +93,7 @@ export const upgradePlanSchema = z.object({
   orgNumber: z.number().int().positive(),
   planKey: z.string().min(1),
   durationDays: z.number().int().positive().max(3650).nullable().optional(), // null = unlimited
+  memberLimit: z.number().int().positive().max(1_000_000).nullable().optional(), // null = plan default
   message: z.string().max(600).optional(),
 });
 export type UpgradePlanInput = z.infer<typeof upgradePlanSchema>;

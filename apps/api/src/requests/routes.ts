@@ -11,6 +11,7 @@ import {
 } from "@vault/shared";
 import type { RoleNode, VaultRequest } from "@prisma/client";
 import { db } from "../db.js";
+import { assertMemberLimit } from "../orgs/plan.js";
 import { broadcast } from "../events.js";
 import { audit } from "../security.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
@@ -400,6 +401,14 @@ export async function requestRoutes(app: FastifyInstance) {
             },
           });
           if (!dup) {
+            // Plan member cap — a join approval that adds a brand-new member must fit.
+            try {
+              await assertMemberLimit(request.orgId, request.requesterProfileId);
+            } catch (e) {
+              return reply
+                .status(403)
+                .send({ error: e instanceof Error ? e.message : "Member limit reached" });
+            }
             const membership = await db.membership.upsert({
               where: {
                 profileId_orgId: { profileId: request.requesterProfileId, orgId: request.orgId },

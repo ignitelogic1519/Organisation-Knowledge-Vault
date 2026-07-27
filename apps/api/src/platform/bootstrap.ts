@@ -14,9 +14,9 @@ const FIRST_ADMIN = {
 };
 
 const STARTER_PLANS = [
-  { key: "demo", name: "Demo", tagline: "Try Knowledge Vault free", category: "Plans", priceCoins: 0, durationDays: 60, isCustom: false, criteria: "One demo organization per profile. Expires after 2 months.", badge: "Free", highlights: ["Full features for evaluation", "2-month time limit", "No Knowledge Coins required"], sortOrder: 10 },
-  { key: "monthly", name: "Monthly", tagline: "Keep your organization running month to month", category: "Plans", priceCoins: 50, durationDays: 30, isCustom: false, criteria: "Renew every 30 days.", badge: null as string | null, highlights: ["30 days of full access", "Renewable", "Priority in the roadmap"], sortOrder: 20 },
-  { key: "organisation", name: "Organisation", tagline: "For established teams — duration set with the admin", category: "Plans", priceCoins: 150, durationDays: null as number | null, isCustom: true, criteria: "Duration agreed with the Knowledge Base team.", badge: "Best value", highlights: ["Admin-set duration", "Custom terms", "Expiry reminders"], sortOrder: 30 },
+  { key: "demo", name: "Demo", tagline: "Try Knowledge Vault free", category: "Plans", priceCoins: 0, durationDays: 60, memberLimit: 10 as number | null, isCustom: false, criteria: "One demo organization per profile. Expires after 2 months.", badge: "Free", highlights: ["Full features for evaluation", "Up to 10 members", "2-month time limit", "No Knowledge Coins required"], sortOrder: 10 },
+  { key: "monthly", name: "Monthly", tagline: "Keep your organization running month to month", category: "Plans", priceCoins: 50, durationDays: 30, memberLimit: 1000 as number | null, isCustom: false, criteria: "Renew every 30 days.", badge: null as string | null, highlights: ["30 days of full access", "Up to 1000 members", "Renewable"], sortOrder: 20 },
+  { key: "organisation", name: "Organisation", tagline: "For established teams — duration set with the admin", category: "Plans", priceCoins: 150, durationDays: null as number | null, memberLimit: null as number | null, isCustom: true, criteria: "Duration agreed with the Knowledge Base team.", badge: "Best value", highlights: ["Admin-set duration", "Custom member limit", "Custom terms"], sortOrder: 30 },
 ];
 
 export async function ensurePlatformBootstrap(): Promise<void> {
@@ -40,6 +40,17 @@ export async function ensurePlatformBootstrap(): Promise<void> {
       console.log(`[bootstrap] seeded ${STARTER_PLANS.length} starter pricing plans`);
     }
     await ensureDefaultCoinsSetting();
+
+    // Backfill member limits on the starter plans for existing deployments — only where
+    // still unset, so an admin's own limit is never overwritten.
+    for (const p of STARTER_PLANS) {
+      if (p.memberLimit != null) {
+        await db.pricingPlan.updateMany({
+          where: { key: p.key, memberLimit: null },
+          data: { memberLimit: p.memberLimit },
+        });
+      }
+    }
   } catch (err) {
     // Never let bootstrap crash the server — log and continue (e.g. if migrations haven't
     // applied yet). The admin can be created later with `db:admin`.

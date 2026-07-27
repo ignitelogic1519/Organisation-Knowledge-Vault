@@ -128,6 +128,7 @@ model Organization {
   planExpiresAt   DateTime? // null = unlimited / none
   planIsCustom    Boolean    @default(false)
   planGrantedById String? // PlatformAdmin.id that last set the plan
+  memberLimit     Int? // per-org cap (customisable by the admin); null = use the plan's limit
   roles          RoleNode[]
   memberships    Membership[]
   courses        Course[]
@@ -412,6 +413,7 @@ model PricingPlan {
   category     String    @default("Plans") // the tab: "Plans" | "Offers" | "Student" | …
   priceCoins   Int       @default(0) // 0 = free (demo)
   durationDays Int? // null = admin-set / unlimited
+  memberLimit  Int? // max people in an org on this plan; null = unlimited / admin-set
   isCustom     Boolean   @default(false) // user proposes days + coins; admin decides
   imageUrl     String? // data-URL or external image for the card
   criteria     String? // eligibility text ("valid student ID", …)

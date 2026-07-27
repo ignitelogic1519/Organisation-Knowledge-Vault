@@ -89,6 +89,7 @@ export default function PricingPage() {
                 {p.priceCoins === 0 ? <span className="gradient-text">Free</span> : <><span className="gradient-text">{p.priceCoins}</span> <span className="auth-sub">coins</span></>}
               </div>
               <p className="auth-sub">{p.durationDays ? `${p.durationDays} days` : p.isCustom ? "Custom duration" : "Unlimited"}</p>
+              <p className="auth-sub">👥 {p.memberLimit != null ? `Up to ${p.memberLimit} members` : p.isCustom ? "Custom member limit" : "Unlimited members"}</p>
               {p.criteria && <p className="pricing-criteria">{p.criteria}</p>}
               <ul className="pricing-highlights">
                 {p.highlights.map((h, i) => <li key={i}>✓ {h}</li>)}

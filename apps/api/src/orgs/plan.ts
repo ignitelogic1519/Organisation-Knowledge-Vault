@@ -48,6 +48,36 @@ export function expiryFrom(days: number | null): Date | null {
   return days ? new Date(Date.now() + days * 86400_000) : null;
 }
 
+/** The org's effective member cap: a per-org override, else the plan's limit, else null (∞). */
+export async function orgEffectiveMemberLimit(orgId: string): Promise<number | null> {
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { memberLimit: true, planKey: true },
+  });
+  if (!org) return null;
+  if (org.memberLimit != null) return org.memberLimit;
+  if (!org.planKey) return null;
+  const plan = await db.pricingPlan.findUnique({ where: { key: org.planKey }, select: { memberLimit: true } });
+  return plan?.memberLimit ?? null;
+}
+
+/** Throws a 403 if adding `profileId` (not already a member) would exceed the org's limit. */
+export async function assertMemberLimit(orgId: string, profileId: string): Promise<void> {
+  const already = await db.membership.findUnique({
+    where: { profileId_orgId: { profileId, orgId } },
+  });
+  if (already) return; // existing member — placing on another role doesn't grow the count
+  const limit = await orgEffectiveMemberLimit(orgId);
+  if (limit == null) return;
+  const count = await db.membership.count({ where: { orgId } });
+  if (count >= limit) {
+    throw Object.assign(
+      new Error(`This organization's plan allows up to ${limit} members. Upgrade the plan to add more.`),
+      { statusCode: 403 },
+    );
+  }
+}
+
 /** DEMO/ACTIVE plans past their expiry read as EXPIRED (without needing a write). */
 export function effectivePlanStatus(status: PlanStatus, expiresAt: Date | null): PlanStatus {
   if ((status === "DEMO" || status === "ACTIVE") && expiresAt && expiresAt < new Date()) {

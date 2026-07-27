@@ -24,7 +24,7 @@ const PLANS = [
     tagline: "Try Knowledge Vault free",
     category: "Plans",
     priceCoins: 0,
-    durationDays: 60, // 2-month cap
+    durationDays: 60, memberLimit: 10, // 2-month cap
     imageUrl: null as string | null,
     criteria: "One demo organization per profile. Expires after 2 months.",
     badge: "Free",
@@ -38,6 +38,7 @@ const PLANS = [
     category: "Plans",
     priceCoins: 50, // PLACEHOLDER — editable from the admin console
     durationDays: 30,
+    memberLimit: 1000,
     imageUrl: null,
     criteria: "Renew every 30 days.",
     badge: null,
@@ -50,7 +51,7 @@ const PLANS = [
     tagline: "For established teams — duration set with the admin",
     category: "Plans",
     priceCoins: 150, // fixed by product decision
-    durationDays: null, // admin sets the duration per grant (custom)
+    durationDays: null, memberLimit: null, // admin sets duration + member cap per grant
     isCustom: true,
     imageUrl: null,
     criteria: "Duration agreed with the Knowledge Base team.",
@@ -87,6 +88,7 @@ async function main() {
         category: p.category,
         priceCoins: p.priceCoins,
         durationDays: p.durationDays ?? null,
+        memberLimit: (p as { memberLimit?: number|null }).memberLimit ?? null,
         isCustom: (p as { isCustom?: boolean }).isCustom ?? false,
         criteria: p.criteria,
         badge: p.badge,
@@ -100,6 +102,7 @@ async function main() {
         category: p.category,
         priceCoins: p.priceCoins,
         durationDays: p.durationDays ?? null,
+        memberLimit: (p as { memberLimit?: number|null }).memberLimit ?? null,
         isCustom: (p as { isCustom?: boolean }).isCustom ?? false,
         imageUrl: p.imageUrl,
         criteria: p.criteria,
