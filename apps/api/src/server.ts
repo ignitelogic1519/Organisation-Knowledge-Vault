@@ -4,6 +4,8 @@ import { ZodError } from "zod";
 import type { HealthResponse } from "@vault/shared";
 import { env } from "./env.js";
 import { authenticatePlugin } from "./plugins/authenticate.js";
+import { authenticateAdminPlugin } from "./platform/authenticate.js";
+import { platformRoutes } from "./platform/routes.js";
 import { authRoutes } from "./auth/routes.js";
 import { meRoutes } from "./me/routes.js";
 import { orgRoutes } from "./orgs/routes.js";
@@ -53,6 +55,8 @@ app.setErrorHandler((err: unknown, _req, reply) => {
 });
 
 await app.register(authenticatePlugin);
+await app.register(authenticateAdminPlugin);
+await app.register(platformRoutes);
 await app.register(authRoutes);
 await app.register(meRoutes);
 await app.register(orgRoutes);

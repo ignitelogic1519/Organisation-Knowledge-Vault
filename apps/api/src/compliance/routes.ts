@@ -12,6 +12,7 @@ import { env } from "../env.js";
 import { coursesReaching, escalationTargets, notify, toLearningItem } from "../courses/helpers.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { purgeOrganization } from "../orgs/purge.js";
+import { ADMIN_NOTIFICATION_KINDS, ADMIN_NOTIFICATION_RETENTION_MS } from "../platform/notify.js";
 
 /** Messages self-clean after 7 days — the database never accumulates stale noise. */
 const NOTIFICATION_RETENTION_MS = 7 * 86400_000;
@@ -26,11 +27,21 @@ export async function complianceRoutes(app: FastifyInstance) {
     "/notifications",
     { preHandler: app.authenticate },
     async (req): Promise<{ notifications: AppNotification[]; unread: number }> => {
-      // 7-day auto-cleanup, applied on every read
+      // Auto-cleanup, applied on every read: normal messages self-clear after 7 days,
+      // but messages from the super-admin (OTPs, plan decisions) are durable receipts and
+      // are kept 30 days so the user can see the code any time.
       await db.notification.deleteMany({
         where: {
           profileId: req.profileId,
+          kind: { notIn: [...ADMIN_NOTIFICATION_KINDS] },
           createdAt: { lt: new Date(Date.now() - NOTIFICATION_RETENTION_MS) },
+        },
+      });
+      await db.notification.deleteMany({
+        where: {
+          profileId: req.profileId,
+          kind: { in: [...ADMIN_NOTIFICATION_KINDS] },
+          createdAt: { lt: new Date(Date.now() - ADMIN_NOTIFICATION_RETENTION_MS) },
         },
       });
 
@@ -269,11 +280,21 @@ export async function complianceRoutes(app: FastifyInstance) {
       prunedTokens: 0,
     };
 
-    // 0a. 7-day retention: messages and decided requests
+    // 0a. 7-day retention: messages and decided requests. Super-admin messages (OTPs,
+    //     plan decisions) are durable receipts kept 30 days instead.
     const retentionCutoff = new Date(Date.now() - NOTIFICATION_RETENTION_MS);
-    report.prunedNotifications = (
-      await db.notification.deleteMany({ where: { createdAt: { lt: retentionCutoff } } })
-    ).count;
+    const adminCutoff = new Date(Date.now() - ADMIN_NOTIFICATION_RETENTION_MS);
+    report.prunedNotifications =
+      (
+        await db.notification.deleteMany({
+          where: { kind: { notIn: [...ADMIN_NOTIFICATION_KINDS] }, createdAt: { lt: retentionCutoff } },
+        })
+      ).count +
+      (
+        await db.notification.deleteMany({
+          where: { kind: { in: [...ADMIN_NOTIFICATION_KINDS] }, createdAt: { lt: adminCutoff } },
+        })
+      ).count;
     report.prunedRequests = (
       await db.vaultRequest.deleteMany({
         where: { status: { not: "PENDING" }, decidedAt: { lt: retentionCutoff } },
