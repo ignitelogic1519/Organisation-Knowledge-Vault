@@ -68,9 +68,14 @@ model Profile {
   passwordHash String?
   displayName  String
   avatar       String? // small data-URL profile picture (optional)
+  // Knowledge Coins — the platform's virtual currency for buying plans. Every new
+  // profile starts with 150. Only visible on the pricing/payment page (docs/pricing.md).
+  coins        Int          @default(150)
   createdAt    DateTime     @default(now())
   memberships  Membership[]
   refreshTokens RefreshToken[]
+  coinTxns     CoinTransaction[]
+  platformRequests PlatformRequest[]
 }
 
 // Tamper-evident record of sensitive governance actions (people, courses, requests,
@@ -111,6 +116,18 @@ model Organization {
   nextRoleNumber Int          @default(101) // per-org role counter, NEVER reused
   deletedAt      DateTime? // soft delete; purge job after 30 days
   createdAt      DateTime     @default(now())
+  // ── Plan / subscription state (the Supreme's authoritative record) ──────────
+  // The plan/expiry that drives the org-card timer and the create/restore gates.
+  // Held on the server row so the super-admin can change it (the Supreme *password*
+  // is unknown to the server); a signed snapshot is also written into the .main file
+  // for the revive-after-purge case. planStatus NONE = legacy/grandfathered (pre-plan
+  // orgs keep working with no timer). See docs/pricing.md.
+  planKey         String? // soft ref to PricingPlan.key
+  planStatus      PlanStatus @default(NONE)
+  planActivatedAt DateTime?
+  planExpiresAt   DateTime? // null = unlimited / none
+  planIsCustom    Boolean    @default(false)
+  planGrantedById String? // PlatformAdmin.id that last set the plan
   roles          RoleNode[]
   memberships    Membership[]
   courses        Course[]
@@ -347,4 +364,135 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([profileId, readAt])
+}
+
+// ── Pricing, plans, coins & the platform (super-super-admin) realm ───────────
+// Everything below powers the paywall: dynamic pricing cards, Knowledge Coins,
+// the OTP-gated create/upgrade request flow, and the platform-admin console.
+// See docs/pricing.md for the full contract.
+
+enum PlanStatus {
+  NONE // legacy / grandfathered org — no timer, no restriction
+  DEMO // free trial, capped (default 2 months)
+  ACTIVE // paid plan in effect
+  EXPIRED // plan lapsed — org is locked pending upgrade
+}
+
+enum PlatformRequestKind {
+  CREATE_ORG // permission (OTP) to create a new organization on a chosen plan
+  CUSTOM_PLAN // user proposes their own days + coin offer; admin negotiates
+  RESTORE_ORG // key to restore an expired/purged org from its .main
+}
+
+enum PlatformRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  USED
+  EXPIRED
+  WITHDRAWN
+}
+
+enum CoinTxnReason {
+  SIGNUP_GRANT
+  ADMIN_GIFT
+  ADMIN_DEDUCT
+  PLAN_SPEND
+  REFUND
+}
+
+// The dynamic pricing table: one active row = one card; `category` is the tab it
+// sits under, so adding a row (or a new category) changes the Pricing page with no
+// code change. Offers use validFrom/validUntil to appear only inside their window.
+model PricingPlan {
+  id           String    @id @default(uuid())
+  key          String    @unique // stable code, e.g. "demo" | "monthly" | "organisation"
+  name         String
+  tagline      String?
+  category     String    @default("Plans") // the tab: "Plans" | "Offers" | "Student" | …
+  priceCoins   Int       @default(0) // 0 = free (demo)
+  durationDays Int? // null = admin-set / unlimited
+  isCustom     Boolean   @default(false) // user proposes days + coins; admin decides
+  imageUrl     String? // data-URL or external image for the card
+  criteria     String? // eligibility text ("valid student ID", …)
+  badge        String? // "Popular", "Best value"
+  highlights   Json? // string[] of bullet features
+  active       Boolean   @default(true)
+  sortOrder    Int       @default(100)
+  validFrom    DateTime? // offer visibility window (null = always)
+  validUntil   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([category, active, sortOrder])
+}
+
+// Platform (super-super-admin) accounts — a SEPARATE auth realm from Profile.
+// Seeded with the first admin `admin-kwbase`. God-mode; every action is audited.
+model PlatformAdmin {
+  id                 String   @id @default(uuid())
+  username           String   @unique
+  passwordHash       String // Argon2id
+  displayName        String
+  active             Boolean  @default(true)
+  mustChangePassword Boolean  @default(true)
+  createdById        String? // PlatformAdmin.id that added this one
+  createdAt          DateTime @default(now())
+  lastLoginAt        DateTime?
+}
+
+// The request↔response channel between a user and the super-admin. Covers the
+// OTP-gated org creation, the custom days+coins negotiation, and restore keys.
+// The 8-char code is stored only as a hash; it expires 24h after approval.
+model PlatformRequest {
+  id              String                @id @default(uuid())
+  kind            PlatformRequestKind
+  status          PlatformRequestStatus @default(PENDING)
+  requesterId     String
+  requester       Profile               @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  planKey         String? // chosen plan (null for a pure custom proposal)
+  requestedDays   Int? // custom: days the user wants
+  offeredCoins    Int? // custom: coins the user offers
+  message         String? // the user's note
+  // ── decision (filled by the admin) ──
+  grantedDays     Int?
+  priceCoins      Int?
+  otpHash         String? // hashed 8-char alphanumeric code
+  otpExpiresAt    DateTime?
+  adminMessage    String? // custom approval/denial message
+  decidedById     String? // PlatformAdmin.id
+  decidedAt       DateTime?
+  targetOrgNumber Int? // RESTORE_ORG: which org this key restores
+  usedAt          DateTime?
+  createdAt       DateTime              @default(now())
+
+  @@index([requesterId, status])
+  @@index([status, createdAt])
+}
+
+// Knowledge Coin ledger — every grant, spend, gift and adjustment, with the
+// resulting balance snapshot for a clean audit trail.
+model CoinTransaction {
+  id        String        @id @default(uuid())
+  profileId String
+  profile   Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  delta     Int // +/- coins
+  balance   Int // resulting balance after this txn
+  reason    CoinTxnReason
+  note      String?
+  byAdminId String? // PlatformAdmin.id when a gift/adjustment
+  createdAt DateTime      @default(now())
+
+  @@index([profileId, createdAt])
+}
+
+// Append-only audit of every super-admin action (god-mode needs a trail).
+model PlatformAdminAudit {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String // grant_otp | deny_request | gift_coins | upgrade_plan | add_admin | …
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([adminId, createdAt])
 }
