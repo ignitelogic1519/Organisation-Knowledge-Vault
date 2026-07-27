@@ -17,6 +17,11 @@ export const createOrgSchema = z.object({
   acknowledgedUnrecoverable: z.literal(true, {
     errorMap: () => ({ message: "You must acknowledge that the Supreme password is unrecoverable" }),
   }),
+  /** The 8-char access code (OTP) the super-admin issued for this creation. */
+  accessCode: z
+    .string()
+    .trim()
+    .min(1, "Enter the access code the super-admin sent you"),
 });
 export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 
@@ -43,6 +48,10 @@ export interface OrgSummary {
   name: string;
   orgNumber: number;
   myPlacements: MyPlacement[];
+  /** Plan/subscription state — drives the countdown timer above the org card. */
+  planStatus: import("./pricing.js").PlanStatus;
+  planKey: string | null;
+  planExpiresAt: string | null;
 }
 
 export interface OrgOwner {

@@ -11,6 +11,7 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { redeemAccessCode, planStatusFor, expiryFrom } from "./plan.js";
 import {
   auditSupreme,
   checkSupremeRateLimit,
@@ -49,20 +50,56 @@ async function requireMembership(req: OrgReq): Promise<boolean> {
 export async function orgRoutes(app: FastifyInstance) {
   // Create an organization: Supreme object + Owner role + creator as first occupant
   // (docs/structure.md §4.1). The unrecoverability acknowledgement is enforced server-side.
-  app.post("/orgs", { preHandler: app.authenticate }, async (req): Promise<OrgSummary> => {
+  app.post("/orgs", { preHandler: app.authenticate }, async (req, reply): Promise<OrgSummary> => {
     const body = createOrgSchema.parse(req.body);
+
+    // Paywall gate: a valid super-admin access code (OTP) is required to create ANY org.
+    // The code carries the plan the admin approved (plan key, coin price, granted days).
+    const plan = await redeemAccessCode(req.profileId, body.accessCode);
+    const profile = await db.profile.findUniqueOrThrow({ where: { id: req.profileId } });
+    if (profile.coins < plan.priceCoins) {
+      return reply
+        .status(402)
+        .send({ error: `This plan costs ${plan.priceCoins} coins — you have ${profile.coins}.` }) as never;
+    }
+    const expiresAt = expiryFrom(plan.days);
 
     const [{ nextval }] = await db.$queryRaw<[{ nextval: bigint }]>`SELECT nextval('org_number_seq')`;
     const orgNumber = Number(nextval);
     const supremeHash = await hash(body.supremePassword);
 
     const org = await db.$transaction(async (tx) => {
+      // Charge coins (at redemption — decision confirmed) and log the spend.
+      if (plan.priceCoins > 0) {
+        const updated = await tx.profile.update({
+          where: { id: req.profileId },
+          data: { coins: { decrement: plan.priceCoins } },
+        });
+        await tx.coinTransaction.create({
+          data: {
+            profileId: req.profileId,
+            delta: -plan.priceCoins,
+            balance: updated.coins,
+            reason: "PLAN_SPEND",
+            note: `Created organization on the ${plan.planKey} plan`,
+          },
+        });
+      }
+      await tx.platformRequest.update({
+        where: { id: plan.requestId },
+        data: { status: "USED", usedAt: new Date() },
+      });
       const created = await tx.organization.create({
         data: {
           name: body.name,
           orgNumber,
           supremeHash,
           nextRoleNumber: FIRST_ROLE_NUMBER + 1,
+          planKey: plan.planKey,
+          planStatus: planStatusFor(plan.planKey),
+          planActivatedAt: new Date(),
+          planExpiresAt: expiresAt,
+          planIsCustom: plan.isCustom,
         },
       });
       const ownerRole = await tx.roleNode.create({
@@ -95,6 +132,9 @@ export async function orgRoutes(app: FastifyInstance) {
       name: org.name,
       orgNumber: org.orgNumber,
       myPlacements: await myPlacements(req.profileId, org.id),
+      planStatus: org.planStatus,
+      planKey: org.planKey,
+      planExpiresAt: org.planExpiresAt?.toISOString() ?? null,
     };
   });
 
@@ -111,6 +151,9 @@ export async function orgRoutes(app: FastifyInstance) {
         name: m.org.name,
         orgNumber: m.org.orgNumber,
         myPlacements: await myPlacements(req.profileId, m.orgId),
+        planStatus: m.org.planStatus,
+        planKey: m.org.planKey,
+        planExpiresAt: m.org.planExpiresAt?.toISOString() ?? null,
       })),
     );
   });
@@ -171,6 +214,9 @@ export async function orgRoutes(app: FastifyInstance) {
           username: p.membership.profile.username,
         })),
         myPlacements: await myPlacements(req.profileId, org.id),
+        planStatus: org.planStatus,
+        planKey: org.planKey,
+        planExpiresAt: org.planExpiresAt?.toISOString() ?? null,
       };
     },
   );
