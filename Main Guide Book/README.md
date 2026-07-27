@@ -51,6 +51,7 @@ Each chapter is self-contained, with a short **"What it is"**, a step-by-step
 | 14 | [The Supreme zone — custody & recovery](chapter-14-supreme-and-custody.md) | Backups, `.main`, `.bkp`, deletion |
 | 15 | [Help & support](chapter-15-help-and-support.md) | Where to find answers in-app |
 | 16 | [Flow diagrams — every setting at a glance](chapter-16-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
+| 17 | [Plans, Pricing & access codes](chapter-17-plans-and-access.md) | Choosing a plan, Knowledge Coins, your access code, the org timer & restore |
 | A | [Appendix — Glossary & quick reference](appendix-glossary-and-reference.md) | Every term and code, at a glance |
 
 > **Looking for flow diagrams?** Every feature chapter now ends with a **"Flows at a glance"**

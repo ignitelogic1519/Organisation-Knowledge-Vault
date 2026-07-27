@@ -42,6 +42,11 @@ The platform is live end-to-end. What works today:
 - **Notifications** — categorized, informative, clickable (deep-links to the exact
   request), live over SSE, per-message dismiss / clear-all, 7-day auto-cleanup and a
   nudge when the inbox passes 10 messages.
+- **Plans, coins & administration** — organization creation is gated behind a **plan** and a
+  one-time **access code (OTP)**; a dynamic **Pricing** page and **Knowledge Coins** (150 per
+  profile) drive it, and a separate **super-admin console** (`/kbase`, footer login) approves
+  requests, gifts coins, and sets plans. Plans travel (signed) inside the `.main` file, so an
+  expired free org routes to Pricing on restore. See [docs/pricing.md](docs/pricing.md).
 
 ## Repository layout
 
@@ -58,6 +63,7 @@ docs/             The project contract — read these first
 |------|---------|
 | [docs/plan.md](docs/plan.md) | Phased delivery plan (Phase 0–8) with "done when" criteria |
 | [docs/structure.md](docs/structure.md) | Normative spec: entities, tree invariants, permissions, file formats |
+| [docs/pricing.md](docs/pricing.md) | Plans, Knowledge Coins, OTP-gated creation, the super-admin console & `.main` v2 |
 | [docs/architecture.md](docs/architecture.md) | Stack, data model, API surface, storage adapter port |
 | [docs/design.md](docs/design.md) | Design language: glassmorphism tokens, constellation graph |
 | [docs/setup-guide.md](docs/setup-guide.md) | Step-by-step Vercel / Render / Neon deployment |
