@@ -177,9 +177,11 @@ export default function Home() {
       <footer className="footer">
         <span>Knowledge Vault — your structure, your knowledge, your custody.</span>
         <span className="footer-links">
+          <Link href="/pricing">Pricing</Link>
           <Link href="/help">Help</Link>
           <Link href="/login">Sign in</Link>
           <Link href="/register">Register</Link>
+          <Link href="/kbase/login" className="footer-employee">Knowledge base employee login</Link>
         </span>
       </footer>
     </main>
