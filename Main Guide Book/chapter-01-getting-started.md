@@ -35,6 +35,11 @@ Select **Create profile** and you're in.
 > careful to make sure you never lock yourself out with a typo. Every new-password field
 > asks for confirmation.
 
+New profiles are also credited with **Knowledge Coins** — 150 by default. You spend them on
+the plan an organization runs on, and your balance is shown on the **Pricing** page.
+[Chapter 17](chapter-17-plans-and-access.md) explains coins, plans and the free Demo plan in
+full.
+
 ---
 
 ## Signing in
@@ -60,8 +65,13 @@ Here you can:
 - **Upload a profile picture** — choose any image; it's automatically resized to a small
   square, so it stays lightweight.
 - **Jump to your organizations** with the **Open** button.
+- **Read your messages from the Super Admin** — access codes, plan decisions and coin gifts
+  land in their own panel here and stay for 30 days, so you can find your code any time
+  ([Chapter 17](chapter-17-plans-and-access.md)).
 - **Delete your profile** from the **Danger zone**. Deleting removes you from *every*
   organization and cannot be undone, so the platform asks you to confirm.
+
+![Messages from the Super Admin on the Account page](images/account-admin-messages.png)
 
 ---
 

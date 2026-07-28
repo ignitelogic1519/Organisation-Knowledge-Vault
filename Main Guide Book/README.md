@@ -25,6 +25,10 @@ chapter at a time. Every screen you see here comes from a real sample organizati
 - **A learner or team member?** Chapters 10 and 13 are for you — My Learning and
   Notifications.
 - **A manager?** Chapters 11 and 12 cover Requests and Compliance.
+- **Paying for it — or just trying it out?** Chapter 17 explains Knowledge Coins, how pricing
+  works, how many people each plan allows, and the free Demo plan you use as a testing
+  environment.
+- **Knowledge Base staff?** Chapter 18 is the administration console.
 
 Each chapter is self-contained, with a short **"What it is"**, a step-by-step
 **"How to use it"**, and **Tips** at the end.
@@ -51,7 +55,8 @@ Each chapter is self-contained, with a short **"What it is"**, a step-by-step
 | 14 | [The Supreme zone — custody & recovery](chapter-14-supreme-and-custody.md) | Backups, `.main`, `.bkp`, deletion |
 | 15 | [Help & support](chapter-15-help-and-support.md) | Where to find answers in-app |
 | 16 | [Flow diagrams — every setting at a glance](chapter-16-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
-| 17 | [Plans, Pricing & access codes](chapter-17-plans-and-access.md) | Choosing a plan, Knowledge Coins, your access code, the org timer & restore |
+| 17 | [Plans, pricing & Knowledge Coins](chapter-17-plans-and-access.md) | Coins, how pricing works, member limits, the free Demo plan, access codes, the org timer & restore |
+| 18 | [The Knowledge Base portal](chapter-18-knowledge-base-portal.md) | For platform staff: organizations, requests & codes, coins, plans & admins |
 | A | [Appendix — Glossary & quick reference](appendix-glossary-and-reference.md) | Every term and code, at a glance |
 
 > **Looking for flow diagrams?** Every feature chapter now ends with a **"Flows at a glance"**
@@ -59,6 +64,23 @@ Each chapter is self-contained, with a short **"What it is"**, a step-by-step
 > **[Chapter 16](chapter-16-flow-diagrams.md)** collects them all in one place — a diagram
 > paired with a screenshot for *each* setting an owner can do, each capability a member can
 > have, and each request-and-response flow.
+
+---
+
+## The printable edition
+
+The whole book — every chapter, screenshot and diagram — is also exported as a single file:
+**[Knowledge-Vault-Main-Guide-Book.pdf](Knowledge-Vault-Main-Guide-Book.pdf)**.
+
+The Markdown chapters are the source of truth; the PDF is generated from them, so after
+editing a chapter, rebuild it:
+
+```bash
+cd "Main Guide Book/tools"
+npm install                  # once
+npx playwright install chromium   # once
+node build-pdf.mjs
+```
 
 ---
 
@@ -89,6 +111,11 @@ The people you'll meet in the screenshots:
 | **Jade Li** | Robotics QA, People & Culture | Member |
 | **Sam Okoro** | Operations | Owner |
 | **Lena Novak** | Safety & Compliance | Member |
+
+Aurora Robotics runs on the **Organisation** plan (12 months, 250 seats). Chapters 17 and 18
+also show two other sample tenants, so you can see the plan states side by side: **Northwind
+Logistics (#101)** on the free **Demo** plan, and **Helios Health (#102)**, whose **Monthly**
+plan has expired.
 
 > **A note on names and data:** everything here is sample data. When you use Knowledge
 > Vault, you'll see your own organization, people and courses in exactly these screens.

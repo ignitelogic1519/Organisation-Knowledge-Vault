@@ -6,6 +6,8 @@ with a **screenshot** for each setting, grouped into three topics:
 - **A.** [What an **owner** can do](#a--owner-settings--actions) — every management setting.
 - **B.** [What a **member** can have / do](#b--what-a-member-can-have--do) — the learner side.
 - **C.** [**Request ↔ response** flows](#c--request--response-flows) — ask-and-approve.
+- **D.** [**Plans, coins & access codes**](#d--plans-knowledge-coins--access-codes) — how an
+  organization is paid for, sized and renewed.
 
 > The flow diagrams below are drawn with Mermaid and render automatically on GitHub. Each
 > setting also links back to the chapter where it's explained in full.
@@ -285,6 +287,105 @@ notification** that deep-links to the exact item.
 
 ---
 
+## D — Plans, Knowledge Coins & access codes
+
+Every organization runs on a **plan**, bought with **Knowledge Coins** and unlocked with a
+one-time **access code**. Full detail in [Chapter 17](chapter-17-plans-and-access.md); the
+staff side is [Chapter 18](chapter-18-knowledge-base-portal.md).
+
+![The Pricing page](images/pricing-page.png)
+
+### D1 · Choose a plan and get an access code
+*Where: Pricing → Request this plan / Propose terms · [Chapter 17](chapter-17-plans-and-access.md)*
+
+```mermaid
+flowchart LR
+    A["Pricing page"] --> B{"Fixed or custom plan?"}
+    B -->|Fixed| C["Request this plan"]
+    B -->|Custom| D["Propose terms: days wanted + coins offered"]
+    C --> E["Knowledge Base team decides"]
+    D --> E
+    E -->|Approve| F["8-character code - valid 24h, single use"]
+    E -->|Deny| G["Reason delivered - request again"]
+    F --> H["Bell + Account page - kept 30 days"]
+```
+
+![Your requests, tracked on the Pricing page](images/pricing-my-requests.png)
+
+### D2 · Create the organization with the code
+*Where: Create organization · [Chapter 3](chapter-03-founding-an-organization.md)*
+
+```mermaid
+flowchart LR
+    A["Paste access code + org details"] --> B{"Code valid and unexpired?"}
+    B -->|No| C["Refused - request a new code"]
+    B -->|Yes| D{"Enough Knowledge Coins?"}
+    D -->|No| E["Refused - shows cost vs balance"]
+    D -->|Yes| F["Coins deducted - code marked used"]
+    F --> G["Organization created - plan countdown starts"]
+```
+
+![Creating an organization with the plan chooser](images/create-organization.png)
+
+### D3 · Knowledge Coins — where they come from and go
+*Where: Pricing (balance) · Buy coins · [Chapter 17](chapter-17-plans-and-access.md)*
+
+```mermaid
+flowchart TD
+    A["Register - 150 coins granted"] --> W["Your wallet"]
+    G["Knowledge Base gift or adjustment"] --> W
+    P["Buy coins - coming soon"] -.-> W
+    W --> S{"Redeem an access code"}
+    S -->|Demo plan| F["Free - nothing deducted"]
+    S -->|Paid plan| D["Plan price deducted - logged in the ledger"]
+```
+
+### D4 · How many people a plan allows
+*Where: People → + Add person · [Chapter 6](chapter-06-people-and-governance.md)*
+
+```mermaid
+flowchart LR
+    A["Add a person / approve a Join request"] --> B{"Already in this organization?"}
+    B -->|Yes| C["Placed on the role - no seat used"]
+    B -->|No| D{"Members below the plan limit?"}
+    D -->|Yes| E["Added - seat used"]
+    D -->|No| F["Refused: upgrade the plan to add more"]
+```
+
+### D5 · Expiry and restoring
+*Where: the countdown chip above each org card · [Chapter 17](chapter-17-plans-and-access.md)*
+
+```mermaid
+flowchart TD
+    A["Plan countdown"] -->|More than 3 days| B["Normal chip"]
+    A -->|Under 3 days| C["Red chip - upgrade soon"]
+    A -->|Lapsed| D["expired - upgrade to keep it"]
+    D --> E{"Organization deleted and being restored?"}
+    E -->|Plan active and unexpired| F["Restores directly"]
+    E -->|Demo, expired or legacy file| G["Blocked - choose a plan on Pricing"]
+    G --> H["Restore code -> restore on the new plan"]
+```
+
+![The plan countdown timer above each organization card](images/org-plan-timer.png)
+
+### D6 · The staff side, in one picture
+*Where: Knowledge Base portal · [Chapter 18](chapter-18-knowledge-base-portal.md)*
+
+```mermaid
+flowchart LR
+    A["Requests inbox"] --> B["Approve: granted days + price + message"]
+    A --> C["Deny: reason"]
+    B --> D["Issue 8-character code"]
+    E["Organizations table"] --> F["Set plan: duration + member limit"]
+    E --> G["Delete permanently"]
+    H["Coins tab"] --> I["Default coins for new users"]
+    H --> J["Gift / adjust a balance"]
+```
+
+![The Knowledge Base portal](images/admin-portal.png)
+
+---
+
 ## Master index — setting → where → screenshot
 
 | Setting | Who | Chapter | Screenshot |
@@ -305,6 +406,16 @@ notification** that deep-links to the exact item.
 | Send a join request | Member | 11 | `requests.png` |
 | Decide a request (inbox) | Decider | 11 | `requests.png` |
 | Notifications | Everyone | 13 | `notifications.png` |
+| Choose a plan / see your coin balance | Anyone | 17 | `pricing-page.png` |
+| Track a plan request | Anyone | 17 | `pricing-my-requests.png` |
+| Read your access code | Anyone | 17 | `account-admin-messages.png` |
+| Create an org with a code | Founder | 17 | `create-organization.png` |
+| Read the plan countdown | Owner | 17 | `org-plan-timer.png` |
+| Buy coins (coming soon) | Anyone | 17 | `buy-coins-coming-soon.png` |
+| Approve a request & issue a code | KB staff | 18 | `admin-requests.png` |
+| Set a plan, duration & member limit | KB staff | 18 | `admin-set-plan.png` |
+| Default coins & gifts | KB staff | 18 | `admin-coins.png` |
+| Manage administrators | KB staff | 18 | `admin-admins.png` |
 
 ---
 

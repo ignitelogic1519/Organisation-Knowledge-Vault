@@ -35,6 +35,15 @@ A one-stop reference for the terms, codes and rules you'll meet across Knowledge
 | **`.main` file** | The encrypted existence backup that can revive an entire organization. |
 | **`.bkp` file** | An encrypted backup of a single branch (roles, people, placements). |
 | **Custody** | The principle that your data and your org's existence stay in your hands, not the platform's. |
+| **Knowledge Coin** | The platform's virtual currency (sometimes called an *education coin*). 150 per new profile; spent on plans. |
+| **Plan** | What an organization runs on — its price, duration and member limit. Demo, Monthly, Organisation, or a custom one. |
+| **Demo plan** | The free plan: 2 months, up to 10 people, full features. The testing environment. |
+| **Member limit** | The maximum number of *people* one organization may hold, set by its plan (or a per-org override). |
+| **Access code** | The one-time 8-character code that unlocks organization creation. Valid 24 hours, single use. |
+| **Restore code** | The same kind of code, issued to bring back an organization whose plan expired. |
+| **Plan status** | `active`, `demo`, `expired` — shown as the countdown chip above an org card. |
+| **Super Admin** | The Knowledge Base team member who approves plan requests and issues codes. |
+| **Knowledge Base portal** | The staff-only administration console (Chapter 18). |
 
 ---
 
@@ -93,13 +102,39 @@ So `100-100-0002` is the second course uploaded from *Aurora Robotics'* root rol
 
 ---
 
+## Plans at a glance
+
+| Plan | Price | Duration | People | Notes |
+|------|-------|----------|--------|-------|
+| **Demo** | Free | 60 days | up to 10 | One per profile; can't be restored free once lapsed |
+| **Monthly** | 50 coins | 30 days | up to 1 000 | Renewable |
+| **Organisation** | 150 coins | Agreed with the team | Agreed with the team | Propose your own terms |
+
+*Plans are managed centrally — the Pricing page is always the authority on current prices,
+durations and limits.*
+
+### Knowledge Coins at a glance
+
+| Rule | Value |
+|------|-------|
+| Starting balance for a new profile | **150** (staff can change it for future sign-ups) |
+| Where the balance is shown | The **Pricing** page and the **Buy coins** page — nowhere else |
+| When coins are deducted | Only when an access code is **redeemed** |
+| Demo plan cost | **0** |
+| Buying coins with money | **Coming soon** — staff gift coins today |
+
+---
+
 ## Automatic housekeeping
 
 | Thing | Behaviour |
 |-------|-----------|
 | Decided requests | Auto-clean after **7 days** |
 | Notifications | Auto-clear after **7 days**; nudge past 10 unread |
+| Messages from the Super Admin | Kept **30 days** (Account page) |
+| Access / restore codes | Expire after **24 hours**; usable **once** |
 | Deleted organization | **30-day** retention, then purged (revive with `.main`) |
+| Plan countdown chip | Turns red inside the last **3 days**, then reads *expired* |
 | Sessions | Refresh automatically in the background |
 
 ---
@@ -123,6 +158,11 @@ Sample courses include *Code of Conduct & Ethics* (`100-100-0001`, Confidential,
 *Information Security Essentials* (`100-100-0002`, Public, video, annual), *Embedded C Best
 Practices*, *Firmware Release Checklist*, *Workplace Safety Induction* and the *New Joiner
 Handbook*.
+
+Aurora Robotics runs on the **Organisation** plan — 12 months, 250 seats. Two more sample
+tenants appear in the plan and portal screenshots (Chapters 17–18): **Northwind Logistics
+(#101)** on the free **Demo** plan (2/10 seats used) and **Helios Health (#102)**, whose
+**Monthly** plan has lapsed — the red *expired* state.
 
 ---
 

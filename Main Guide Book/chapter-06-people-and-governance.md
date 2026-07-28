@@ -34,6 +34,20 @@ chips.
 If something goes wrong (for example, a typo'd username), the form stays open and tells you —
 it never closes silently.
 
+### How many people you can add
+
+Your organization's **plan** sets how many people it may hold. The count is per **person**,
+not per position — placing someone who is already in the organization onto another role costs
+nothing. Only a brand-new face uses a seat.
+
+When the organization is full, adding someone (or approving their Join request) is refused
+with the reason:
+
+> *This organization's plan allows up to 250 members. Upgrade the plan to add more.*
+
+Nobody is removed and nothing breaks — you either free a seat or move to a bigger plan. See
+[Chapter 17](chapter-17-plans-and-access.md) for the limits each plan carries.
+
 ---
 
 ## The two kinds of person
