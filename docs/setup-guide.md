@@ -183,17 +183,40 @@ Error: P1002 — Timed out trying to acquire a postgres advisory lock
 
 your `DATABASE_URL` is pointing at Neon's **pooler** endpoint (host contains `-pooler`).
 Prisma migrations need a **session-level advisory lock**, which PgBouncer (transaction mode)
-can't hold. Fix: set `DATABASE_URL` to the **direct, non-pooled** endpoint — the same string
-with `-pooler` removed from the host, e.g.
+can't hold.
+
+**This is now handled for you.** `start:prod` runs `apps/api/scripts/migrate-deploy.mjs`
+instead of calling `prisma migrate deploy` directly. That script:
+
+1. Derives the **direct** endpoint from `DATABASE_URL` by stripping `-pooler` from the host
+   (and dropping pooler-only params like `pgbouncer=true`), and migrates through it. The
+   server process itself still uses `DATABASE_URL` as configured — pooled is the better
+   choice for runtime traffic.
+2. Retries with backoff (0s / 3s / 8s / 15s / 30s), which also covers a Neon free-tier
+   compute that has scaled to zero and needs a moment to wake.
+3. Falls back to `DATABASE_URL` exactly as configured if the derived host never answers.
 
 ```
-# pooled (fails migrations):
+# pooled — fine to use as DATABASE_URL; migrations are redirected automatically
 postgresql://user:pass@ep-xxxx-pooler.region.aws.neon.tech/neondb?sslmode=require
-# direct (use this):
+# direct — what migrations actually run against
 postgresql://user:pass@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 ```
 
-The direct endpoint is fine at small scale (`WEB_CONCURRENCY=1`). After redeploy, the server's
-idempotent bootstrap creates the first super-admin (`adminbase`) and the starter plans
-automatically — no separate seed step is needed. To create/reset the admin manually instead,
-run `pnpm --filter @vault/api db:admin` (honours `ADMIN_USERNAME` / `ADMIN_PASSWORD`).
+If your direct host is *not* simply the pooled host minus `-pooler`, set
+**`DIRECT_DATABASE_URL`** (or `DIRECT_URL` / `MIGRATE_DATABASE_URL`) in the Render dashboard
+to Neon's "direct connection" string — an explicit value always wins over the derived one.
+
+If a killed deploy left a lock genuinely stuck, clear it from the Neon SQL editor:
+
+```sql
+SELECT pg_advisory_unlock_all();
+```
+
+As a last resort you can set `MIGRATE_DISABLE_ADVISORY_LOCK=1` to skip the lock entirely.
+That's only safe because a single instance migrates at a time (`WEB_CONCURRENCY=1`).
+
+After redeploy, the server's idempotent bootstrap creates the first super-admin (`adminbase`)
+and the starter plans automatically — no separate seed step is needed. To create/reset the
+admin manually instead, run `pnpm --filter @vault/api db:admin` (honours `ADMIN_USERNAME` /
+`ADMIN_PASSWORD`).

@@ -14,11 +14,14 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        # Neon connection string. IMPORTANT: use the DIRECT (non-pooled) endpoint — the host
-        # WITHOUT "-pooler". `prisma migrate deploy` needs a session advisory lock, which
-        # Neon's pooler (PgBouncer, transaction mode) can't hold → deploys fail with P1002
-        # "Timed out trying to acquire a postgres advisory lock". The direct endpoint is fine
-        # at this scale (WEB_CONCURRENCY=1). See docs/setup-guide.md.
+        # Neon connection string — either endpoint works. `prisma migrate deploy` needs a
+        # session advisory lock that Neon's pooler (PgBouncer, transaction mode) can't hold,
+        # so scripts/migrate-deploy.mjs strips "-pooler" from the host and migrates through
+        # the direct endpoint automatically. Set DIRECT_DATABASE_URL below to override that.
+        #
+        # Optional companion: add DIRECT_DATABASE_URL by hand in the Render dashboard to
+        # pin the migration connection explicitly, if your direct host isn't simply
+        # DATABASE_URL minus "-pooler".
         sync: false
       - key: JWT_SECRET
         generateValue: true # random secret minted by Render — never commit one
