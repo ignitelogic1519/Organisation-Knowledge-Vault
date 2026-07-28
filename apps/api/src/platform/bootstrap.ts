@@ -19,8 +19,36 @@ const STARTER_PLANS = [
   { key: "organisation", name: "Organisation", tagline: "For established teams — duration set with the admin", category: "Plans", priceCoins: 150, durationDays: null as number | null, memberLimit: null as number | null, isCustom: true, criteria: "Duration agreed with the Knowledge Base team.", badge: "Best value", highlights: ["Admin-set duration", "Custom member limit", "Custom terms"], sortOrder: 30 },
 ];
 
+// Locked out of the console? Render's free plan has no shell, so `db:admin` isn't reachable
+// there. Set ADMIN_PASSWORD_RESET=1 in the dashboard and redeploy: the password goes back to
+// ADMIN_PASSWORD (default CJP@2000) and the account is reactivated. Remove the var afterwards.
+//
+// This is not a privilege escalation — anyone who can set env vars on the service can already
+// deploy arbitrary code against the same database. The reset always forces a password change
+// at next login, so a forgotten env var can't leave a known password in place unnoticed.
+async function applyAdminPasswordReset(): Promise<void> {
+  if (!/^(1|true|yes)$/i.test(process.env.ADMIN_PASSWORD_RESET ?? "")) return;
+
+  const updated = await db.platformAdmin.updateMany({
+    where: { username: FIRST_ADMIN.username },
+    data: {
+      passwordHash: await hash(FIRST_ADMIN.password),
+      active: true,
+      mustChangePassword: true,
+    },
+  });
+  if (updated.count === 0) return; // nothing to reset — the create path below uses this password
+
+  console.warn(
+    `[bootstrap] ADMIN_PASSWORD_RESET set — reset the password for @${FIRST_ADMIN.username} ` +
+      "and reactivated the account. You must change the password at next login. " +
+      "Remove ADMIN_PASSWORD_RESET from the environment now.",
+  );
+}
+
 export async function ensurePlatformBootstrap(): Promise<void> {
   try {
+    await applyAdminPasswordReset();
     const admin = await db.platformAdmin.findUnique({ where: { username: FIRST_ADMIN.username } });
     if (!admin) {
       await db.platformAdmin.create({

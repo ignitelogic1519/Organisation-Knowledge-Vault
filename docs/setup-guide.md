@@ -220,3 +220,49 @@ After redeploy, the server's idempotent bootstrap creates the first super-admin 
 and the starter plans automatically — no separate seed step is needed. To create/reset the
 admin manually instead, run `pnpm --filter @vault/api db:admin` (honours `ADMIN_USERNAME` /
 `ADMIN_PASSWORD`).
+
+## Locked out of the admin console (forgotten super-admin password)
+
+`pnpm --filter @vault/api db:admin` resets it, but Render's **free plan has no shell**, so on
+a deployed instance use one of these instead.
+
+### Option A — env-gated reset (no SQL)
+
+1. Render dashboard → your service → **Environment** → add `ADMIN_PASSWORD_RESET` = `1`.
+   To reset to something other than the default, also set `ADMIN_PASSWORD`.
+2. Save — Render restarts the service. On boot you'll see:
+   `[bootstrap] ADMIN_PASSWORD_RESET set — reset the password for @adminbase …`
+3. Log in at `/kbase/login` as `adminbase`. You'll be forced to set a new password.
+4. **Delete `ADMIN_PASSWORD_RESET`** from the environment.
+
+The reset always reactivates the account and always forces a password change at next login,
+so leaving the var set by mistake can't quietly leave a known password in place. It is not a
+privilege escalation: anyone who can set env vars on the service can already deploy arbitrary
+code against the same database.
+
+### Option B — direct SQL (Neon SQL Editor, takes effect immediately)
+
+Passwords are Argon2id hashes, so you can't write a plaintext password into the table. Generate
+a hash locally (this repo is public — never paste a real hash or password into it):
+
+```bash
+node -e 'import("@node-rs/argon2").then(({hash})=>hash(process.argv[1]).then(console.log))' 'YourNewPassword'
+```
+
+Then, in the Neon SQL Editor — takes effect immediately, no redeploy:
+
+```sql
+UPDATE "PlatformAdmin"
+SET "passwordHash" = '<paste the $argon2id$… string here>',
+    "active" = true,
+    "mustChangePassword" = true
+WHERE "username" = 'adminbase';
+```
+
+Forgot the *username* too? `SELECT "username", "active" FROM "PlatformAdmin";`
+
+> **Change the default.** `CJP@2000` is hardcoded as the bootstrap default in
+> `apps/api/src/platform/bootstrap.ts` **in this public repository**, and the admin console is
+> publicly reachable. Any deployment still using it can be logged into by anyone who reads the
+> source. Set `ADMIN_PASSWORD` in Render to a private value, or change the password at first
+> login and never restore the default.
