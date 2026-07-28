@@ -1,0 +1,522 @@
+"use client";
+
+import type { Classification, MediaOptions, OrgPlanLimitsView } from "@vault/shared";
+import type { EditorBlock, StudioMeta } from "./model";
+
+// The right-hand inspector: everything about the *selected block's* presentation on one
+// tab, and everything about the *document* (its cover data, placement and the plan's
+// allowances) on the other. Nothing here changes content — only how it is presented.
+
+const CLASSES: Classification[] = ["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"];
+const CLASS_LABEL: Record<Classification, string> = {
+  PUBLIC: "Public",
+  CONFIDENTIAL: "Confidential",
+  PRIVATE: "Private",
+  SECRET: "Secret",
+};
+
+const ANIMATIONS = ["none", "fade", "rise", "slide", "zoom", "flip"] as const;
+
+function Row({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <label className="insp-row">
+      <span className="insp-label">{label}</span>
+      {children}
+      {hint && <small className="insp-hint">{hint}</small>}
+    </label>
+  );
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+  hint,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  hint?: string;
+}) {
+  return (
+    <label className="insp-toggle">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        {label}
+        {hint && <small>{hint}</small>}
+      </span>
+    </label>
+  );
+}
+
+function Meter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  return (
+    <div className="insp-meter" data-full={limit != null && used >= limit}>
+      <div className="insp-meter-head">
+        <span>{label}</span>
+        <span>{limit == null ? `${used} · unlimited` : `${used} / ${limit}`}</span>
+      </div>
+      {limit != null && (
+        <div className="insp-meter-track">
+          <span style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MediaSettings({
+  media,
+  onChange,
+}: {
+  media: MediaOptions;
+  onChange: (next: MediaOptions) => void;
+}) {
+  const set = (patch: Partial<MediaOptions>) => onChange({ ...media, ...patch });
+  const sources = media.sources ?? [];
+  return (
+    <>
+      <h4 className="insp-section">Playback</h4>
+      <Toggle
+        label="Reader may skip ahead"
+        checked={media.skippable !== false}
+        onChange={(v) => set({ skippable: v })}
+        hint="Off = the recording must be watched through; rewinding stays allowed."
+      />
+      <Toggle
+        label="Speed control (0.5×–2×)"
+        checked={media.speedControl !== false}
+        onChange={(v) => set({ speedControl: v })}
+      />
+      <Row label="Default speed">
+        <select
+          value={media.defaultSpeed ?? 1}
+          onChange={(e) => set({ defaultSpeed: Number(e.target.value) })}
+        >
+          {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+            <option key={s} value={s}>
+              {s}×
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Toggle label="Autoplay" checked={!!media.autoplay} onChange={(v) => set({ autoplay: v })} />
+      <Toggle label="Loop" checked={!!media.loop} onChange={(v) => set({ loop: v })} />
+      <Toggle label="Start muted" checked={!!media.muted} onChange={(v) => set({ muted: v })} />
+      <Toggle
+        label="Show a watched-in-full marker"
+        checked={!!media.trackCompletion}
+        onChange={(v) => set({ trackCompletion: v })}
+      />
+      <Toggle
+        label="Allow the browser download control"
+        checked={!!media.download}
+        onChange={(v) => set({ download: v })}
+      />
+
+      <h4 className="insp-section">Quality ladder</h4>
+      <p className="insp-note">
+        Add a rendition per quality (1080p, 720p, low data). The reader picks one from the
+        player without losing their place.
+      </p>
+      {sources.map((s, i) => (
+        <div className="insp-source" key={i}>
+          <input
+            value={s.label}
+            maxLength={24}
+            placeholder="1080p"
+            onChange={(e) =>
+              set({ sources: sources.map((x, xi) => (xi === i ? { ...x, label: e.target.value } : x)) })
+            }
+          />
+          <input
+            value={s.url}
+            type="url"
+            placeholder="https://…"
+            onChange={(e) =>
+              set({ sources: sources.map((x, xi) => (xi === i ? { ...x, url: e.target.value } : x)) })
+            }
+          />
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Remove rendition"
+            onClick={() => set({ sources: sources.filter((_, xi) => xi !== i) })}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      {sources.length < 6 && (
+        <button
+          type="button"
+          className="btn btn-quiet btn-small"
+          onClick={() => set({ sources: [...sources, { label: "", url: "" }] })}
+        >
+          + Add rendition
+        </button>
+      )}
+
+      <h4 className="insp-section">Clip &amp; extras</h4>
+      <div className="insp-grid-2">
+        <Row label="Start (s)">
+          <input
+            type="number"
+            min={0}
+            value={media.startAt ?? ""}
+            onChange={(e) => set({ startAt: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </Row>
+        <Row label="End (s)">
+          <input
+            type="number"
+            min={0}
+            value={media.endAt ?? ""}
+            onChange={(e) => set({ endAt: e.target.value ? Number(e.target.value) : undefined })}
+          />
+        </Row>
+      </div>
+      <Row label="Poster image">
+        <input
+          type="url"
+          placeholder="https://…"
+          value={media.poster ?? ""}
+          onChange={(e) => set({ poster: e.target.value || undefined })}
+        />
+      </Row>
+      <Row label="Captions (.vtt)">
+        <input
+          type="url"
+          placeholder="https://…"
+          value={media.captionsUrl ?? ""}
+          onChange={(e) => set({ captionsUrl: e.target.value || undefined })}
+        />
+      </Row>
+    </>
+  );
+}
+
+export function Inspector({
+  tab,
+  onTab,
+  block,
+  onBlockChange,
+  meta,
+  onMeta,
+  limits,
+  categories,
+  needsReview,
+}: {
+  tab: "format" | "document";
+  onTab: (t: "format" | "document") => void;
+  block: EditorBlock | null;
+  onBlockChange: (next: EditorBlock) => void;
+  meta: StudioMeta;
+  onMeta: (next: StudioMeta) => void;
+  limits: OrgPlanLimitsView | null;
+  categories: string[];
+  needsReview: boolean;
+}) {
+  const style = block?.style ?? {};
+  const patchStyle = (patch: Record<string, unknown>) =>
+    block && onBlockChange({ ...block, style: { ...style, ...patch } });
+
+  return (
+    <aside className="studio-inspector glass">
+      <div className="studio-inspector-tabs">
+        <button type="button" data-active={tab === "format"} onClick={() => onTab("format")}>
+          Format
+        </button>
+        <button type="button" data-active={tab === "document"} onClick={() => onTab("document")}>
+          Document
+        </button>
+      </div>
+
+      {tab === "format" && (
+        <div className="studio-inspector-body">
+          {!block && <p className="insp-note">Select a block on the page to style it.</p>}
+          {block && (
+            <>
+              <h4 className="insp-section">Layout</h4>
+              <Row label="Alignment">
+                <select
+                  value={style.align ?? "left"}
+                  onChange={(e) => patchStyle({ align: e.target.value })}
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Centre</option>
+                  <option value="right">Right</option>
+                  <option value="justify">Justified</option>
+                </select>
+              </Row>
+              <Row label={`Width — ${style.width ?? 100}%`}>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={style.width ?? 100}
+                  onChange={(e) => patchStyle({ width: Number(e.target.value) })}
+                />
+              </Row>
+              <Row label="Position">
+                <select
+                  value={style.float ?? "center"}
+                  onChange={(e) => patchStyle({ float: e.target.value })}
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Centre</option>
+                  <option value="right">Right</option>
+                </select>
+              </Row>
+              <div className="insp-grid-2">
+                <Row label="Padding">
+                  <input
+                    type="number"
+                    min={0}
+                    max={80}
+                    value={style.padding ?? ""}
+                    onChange={(e) =>
+                      patchStyle({ padding: e.target.value ? Number(e.target.value) : undefined })
+                    }
+                  />
+                </Row>
+                <Row label="Space after">
+                  <input
+                    type="number"
+                    min={0}
+                    max={160}
+                    value={style.spaceAfter ?? ""}
+                    onChange={(e) =>
+                      patchStyle({ spaceAfter: e.target.value ? Number(e.target.value) : undefined })
+                    }
+                  />
+                </Row>
+              </div>
+
+              <h4 className="insp-section">Appearance</h4>
+              <div className="insp-grid-2">
+                <Row label="Text colour">
+                  <input
+                    type="color"
+                    value={style.color ?? "#1a1d26"}
+                    onChange={(e) => patchStyle({ color: e.target.value })}
+                  />
+                </Row>
+                <Row label="Fill">
+                  <input
+                    type="color"
+                    value={style.background ?? "#ffffff"}
+                    onChange={(e) => patchStyle({ background: e.target.value })}
+                  />
+                </Row>
+              </div>
+              <Row label="Accent">
+                <input
+                  type="color"
+                  value={style.accent ?? "#5b5bf0"}
+                  onChange={(e) => patchStyle({ accent: e.target.value })}
+                />
+              </Row>
+              <div className="insp-grid-2">
+                <Row label="Line height">
+                  <input
+                    type="number"
+                    step={0.05}
+                    min={1}
+                    max={3}
+                    value={style.lineHeight ?? ""}
+                    onChange={(e) =>
+                      patchStyle({ lineHeight: e.target.value ? Number(e.target.value) : undefined })
+                    }
+                  />
+                </Row>
+                <Row label="Letter spacing">
+                  <input
+                    type="number"
+                    step={0.1}
+                    min={-3}
+                    max={20}
+                    value={style.letterSpacing ?? ""}
+                    onChange={(e) =>
+                      patchStyle({ letterSpacing: e.target.value ? Number(e.target.value) : undefined })
+                    }
+                  />
+                </Row>
+              </div>
+              <Toggle label="Border" checked={!!style.border} onChange={(v) => patchStyle({ border: v })} />
+              <Toggle label="Shadow" checked={!!style.shadow} onChange={(v) => patchStyle({ shadow: v })} />
+              <Toggle
+                label="Uppercase"
+                checked={!!style.uppercase}
+                onChange={(v) => patchStyle({ uppercase: v })}
+              />
+              <Row label="Corner radius">
+                <input
+                  type="range"
+                  min={0}
+                  max={48}
+                  value={style.radius ?? 0}
+                  onChange={(e) => patchStyle({ radius: Number(e.target.value) })}
+                />
+              </Row>
+
+              <h4 className="insp-section">Motion</h4>
+              <Row label="Entrance" hint="Plays when the block scrolls into the reader's view.">
+                <select
+                  value={style.animation ?? "none"}
+                  onChange={(e) => patchStyle({ animation: e.target.value })}
+                >
+                  {ANIMATIONS.map((a) => (
+                    <option key={a} value={a}>
+                      {a[0].toUpperCase() + a.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+
+              {block.type === "heading" && (
+                <Row label="Heading level">
+                  <select
+                    value={block.level ?? 2}
+                    onChange={(e) => onBlockChange({ ...block, level: Number(e.target.value) })}
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((l) => (
+                      <option key={l} value={l}>
+                        Level {l}
+                      </option>
+                    ))}
+                  </select>
+                </Row>
+              )}
+
+              {block.type === "image" && (
+                <>
+                  <h4 className="insp-section">Image</h4>
+                  <Row label="Alternative text" hint="Read aloud by screen readers.">
+                    <input
+                      value={block.title ?? ""}
+                      maxLength={200}
+                      onChange={(e) => onBlockChange({ ...block, title: e.target.value })}
+                    />
+                  </Row>
+                </>
+              )}
+
+              {block.type === "media" && (
+                <MediaSettings
+                  media={block.media ?? {}}
+                  onChange={(media) => onBlockChange({ ...block, media })}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "document" && (
+        <div className="studio-inspector-body">
+          <h4 className="insp-section">Cover &amp; library</h4>
+          <Row label="Classification *">
+            <select
+              value={meta.classification ?? ""}
+              onChange={(e) =>
+                onMeta({ ...meta, classification: (e.target.value || null) as Classification | null })
+              }
+            >
+              <option value="">Choose…</option>
+              {CLASSES.map((c) => (
+                <option key={c} value={c}>
+                  {CLASS_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Document type">
+            <select
+              value={meta.kind}
+              onChange={(e) => onMeta({ ...meta, kind: e.target.value as "DOCUMENT" | "BOOK" })}
+            >
+              <option value="DOCUMENT">Document</option>
+              <option value="BOOK">Book (multi-page)</option>
+            </select>
+          </Row>
+          <Row label="Library shelf">
+            <input
+              list="studio-shelves"
+              value={meta.category}
+              maxLength={40}
+              placeholder="AI, Safety, Onboarding…"
+              onChange={(e) => onMeta({ ...meta, category: e.target.value })}
+            />
+          </Row>
+          <datalist id="studio-shelves">
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <Row label="Description *" hint="Printed on the document's description page.">
+            <textarea
+              rows={3}
+              maxLength={500}
+              value={meta.description}
+              onChange={(e) => onMeta({ ...meta, description: e.target.value })}
+            />
+          </Row>
+          <Row label="Scope" hint="Who it applies to and what it covers.">
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={meta.scope}
+              onChange={(e) => onMeta({ ...meta, scope: e.target.value })}
+            />
+          </Row>
+
+          <h4 className="insp-section">Placement</h4>
+          <Toggle
+            label="Publish to the library"
+            checked={meta.inLibrary}
+            onChange={(v) => onMeta({ ...meta, inLibrary: v })}
+          />
+          {!needsReview && (
+            <>
+              <Toggle
+                label="Mandatory for this branch"
+                checked={meta.mandatory}
+                onChange={(v) => onMeta({ ...meta, mandatory: v })}
+              />
+              <Toggle
+                label="Inherit to lower branches"
+                checked={meta.inherit}
+                onChange={(v) => onMeta({ ...meta, inherit: v })}
+              />
+            </>
+          )}
+          <Toggle
+            label="Re-reading required after an update"
+            checked={meta.resets}
+            onChange={(v) => onMeta({ ...meta, resets: v })}
+          />
+
+          {limits && (
+            <>
+              <h4 className="insp-section">Plan allowance</h4>
+              <Meter
+                label="Studio documents"
+                used={limits.documents.used}
+                limit={limits.documents.limit}
+              />
+              <Meter label="Uploaded documents" used={limits.uploads.used} limit={limits.uploads.limit} />
+              <p className="insp-note">
+                {limits.planName ? `${limits.planName} plan` : "No active plan"}
+                {limits.draftsEnabled
+                  ? " · drafts included"
+                  : " · drafts are a premium capability"}
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </aside>
+  );
+}

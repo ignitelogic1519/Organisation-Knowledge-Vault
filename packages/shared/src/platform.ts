@@ -39,6 +39,10 @@ export interface AdminOrgRow {
   planIsCustom: boolean;
   memberCount: number;
   memberLimit: number | null; // effective cap (per-org override, else the plan's)
+  documentCount: number; // Studio-authored documents published so far
+  documentLimit: number | null;
+  uploadCount: number; // uploaded / linked documents so far
+  uploadLimit: number | null;
   roleCount: number;
   treeDepth: number;
   createdAt: string;
@@ -94,6 +98,8 @@ export const upgradePlanSchema = z.object({
   planKey: z.string().min(1),
   durationDays: z.number().int().positive().max(3650).nullable().optional(), // null = unlimited
   memberLimit: z.number().int().positive().max(1_000_000).nullable().optional(), // null = plan default
+  documentLimit: z.number().int().positive().max(1_000_000).nullable().optional(), // Studio documents
+  uploadLimit: z.number().int().positive().max(1_000_000).nullable().optional(), // uploads & links
   message: z.string().max(600).optional(),
 });
 export type UpgradePlanInput = z.infer<typeof upgradePlanSchema>;

@@ -430,6 +430,9 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             archived: c.archived ?? false,
             inLibrary: c.inLibrary ?? false,
             draft: c.draft ?? false,
+            // Keep the plan's two allowances accurate across a revival: a Studio document
+            // is still a Studio document, everything else counts as an upload.
+            source: srcRef?.adapter === "authored" ? "STUDIO" : "UPLOAD",
             storageRef,
             deadlineDays: c.deadlineDays,
             retakeEveryNDays: c.retakeEveryNDays,

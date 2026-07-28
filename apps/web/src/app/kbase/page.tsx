@@ -98,7 +98,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
   );
 }
 
-type SortKey = "orgNumber" | "name" | "planKey" | "planStatus" | "planExpiresAt" | "memberCount" | "roleCount" | "treeDepth" | "lastActivityAt";
+type SortKey = "orgNumber" | "name" | "planKey" | "planStatus" | "planExpiresAt" | "memberCount" | "documentCount" | "uploadCount" | "roleCount" | "treeDepth" | "lastActivityAt";
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "—";
@@ -192,6 +192,7 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
             <tr>
               {th("orgNumber", "#")}{th("name", "Name")}<th>Owners</th>{th("planKey", "Plan")}
               {th("planStatus", "Status")}{th("planExpiresAt", "Expires")}{th("memberCount", "Members")}
+              {th("documentCount", "Documents")}{th("uploadCount", "Uploads")}
               {th("roleCount", "Roles")}{th("treeDepth", "Depth")}{th("lastActivityAt", "Last activity")}<th></th>
             </tr>
           </thead>
@@ -205,6 +206,8 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
                 <td><span className={`badge ${o.planStatus === "ACTIVE" ? "badge-ok" : o.planStatus === "EXPIRED" ? "badge-danger" : ""}`}>{o.planStatus.toLowerCase()}</span></td>
                 <td>{o.planExpiresAt ? o.planExpiresAt.slice(0, 10) : "—"}</td>
                 <td>{o.memberCount}{o.memberLimit != null ? ` / ${o.memberLimit}` : ""}</td>
+                <td>{o.documentCount}{o.documentLimit != null ? ` / ${o.documentLimit}` : ""}</td>
+                <td>{o.uploadCount}{o.uploadLimit != null ? ` / ${o.uploadLimit}` : ""}</td>
                 <td>{o.roleCount}</td>
                 <td>{o.treeDepth}</td>
                 <td title={o.lastActivityAt ?? ""}>{timeAgo(o.lastActivityAt)}</td>
@@ -224,7 +227,7 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
                 </td>
               </tr>
             ))}
-            {orgs && rows.length === 0 && <tr><td colSpan={11} className="auth-sub">{q ? "No matches." : "No organizations yet."}</td></tr>}
+            {orgs && rows.length === 0 && <tr><td colSpan={13} className="auth-sub">{q ? "No matches." : "No organizations yet."}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -246,8 +249,10 @@ function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () =
         const d = new FormData(e.currentTarget);
         const days = d.get("days") ? Number(d.get("days")) : null;
         const memberLimit = d.get("memberLimit") ? Number(d.get("memberLimit")) : null;
+        const documentLimit = d.get("documentLimit") ? Number(d.get("documentLimit")) : null;
+        const uploadLimit = d.get("uploadLimit") ? Number(d.get("uploadLimit")) : null;
         try {
-          const res = await admin.upgradePlan({ orgNumber: org.orgNumber, planKey: String(d.get("planKey")), durationDays: days, memberLimit, message: String(d.get("message") || "") || undefined });
+          const res = await admin.upgradePlan({ orgNumber: org.orgNumber, planKey: String(d.get("planKey")), durationDays: days, memberLimit, documentLimit, uploadLimit, message: String(d.get("message") || "") || undefined });
           onDone(`${org.name} → ${res.planKey}${res.expiresAt ? ` (until ${res.expiresAt.slice(0, 10)})` : ""}`);
         } catch (err) {
           setError(err instanceof AdminApiError ? err.message : "Failed");
@@ -264,6 +269,8 @@ function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () =
       </label>
       <label className="field"><span>Duration (days — blank = unlimited/plan default)</span><input name="days" type="number" min={1} /></label>
       <label className="field"><span>Member limit (blank = use the plan&apos;s limit)</span><input name="memberLimit" type="number" min={1} defaultValue={org.memberLimit ?? undefined} /></label>
+      <label className="field"><span>Custom-document limit (Studio; blank = plan&apos;s limit)</span><input name="documentLimit" type="number" min={1} defaultValue={org.documentLimit ?? undefined} /></label>
+      <label className="field"><span>Upload limit (files &amp; links; blank = plan&apos;s limit)</span><input name="uploadLimit" type="number" min={1} defaultValue={org.uploadLimit ?? undefined} /></label>
       <label className="field"><span>Message to owners (optional)</span><input name="message" /></label>
       {error && <p className="form-error">{error}</p>}
       <div className="tree-actions">

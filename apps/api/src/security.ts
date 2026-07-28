@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { isSafeHref, RICH_TEXT_TAG_SET, sanitizeStyleAttribute } from "@vault/shared";
 import { db } from "./db.js";
 
 // ── In-memory rate limiter ──────────────────────────────────────────────────
@@ -38,15 +39,14 @@ export function rateLimiter(bucket: string, max: number, windowMs: number) {
 // ── HTML sanitizer (dependency-free) ─────────────────────────────────────────
 // Authored documents store limited rich text. We sanitize server-side (authoritative)
 // AND client-side (defence in depth) so stored-XSS cannot reach another user's browser.
-// Whitelist tags + strip every attribute except safe hrefs on <a>.
-
-const ALLOWED_TAGS = new Set([
-  "b", "strong", "i", "em", "u", "br", "ul", "ol", "li", "p", "h1", "h2", "h3", "a", "code", "span", "mark",
-]);
+// Whitelist tags, keep only http(s) hrefs on <a>, and keep only the inline style
+// declarations the Studio's formatting controls produce (colour, highlight, size,
+// alignment …) — see @vault/shared/rich-text for the shared whitelist. Formatting has to
+// survive the round trip, so "strip every attribute" is not an option here.
 
 /**
  * Extremely conservative HTML cleaner: removes disallowed tags (keeping their text),
- * drops all attributes except http(s) hrefs on anchors, and neutralizes any
+ * drops every attribute except safe hrefs and a filtered `style`, and neutralizes any
  * script/style/event content. Not a full DOM parser — it errs toward stripping.
  */
 export function sanitizeHtml(input: string): string {
@@ -56,26 +56,45 @@ export function sanitizeHtml(input: string): string {
   // 2. Walk every tag; keep whitelisted ones (attributes scrubbed), drop the rest
   out = out.replace(/<\/?([a-zA-Z0-9]+)((?:[^>"']|"[^"]*"|'[^']*')*)>/g, (match, rawName, attrs) => {
     const name = String(rawName).toLowerCase();
-    if (!ALLOWED_TAGS.has(name)) return "";
+    if (!RICH_TEXT_TAG_SET.has(name)) return "";
     const closing = /^<\//.test(match);
     if (closing) return `</${name}>`;
+    const rawStyle = /style\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs);
+    const style = sanitizeStyleAttribute(rawStyle?.[2] ?? rawStyle?.[3] ?? "");
+    const styleAttr = style ? ` style="${style.replace(/"/g, "&quot;")}"` : "";
     if (name === "a") {
       const href = /href\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs);
       const url = href?.[2] ?? href?.[3] ?? "";
-      if (/^https?:\/\//i.test(url)) {
-        return `<a href="${url.replace(/"/g, "&quot;")}" target="_blank" rel="noreferrer noopener">`;
+      if (isSafeHref(url)) {
+        return `<a href="${url.replace(/"/g, "&quot;")}" target="_blank" rel="noreferrer noopener"${styleAttr}>`;
       }
-      return "<a>";
+      return `<a${styleAttr}>`;
     }
-    return `<${name}>`;
+    return `<${name}${styleAttr}>`;
   });
   return out;
 }
 
-/** Sanitize the rich-text fields of authored document blocks in place. */
-export function sanitizeBlocks<T extends { html?: string }[]>(blocks: T): T {
+/** Rich text nested inside a block (a `columns` block carries one per column). */
+interface SanitizableBlock {
+  type?: string;
+  html?: string;
+  columns?: { html?: string }[];
+}
+
+/**
+ * Sanitize the rich-text fields of authored document blocks in place — the block's own
+ * HTML plus every column's. `code` blocks are left alone: they are stored and rendered as
+ * plain text, so running them through the tag stripper would eat the snippet itself.
+ */
+export function sanitizeBlocks<T extends SanitizableBlock[]>(blocks: T): T {
   for (const b of blocks) {
-    if (typeof b.html === "string") b.html = sanitizeHtml(b.html);
+    if (typeof b.html === "string" && b.type !== "code") b.html = sanitizeHtml(b.html);
+    if (Array.isArray(b.columns)) {
+      for (const col of b.columns) {
+        if (typeof col.html === "string") col.html = sanitizeHtml(col.html);
+      }
+    }
   }
   return blocks;
 }

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { TreeNode } from "@vault/shared";
+import type { OrgPlanLimitsView, TreeNode } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { orgs, requests, roles } from "@/lib/orgs-client";
 import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-client";
+import { studio } from "@/lib/studio-client";
 import { GraphLegend, OrgGraph } from "@/components/OrgGraph";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
@@ -668,6 +669,7 @@ function CoursesPanel({
   const [list, setList] = useState<RoleCourses | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [category, setCategory] = useState("");
+  const [limits, setLimits] = useState<OrgPlanLimitsView | null>(null);
   const [catInfo, setCatInfo] = useState<{ suggestion: string | null; categories: string[] }>({
     suggestion: null,
     categories: [],
@@ -678,8 +680,36 @@ function CoursesPanel({
       .listForRole(node.id)
       .then((r) => setList(r.courses))
       .catch((e) => onError(e instanceof ApiError ? e.message : "Could not load courses"));
-  }, [node.id, onError]);
+    studio
+      .limits(orgId)
+      .then(setLimits)
+      .catch(() => undefined);
+  }, [node.id, orgId, onError]);
   useEffect(load, [load]);
+
+  const uploadsLeft = limits?.uploads.remaining;
+  const uploadsFull = uploadsLeft === 0;
+  const documentsFull = limits?.documents.remaining === 0;
+
+  /** Formal notice when an allowance is spent — the admin is the one who can lift it. */
+  const allowanceNotice = (what: string, limit: number | null) =>
+    dialogs.alert({
+      title: "Plan allowance reached",
+      tone: "info",
+      message: (
+        <>
+          <p>
+            This organization has used all <strong>{limit} {what}</strong> included in its
+            current plan.
+          </p>
+          <p>
+            Please contact your main administrator so they can arrange a premium plan with the
+            Knowledge Base team, or free up capacity by deleting material that is no longer
+            required.
+          </p>
+        </>
+      ),
+    });
 
   // Shelf suggestion: match the draft's words against existing library categories so
   // similar content lands together ("…AI AWS…" → suggests "AI"); always overridable.
@@ -702,18 +732,51 @@ function CoursesPanel({
       <div className="drawer-actions">
         <button
           className={showNew ? "btn btn-quiet btn-small" : "btn btn-primary btn-small"}
-          onClick={() => setShowNew((v) => !v)}
+          onClick={() => {
+            if (!showNew && uploadsFull) {
+              void allowanceNotice("uploaded documents", limits?.uploads.limit ?? null);
+              return;
+            }
+            setShowNew((v) => !v);
+          }}
         >
           {showNew ? "Close form" : "+ Upload course"}
         </button>
         <button
           className="btn btn-quiet btn-small"
           title="Create an interactive document from scratch"
-          onClick={() => router.push(`/orgs/${orgId}/studio?role=${node.id}`)}
+          onClick={() => {
+            if (documentsFull) {
+              void allowanceNotice("custom documents", limits?.documents.limit ?? null);
+              return;
+            }
+            router.push(`/orgs/${orgId}/studio?role=${node.id}`);
+          }}
         >
           ✍ Create in Studio
         </button>
       </div>
+
+      {/* What the plan still allows — shown before the author starts, not after. */}
+      {limits && (limits.uploads.limit != null || limits.documents.limit != null) && (
+        <p className="plan-allowance" data-full={uploadsFull || documentsFull}>
+          {limits.documents.limit != null && (
+            <span>
+              Custom documents: <strong>{limits.documents.used}</strong> of{" "}
+              {limits.documents.limit}
+            </span>
+          )}
+          {limits.uploads.limit != null && (
+            <span>
+              Uploads: <strong>{limits.uploads.used}</strong> of {limits.uploads.limit}
+            </span>
+          )}
+          <span className="auth-sub">
+            {limits.planName ? `${limits.planName} plan` : "Free structure"} — your main
+            administrator can raise these limits with a premium plan.
+          </span>
+        </p>
+      )}
 
       {showNew && (
         <form

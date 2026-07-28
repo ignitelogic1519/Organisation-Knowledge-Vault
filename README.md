@@ -33,9 +33,14 @@ The platform is live end-to-end. What works today:
   **classification** (Public/Confidential/Private/Secret), a standard auto-generated cover
   (org, title, version, date, author) + scope page and header/footer, and an
   owner-controlled download option. Ratings & comments after completion.
-- **Authoring** — a **Studio** (visual drag-and-drop document builder with live preview)
-  and file upload. Owners publish directly; **members granted content rights propose**
-  documents that publish only after a manager's **Document-review** approval.
+- **Authoring** — a **Document Studio**: a three-pane editor (insert rail · paper canvas ·
+  block inspector) with a formatting ribbon (fonts, sizes, text colour, highlight,
+  alignment, lists, links), drag-and-drop blocks, a **spreadsheet-style table editor**
+  (add/remove rows & columns, per-cell formatting, paste TSV/CSV), an **audio/video player**
+  with speed, quality ladder and non-skippable playback, **page-turn animations**,
+  block entrance motion, live preview and a **present** mode — plus file upload. Owners
+  publish directly; **members granted content rights propose** documents that publish only
+  after a manager's **Document-review** approval.
 - **Compliance** — a manager tab: per-course compliance for any branch you govern
   (ownership can sit on several levels), non-compliant lists, and one-click reminders
   with a default or custom message.
@@ -46,7 +51,9 @@ The platform is live end-to-end. What works today:
   one-time **access code (OTP)**; a dynamic **Pricing** page and **Knowledge Coins** (150 per
   profile) drive it, and a separate **super-admin console** (`/kbase`, footer login) approves
   requests, gifts coins, and sets plans. Plans travel (signed) inside the `.main` file, so an
-  expired free org routes to Pricing on restore. See [docs/pricing.md](docs/pricing.md).
+  expired free org routes to Pricing on restore. Plans also meter **content**: the free demo
+  structure allows **20 Studio documents** and **30 uploads**, and server-side **drafts** are a
+  premium capability. See [docs/pricing.md](docs/pricing.md).
 
 ## Repository layout
 

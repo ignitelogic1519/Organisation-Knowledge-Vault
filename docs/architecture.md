@@ -330,6 +330,12 @@ POST   /roles/:roleId/compliance/remind      nudge the non-compliant
 DELETE /notifications/:id                     dismiss one
 POST   /notifications/clear                   clear all
 POST   /jobs/run                              nightly: recurrence, escalation, 7- & 15-day retention, purge
+
+GET    /orgs/:id/plan-limits                 what the plan allows + how much is spent
+GET    /orgs/:id/studio-drafts               the author's own parked Studio documents
+POST   /orgs/:id/studio-drafts               save / overwrite a draft (402 when the plan excludes drafts)
+GET    /orgs/:id/studio-drafts/:draftId      reopen a draft
+DELETE /orgs/:id/studio-drafts/:draftId      discard a draft
 ```
 
 ### Storage adapters
@@ -337,6 +343,20 @@ POST   /jobs/run                              nightly: recurrence, escalation, 7
 inline in the ref and render natively in the viewer (no external fetch). `inline` (Postgres
 bytes, ≤10 MB) and `link` are unchanged; `unreachable` still marks post-revival media pending
 storage reconnection. Authored documents survive `.main` revival intact.
+
+`Course.source` (`STUDIO` | `UPLOAD`) mirrors that choice as a column so the plan's two
+content allowances are a plain indexed count rather than a JSON scan; it is derived from the
+adapter at creation, on a content swap, and on revival.
+
+### Authored document format (Studio v2)
+One flat, ordered block array (`authoredBlockSchema`). Presentation lives in typed
+sub-objects — `style` (alignment, colours, font, size, width, padding, border, motion),
+`table` (+ per-cell `cells`), `media` (speed, quality ladder, skip rules, clip window) and a
+per-page `transition` — never as author-supplied CSS, so the server can validate every value
+it will later inline. v1 documents stay readable: `rows` and `items` are still accepted and
+the renderer falls back to them when the richer fields are absent. `apps/web/src/components/
+DocumentView.tsx` is the single renderer, shared by the viewer, the Studio preview and
+present mode.
 
 ### Live updates
 An in-memory per-org SSE registry (`apps/api/src/events.ts`) broadcasts `{topic}` hints

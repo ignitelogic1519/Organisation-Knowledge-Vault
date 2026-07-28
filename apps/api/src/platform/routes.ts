@@ -102,11 +102,13 @@ export async function platformRoutes(app: FastifyInstance) {
   // ── Organizations (god view) ────────────────────────────────────────────────
   app.get("/admin/orgs", { preHandler: app.authenticateAdmin }, async (): Promise<{ orgs: AdminOrgRow[] }> => {
     const orgs = await db.organization.findMany({ orderBy: { orgNumber: "asc" } });
-    const plans = await db.pricingPlan.findMany({ select: { key: true, memberLimit: true } });
-    const planLimit = new Map(plans.map((p) => [p.key, p.memberLimit]));
+    const plans = await db.pricingPlan.findMany({
+      select: { key: true, memberLimit: true, documentLimit: true, uploadLimit: true },
+    });
+    const planLimits = new Map(plans.map((p) => [p.key, p]));
     const rows: AdminOrgRow[] = [];
     for (const o of orgs) {
-      const [roles, memberCount, owners, lastAudit, lastCompletion, lastCourse, lastMembership] =
+      const [roles, memberCount, owners, lastAudit, lastCompletion, lastCourse, lastMembership, documentCount, uploadCount] =
         await Promise.all([
           db.roleNode.findMany({ where: { orgId: o.id }, select: { path: true } }),
           db.membership.count({ where: { orgId: o.id } }),
@@ -115,6 +117,8 @@ export async function platformRoutes(app: FastifyInstance) {
           db.completionRecord.findFirst({ where: { orgId: o.id, completedAt: { not: null } }, orderBy: { completedAt: "desc" }, select: { completedAt: true } }),
           db.course.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
           db.membership.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+          db.course.count({ where: { orgId: o.id, source: "STUDIO" } }),
+          db.course.count({ where: { orgId: o.id, source: "UPLOAD" } }),
         ]);
       // "Last activity" = the most recent user action we can see (governance, learning,
       // publishing, joining), falling back to when the org was created.
@@ -138,7 +142,12 @@ export async function platformRoutes(app: FastifyInstance) {
         planExpiresAt: o.planExpiresAt?.toISOString() ?? null,
         planIsCustom: o.planIsCustom,
         memberCount,
-        memberLimit: o.memberLimit ?? (o.planKey ? planLimit.get(o.planKey) ?? null : null),
+        memberLimit: o.memberLimit ?? (o.planKey ? planLimits.get(o.planKey)?.memberLimit ?? null : null),
+        documentCount,
+        documentLimit:
+          o.documentLimit ?? (o.planKey ? planLimits.get(o.planKey)?.documentLimit ?? null : null),
+        uploadCount,
+        uploadLimit: o.uploadLimit ?? (o.planKey ? planLimits.get(o.planKey)?.uploadLimit ?? null : null),
         roleCount: roles.length,
         treeDepth: treeDepth(roles.map((r) => r.path)),
         createdAt: o.createdAt.toISOString(),
@@ -316,7 +325,10 @@ export async function platformRoutes(app: FastifyInstance) {
         planExpiresAt: expiresAt,
         planIsCustom: body.durationDays != null,
         planGrantedById: req.adminId,
-        memberLimit: body.memberLimit, // undefined = leave as-is; null = use plan default
+        // undefined = leave as-is; null = fall back to the plan's own allowance
+        memberLimit: body.memberLimit,
+        documentLimit: body.documentLimit,
+        uploadLimit: body.uploadLimit,
       },
     });
     for (const pid of await ownerProfileIds(org.id)) {
@@ -351,6 +363,10 @@ export async function platformRoutes(app: FastifyInstance) {
         category: (b.category as string) ?? "Plans",
         priceCoins: Number(b.priceCoins ?? 0),
         durationDays: b.durationDays != null ? Number(b.durationDays) : null,
+        memberLimit: b.memberLimit != null ? Number(b.memberLimit) : null,
+        documentLimit: b.documentLimit != null ? Number(b.documentLimit) : null,
+        uploadLimit: b.uploadLimit != null ? Number(b.uploadLimit) : null,
+        allowDrafts: b.allowDrafts === undefined ? true : Boolean(b.allowDrafts),
         isCustom: Boolean(b.isCustom),
         imageUrl: (b.imageUrl as string) ?? null,
         criteria: (b.criteria as string) ?? null,
@@ -372,7 +388,7 @@ export async function platformRoutes(app: FastifyInstance) {
     async (req) => {
       const b = req.body as Record<string, unknown>;
       const data: Record<string, unknown> = {};
-      for (const k of ["name", "tagline", "category", "priceCoins", "durationDays", "isCustom", "imageUrl", "criteria", "badge", "highlights", "active", "sortOrder"]) {
+      for (const k of ["name", "tagline", "category", "priceCoins", "durationDays", "memberLimit", "documentLimit", "uploadLimit", "allowDrafts", "isCustom", "imageUrl", "criteria", "badge", "highlights", "active", "sortOrder"]) {
         if (b[k] !== undefined) data[k] = b[k];
       }
       if (b.validFrom !== undefined) data.validFrom = b.validFrom ? new Date(String(b.validFrom)) : null;

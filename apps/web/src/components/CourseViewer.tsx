@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuthoredBlock, Classification, LearningItem } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
+import { AuthoredBlockView, DocumentPages, paginate } from "./DocumentView";
 import { PdfView } from "./PdfView";
 import { useDialogs } from "./dialogs";
 
@@ -42,103 +43,9 @@ const CLASS_LABEL: Record<Classification, string> = {
 };
 
 
-/** Minimal HTML whitelist for authored rich text (defence-in-depth on top of the API). */
-function sanitize(html: string): string {
-  if (typeof document === "undefined") return html;
-  const tpl = document.createElement("template");
-  tpl.innerHTML = html;
-  const allowed = new Set(["B", "STRONG", "I", "EM", "U", "BR", "UL", "OL", "LI", "P", "H1", "H2", "H3", "A", "CODE", "SPAN"]);
-  tpl.content.querySelectorAll("*").forEach((el) => {
-    if (!allowed.has(el.tagName)) {
-      el.replaceWith(...Array.from(el.childNodes));
-      return;
-    }
-    for (const attr of Array.from(el.attributes)) {
-      const isSafeHref =
-        el.tagName === "A" && attr.name === "href" && /^https?:\/\//i.test(attr.value);
-      if (!isSafeHref) el.removeAttribute(attr.name);
-    }
-    if (el.tagName === "A") {
-      el.setAttribute("target", "_blank");
-      el.setAttribute("rel", "noreferrer");
-    }
-  });
-  return tpl.innerHTML;
-}
-
-export function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
-  switch (block.type) {
-    case "heading": {
-      const Tag = (`h${block.level ?? 2}`) as "h1" | "h2" | "h3";
-      return <Tag dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />;
-    }
-    case "paragraph":
-      return <p dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />;
-    case "divider":
-      return <hr className="doc-divider" />;
-    case "card":
-      return (
-        <div className="doc-card">
-          {block.title && <strong>{block.title}</strong>}
-          <div dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />
-        </div>
-      );
-    case "checklist":
-      return (
-        <ul className="doc-checklist">
-          {(block.items ?? []).map((it, i) => (
-            <li key={i}>
-              <span className="doc-check" aria-hidden>
-                ☐
-              </span>
-              {it}
-            </li>
-          ))}
-        </ul>
-      );
-    case "table":
-      return (
-        <div className="doc-table-wrap">
-          <table className="doc-table">
-            <tbody>
-              {(block.rows ?? []).map((row, r) => (
-                <tr key={r}>
-                  {row.map((cell, c) =>
-                    r === 0 ? <th key={c}>{cell}</th> : <td key={c}>{cell}</td>,
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    case "image":
-      return block.url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className="doc-image" src={block.url} alt={block.title ?? ""} />
-      ) : null;
-    case "media":
-      return block.url ? (
-        block.mediaKind === "audio" ? (
-          <audio className="doc-media" controls src={block.url} />
-        ) : (
-          <video className="doc-media" controls src={block.url} />
-        )
-      ) : null;
-    default:
-      return null; // pagebreak is handled by the pager, not rendered inline
-  }
-}
-
-/** Split authored blocks into pages on every pagebreak. */
-export function paginate(blocks: AuthoredBlock[]): AuthoredBlock[][] {
-  const pages: AuthoredBlock[][] = [[]];
-  for (const b of blocks) {
-    if (b.type === "pagebreak") pages.push([]);
-    else pages[pages.length - 1].push(b);
-  }
-  return pages.filter((p) => p.length > 0);
-}
+// Authored documents render through the shared renderer in ./DocumentView — the same code
+// path the Studio previews with, so the author and the reader always see the same page.
+export { AuthoredBlockView, paginate };
 
 function Stars({
   value,
@@ -394,37 +301,9 @@ export function CourseViewer({
                   )}
                 </div>
               )}
-              {/* Studio-authored: render natively, paginated (books turn page by page) */}
-              {authored && (
-                <div className="doc-authored">
-                  <article className="doc-sheet">
-                    {(pages[page] ?? []).map((b, i) => (
-                      <AuthoredBlockView key={i} block={b} />
-                    ))}
-                  </article>
-                  {pages.length > 1 && (
-                    <div className="doc-pager glass-strong">
-                      <button
-                        className="btn btn-quiet btn-small"
-                        disabled={page === 0}
-                        onClick={() => setPage((p) => Math.max(0, p - 1))}
-                      >
-                        ← Prev
-                      </button>
-                      <span className="auth-sub">
-                        Page {page + 1} of {pages.length}
-                      </span>
-                      <button
-                        className="btn btn-quiet btn-small"
-                        disabled={page >= pages.length - 1}
-                        onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))}
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Studio-authored: render natively, paginated — pages turn with the
+                  transition the author chose on each page break. */}
+              {authored && <DocumentPages pages={pages} page={page} onPage={setPage} />}
               {/* Uploaded file: rendered natively by kind (never the flaky iframe PDF) */}
               {file?.kind === "pdf" && <PdfView data={file.buf} />}
               {file?.kind === "image" && (

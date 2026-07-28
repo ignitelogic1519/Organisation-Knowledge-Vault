@@ -2,9 +2,10 @@
 
 ## What it is
 
-The **Studio** is a visual, drag-and-drop document builder. Instead of uploading a file, you
-compose a document right in the browser from a palette of **blocks** — headings, text,
-tables, checklists, callouts, images and media — and watch it render live in your
+The **Studio** is a full document editor built into Knowledge Vault. Instead of uploading a
+file, you compose a document right in the browser from **blocks** — headings, rich text,
+tables, checklists, callouts, quotes, code, images, audio and video, buttons, columns and
+page breaks — format them exactly as you want, and watch them render live in your
 organization's standard document frame.
 
 You reach the Studio from a role's **Courses** panel via **✍ Create in Studio**, or from any
@@ -16,18 +17,33 @@ of your own positions via **✍ Propose a document**.
 
 ## The layout
 
-The Studio has three parts:
+The Studio has four parts:
 
-1. **Blocks palette (left)** — the building blocks you can add. Click one to drop it in, or
-   drag it onto the page.
-2. **The canvas (middle)** — your document, as a stack of editable cards. Drag the handle on
-   a card to reorder it; use the ✕ to remove it.
-3. **Preview & Publish (top-right)** — see the finished document in its standard frame, then
-   publish.
+1. **The ribbon (top)** — formatting for whatever you are writing in: paragraph style, font,
+   size, **bold**, *italic*, underline, strikethrough, **text colour**, **highlight**,
+   alignment, bulleted and numbered lists, indenting, links, clear formatting, undo/redo and
+   zoom.
+2. **The left rail** — three tabs:
+   - **Insert** — every block you can add. Click to append it, or drag it onto the page and
+     drop it exactly where you want. The table entry has a size picker: hover the grid and
+     click, e.g. 4 × 3.
+   - **Pages** — the document's pages. Jump to a page, name it, choose its **turn animation**,
+     add a page, or remove a page break.
+   - **Drafts** — documents you parked on the server (see *Saving your work* below).
+3. **The canvas (middle)** — your document as a stack of cards that look like the printed
+   page. Hover a card for its rail: drag handle (⠿) to move it, ↑ ↓ to nudge it, ⧉ to
+   duplicate, ⇄ to **turn it into** another kind of block, ✕ to delete.
+4. **The inspector (right)** — two tabs:
+   - **Format** — everything about the selected block: alignment, width and position,
+     padding and spacing, text colour, fill, accent, line height, letter spacing, border,
+     shadow, corner radius and an **entrance animation** that plays as the reader scrolls to
+     it. Media blocks also get their playback settings here.
+   - **Document** — the document itself: classification, type, library shelf, description
+     and scope (these become the cover pages), where it is placed, and how much of your
+     plan's document allowance is left.
 
-The note at the top of the canvas is a helpful reminder: **"Cover, header & footer are added
-automatically on publish."** You focus on content; the platform handles the professional
-wrapping.
+The note at the top of the canvas is a reminder: **cover, classification header and footer
+are added automatically when you publish.** You focus on content.
 
 ---
 
@@ -35,40 +51,118 @@ wrapping.
 
 | Block | Use it for |
 |-------|-----------|
-| **Heading** | Section titles (with heading levels) |
-| **Text** | Rich paragraphs — bold, italic, underline, bullet and numbered lists |
-| **Table** | Rows and columns of data |
-| **Checklist** | Steps to tick off |
-| **Callout** | A highlighted note that draws the eye |
-| **Image** | A picture by URL |
-| **Media** | Embedded audio or video |
-| **Divider** | A section break |
-| **New page** | A page break — useful for longer books |
+| **Heading** | Section titles, six levels |
+| **Text** | Rich paragraphs — colour, highlight, alignment, lists, links |
+| **Checklist** | Steps to tick off, each with an optional hint |
+| **Callout** | A highlighted note in one of six tones |
+| **Quote** | A pull quote with its source |
+| **Code** | A monospaced snippet, stored exactly as typed |
+| **Table** | Rows and columns you edit like a sheet |
+| **Image** | A picture with a caption |
+| **Audio / video** | A player with speed, quality and skip rules |
+| **Button** | A call-to-action link |
+| **Columns** | Two to four side-by-side sections |
+| **Divider / Spacer** | A section break, or breathing room |
+| **New page** | A page break, with its own turn animation |
 
 ---
 
-## Building and publishing
+## Tables that behave like a spreadsheet
 
-1. Add blocks in the order you want them, and fill in their content.
-2. Reorder by dragging the handle; remove anything with ✕.
-3. Set the document's **title** and **classification** (compulsory, as with all courses).
-4. Select **Preview** to check how it looks in the standard frame — cover page, scope,
-   header and footer all included.
-5. Select **Publish**.
+Select a table block and you get a real grid:
+
+- **Column headers (A, B, C…)** — click one for a menu: insert a column left or right, set
+  its width, or delete it. **Row numbers** do the same for rows.
+- **+ Row / + Column** buttons, and a **+** at the end of the grid.
+- **Select a range** — click a cell, then shift-click another — and format the whole
+  selection at once: bold, italic, alignment, or a fill colour.
+- **Paste a block of data** copied from a spreadsheet (or any tab- or comma-separated text)
+  into a cell and it fills the grid, expanding it as needed.
+- **Table options** along the bottom: header row, header column, banded rows, compact
+  spacing, frozen header, border style and a caption.
+- **Turn text into a table** — select a paragraph or checklist, press ⇄ and choose *Table*.
+  Each line becomes a row. The same menu turns a table back into a checklist.
+
+**Tab** moves to the next cell, **Enter** to the next row (adding one when you reach the
+bottom), and the arrow keys move up and down.
+
+---
+
+## Audio and video that behave the way training material should
+
+Add an **Audio / video** block, paste the address, then open the inspector's **Format** tab:
+
+- **Speed control** — offer the reader 0.5× to 2×, and set the speed it starts at.
+- **Quality ladder** — add a rendition per quality (1080p, 720p, low data). The reader
+  switches between them from the player and keeps their place.
+- **Skip control** — turn *Reader may skip ahead* **off** for material that must genuinely be
+  watched: rewinding stays allowed, but jumping past the furthest point actually watched is
+  refused, and the player shows a **🔒 no skipping** badge.
+- **Watched-in-full marker**, poster image, captions file, a **clip window** (start and end
+  seconds), autoplay, loop, start muted, and whether the browser's download control appears.
+
+---
+
+## Pages and motion
+
+Every **New page** block starts a new page, and carries the animation the page arrives with —
+fade, slide, push, flip, zoom or reveal. Readers turn pages with the ← → keys in the viewer.
+Individual blocks can also have an **entrance animation** that plays when the reader scrolls
+to them. Readers who ask their device for reduced motion get the document without animation,
+automatically.
+
+---
+
+## Three ways to look at your document
+
+- **✎ Edit** — the editor.
+- **👁 Preview** — the finished document inside the standard frame: classification banner,
+  cover, description and scope.
+- **▷ Present** — a full-screen, page-by-page presentation. Turn pages with ← →, leave with
+  **Esc**.
+
+---
+
+## Saving your work
+
+- **Always** — the document is kept in your browser as you write, so a reload or a crash
+  never costs you your work.
+- **Save draft** (premium plans) — parks the document on the server so you can close the
+  laptop and reopen it from any device, from the **Drafts** tab. On the free demo structure
+  the button explains that this is a premium capability; ask your organization's main
+  administrator to arrange an upgrade.
+
+Keyboard: **Ctrl + Z** undo, **Ctrl + Shift + Z** redo, **Ctrl + S** save draft.
+
+---
+
+## Publishing
+
+1. Add and format your blocks.
+2. Open the inspector's **Document** tab and set the **title**, **classification**
+   (compulsory), **description** and, if useful, the **scope** and library shelf.
+3. Check **Preview**.
+4. Select **Publish**.
 
 - **Owners publish directly** — the document goes live on the branch straight away.
 - **Members with the content grant submit for review** — the document becomes a draft that
   an owner approves before it publishes (see Chapters 6 and 7).
+
+Your plan includes a number of **custom documents**; the status bar and the inspector show
+how many are left. When the allowance is used up, the Studio says so and points you at your
+main administrator, who can arrange a premium plan.
 
 ---
 
 ## Tips
 
 - **Preview before you publish.** The live preview shows the exact cover, classification
-  banner and footers members will see — it's the fastest way to catch a wrong heading level
-  or a missing section.
+  banner and footers members will see.
 - **Use checklists for procedures.** Release gates, safety steps and onboarding tasks read
   beautifully as tickable checklists.
-- **Break long books into pages.** The *New page* block keeps multi-section handbooks tidy.
+- **Break long books into pages.** Name each page in the **Pages** tab and the navigator
+  becomes a table of contents you can jump around in while you write.
+- **Highlight sparingly.** A single highlight colour through a document reads as emphasis;
+  five read as decoration.
 
 **Next:** [Chapter 9 — The Library →](chapter-09-the-library.md)

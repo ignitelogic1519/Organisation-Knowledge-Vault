@@ -16,6 +16,7 @@ import {
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
 import { audit, sanitizeBlocks } from "../security.js";
+import { assertContentQuota } from "../orgs/plan.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import {
@@ -117,6 +118,11 @@ export async function courseRoutes(app: FastifyInstance) {
       // A member's content is a DRAFT that a manager must review before it publishes.
       const asDraft = !canPublish;
 
+      // The plan meters Studio-built documents and uploads/links separately. Check the
+      // allowance BEFORE any bytes are stored, so a refusal leaves nothing behind.
+      const source: "STUDIO" | "UPLOAD" = body.blocks ? "STUDIO" : "UPLOAD";
+      await assertContentQuota(node.orgId, source);
+
       let ref: StorageRef;
       if (body.blocks) {
         ref = await storage.saveAuthored(sanitizeBlocks(body.blocks));
@@ -153,6 +159,7 @@ export async function courseRoutes(app: FastifyInstance) {
           inLibrary: asDraft ? false : body.inLibrary,
           draft: asDraft,
           category: body.category?.trim() ? body.category.trim() : null,
+          source,
           storageRef: ref as object,
           deadlineDays: body.deadlineDays,
           retakeEveryNDays: body.retakeEveryNDays,
@@ -432,14 +439,23 @@ export async function courseRoutes(app: FastifyInstance) {
 
       let ref = course.storageRef as unknown as StorageRef;
       let contentChanged = false;
+      let source = course.source;
+      // Replacing an upload with a Studio document (or the reverse) moves the course
+      // between the plan's two allowances — charge the bucket it lands in.
       if (body.blocks) {
+        if (source !== "STUDIO") await assertContentQuota(course.orgId, "STUDIO");
         ref = await storage.saveAuthored(sanitizeBlocks(body.blocks));
+        source = "STUDIO";
         contentChanged = true;
       } else if (body.url) {
+        if (source !== "UPLOAD") await assertContentQuota(course.orgId, "UPLOAD");
         ref = await storage.saveLink(body.url);
+        source = "UPLOAD";
         contentChanged = true;
       } else if (body.fileBase64 && body.filename && body.mime) {
+        if (source !== "UPLOAD") await assertContentQuota(course.orgId, "UPLOAD");
         ref = await storage.saveInline(course.orgId, body.filename, body.mime, body.fileBase64);
+        source = "UPLOAD";
         contentChanged = true;
       }
 
@@ -455,6 +471,7 @@ export async function courseRoutes(app: FastifyInstance) {
           ...(body.classification !== undefined ? { classification: body.classification } : {}),
           ...(body.allowDownload !== undefined ? { allowDownload: body.allowDownload } : {}),
           storageRef: ref as object,
+          source,
           ...(contentChanged ? { version: { increment: 1 } } : {}),
         },
       });

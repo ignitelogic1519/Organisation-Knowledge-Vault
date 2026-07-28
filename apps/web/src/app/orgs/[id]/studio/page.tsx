@@ -1,25 +1,50 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { AuthoredBlock, Classification, TreeNode } from "@vault/shared";
+import type {
+  AuthoredBlock,
+  Classification,
+  OrgPlanLimitsView,
+  StudioDraftSummary,
+  TreeNode,
+} from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { roles } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
-import { AuthoredBlockView } from "@/components/CourseViewer";
+import { studio } from "@/lib/studio-client";
+import { DocumentBody, DocumentPages, paginate } from "@/components/DocumentView";
+import { BlockCard } from "@/components/studio/BlockCard";
+import { Inspector } from "@/components/studio/Inspector";
+import { Ribbon } from "@/components/studio/Ribbon";
+import { SideRail } from "@/components/studio/SideRail";
+import { RichTextProvider } from "@/components/studio/rich";
+import {
+  convertBlock,
+  createBlock,
+  documentStats,
+  duplicateAt,
+  editorPages,
+  EMPTY_META,
+  insertAt,
+  meaningfulBlocks,
+  moveBlock,
+  starterBlocks,
+  stripId,
+  withId,
+  type BlockType,
+  type EditorBlock,
+  type StudioMeta,
+} from "@/components/studio/model";
 import { useOrg } from "@/components/org-context";
 import { useDialogs } from "@/components/dialogs";
 
-// The Document Studio: a visual, drag-and-drop document builder. A palette of blocks on
-// the left, a canvas of draggable cards in the middle, and a live Preview that renders the
-// finished document in the organization's standard frame. Owners publish directly; members
-// with the content-creation grant submit a draft for manager review.
+// ── The Document Studio ──────────────────────────────────────────────────────
+// A three-pane editor in the shape people already know: an insert/pages rail on the left,
+// a paper canvas in the middle with a formatting ribbon above it, and a block inspector on
+// the right. Everything is drag-and-drop, everything is styleable, and the preview and
+// present modes render through the very same component the reader's viewer uses.
 
-type Block = AuthoredBlock & { _id: number };
-let nextId = 1;
-const mk = (b: AuthoredBlock): Block => ({ ...b, _id: nextId++ });
-
-const CLASSES: Classification[] = ["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"];
 const CLASS_LABEL: Record<Classification, string> = {
   PUBLIC: "Public",
   CONFIDENTIAL: "Confidential",
@@ -27,171 +52,17 @@ const CLASS_LABEL: Record<Classification, string> = {
   SECRET: "Secret",
 };
 
-const PALETTE: { type: AuthoredBlock["type"]; label: string; icon: string; hint: string }[] = [
-  { type: "heading", label: "Heading", icon: "H", hint: "Section title" },
-  { type: "paragraph", label: "Text", icon: "¶", hint: "Rich paragraph" },
-  { type: "table", label: "Table", icon: "▦", hint: "Rows & columns" },
-  { type: "checklist", label: "Checklist", icon: "☑", hint: "Steps to tick" },
-  { type: "card", label: "Callout", icon: "▤", hint: "Highlighted note" },
-  { type: "image", label: "Image", icon: "🖼", hint: "Picture by URL" },
-  { type: "media", label: "Media", icon: "▶", hint: "Audio or video" },
-  { type: "divider", label: "Divider", icon: "—", hint: "Section break" },
-  { type: "pagebreak", label: "New page", icon: "⤓", hint: "Start a new page (books)" },
-];
-
-function RichArea({
-  html,
-  onChange,
-  placeholder,
-}: {
-  html: string;
-  onChange: (html: string) => void;
-  placeholder: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== html) ref.current.innerHTML = html;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const cmd = (c: string) => {
-    document.execCommand(c);
-    if (ref.current) onChange(ref.current.innerHTML);
-  };
-  return (
-    <div className="studio-rich">
-      <div className="studio-rich-tools">
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("bold")}>
-          <b>B</b>
-        </button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("italic")}>
-          <i>I</i>
-        </button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("underline")}>
-          <u>U</u>
-        </button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("insertUnorderedList")}>
-          •
-        </button>
-        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => cmd("insertOrderedList")}>
-          1.
-        </button>
-      </div>
-      <div
-        ref={ref}
-        className="studio-rich-area"
-        contentEditable
-        suppressContentEditableWarning
-        data-placeholder={placeholder}
-        onInput={(e) => onChange((e.target as HTMLDivElement).innerHTML)}
-      />
-    </div>
-  );
-}
-
-function BlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
-  switch (block.type) {
-    case "heading":
-      return (
-        <div className="studio-block-body">
-          <select
-            className="studio-input"
-            value={block.level ?? 2}
-            onChange={(e) => onChange({ ...block, level: Number(e.target.value) })}
-          >
-            <option value={1}>Heading 1</option>
-            <option value={2}>Heading 2</option>
-            <option value={3}>Heading 3</option>
-          </select>
-          <RichArea html={block.html ?? ""} onChange={(html) => onChange({ ...block, html })} placeholder="Heading text…" />
-        </div>
-      );
-    case "paragraph":
-    case "card":
-      return (
-        <div className="studio-block-body">
-          {block.type === "card" && (
-            <input
-              className="studio-input"
-              placeholder="Callout title (optional)"
-              value={block.title ?? ""}
-              onChange={(e) => onChange({ ...block, title: e.target.value })}
-            />
-          )}
-          <RichArea
-            html={block.html ?? ""}
-            onChange={(html) => onChange({ ...block, html })}
-            placeholder={block.type === "card" ? "Callout text…" : "Write a paragraph…"}
-          />
-        </div>
-      );
-    case "checklist":
-      return (
-        <div className="studio-block-body">
-          <textarea
-            className="studio-input"
-            rows={4}
-            placeholder="One item per line"
-            value={(block.items ?? []).join("\n")}
-            onChange={(e) => onChange({ ...block, items: e.target.value.split("\n").filter(Boolean) })}
-          />
-        </div>
-      );
-    case "table":
-      return (
-        <div className="studio-block-body">
-          <textarea
-            className="studio-input"
-            rows={4}
-            placeholder={"First row is the header. Cells split by | , rows by new lines.\nName | Role | Owner\nHR | Manager | Yes"}
-            value={(block.rows ?? []).map((r) => r.join(" | ")).join("\n")}
-            onChange={(e) =>
-              onChange({
-                ...block,
-                rows: e.target.value
-                  .split("\n")
-                  .filter((l) => l.trim())
-                  .map((l) => l.split("|").map((c) => c.trim())),
-              })
-            }
-          />
-        </div>
-      );
-    case "image":
-    case "media":
-      return (
-        <div className="studio-block-body">
-          {block.type === "media" && (
-            <select
-              className="studio-input"
-              value={block.mediaKind ?? "video"}
-              onChange={(e) => onChange({ ...block, mediaKind: e.target.value as "audio" | "video" })}
-            >
-              <option value="video">Video</option>
-              <option value="audio">Audio</option>
-            </select>
-          )}
-          <input
-            className="studio-input"
-            type="url"
-            placeholder="https://… (media URL)"
-            value={block.url ?? ""}
-            onChange={(e) => onChange({ ...block, url: e.target.value })}
-          />
-        </div>
-      );
-    case "divider":
-      return <hr className="doc-divider" />;
-    case "pagebreak":
-      return <div className="studio-pagebreak">⤓ New page starts here</div>;
-    default:
-      return null;
-  }
+interface Doc {
+  blocks: EditorBlock[];
+  meta: StudioMeta;
 }
 
 export default function StudioPage() {
   return (
     <Suspense fallback={<div className="skeleton" style={{ minHeight: "12rem" }} />}>
-      <StudioInner />
+      <RichTextProvider>
+        <StudioInner />
+      </RichTextProvider>
     </Suspense>
   );
 }
@@ -204,30 +75,81 @@ function StudioInner() {
   const roleId = params.get("role");
 
   const [node, setNode] = useState<TreeNode | null>(null);
-  // Every branch the user owns — used to compute publish rights from the tree itself,
+  // Every branch the user owns — publish rights are computed from the tree itself,
   // robustly, rather than trusting a single per-node flag.
   const [ownedPaths, setOwnedPaths] = useState<string[]>([]);
-  const [blocks, setBlocks] = useState<Block[]>([
-    mk({ type: "heading", level: 1, html: "" }),
-    mk({ type: "paragraph", html: "" }),
-  ]);
-  const [meta, setMeta] = useState({
-    title: "",
-    classification: "" as "" | Classification,
-    category: "",
-    description: "",
-    scope: "",
-    inLibrary: true,
-    mandatory: false,
-    inherit: true,
-    resets: true,
-  });
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
-  const [busy, setBusy] = useState(false);
+  const [doc, setDoc] = useState<Doc>({ blocks: starterBlocks(), meta: EMPTY_META });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"edit" | "preview" | "present">("edit");
+  const [railTab, setRailTab] = useState<"insert" | "pages" | "drafts">("insert");
+  const [inspectorTab, setInspectorTab] = useState<"format" | "document">("format");
+  const [zoom, setZoom] = useState(100);
+  const [busy, setBusy] = useState<null | "publish" | "draft">(null);
   const [restored, setRestored] = useState(false);
-  const dragIndex = useRef<number | null>(null);
+  const [limits, setLimits] = useState<OrgPlanLimitsView | null>(null);
+  const [drafts, setDrafts] = useState<StudioDraftSummary[]>([]);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [activePage, setActivePage] = useState(0);
+
+  const docRef = useRef<Doc>(doc);
+  const past = useRef<Doc[]>([]);
+  const future = useRef<Doc[]>([]);
+  const lastHistoryPush = useRef(0);
+  const [, bumpHistory] = useState(0);
+  const dragFrom = useRef<number | null>(null);
+  const blockEls = useRef<Record<string, HTMLDivElement | null>>({});
+  const canvasRef = useRef<HTMLDivElement>(null);
   const draftKey = `kv.studio.${org.id}.${roleId ?? "none"}`;
 
+  // ── Document state with undo history ───────────────────────────────────────
+  const commit = useCallback((updater: (d: Doc) => Doc) => {
+    const previous = docRef.current;
+    const next = updater(previous);
+    if (next === previous) return;
+    const now = Date.now();
+    if (now - lastHistoryPush.current > 500) {
+      lastHistoryPush.current = now;
+      past.current = [...past.current.slice(-59), previous];
+      future.current = [];
+      bumpHistory((n) => n + 1);
+    }
+    docRef.current = next;
+    setDoc(next);
+  }, []);
+
+  const undo = useCallback(() => {
+    const previous = past.current.pop();
+    if (!previous) return;
+    future.current = [docRef.current, ...future.current].slice(0, 60);
+    docRef.current = previous;
+    setDoc(previous);
+    lastHistoryPush.current = 0;
+    bumpHistory((n) => n + 1);
+  }, []);
+
+  const redo = useCallback(() => {
+    const next = future.current.shift();
+    if (!next) return;
+    past.current = [...past.current, docRef.current];
+    docRef.current = next;
+    setDoc(next);
+    bumpHistory((n) => n + 1);
+  }, []);
+
+  const setBlocks = useCallback(
+    (updater: (blocks: EditorBlock[]) => EditorBlock[]) =>
+      commit((d) => ({ ...d, blocks: updater(d.blocks) })),
+    [commit],
+  );
+  const setMeta = useCallback(
+    (meta: StudioMeta) => commit((d) => ({ ...d, meta })),
+    [commit],
+  );
+
+  // ── Loading ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!roleId) return;
     roles
@@ -239,66 +161,60 @@ function StudioInner() {
       .catch(() => setNode(null));
   }, [org.id, roleId]);
 
-  // Autosave recovery: restore an unsaved draft for this branch (survives reloads/crashes)
+  const reloadPlan = useCallback(() => {
+    studio.limits(org.id).then(setLimits).catch(() => undefined);
+    studio
+      .drafts(org.id)
+      .then((r) => setDrafts(r.drafts))
+      .catch(() => setDrafts([]));
+  }, [org.id]);
+
+  useEffect(reloadPlan, [reloadPlan]);
+
+  useEffect(() => {
+    courses
+      .suggestCategory(org.id, "", "")
+      .then((r) => setCategories(r.categories))
+      .catch(() => undefined);
+  }, [org.id]);
+
+  // Local recovery: the browser always keeps the work in progress, on every plan, so a
+  // reload or a crash never costs the author their document.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(draftKey);
       if (saved) {
-        const parsed = JSON.parse(saved) as { blocks?: AuthoredBlock[]; meta?: typeof meta };
-        if (parsed.blocks?.length) setBlocks(parsed.blocks.map(mk));
-        if (parsed.meta) setMeta((m) => ({ ...m, ...parsed.meta }));
+        const parsed = JSON.parse(saved) as { blocks?: AuthoredBlock[]; meta?: StudioMeta };
+        const next: Doc = {
+          blocks: parsed.blocks?.length ? parsed.blocks.map(withId) : starterBlocks(),
+          meta: { ...EMPTY_META, ...(parsed.meta ?? {}) },
+        };
+        docRef.current = next;
+        setDoc(next);
       }
     } catch {
-      /* ignore corrupt draft */
+      /* ignore a corrupt local copy */
     }
     setRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
 
-  // Debounced autosave — only after the initial restore, so we don't overwrite it
   useEffect(() => {
     if (!restored) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem(
           draftKey,
-          JSON.stringify({ blocks: blocks.map(({ _id, ...b }) => b), meta }),
+          JSON.stringify({ blocks: doc.blocks.map(stripId), meta: doc.meta }),
         );
       } catch {
-        /* storage full — ignore */
+        /* storage full — the server draft (premium) is the durable path */
       }
     }, 600);
     return () => clearTimeout(t);
-  }, [blocks, meta, restored, draftKey]);
+  }, [doc, restored, draftKey]);
 
-  const update = useCallback((id: number, b: Block) => {
-    setBlocks((prev) => prev.map((x) => (x._id === id ? b : x)));
-  }, []);
-  const remove = (id: number) => setBlocks((prev) => prev.filter((x) => x._id !== id));
-  const add = (type: AuthoredBlock["type"], at?: number) =>
-    setBlocks((prev) => {
-      const next = [...prev];
-      next.splice(at ?? next.length, 0, mk({ type }));
-      return next;
-    });
-
-  // Drag-to-reorder within the canvas
-  const onDragStart = (i: number) => (dragIndex.current = i);
-  const onDropAt = (i: number) => {
-    const from = dragIndex.current;
-    dragIndex.current = null;
-    if (from === null || from === i) return;
-    setBlocks((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(from < i ? i - 1 : i, 0, moved);
-      return next;
-    });
-  };
-
-  // The root Owner (CEO) and any owner of this branch or a level above may publish
-  // directly. Compute it from the tree so a missing/stale per-node flag can't wrongly
-  // block someone who clearly governs the node.
+  // ── Rights ─────────────────────────────────────────────────────────────────
   const ownsHereOrAbove =
     !!node && ownedPaths.some((p) => node.path === p || node.path.startsWith(`${p}.`));
   const canPublish = isSupremeOwner || ownsHereOrAbove || !!node?.my.canPublishContent;
@@ -306,42 +222,265 @@ function StudioInner() {
   const canProceed = node && (canPublish || canPropose);
   const needsReview = !canPublish && canPropose;
 
-  const cleanBlocks = (): AuthoredBlock[] =>
-    blocks
-      .map(({ _id, ...b }) => b)
-      .filter(
-        (b) =>
-          (b.html && b.html.replace(/<[^>]*>/g, "").trim()) ||
-          b.url ||
-          (b.rows && b.rows.length) ||
-          (b.items && b.items.length) ||
-          b.type === "divider",
-      );
+  const selected = doc.blocks.find((b) => b._id === selectedId) ?? null;
+  const pages = useMemo(() => editorPages(doc.blocks), [doc.blocks]);
+  const stats = useMemo(() => documentStats(doc.blocks), [doc.blocks]);
+  const published = useMemo(() => meaningfulBlocks(doc.blocks), [doc.blocks]);
+  const quotaFull = limits?.documents.remaining === 0;
 
+  // ── Block operations ───────────────────────────────────────────────────────
+  const insertBlock = useCallback(
+    (type: BlockType, at?: number, options?: { rows?: number; cols?: number }) => {
+      const block = createBlock(type, options);
+      setBlocks((blocks) => insertAt(blocks, block, at));
+      setSelectedId(block._id);
+      setInspectorTab("format");
+    },
+    [setBlocks],
+  );
+
+  const updateBlock = useCallback(
+    (next: EditorBlock) => setBlocks((blocks) => blocks.map((b) => (b._id === next._id ? next : b))),
+    [setBlocks],
+  );
+
+  const patchSelected = useCallback(
+    (patch: Partial<EditorBlock>) => {
+      if (!selected) return;
+      updateBlock({ ...selected, ...patch } as EditorBlock);
+    },
+    [selected, updateBlock],
+  );
+
+  const removeBlock = (id: string) => {
+    setBlocks((blocks) => blocks.filter((b) => b._id !== id));
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  // ── Drag & drop on the canvas ──────────────────────────────────────────────
+  /** Which gap the pointer is currently hovering, from the block card midpoints. */
+  const gapFor = (clientY: number): number => {
+    let index = doc.blocks.length;
+    for (let i = 0; i < doc.blocks.length; i++) {
+      const el = blockEls.current[doc.blocks[i]._id];
+      if (!el) continue;
+      const box = el.getBoundingClientRect();
+      if (clientY < box.top + box.height / 2) {
+        index = i;
+        break;
+      }
+    }
+    return index;
+  };
+
+  const onCanvasDragOver = (e: React.DragEvent) => {
+    const fromPalette = e.dataTransfer.types.includes("application/x-studio-block");
+    if (!fromPalette && dragFrom.current === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = fromPalette ? "copy" : "move";
+    setDropIndex(gapFor(e.clientY));
+  };
+
+  const onCanvasDrop = (e: React.DragEvent) => {
+    const type = e.dataTransfer.getData("application/x-studio-block") as BlockType | "";
+    const target = dropIndex ?? gapFor(e.clientY);
+    setDropIndex(null);
+    if (type) {
+      e.preventDefault();
+      insertBlock(type, target);
+    } else if (dragFrom.current !== null) {
+      e.preventDefault();
+      const from = dragFrom.current;
+      dragFrom.current = null;
+      setBlocks((blocks) => moveBlock(blocks, from, target));
+    }
+  };
+
+  // ── Pages ──────────────────────────────────────────────────────────────────
+  const goToPage = (index: number) => {
+    setActivePage(index);
+    const first = pages[index]?.blockIds[0];
+    const el = first ? blockEls.current[first] : null;
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const addPage = () => {
+    const block = createBlock("pagebreak");
+    setBlocks((blocks) => [...blocks, block, createBlock("heading")]);
+    setSelectedId(block._id);
+  };
+
+  const removePage = (index: number) => {
+    const page = pages[index];
+    if (page?.breakAt == null) return;
+    setBlocks((blocks) => blocks.filter((_, i) => i !== page.breakAt));
+  };
+
+  const setPageTransition = (index: number, transition: string) => {
+    const page = pages[index];
+    if (page?.breakAt == null) return;
+    setBlocks((blocks) =>
+      blocks.map((b, i) =>
+        i === page.breakAt ? ({ ...b, transition } as EditorBlock) : b,
+      ),
+    );
+  };
+
+  // ── Premium gate ───────────────────────────────────────────────────────────
+  const premiumNotice = (what: string) =>
+    dialogs.alert({
+      title: "Premium capability",
+      tone: "info",
+      message: (
+        <>
+          <p>
+            {what} is part of the premium plan. This organization is currently running on the{" "}
+            <strong>free demo structure</strong>.
+          </p>
+          <p>
+            Please contact your main administrator so they can arrange an upgrade with the
+            Knowledge Base team. Once the premium plan is active, the capability is enabled for
+            everyone in this organization.
+          </p>
+          <p className="auth-sub">
+            Your work is not lost — this browser keeps the document while you continue writing,
+            and you can publish it at any time.
+          </p>
+        </>
+      ),
+    });
+
+  const saveDraft = async () => {
+    if (!node) return;
+    if (!limits?.draftsEnabled) {
+      await premiumNotice("Saving a document as a draft");
+      return;
+    }
+    setBusy("draft");
+    try {
+      const saved = await studio.saveDraft(org.id, {
+        id: draftId ?? undefined,
+        roleNodeId: node.id,
+        document: {
+          ...doc.meta,
+          title: doc.meta.title.trim() || "Untitled document",
+          blocks: doc.blocks.map(stripId),
+        },
+      });
+      setDraftId(saved.id);
+      setSavedAt(new Date().toLocaleTimeString());
+      reloadPlan();
+      dialogs.toast("Draft saved — reopen it from the Drafts tab on any device.", "success");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) await premiumNotice("Saving a document as a draft");
+      else dialogs.toast(err instanceof ApiError ? err.message : "Could not save the draft", "danger");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openDraft = async (id: string) => {
+    try {
+      const loaded = await studio.draft(org.id, id);
+      const { blocks, ...meta } = loaded.document;
+      const next: Doc = {
+        blocks: blocks.length ? blocks.map(withId) : starterBlocks(),
+        meta: { ...EMPTY_META, ...meta },
+      };
+      past.current = [];
+      future.current = [];
+      docRef.current = next;
+      setDoc(next);
+      setDraftId(id);
+      setSelectedId(null);
+      dialogs.toast("Draft opened.", "success");
+    } catch (err) {
+      dialogs.toast(err instanceof ApiError ? err.message : "Could not open the draft", "danger");
+    }
+  };
+
+  const deleteDraft = async (id: string) => {
+    const ok = await dialogs.confirm({
+      title: "Delete this draft?",
+      message: "The saved copy is removed. Anything currently open in the editor stays open.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await studio.deleteDraft(org.id, id);
+      if (draftId === id) setDraftId(null);
+      reloadPlan();
+    } catch (err) {
+      dialogs.toast(err instanceof ApiError ? err.message : "Could not delete the draft", "danger");
+    }
+  };
+
+  const newDocument = async () => {
+    const ok = await dialogs.confirm({
+      title: "Start a new document?",
+      message: "The page is cleared. Save the current document as a draft first if you need it.",
+      confirmLabel: "Start new",
+    });
+    if (!ok) return;
+    const next: Doc = { blocks: starterBlocks(), meta: EMPTY_META };
+    past.current = [];
+    future.current = [];
+    docRef.current = next;
+    setDoc(next);
+    setDraftId(null);
+    setSelectedId(null);
+  };
+
+  // ── Publish ────────────────────────────────────────────────────────────────
   const publish = async () => {
     if (!node) return;
-    if (!meta.title.trim() || meta.title.trim().length < 2) {
+    const { meta } = doc;
+    if (meta.title.trim().length < 2) {
       dialogs.toast("Give the document a title.", "danger");
+      setInspectorTab("document");
       return;
     }
     if (!meta.classification) {
       dialogs.toast("Classification is compulsory.", "danger");
+      setInspectorTab("document");
       return;
     }
     if (meta.description.trim().length < 8) {
-      dialogs.toast("Add a short description (cover page).", "danger");
+      dialogs.toast("Add a short description — it becomes the document's description page.", "danger");
+      setInspectorTab("document");
       return;
     }
-    const body = cleanBlocks();
-    if (body.length === 0) {
+    if (published.length === 0) {
       dialogs.toast("Add some content before publishing.", "danger");
       return;
     }
-    setBusy(true);
+    if (quotaFull) {
+      await dialogs.alert({
+        title: "Document allowance reached",
+        tone: "info",
+        message: (
+          <>
+            <p>
+              This organization has used all{" "}
+              <strong>{limits?.documents.limit} custom documents</strong> included in its current
+              plan.
+            </p>
+            <p>
+              Please ask your main administrator to arrange a premium plan with the Knowledge Base
+              team, or free up capacity by deleting documents that are no longer required.
+            </p>
+          </>
+        ),
+      });
+      return;
+    }
+
+    setBusy("publish");
     try {
       const created = await courses.create(org.id, {
         roleNodeId: node.id,
-        kind: "DOCUMENT",
+        kind: meta.kind,
         title: meta.title.trim(),
         description: meta.description.trim(),
         scope: meta.scope.trim() || undefined,
@@ -349,7 +488,7 @@ function StudioInner() {
         allowDownload: false,
         inLibrary: meta.inLibrary,
         category: meta.category.trim() || undefined,
-        blocks: body,
+        blocks: published,
         resetsCompletionOnUpdate: meta.resets,
         prerequisiteCodes: [],
       });
@@ -365,18 +504,44 @@ function StudioInner() {
         dialogs.toast("Sent to your branch manager for review.", "success");
       }
       try {
-        localStorage.removeItem(draftKey); // published — clear the recovery draft
+        localStorage.removeItem(draftKey);
       } catch {
         /* ignore */
       }
+      if (draftId) await studio.deleteDraft(org.id, draftId).catch(() => undefined);
       router.push(created.draft ? `/orgs/${org.id}/requests` : `/orgs/${org.id}`);
     } catch (err) {
       dialogs.toast(err instanceof ApiError ? err.message : "Publish failed", "danger");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
+  // ── Shortcuts ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      if (!meta) {
+        if (e.key === "Escape" && mode !== "edit") setMode("edit");
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        redo();
+      } else if (key === "s") {
+        e.preventDefault();
+        void saveDraft();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // ── Guards ─────────────────────────────────────────────────────────────────
   if (!roleId) {
     return (
       <div className="empty-card glass">
@@ -401,180 +566,267 @@ function StudioInner() {
     );
   }
 
+  const previewPages = paginate(published);
+
   return (
-    <div className="studio-shell">
+    <div className="studio-shell" data-mode={mode}>
+      {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <div className="studio-topbar glass">
         <div className="studio-topbar-main">
           <button className="btn btn-quiet btn-small" onClick={() => router.back()}>
             ← Back
           </button>
-          <input
-            className="studio-title-input"
-            placeholder="Untitled document"
-            value={meta.title}
-            onChange={(e) => setMeta({ ...meta, title: e.target.value })}
-          />
-          {needsReview && <span className="badge">draft · needs review</span>}
+          <div className="studio-title-wrap">
+            <input
+              className="studio-title-input"
+              placeholder="Untitled document"
+              value={doc.meta.title}
+              maxLength={120}
+              onChange={(e) => setMeta({ ...doc.meta, title: e.target.value })}
+            />
+            <span className="studio-title-sub">
+              {node.name}
+              {doc.meta.classification ? ` · ${CLASS_LABEL[doc.meta.classification]}` : ""}
+              {savedAt ? ` · draft saved ${savedAt}` : ""}
+            </span>
+          </div>
+          {needsReview && <span className="badge">needs manager review</span>}
         </div>
         <div className="studio-topbar-actions">
+          <div className="studio-mode-switch" role="tablist" aria-label="Studio mode">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "edit"}
+              data-active={mode === "edit"}
+              onClick={() => setMode("edit")}
+            >
+              ✎ Edit
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "preview"}
+              data-active={mode === "preview"}
+              onClick={() => setMode("preview")}
+            >
+              👁 Preview
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "present"}
+              data-active={mode === "present"}
+              onClick={() => setMode("present")}
+            >
+              ▷ Present
+            </button>
+          </div>
           <button
-            className={mode === "preview" ? "btn btn-primary btn-small" : "btn btn-quiet btn-small"}
-            onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
+            className="btn btn-quiet btn-small"
+            disabled={busy !== null}
+            data-locked={!limits?.draftsEnabled}
+            title={
+              limits?.draftsEnabled
+                ? "Park this document on the server (Ctrl+S)"
+                : "Premium plans can park a document as a draft"
+            }
+            onClick={saveDraft}
           >
-            {mode === "preview" ? "✎ Edit" : "👁 Preview"}
+            {busy === "draft" ? "Saving…" : limits?.draftsEnabled ? "🖫 Save draft" : "🔒 Save draft"}
           </button>
-          <button className="btn btn-primary btn-small" disabled={busy} onClick={publish}>
-            {busy ? "Working…" : needsReview ? "Submit for review" : "Publish"}
+          <button className="btn btn-primary btn-small" disabled={busy !== null} onClick={publish}>
+            {busy === "publish" ? "Working…" : needsReview ? "Submit for review" : "Publish"}
           </button>
         </div>
       </div>
 
-      {mode === "preview" ? (
+      {mode === "edit" && (
+        <>
+          <Ribbon
+            selected={selected}
+            onPatch={patchSelected}
+            onInsert={(type) => insertBlock(type)}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={past.current.length > 0}
+            canRedo={future.current.length > 0}
+            zoom={zoom}
+            onZoom={setZoom}
+          />
+
+          <div className="studio-workspace">
+            <SideRail
+              tab={railTab}
+              onTab={setRailTab}
+              onInsert={(type) => insertBlock(type)}
+              onInsertTable={(rows, cols) => insertBlock("table", undefined, { rows, cols })}
+              pages={pages}
+              activePage={activePage}
+              onGoToPage={goToPage}
+              onAddPage={addPage}
+              onRemovePage={removePage}
+              onPageTransition={setPageTransition}
+              drafts={drafts}
+              draftsEnabled={!!limits?.draftsEnabled}
+              currentDraftId={draftId}
+              onOpenDraft={openDraft}
+              onDeleteDraft={deleteDraft}
+              onNewDocument={newDocument}
+            />
+
+            <div
+              className="studio-canvas"
+              ref={canvasRef}
+              onDragOver={onCanvasDragOver}
+              onDragLeave={() => setDropIndex(null)}
+              onDrop={onCanvasDrop}
+            >
+              <div
+                className="studio-canvas-sheet"
+                style={{ zoom: `${zoom}%` } as React.CSSProperties}
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) setSelectedId(null);
+                }}
+              >
+                <div className="studio-canvas-cover">
+                  <span className="doc-cover-org">{org.name}</span>
+                  <h1>{doc.meta.title || "Untitled document"}</h1>
+                  <p className="auth-sub">
+                    Cover, classification header and footer are added automatically when this
+                    document is published.
+                  </p>
+                </div>
+
+                {doc.blocks.length === 0 && (
+                  <p className="auth-sub studio-empty">
+                    Drag a block from the left, or click one to add it here.
+                  </p>
+                )}
+
+                {doc.blocks.map((block, index) => (
+                  <div
+                    key={block._id}
+                    ref={(el) => {
+                      blockEls.current[block._id] = el;
+                    }}
+                  >
+                    {dropIndex === index && <div className="studio-drop-line" aria-hidden />}
+                    <BlockCard
+                      block={block}
+                      index={index}
+                      total={doc.blocks.length}
+                      selected={selectedId === block._id}
+                      onSelect={() => setSelectedId(block._id)}
+                      onChange={updateBlock}
+                      onRemove={() => removeBlock(block._id)}
+                      onDuplicate={() => setBlocks((blocks) => duplicateAt(blocks, index))}
+                      onMove={(delta) =>
+                        setBlocks((blocks) =>
+                          moveBlock(blocks, index, delta < 0 ? index - 1 : index + 2),
+                        )
+                      }
+                      onConvert={(to) =>
+                        setBlocks((blocks) =>
+                          blocks.map((b) => (b._id === block._id ? convertBlock(b, to) : b)),
+                        )
+                      }
+                      onInsertAfter={() => insertBlock("paragraph", index + 1)}
+                      onDragStart={() => {
+                        dragFrom.current = index;
+                      }}
+                      onDragEnd={() => {
+                        dragFrom.current = null;
+                        setDropIndex(null);
+                      }}
+                      dragging={dragFrom.current === index}
+                    />
+                  </div>
+                ))}
+                {dropIndex === doc.blocks.length && <div className="studio-drop-line" aria-hidden />}
+
+                <div className="studio-add-row">
+                  <button type="button" className="btn btn-quiet btn-small" onClick={() => insertBlock("paragraph")}>
+                    + Text
+                  </button>
+                  <button type="button" className="btn btn-quiet btn-small" onClick={() => insertBlock("heading")}>
+                    + Heading
+                  </button>
+                  <button type="button" className="btn btn-quiet btn-small" onClick={() => insertBlock("table")}>
+                    + Table
+                  </button>
+                  <button type="button" className="btn btn-quiet btn-small" onClick={addPage}>
+                    + Page
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <Inspector
+              tab={inspectorTab}
+              onTab={setInspectorTab}
+              block={selected}
+              onBlockChange={updateBlock}
+              meta={doc.meta}
+              onMeta={setMeta}
+              limits={limits}
+              categories={categories}
+              needsReview={needsReview}
+            />
+          </div>
+
+          <div className="studio-status glass">
+            <span>
+              {stats.words} words · {stats.blocks} blocks · {stats.pages}{" "}
+              {stats.pages === 1 ? "page" : "pages"} · ~{stats.minutes} min read
+            </span>
+            <span className="studio-status-right">
+              {limits && limits.documents.limit != null && (
+                <span data-full={quotaFull}>
+                  {limits.documents.used} / {limits.documents.limit} custom documents used
+                </span>
+              )}
+              <span>Saved in this browser</span>
+            </span>
+          </div>
+        </>
+      )}
+
+      {mode === "preview" && (
         <div className="studio-preview">
-          <div className="doc-headerbar class-strip-CONFIDENTIAL">
+          <div className={`doc-headerbar class-strip-${doc.meta.classification ?? "CONFIDENTIAL"}`}>
             <span className="doc-org">{org.name}</span>
-            <span className="doc-class">{meta.classification ? CLASS_LABEL[meta.classification] : "—"}</span>
+            <span className="doc-class">
+              {doc.meta.classification ? CLASS_LABEL[doc.meta.classification] : "—"}
+            </span>
             <span className="doc-ver">draft</span>
           </div>
-          <div className="doc-authored" style={{ position: "static" }}>
-            <article className="doc-sheet">
-              <section className="doc-cover" style={{ minHeight: "auto", paddingBottom: "1rem", borderBottom: "1px solid var(--border)" }}>
-                <span className="doc-cover-org">{org.name}</span>
-                <h1 className="doc-cover-title">{meta.title || "Untitled document"}</h1>
-                <p className="auth-sub">{meta.description || "No description yet."}</p>
-                {meta.scope && <p className="auth-sub">Scope: {meta.scope}</p>}
-              </section>
-              {cleanBlocks().map((b, i) => (
-                <AuthoredBlockView key={i} block={b} />
-              ))}
-            </article>
-          </div>
+          <article className="doc-sheet studio-preview-cover">
+            <span className="doc-cover-org">{org.name}</span>
+            <h1 className="doc-cover-title">{doc.meta.title || "Untitled document"}</h1>
+            <p className="auth-sub">{doc.meta.description || "No description yet."}</p>
+            {doc.meta.scope && <p className="auth-sub">Scope: {doc.meta.scope}</p>}
+          </article>
+          <DocumentBody blocks={published} />
         </div>
-      ) : (
-        <div className="studio-workspace">
-          <aside className="studio-palette glass">
-            <h3 className="learning-h">Blocks</h3>
-            <p className="auth-sub" style={{ fontSize: "0.75rem" }}>
-              Click to add, or drag onto the page.
-            </p>
-            {PALETTE.map((p) => (
-              <button
-                key={p.type}
-                className="studio-palette-item"
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData("new-block", p.type)}
-                onClick={() => add(p.type)}
-              >
-                <span className="studio-palette-icon">{p.icon}</span>
-                <span>
-                  <span className="studio-palette-label">{p.label}</span>
-                  <span className="studio-palette-hint">{p.hint}</span>
-                </span>
-              </button>
-            ))}
+      )}
 
-            <h3 className="learning-h">Details</h3>
-            <label className="field">
-              <span>Classification*</span>
-              <select
-                value={meta.classification}
-                onChange={(e) => setMeta({ ...meta, classification: e.target.value as Classification })}
-              >
-                <option value="">Choose…</option>
-                {CLASSES.map((c) => (
-                  <option key={c} value={c}>
-                    {CLASS_LABEL[c]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Shelf (category)</span>
-              <input value={meta.category} onChange={(e) => setMeta({ ...meta, category: e.target.value })} maxLength={40} />
-            </label>
-            <label className="field">
-              <span>Description* (cover)</span>
-              <textarea rows={2} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} maxLength={500} />
-            </label>
-            <label className="field">
-              <span>Scope (cover)</span>
-              <textarea rows={2} value={meta.scope} onChange={(e) => setMeta({ ...meta, scope: e.target.value })} maxLength={2000} />
-            </label>
-            <label className="ack-row">
-              <input type="checkbox" checked={meta.inLibrary} onChange={(e) => setMeta({ ...meta, inLibrary: e.target.checked })} />
-              <span>Publish to library</span>
-            </label>
-            {!needsReview && (
-              <>
-                <label className="ack-row">
-                  <input type="checkbox" checked={meta.mandatory} onChange={(e) => setMeta({ ...meta, mandatory: e.target.checked })} />
-                  <span>Mandatory</span>
-                </label>
-                <label className="ack-row">
-                  <input type="checkbox" checked={meta.inherit} onChange={(e) => setMeta({ ...meta, inherit: e.target.checked })} />
-                  <span>Inherit to lower branches</span>
-                </label>
-              </>
-            )}
-          </aside>
-
-          <div
-            className="studio-canvas"
-            onDragOver={(e) => {
-              if (e.dataTransfer.types.includes("new-block") || dragIndex.current !== null)
-                e.preventDefault();
-            }}
-            onDrop={(e) => {
-              const nb = e.dataTransfer.getData("new-block");
-              if (nb) add(nb as AuthoredBlock["type"]);
-            }}
-          >
-            <div className="studio-canvas-sheet">
-              <div className="studio-canvas-cover">
-                <span className="doc-cover-org">{org.name}</span>
-                <h1>{meta.title || "Untitled document"}</h1>
-                <p className="auth-sub">Cover, header &amp; footer are added automatically on publish.</p>
-              </div>
-
-              {blocks.length === 0 && (
-                <p className="auth-sub studio-empty">Drag a block here, or pick one from the left.</p>
-              )}
-
-              {blocks.map((b, i) => (
-                <div
-                  key={b._id}
-                  className="studio-block"
-                  onDragOver={(e) => {
-                    if (dragIndex.current !== null) e.preventDefault();
-                  }}
-                  onDrop={(e) => {
-                    if (dragIndex.current !== null) {
-                      e.stopPropagation();
-                      onDropAt(i);
-                    }
-                  }}
-                >
-                  <div className="studio-block-bar">
-                    <span
-                      className="studio-drag-handle"
-                      draggable
-                      onDragStart={() => onDragStart(i)}
-                      title="Drag to reorder"
-                    >
-                      ⠿
-                    </span>
-                    <span className="badge">{b.type}</span>
-                    <span className="studio-block-actions">
-                      <button type="button" className="icon-btn" onClick={() => remove(b._id)} aria-label="Delete block">
-                        ✕
-                      </button>
-                    </span>
-                  </div>
-                  <BlockEditor block={b} onChange={(nb) => update(b._id, nb)} />
-                </div>
-              ))}
-            </div>
+      {mode === "present" && (
+        <div className="studio-present">
+          <div className="studio-present-bar">
+            <span>
+              {doc.meta.title || "Untitled document"} · {previewPages.length}{" "}
+              {previewPages.length === 1 ? "page" : "pages"}
+            </span>
+            <button className="btn btn-quiet btn-small" onClick={() => setMode("edit")}>
+              ✕ Exit (Esc)
+            </button>
           </div>
+          {previewPages.length ? (
+            <DocumentPages pages={previewPages} className="studio-present-stage" />
+          ) : (
+            <p className="auth-sub studio-empty">Nothing to present yet — add some content.</p>
+          )}
         </div>
       )}
     </div>

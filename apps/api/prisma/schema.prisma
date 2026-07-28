@@ -24,6 +24,12 @@ enum CourseKind {
   // EXAM arrives post-v1 (docs/future.md §5b)
 }
 
+// How a course's content entered the vault — the two metered allowances on a plan.
+enum ContentSource {
+  STUDIO // built block-by-block in the Document Studio ("custom document")
+  UPLOAD // a file uploaded into the vault, or an external link registered as content
+}
+
 enum CompletionStatus {
   ASSIGNED
   IN_PROGRESS
@@ -129,9 +135,12 @@ model Organization {
   planIsCustom    Boolean    @default(false)
   planGrantedById String? // PlatformAdmin.id that last set the plan
   memberLimit     Int? // per-org cap (customisable by the admin); null = use the plan's limit
+  documentLimit   Int? // per-org cap on Studio documents; null = use the plan's limit
+  uploadLimit     Int? // per-org cap on uploads/links; null = use the plan's limit
   roles          RoleNode[]
   memberships    Membership[]
   courses        Course[]
+  studioDrafts   StudioDraft[]
   supremeAudits  SupremeAudit[]
 }
 
@@ -217,6 +226,10 @@ model Course {
   allowDownload            Boolean            @default(false) // owner-controlled download from preview
   archived                 Boolean            @default(false) // archived: kept, but reaches nobody new
   draft                    Boolean            @default(false) // member proposal pending manager review
+  // Where the content came from — drives the plan's separate allowances for documents
+  // built in the Studio vs. documents brought in as a file/link. Derived from storageRef
+  // at creation so quota counting is a plain indexed query.
+  source                   ContentSource      @default(UPLOAD)
   storageRef               Json // adapter-specific pointer: {adapter:"inline"|"link", ...}
   deadlineDays             Int?
   retakeEveryNDays         Int? // recurrence, applies to all kinds
@@ -243,6 +256,26 @@ model CoursePlacement {
   createdAt            DateTime @default(now()) // deadline anchor
 
   @@unique([courseId, roleNodeId])
+}
+
+// A Studio work-in-progress document, parked on the server so the author can leave the
+// page and resume from any device. Nothing here is visible to readers — a draft becomes a
+// Course only when the author publishes (or submits it for review). Premium capability:
+// plans with allowDrafts = false refuse the save (docs/pricing.md).
+model StudioDraft {
+  id            String       @id @default(uuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  roleNodeId    String // the branch the document is being written for
+  authorProfileId String
+  title         String       @default("")
+  /// The whole StudioDocument (metadata + blocks) as validated JSON.
+  document      Json
+  blockCount    Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([orgId, authorProfileId, updatedAt])
 }
 
 // Inline storage adapter backend: small files kept in Postgres (free-tier friendly).
@@ -414,6 +447,9 @@ model PricingPlan {
   priceCoins   Int       @default(0) // 0 = free (demo)
   durationDays Int? // null = admin-set / unlimited
   memberLimit  Int? // max people in an org on this plan; null = unlimited / admin-set
+  documentLimit Int? // max Studio-authored documents; null = unlimited / admin-set
+  uploadLimit   Int? // max uploaded or linked documents; null = unlimited / admin-set
+  allowDrafts   Boolean  @default(true) // may authors park work-in-progress Studio drafts?
   isCustom     Boolean   @default(false) // user proposes days + coins; admin decides
   imageUrl     String? // data-URL or external image for the card
   criteria     String? // eligibility text ("valid student ID", …)

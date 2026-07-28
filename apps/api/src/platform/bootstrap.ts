@@ -13,10 +13,12 @@ const FIRST_ADMIN = {
   displayName: "Knowledge Base Admin",
 };
 
+// documentLimit = documents built in the Studio; uploadLimit = files/links brought in;
+// allowDrafts = may authors park an unfinished Studio document on the server (premium).
 const STARTER_PLANS = [
-  { key: "demo", name: "Demo", tagline: "Try Knowledge Vault free", category: "Plans", priceCoins: 0, durationDays: 60, memberLimit: 10 as number | null, isCustom: false, criteria: "One demo organization per profile. Expires after 2 months.", badge: "Free", highlights: ["Full features for evaluation", "Up to 10 members", "2-month time limit", "No Knowledge Coins required"], sortOrder: 10 },
-  { key: "monthly", name: "Monthly", tagline: "Keep your organization running month to month", category: "Plans", priceCoins: 50, durationDays: 30, memberLimit: 1000 as number | null, isCustom: false, criteria: "Renew every 30 days.", badge: null as string | null, highlights: ["30 days of full access", "Up to 1000 members", "Renewable"], sortOrder: 20 },
-  { key: "organisation", name: "Organisation", tagline: "For established teams — duration set with the admin", category: "Plans", priceCoins: 150, durationDays: null as number | null, memberLimit: null as number | null, isCustom: true, criteria: "Duration agreed with the Knowledge Base team.", badge: "Best value", highlights: ["Admin-set duration", "Custom member limit", "Custom terms"], sortOrder: 30 },
+  { key: "demo", name: "Demo", tagline: "Try Knowledge Vault free", category: "Plans", priceCoins: 0, durationDays: 60, memberLimit: 10 as number | null, documentLimit: 20 as number | null, uploadLimit: 30 as number | null, allowDrafts: false, isCustom: false, criteria: "One demo organization per profile. Expires after 2 months.", badge: "Free", highlights: ["Full features for evaluation", "Up to 10 members", "20 Studio documents · 30 uploads", "2-month time limit", "No Knowledge Coins required"], sortOrder: 10 },
+  { key: "monthly", name: "Monthly", tagline: "Keep your organization running month to month", category: "Plans", priceCoins: 50, durationDays: 30, memberLimit: 1000 as number | null, documentLimit: null as number | null, uploadLimit: null as number | null, allowDrafts: true, isCustom: false, criteria: "Renew every 30 days.", badge: null as string | null, highlights: ["30 days of full access", "Up to 1000 members", "Unlimited documents & drafts", "Renewable"], sortOrder: 20 },
+  { key: "organisation", name: "Organisation", tagline: "For established teams — duration set with the admin", category: "Plans", priceCoins: 150, durationDays: null as number | null, memberLimit: null as number | null, documentLimit: null as number | null, uploadLimit: null as number | null, allowDrafts: true, isCustom: true, criteria: "Duration agreed with the Knowledge Base team.", badge: "Best value", highlights: ["Admin-set duration", "Custom member limit", "Unlimited documents & drafts", "Custom terms"], sortOrder: 30 },
 ];
 
 // Locked out of the console? Render's free plan has no shell, so `db:admin` isn't reachable
@@ -79,6 +81,15 @@ export async function ensurePlatformBootstrap(): Promise<void> {
         });
       }
     }
+
+    // Same for the free plan's content allowances: an org evaluating the product may
+    // publish 20 Studio documents and bring in 30 uploads, and cannot park drafts on the
+    // server. Keyed on documentLimit still being unset, so this lands exactly once on a
+    // deployment that predates the allowances and never re-writes an admin's own numbers.
+    await db.pricingPlan.updateMany({
+      where: { key: "demo", documentLimit: null },
+      data: { documentLimit: 20, uploadLimit: 30, allowDrafts: false },
+    });
   } catch (err) {
     // Never let bootstrap crash the server — log and continue (e.g. if migrations haven't
     // applied yet). The admin can be created later with `db:admin`.

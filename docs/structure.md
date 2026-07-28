@@ -296,11 +296,31 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   auto-generated **cover** (org, title, classification, version, published date, author) and
   a **description & scope** page, plus a header/footer on the framed content. Downloads are
   offered only when the owner enabled them (`GET /courses/:code/content?download=1`).
-- **Document Studio** (`/orgs/:id/studio`): a visual drag-and-drop builder — a block palette,
-  a canvas of draggable cards (heading, rich text, table, checklist, callout, image,
-  audio/video, divider), and a live **Preview** rendering the finished document in the
-  standard frame. Stored as an `authored` storage adapter and rendered natively. Owners
-  publish; granted members submit for review (§8.3a).
+- **Document Studio** (`/orgs/:id/studio`): a three-pane editor — an **insert/pages/drafts
+  rail**, a **paper canvas** of drag-and-drop block cards, and a **block inspector** — under a
+  formatting **ribbon** (paragraph style, font, size, bold/italic/underline/strikethrough,
+  text colour, highlight, alignment, lists, indent, link, clear formatting, undo/redo,
+  zoom). Modes: **Edit**, **Preview** (the standard frame) and **Present** (full-screen deck).
+  Blocks: heading, rich text, table, checklist, callout, quote, code, image, audio/video,
+  button, columns, divider, spacer and page break. Every block carries a typed `style`
+  (alignment, colours, font, size, width, padding, border, shadow, entrance animation), so
+  no author-supplied CSS is ever stored. Stored through the `authored` storage adapter and
+  rendered natively by the same renderer the viewer uses. Owners publish; granted members
+  submit for review (§8.3a).
+  - **Tables** behave like a sheet: row/column headers with insert & delete menus, a
+    rectangular cell selection formatted in one go (bold, italic, alignment, fill),
+    column widths, header row/column, banding, border style, frozen header, and paste of
+    tab- or comma-separated text straight into the grid. A paragraph or checklist can be
+    **converted into a table** (and back) from the block's "turn into" menu.
+  - **Audio & video** carry playback rules: speed control (0.5×–2×), a **quality ladder**
+    (renditions the reader switches between without losing their place), poster, captions,
+    clip window, autoplay/loop/mute, a watched-in-full marker, and a **non-skippable** mode
+    that permits rewinding but refuses any jump past the furthest point actually watched.
+  - **Pages** turn with a per-page animation (fade, slide, push, flip, zoom, reveal) chosen
+    on the page break; readers turn pages with ← → in the viewer.
+  - **Drafts**: work in progress is always kept in the author's browser; **saving a draft to
+    the server** (reopen from any device, `StudioDraft`) is a premium capability — see
+    docs/pricing.md.
 - **Archival**: `POST /courses/:code/archive` keeps the course and its history but refuses new
   placements. **Deletion** is allowed for the course's editors **and the owners of its home
   branch** (and above).
@@ -329,9 +349,12 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
 ### 8.6 Security, storage & authoring hardening (2026-07-24)
 - **Rate limiting**: credential endpoints (`/auth/login`, `/auth/register`) are throttled
   per IP (10 / 5 min); `/auth/refresh` looser (60 / 5 min). In-memory (single-instance).
-- **Content sanitization**: authored document HTML is sanitized server-side (tag/attribute
-  whitelist) on create AND update — defence-in-depth over the client sanitizer — so a
-  member author cannot land stored XSS.
+- **Content sanitization**: authored document HTML is sanitized server-side (tag whitelist +
+  a **filtered `style` attribute**) on create, update AND draft save — defence-in-depth over
+  the client sanitizer — so a member author cannot land stored XSS. The declaration
+  whitelist lives in `@vault/shared/rich-text` and is shared by both sanitizers: colour,
+  highlight, font, size, alignment and spacing survive the round trip; anything that could
+  fetch a resource or escape a declaration (`url()`, `expression`, `position`, …) is dropped.
 - **Content-route hardening**: inline file serving carries a locked-down CSP
   (`default-src 'none'; … sandbox`), `X-Content-Type-Options: nosniff`, `X-Frame-Options`
   and `Referrer-Policy` — an uploaded HTML/SVG can never execute with our privileges.
@@ -341,6 +364,7 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
   always gets the original, correctly-formatted file. Storage adapter port stays open for
   NAS / Google Drive / OneDrive backends (client's choice, TBD).
 - **Studio**: multi-page documents via a `pagebreak` block (books turn page-by-page in the
-  viewer) and **localStorage autosave** (draft recovery, cleared on publish).
+  viewer, with the author's chosen transition) and **localStorage autosave** (draft recovery,
+  cleared on publish) on every plan; server-side drafts on premium plans.
 - **Profiles**: optional profile picture — a client-downscaled 256px JPEG data URL,
   size-capped and type-checked server-side.

@@ -3,34 +3,205 @@ import type { Classification, CompletionStatus, CourseKind } from "./types.js";
 
 // Course & learning contracts — docs/structure.md §3 (courses), §5 (assignment), §6 (surfaces).
 
+// ── Authored documents (the Studio format, v2) ───────────────────────────────
+// A document is a flat, ordered list of blocks. Everything visual a block can carry lives
+// in typed sub-objects (style / table / media) rather than free-form CSS, so the server can
+// validate it and the renderer can never be handed arbitrary markup. v1 documents (plain
+// `rows` tables, no `style`) stay valid — every new field is optional and the renderer
+// falls back to the v1 shape.
+
+/** Horizontal alignment, shared by blocks and table cells. */
+export const alignments = ["left", "center", "right", "justify"] as const;
+export const alignSchema = z.enum(alignments);
+export type BlockAlign = z.infer<typeof alignSchema>;
+
+/**
+ * A colour the renderer may inline. Deliberately narrow — hex, rgb()/rgba() or a bare
+ * keyword — so nothing that could smuggle CSS (url(), expression(), ;) ever reaches a
+ * style attribute.
+ */
+export const docColorSchema = z
+  .string()
+  .trim()
+  .max(32)
+  .regex(
+    /^(#[0-9a-fA-F]{3,8}|rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(,\s*[\d.]+\s*)?\)|transparent|[a-zA-Z]{3,20})$/,
+    "Unsupported colour value",
+  );
+
+/** Type families the reader's browser always has — no webfont downloads, no CSS injection. */
+export const docFonts = ["sans", "serif", "mono", "display", "hand"] as const;
+export const docFontSchema = z.enum(docFonts);
+
+/** Entrance animations played when a block scrolls into view (Slides-style motion). */
+export const blockAnimations = ["none", "fade", "rise", "slide", "zoom", "flip"] as const;
+export const blockAnimationSchema = z.enum(blockAnimations);
+
+/** Page-turn animations, carried by the `pagebreak` that opens the page. */
+export const pageTransitions = ["none", "fade", "slide", "push", "flip", "zoom", "reveal"] as const;
+export const pageTransitionSchema = z.enum(pageTransitions);
+
+/** Presentation of one block — the "format" half of the Studio's inspector. */
+export const blockStyleSchema = z.object({
+  align: alignSchema.optional(),
+  color: docColorSchema.optional(), // text colour
+  background: docColorSchema.optional(), // fill / highlight behind the block
+  accent: docColorSchema.optional(), // rule, border & marker colour
+  font: docFontSchema.optional(),
+  /** Font size in px — headings default to their level when unset. */
+  fontSize: z.number().min(8).max(120).optional(),
+  lineHeight: z.number().min(1).max(3).optional(),
+  letterSpacing: z.number().min(-3).max(20).optional(),
+  /** Block width as a percentage of the page (images, media, tables, callouts). */
+  width: z.number().int().min(10).max(100).optional(),
+  /** Horizontal placement of a block narrower than the page. */
+  float: z.enum(["left", "center", "right"]).optional(),
+  padding: z.number().int().min(0).max(80).optional(),
+  radius: z.number().int().min(0).max(48).optional(),
+  border: z.boolean().optional(),
+  shadow: z.boolean().optional(),
+  uppercase: z.boolean().optional(),
+  animation: blockAnimationSchema.optional(),
+  /** Space added below the block, in px. */
+  spaceAfter: z.number().int().min(0).max(160).optional(),
+});
+export type BlockStyle = z.infer<typeof blockStyleSchema>;
+
+/** One spreadsheet cell: text plus its own formatting, exactly like a Sheets cell. */
+export const tableCellSchema = z.object({
+  text: z.string().max(2_000).default(""),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  align: alignSchema.optional(),
+  color: docColorSchema.optional(),
+  background: docColorSchema.optional(),
+  colSpan: z.number().int().min(1).max(24).optional(),
+  rowSpan: z.number().int().min(1).max(60).optional(),
+});
+export type TableCell = z.infer<typeof tableCellSchema>;
+
+/** Table-wide options — header bands, banding, borders and column widths. */
+export const tableOptionsSchema = z.object({
+  headerRow: z.boolean().optional(), // default true
+  headerColumn: z.boolean().optional(),
+  striped: z.boolean().optional(),
+  borders: z.enum(["all", "horizontal", "outline", "none"]).optional(),
+  compact: z.boolean().optional(),
+  /** Percentage width per column; entries may be omitted for "auto". */
+  columnWidths: z.array(z.number().int().min(3).max(100)).max(24).optional(),
+  caption: z.string().max(200).optional(),
+  /** Freeze the header band while the table scrolls sideways. */
+  stickyHeader: z.boolean().optional(),
+});
+export type TableOptions = z.infer<typeof tableOptionsSchema>;
+
+/** An alternate rendition of the same media — the reader's quality selector. */
+export const mediaSourceSchema = z.object({
+  label: z.string().trim().min(1).max(24), // "1080p", "Low data", …
+  url: z.string().url(),
+});
+
+/** Playback rules for an audio/video block. */
+export const mediaOptionsSchema = z.object({
+  autoplay: z.boolean().optional(),
+  loop: z.boolean().optional(),
+  muted: z.boolean().optional(),
+  /**
+   * false = the reader may not seek ahead or fast-forward. Used for compliance material
+   * that must actually be watched; rewinding stays allowed.
+   */
+  skippable: z.boolean().optional(), // default true
+  /** Offer the 0.5×–2× speed selector. */
+  speedControl: z.boolean().optional(), // default true
+  defaultSpeed: z.number().min(0.25).max(4).optional(),
+  /** Quality ladder — when present the player shows a quality selector. */
+  sources: z.array(mediaSourceSchema).max(6).optional(),
+  poster: z.string().url().optional(),
+  captionsUrl: z.string().url().optional(),
+  /** Clip window, in seconds. */
+  startAt: z.number().min(0).max(86_400).optional(),
+  endAt: z.number().min(0).max(86_400).optional(),
+  /** Show the "watched to the end" tick once the reader finishes it. */
+  trackCompletion: z.boolean().optional(),
+  /** Expose the browser's own download control on the player. */
+  download: z.boolean().optional(),
+});
+export type MediaOptions = z.infer<typeof mediaOptionsSchema>;
+
+/** One column of a `columns` block — a mini rich-text card, optionally with an image. */
+export const docColumnSchema = z.object({
+  html: z.string().max(20_000).optional(),
+  title: z.string().max(200).optional(),
+  url: z.string().url().optional(), // image at the top of the column
+  /** Share of the row's width; omitted columns split what is left evenly. */
+  width: z.number().int().min(10).max(90).optional(),
+});
+export type DocColumn = z.infer<typeof docColumnSchema>;
+
+/** A checklist entry — text plus an optional pre-tick and helper line. */
+export const checklistEntrySchema = z.object({
+  text: z.string().max(500),
+  checked: z.boolean().optional(),
+  hint: z.string().max(200).optional(),
+});
+
+export const authoredBlockTypes = [
+  "heading",
+  "paragraph",
+  "table",
+  "media",
+  "card", // callout
+  "checklist",
+  "image",
+  "divider",
+  "pagebreak", // starts a new page — books, decks & multi-page documents
+  "quote",
+  "code",
+  "columns", // side-by-side sections (site-style layout)
+  "spacer",
+  "button", // call-to-action link
+] as const;
+
 /**
  * Authored (in-app created) document blocks — the Studio's storage format. Rendered by
  * the viewer inside the standardized document frame. Rich text is stored as limited
- * HTML and sanitized (whitelist) at render time.
+ * HTML and sanitized (whitelist) server-side on write and again at render time.
  */
 export const authoredBlockSchema = z.object({
-  type: z.enum([
-    "heading",
-    "paragraph",
-    "table",
-    "media",
-    "card",
-    "checklist",
-    "image",
-    "divider",
-    "pagebreak", // starts a new page — books & multi-page documents
-  ]),
-  /** heading/paragraph/card: limited HTML; image/media: url; table: unused */
+  type: z.enum(authoredBlockTypes),
+  /** heading/paragraph/card/quote/columns: limited HTML; code: plain text */
   html: z.string().max(20_000).optional(),
-  level: z.number().int().min(1).max(3).optional(), // heading level
-  url: z.string().url().optional(), // media/image src
+  level: z.number().int().min(1).max(6).optional(), // heading level
+  url: z.string().url().optional(), // media/image src, button href
   mediaKind: z.enum(["audio", "video"]).optional(),
-  title: z.string().max(200).optional(), // card/checklist/media title
-  rows: z.array(z.array(z.string().max(2_000))).max(50).optional(), // table: rows of cells
-  items: z.array(z.string().max(500)).max(50).optional(), // checklist entries
+  title: z.string().max(200).optional(), // card/checklist/media/button title
+  /** table (v1, still written for compatibility): rows of plain-text cells. */
+  rows: z.array(z.array(z.string().max(2_000))).max(200).optional(),
+  /** table (v2): the same grid with per-cell formatting. Preferred when present. */
+  cells: z.array(z.array(tableCellSchema).max(24)).max(200).optional(),
+  table: tableOptionsSchema.optional(),
+  items: z.array(z.string().max(500)).max(100).optional(), // checklist entries (v1)
+  list: z.array(checklistEntrySchema).max(100).optional(), // checklist entries (v2)
+  media: mediaOptionsSchema.optional(),
+  columns: z.array(docColumnSchema).max(4).optional(),
+  style: blockStyleSchema.optional(),
+  /** pagebreak: how the page it opens arrives. */
+  transition: pageTransitionSchema.optional(),
+  /** pagebreak: a label for the page in the navigator & printed running head. */
+  pageLabel: z.string().max(80).optional(),
+  /** card/quote/button: the tone of the surface. */
+  variant: z.enum(["neutral", "accent", "info", "success", "warning", "danger"]).optional(),
+  /** code: the language shown on the chip (highlighting is not performed). */
+  language: z.string().max(24).optional(),
+  /** quote: who said it. */
+  attribution: z.string().max(160).optional(),
+  /** image/media/table: caption printed under the block. */
+  caption: z.string().max(300).optional(),
+  /** spacer: height in px. */
+  size: z.number().int().min(4).max(400).optional(),
 });
 export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
-export const authoredBlocksSchema = z.array(authoredBlockSchema).min(1).max(200);
+export const authoredBlocksSchema = z.array(authoredBlockSchema).min(1).max(400);
 
 export const createCourseSchema = z.object({
   roleNodeId: z.string().uuid(), // uploading role — its number goes into the code
@@ -75,6 +246,53 @@ export const placeCourseSchema = z.object({
   retakeEveryNDays: z.number().int().positive().max(3650).nullable().optional(),
 });
 export type PlaceCourseInput = z.infer<typeof placeCourseSchema>;
+
+// ── Studio drafts (premium) ──────────────────────────────────────────────────
+// A draft is the Studio's own work-in-progress record: the blocks plus the publish
+// settings, parked on the server so the author can leave and come back from any device.
+// It is NOT the member-proposal `Course.draft` flag — nothing is created in the library
+// until the author publishes or submits for review.
+
+export const studioDocumentSchema = z.object({
+  title: z.string().trim().max(120).default(""),
+  description: z.string().trim().max(500).default(""),
+  scope: z.string().trim().max(2_000).default(""),
+  category: z.string().trim().max(40).default(""),
+  classification: z
+    .enum(["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"])
+    .nullable()
+    .default(null),
+  kind: z.enum(["DOCUMENT", "BOOK"]).default("DOCUMENT"),
+  inLibrary: z.boolean().default(true),
+  mandatory: z.boolean().default(false),
+  inherit: z.boolean().default(true),
+  resets: z.boolean().default(true),
+  blocks: z.array(authoredBlockSchema).max(400).default([]),
+});
+export type StudioDocument = z.infer<typeof studioDocumentSchema>;
+
+export const saveStudioDraftSchema = z.object({
+  /** Present when overwriting a draft the author already saved. */
+  id: z.string().uuid().optional(),
+  roleNodeId: z.string().uuid(),
+  document: studioDocumentSchema,
+});
+export type SaveStudioDraftInput = z.infer<typeof saveStudioDraftSchema>;
+
+/** A saved draft as listed in the Studio's "Your drafts" tray. */
+export interface StudioDraftSummary {
+  id: string;
+  roleNodeId: string;
+  roleName: string;
+  title: string;
+  blockCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface StudioDraftView extends StudioDraftSummary {
+  document: StudioDocument;
+}
 
 export const grantAdminAccessSchema = z.object({
   username: z.string().min(1),

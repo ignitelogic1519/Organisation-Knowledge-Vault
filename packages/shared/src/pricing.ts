@@ -25,6 +25,9 @@ export interface PricingPlanView {
   priceCoins: number;
   durationDays: number | null;
   memberLimit: number | null; // max people in an org on this plan; null = unlimited
+  documentLimit: number | null; // max Studio-authored documents; null = unlimited
+  uploadLimit: number | null; // max uploaded/linked documents; null = unlimited
+  allowDrafts: boolean; // may authors park work-in-progress documents on the server?
   isCustom: boolean;
   imageUrl: string | null;
   criteria: string | null;
@@ -37,6 +40,35 @@ export interface PricingView {
   tabs: string[];
   plans: PricingPlanView[];
   coins: number; // Knowledge Coins — only ever exposed here
+}
+
+/** One metered allowance on an organization's plan. `limit: null` = unlimited. */
+export interface PlanAllowance {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+}
+
+/**
+ * What the organization's plan permits, and how much of it is already spent — read by
+ * the Studio and the upload form so a member sees the ceiling before they hit it. The
+ * server enforces the same numbers on write; this view only informs the UI.
+ */
+export interface OrgPlanLimitsView {
+  planKey: string | null;
+  planName: string | null;
+  planStatus: PlanStatus;
+  /** True on the free demo plan (and on an org that never activated a paid plan). */
+  isFreePlan: boolean;
+  /** Documents built in the Studio ("custom documents"). */
+  documents: PlanAllowance;
+  /** Documents brought in as an upload or an external link. */
+  uploads: PlanAllowance;
+  members: PlanAllowance;
+  /** Parking a work-in-progress document on the server is a premium capability. */
+  draftsEnabled: boolean;
+  /** The formal wording the UI shows when a premium-only action is attempted. */
+  upgradeNotice: string;
 }
 
 /** A user filing a request (create an org / propose a custom plan / restore an org). */

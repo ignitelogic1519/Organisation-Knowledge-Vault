@@ -23,6 +23,13 @@ You have two ways to create one:
 - **+ Upload course** — bring in an existing file, or point to an external URL.
 - **✍ Create in Studio** — build an interactive document from scratch (Chapter 8).
 
+Above the two buttons a line shows what your organization's plan still allows: how many
+**custom documents** (built in the Studio) and **uploads** have been used. The free demo
+structure includes **20 custom documents** and **30 uploads**. When an allowance is used up,
+the button explains it and points you at your organization's main administrator, who can
+arrange a premium plan with the Knowledge Base team — or you can free capacity by deleting
+material that is no longer required.
+
 Choosing **Upload course** opens a form:
 
 ![The upload-course form and its settings](images/upload-course-form.png)

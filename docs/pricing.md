@@ -28,6 +28,30 @@ paid for with **Knowledge Coins** (a virtual currency; a real payment gateway is
 - Plans: **Demo** (free, 60 days), **Monthly** (50 coins, 30 days — placeholder price), **Organisation** (150 coins, admin-set duration, `isCustom`).
 - Every profile backfilled to 150 coins.
 
+## 2b. What a plan allows (content limits)
+
+A plan meters three things. `null` anywhere means unlimited, and a per-organization
+override on `Organization` always wins over the plan's own number, so the super-admin can
+tune one customer without touching the plan card.
+
+| Allowance | Plan column | Org override | Demo (free) | Paid plans |
+| --- | --- | --- | --- | --- |
+| People in the org | `PricingPlan.memberLimit` | `Organization.memberLimit` | 10 | plan/admin set |
+| **Custom documents** (built in the Studio) | `PricingPlan.documentLimit` | `Organization.documentLimit` | **20** | unlimited |
+| **Uploaded documents** (files & external links) | `PricingPlan.uploadLimit` | `Organization.uploadLimit` | **30** | unlimited |
+| **Server-side Studio drafts** | `PricingPlan.allowDrafts` | — | **off** | on |
+
+- Which allowance a course counts against is decided at creation from
+  `Course.source` (`STUDIO` for `authored` content, `UPLOAD` for files and links) — a plain
+  indexed count, and it survives a `.main` revival.
+- The API is authoritative: `assertContentQuota` runs **before any bytes are stored**, and
+  `assertDraftsAllowed` answers **402** for a draft save on a plan without drafts. The UI
+  reads `GET /orgs/:id/plan-limits` only to show the remaining allowance and to explain the
+  limit in the same words before the author starts work.
+- Every refusal names the same next step: **ask the organization's main administrator to
+  arrange a premium plan** with the Knowledge Base team (or free capacity by deleting
+  material that is no longer required).
+
 ## 3. Knowledge Coins
 
 - Default **150** per profile; **only ever exposed on `/pricing` and `/payment`** (via `GET /wallet`).
@@ -73,8 +97,9 @@ Separate auth realm (`platform/tokens.ts`, audience `kv-platform-admin`; `Platfo
 table). Reached from the footer **"Knowledge base employee login"** → `/kbase/login` →
 `/kbase`. Capabilities:
 
-- **Organizations** — god view of every org (owners, plan, expiry, member/role counts, tree
-  depth); set/upgrade a plan with a custom duration.
+- **Organizations** — god view of every org (owners, plan, expiry, member/document/upload
+  counts against their limits, role counts, tree depth); set/upgrade a plan with a custom
+  duration and per-org member / custom-document / upload limits.
 - **Requests** — approve (issues OTP + terms) or deny, both with a custom message.
 - **Coins** — gift/adjust any user.
 - **Admins** — add any project member as a super-admin; activate/deactivate. First admin is
