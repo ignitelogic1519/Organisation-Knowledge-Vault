@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { blockStyleToCss, DocumentMedia, FONT_STACKS } from "../DocumentView";
+import { resolveEmbed, EMBED_HELP } from "@vault/shared";
+import { blockStyleToCss, DocumentEmbed, DocumentMedia, FONT_STACKS } from "../DocumentView";
+import { grip, useDnd } from "./dnd";
 import { RichText } from "./rich";
 import { TableEditor } from "./TableEditor";
 import {
@@ -315,10 +317,41 @@ function BlockBody({
     case "columns": {
       const columns = block.columns ?? [];
       const setColumns = (next: typeof columns) => patch({ columns: next });
+      /** Drag the divider between two columns to rebalance their widths. */
+      const startResize = (e: React.PointerEvent, i: number) => {
+        e.preventDefault();
+        const row = (e.currentTarget as HTMLElement).closest(".studio-columns") as HTMLElement | null;
+        if (!row) return;
+        const total = row.getBoundingClientRect().width;
+        const even = Math.round(100 / columns.length);
+        const left = columns[i]?.width ?? even;
+        const right = columns[i + 1]?.width ?? even;
+        const startX = e.clientX;
+        const move = (ev: PointerEvent) => {
+          const delta = Math.round(((ev.clientX - startX) / total) * 100);
+          const nextLeft = Math.min(90, Math.max(10, left + delta));
+          const nextRight = Math.min(90, Math.max(10, right - delta));
+          setColumns(
+            columns.map((c, ci) =>
+              ci === i ? { ...c, width: nextLeft } : ci === i + 1 ? { ...c, width: nextRight } : c,
+            ),
+          );
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      };
       return (
         <div className="studio-columns" data-count={columns.length}>
           {columns.map((col, i) => (
-            <div className="studio-column" key={i}>
+            <div
+              className="studio-column"
+              key={i}
+              style={col.width ? { flex: `0 0 calc(${col.width}% - 0.6rem)` } : undefined}
+            >
               <div className="studio-column-head">
                 <input
                   className="studio-input studio-input-quiet"
@@ -353,6 +386,13 @@ function BlockBody({
                 onChange={(html) => setColumns(columns.map((c, ci) => (ci === i ? { ...c, html } : c)))}
                 placeholder="Column text…"
               />
+              {i < columns.length - 1 && (
+                <span
+                  className="studio-column-resize"
+                  title="Drag to rebalance the columns"
+                  onPointerDown={(e) => startResize(e, i)}
+                />
+              )}
             </div>
           ))}
           {columns.length < 4 && (
@@ -363,6 +403,123 @@ function BlockBody({
             >
               + Column
             </button>
+          )}
+        </div>
+      );
+    }
+    case "accordion": {
+      const panels = block.panels ?? [];
+      const setPanels = (next: typeof panels) => patch({ panels: next });
+      return (
+        <div className="studio-accordion" style={css}>
+          {panels.map((panel, i) => (
+            <div className="studio-panel" key={i}>
+              <div className="studio-panel-head">
+                <span className="studio-panel-caret" aria-hidden>
+                  ▸
+                </span>
+                <input
+                  className="studio-input studio-input-title"
+                  placeholder={`Question or clause ${i + 1}`}
+                  value={panel.title}
+                  maxLength={200}
+                  onChange={(e) =>
+                    setPanels(panels.map((p, pi) => (pi === i ? { ...p, title: e.target.value } : p)))
+                  }
+                />
+                <label className="studio-panel-open" title="Open when the reader arrives">
+                  <input
+                    type="checkbox"
+                    checked={!!panel.open}
+                    onChange={(e) =>
+                      setPanels(panels.map((p, pi) => (pi === i ? { ...p, open: e.target.checked } : p)))
+                    }
+                  />
+                  <span>open</span>
+                </label>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label="Remove panel"
+                  onClick={() => setPanels(panels.filter((_, pi) => pi !== i))}
+                >
+                  ✕
+                </button>
+              </div>
+              <RichText
+                html={panel.html ?? ""}
+                onChange={(html) => setPanels(panels.map((p, pi) => (pi === i ? { ...p, html } : p)))}
+                placeholder="The answer, shown when the reader expands this…"
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-quiet btn-small"
+            onClick={() => setPanels([...panels, { title: "", html: "", open: false }])}
+          >
+            + Add panel
+          </button>
+        </div>
+      );
+    }
+    case "toc":
+      return (
+        <div className="studio-toc-edit" style={css}>
+          <span className="studio-toc-mark">☰ Contents</span>
+          <p className="auth-sub">
+            Built automatically from this document&apos;s headings when a reader opens it.
+          </p>
+          <Field label="Include down to">
+            <select
+              className="studio-select"
+              value={block.depth ?? 3}
+              onChange={(e) => patch({ depth: Number(e.target.value) })}
+            >
+              {[1, 2, 3, 4, 5, 6].map((d) => (
+                <option key={d} value={d}>
+                  Level {d}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Heading">
+            <input
+              className="studio-input studio-input-quiet"
+              placeholder="Contents"
+              maxLength={200}
+              value={block.title ?? ""}
+              onChange={(e) => patch({ title: e.target.value })}
+            />
+          </Field>
+        </div>
+      );
+    case "embed": {
+      const resolved = block.url ? resolveEmbed(block.url) : null;
+      return (
+        <div className="studio-media-edit">
+          <div className="studio-inline-row">
+            <input
+              className="studio-input"
+              type="url"
+              placeholder="Paste a YouTube, Drive, Docs, Forms, Maps or Calendar link"
+              value={block.url ?? ""}
+              onChange={(e) => patch({ url: e.target.value })}
+            />
+            <input
+              className="studio-input studio-input-quiet"
+              placeholder="Caption"
+              maxLength={300}
+              value={block.caption ?? ""}
+              onChange={(e) => patch({ caption: e.target.value })}
+            />
+          </div>
+          {resolved ? (
+            <DocumentEmbed url={block.url ?? ""} options={block.embed} caption={block.caption} style={block.style} />
+          ) : (
+            <p className="studio-drop-hint" data-error={!!block.url}>
+              {block.url ? `That address can't be embedded. ${EMBED_HELP}` : EMBED_HELP}
+            </p>
           )}
         </div>
       );
@@ -428,8 +585,6 @@ export function BlockCard({
   onMove,
   onConvert,
   onInsertAfter,
-  onDragStart,
-  onDragEnd,
   dragging,
 }: {
   block: EditorBlock;
@@ -443,12 +598,13 @@ export function BlockCard({
   onMove: (delta: number) => void;
   onConvert: (to: BlockType) => void;
   onInsertAfter: () => void;
-  onDragStart: () => void;
-  onDragEnd: () => void;
   dragging: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const dnd = useDnd();
   const conversions = CONVERTIBLE[block.type] ?? [];
+  const label = BLOCK_LABEL[block.type] ?? block.type;
+  const holdProps = grip(dnd, { kind: "move", zone: "canvas", id: block._id, index, label });
 
   return (
     <div
@@ -459,20 +615,24 @@ export function BlockCard({
       onMouseDown={onSelect}
       onFocusCapture={onSelect}
     >
-      <div className="studio-block-rail">
-        <span
-          className="studio-drag-handle"
-          draggable
-          title="Drag to move"
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-        >
+      {/* The whole left edge is the grab area — a full-height strip, not a 12px dot. */}
+      <div className="studio-block-grip" title={`Drag to move this ${label.toLowerCase()}`} {...holdProps}>
+        <span className="studio-grip-dots" aria-hidden>
           ⠿
         </span>
-        <span className="studio-block-kind">{BLOCK_LABEL[block.type] ?? block.type}</span>
+        <span className="studio-block-kind">{label}</span>
       </div>
 
       <div className="studio-block-tools">
+        <button
+          type="button"
+          className="icon-btn studio-tool-grab"
+          title="Drag to move"
+          aria-label="Drag to move this block"
+          {...holdProps}
+        >
+          ⠿
+        </button>
         <button type="button" className="icon-btn" title="Move up" disabled={index === 0} onClick={() => onMove(-1)}>
           ↑
         </button>

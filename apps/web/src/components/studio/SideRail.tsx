@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { StudioDraftSummary } from "@vault/shared";
+import { grip, useDnd, useDropZone } from "./dnd";
 import { PALETTE, type BlockType, type EditorPage } from "./model";
 
 // The left rail: what you can add (Insert), how the document is paginated (Pages), and the
@@ -71,8 +72,18 @@ export function SideRail({
   onDeleteDraft: (id: string) => void;
   onNewDocument: () => void;
 }) {
+  const dnd = useDnd();
+  const railRef = useRef<HTMLDivElement>(null);
+  const pageEls = useRef<Record<string, HTMLElement | null>>({});
+  const pageDrop = useDropZone({
+    zone: "pages",
+    zoneRef: railRef,
+    itemEls: pageEls,
+    order: pages.map((p) => String(p.index)),
+  });
+
   return (
-    <aside className="studio-rail glass">
+    <aside className="studio-rail glass" ref={railRef}>
       <div className="studio-rail-tabs">
         <button type="button" data-active={tab === "insert"} onClick={() => onTab("insert")}>
           Insert
@@ -96,12 +107,13 @@ export function SideRail({
                   key={p.type}
                   type="button"
                   className="studio-palette-item"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("application/x-studio-block", p.type);
-                    e.dataTransfer.effectAllowed = "copy";
+                  title={`Click to add, or drag onto the page — ${p.hint}`}
+                  {...grip(dnd, { kind: "new", zone: "canvas", blockType: p.type, label: p.label })}
+                  onClick={() => {
+                    // A press that turned into a drag must not also insert at the end
+                    if (dnd.justDragged()) return;
+                    onInsert(p.type);
                   }}
-                  onClick={() => onInsert(p.type)}
                 >
                   <span className="studio-palette-icon" aria-hidden>
                     {p.icon}
@@ -124,8 +136,26 @@ export function SideRail({
             Every page break starts a new page. Readers turn pages with ← → in the viewer.
           </p>
           {pages.map((page) => (
-            <div key={page.index} className="studio-page-card" data-active={page.index === activePage}>
-              <button type="button" className="studio-page-open" onClick={() => onGoToPage(page.index)}>
+            <div
+              key={page.index}
+              className="studio-page-card"
+              data-active={page.index === activePage}
+              ref={(el) => {
+                pageEls.current[String(page.index)] = el;
+              }}
+            >
+              {pageDrop === page.index && <span className="studio-drop-line" aria-hidden />}
+              <button
+                type="button"
+                className="studio-page-open"
+                {...(page.breakAt !== null
+                  ? grip(dnd, { kind: "page", zone: "pages", index: page.index, label: page.label })
+                  : {})}
+                onClick={() => {
+                  if (dnd.justDragged()) return;
+                  onGoToPage(page.index);
+                }}
+              >
                 <span className="studio-page-no">{page.index + 1}</span>
                 <span className="studio-page-name">{page.label}</span>
                 <span className="studio-page-count">{page.blockIds.length} blocks</span>
@@ -155,6 +185,7 @@ export function SideRail({
               )}
             </div>
           ))}
+          {pageDrop === pages.length && <span className="studio-drop-line" aria-hidden />}
           <button type="button" className="btn btn-quiet btn-small" onClick={onAddPage}>
             + Add page
           </button>

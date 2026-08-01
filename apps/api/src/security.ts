@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { isSafeHref, RICH_TEXT_TAG_SET, sanitizeStyleAttribute } from "@vault/shared";
+import { isSafeHref, resolveEmbed, RICH_TEXT_TAG_SET, sanitizeStyleAttribute } from "@vault/shared";
 import { db } from "./db.js";
 
 // ── In-memory rate limiter ──────────────────────────────────────────────────
@@ -75,25 +75,34 @@ export function sanitizeHtml(input: string): string {
   return out;
 }
 
-/** Rich text nested inside a block (a `columns` block carries one per column). */
+/** Rich text nested inside a block (`columns` and `accordion` each carry their own). */
 interface SanitizableBlock {
   type?: string;
   html?: string;
   columns?: { html?: string }[];
+  panels?: { html?: string }[];
+  url?: string;
 }
 
 /**
  * Sanitize the rich-text fields of authored document blocks in place — the block's own
- * HTML plus every column's. `code` blocks are left alone: they are stored and rendered as
- * plain text, so running them through the tag stripper would eat the snippet itself.
+ * HTML plus every column's and every collapsible panel's. `code` blocks are left alone:
+ * they are stored and rendered as plain text, so running them through the tag stripper
+ * would eat the snippet itself. An `embed` block's address is re-resolved against the
+ * host allowlist and rewritten to the canonical embed URL, so what is stored is only ever
+ * a URL we built.
  */
 export function sanitizeBlocks<T extends SanitizableBlock[]>(blocks: T): T {
   for (const b of blocks) {
     if (typeof b.html === "string" && b.type !== "code") b.html = sanitizeHtml(b.html);
-    if (Array.isArray(b.columns)) {
-      for (const col of b.columns) {
-        if (typeof col.html === "string") col.html = sanitizeHtml(col.html);
+    for (const nested of [b.columns, b.panels]) {
+      if (!Array.isArray(nested)) continue;
+      for (const part of nested) {
+        if (typeof part.html === "string") part.html = sanitizeHtml(part.html);
       }
+    }
+    if (b.type === "embed" && typeof b.url === "string") {
+      b.url = resolveEmbed(b.url)?.src ?? "";
     }
   }
   return blocks;

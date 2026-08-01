@@ -14,10 +14,12 @@ import { roles } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
 import { DocumentBody, DocumentPages, paginate } from "@/components/DocumentView";
-import { BlockCard } from "@/components/studio/BlockCard";
+import { Canvas } from "@/components/studio/Canvas";
+import { DndProvider, type DragPayload, type DropTarget } from "@/components/studio/dnd";
 import { Inspector } from "@/components/studio/Inspector";
 import { Ribbon } from "@/components/studio/Ribbon";
 import { SideRail } from "@/components/studio/SideRail";
+import { DEVICES, starterFor } from "@/components/studio/presets";
 import { RichTextProvider } from "@/components/studio/rich";
 import {
   convertBlock,
@@ -29,6 +31,7 @@ import {
   insertAt,
   meaningfulBlocks,
   moveBlock,
+  movePage,
   starterBlocks,
   stripId,
   withId,
@@ -91,7 +94,7 @@ function StudioInner() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [device, setDevice] = useState("desktop");
   const [activePage, setActivePage] = useState(0);
 
   const docRef = useRef<Doc>(doc);
@@ -99,9 +102,7 @@ function StudioInner() {
   const future = useRef<Doc[]>([]);
   const lastHistoryPush = useRef(0);
   const [, bumpHistory] = useState(0);
-  const dragFrom = useRef<number | null>(null);
-  const blockEls = useRef<Record<string, HTMLDivElement | null>>({});
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const blockEls = useRef<Record<string, HTMLElement | null>>({});
   const draftKey = `kv.studio.${org.id}.${roleId ?? "none"}`;
 
   // ── Document state with undo history ───────────────────────────────────────
@@ -252,49 +253,46 @@ function StudioInner() {
     [selected, updateBlock],
   );
 
+  /** A document nobody has typed into yet — the moment to offer a starting point. */
+  const untouched =
+    !doc.meta.title.trim() &&
+    doc.blocks.length <= 2 &&
+    doc.blocks.every((b) => !(b.html ?? "").replace(/<[^>]*>/g, "").trim());
+
+  const useTemplate = useCallback(
+    (key: string) => {
+      const { blocks, theme } = starterFor(key);
+      commit((d) => ({
+        ...d,
+        blocks,
+        meta: { ...d.meta, theme: theme ?? d.meta.theme },
+      }));
+      setSelectedId(blocks[0]?._id ?? null);
+    },
+    [commit],
+  );
+
   const removeBlock = (id: string) => {
     setBlocks((blocks) => blocks.filter((b) => b._id !== id));
     if (selectedId === id) setSelectedId(null);
   };
 
-  // ── Drag & drop on the canvas ──────────────────────────────────────────────
-  /** Which gap the pointer is currently hovering, from the block card midpoints. */
-  const gapFor = (clientY: number): number => {
-    let index = doc.blocks.length;
-    for (let i = 0; i < doc.blocks.length; i++) {
-      const el = blockEls.current[doc.blocks[i]._id];
-      if (!el) continue;
-      const box = el.getBoundingClientRect();
-      if (clientY < box.top + box.height / 2) {
-        index = i;
-        break;
+  // ── Drag & drop ────────────────────────────────────────────────────────────
+  // One handler for every kind of drag the editor supports; the engine in
+  // components/studio/dnd.tsx works the same on mouse, pen and touch.
+  const handleDrop = useCallback(
+    (payload: DragPayload, target: DropTarget | null) => {
+      if (!target) return; // released outside a drop zone — nothing moves
+      if (payload.kind === "new") {
+        insertBlock(payload.blockType as BlockType, target.index);
+      } else if (payload.kind === "move") {
+        setBlocks((blocks) => moveBlock(blocks, payload.index, target.index));
+      } else if (payload.kind === "page") {
+        setBlocks((blocks) => movePage(blocks, payload.index, target.index));
       }
-    }
-    return index;
-  };
-
-  const onCanvasDragOver = (e: React.DragEvent) => {
-    const fromPalette = e.dataTransfer.types.includes("application/x-studio-block");
-    if (!fromPalette && dragFrom.current === null) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = fromPalette ? "copy" : "move";
-    setDropIndex(gapFor(e.clientY));
-  };
-
-  const onCanvasDrop = (e: React.DragEvent) => {
-    const type = e.dataTransfer.getData("application/x-studio-block") as BlockType | "";
-    const target = dropIndex ?? gapFor(e.clientY);
-    setDropIndex(null);
-    if (type) {
-      e.preventDefault();
-      insertBlock(type, target);
-    } else if (dragFrom.current !== null) {
-      e.preventDefault();
-      const from = dragFrom.current;
-      dragFrom.current = null;
-      setBlocks((blocks) => moveBlock(blocks, from, target));
-    }
-  };
+    },
+    [insertBlock, setBlocks],
+  );
 
   // ── Pages ──────────────────────────────────────────────────────────────────
   const goToPage = (index: number) => {
@@ -489,6 +487,7 @@ function StudioInner() {
         inLibrary: meta.inLibrary,
         category: meta.category.trim() || undefined,
         blocks: published,
+        theme: meta.theme,
         resetsCompletionOnUpdate: meta.resets,
         prerequisiteCodes: [],
       });
@@ -569,6 +568,7 @@ function StudioInner() {
   const previewPages = paginate(published);
 
   return (
+    <DndProvider onDrop={handleDrop}>
     <div className="studio-shell" data-mode={mode}>
       {/* ── Top bar ───────────────────────────────────────────────────────── */}
       <div className="studio-topbar glass">
@@ -675,92 +675,30 @@ function StudioInner() {
               onNewDocument={newDocument}
             />
 
-            <div
-              className="studio-canvas"
-              ref={canvasRef}
-              onDragOver={onCanvasDragOver}
-              onDragLeave={() => setDropIndex(null)}
-              onDrop={onCanvasDrop}
-            >
-              <div
-                className="studio-canvas-sheet"
-                style={{ zoom: `${zoom}%` } as React.CSSProperties}
-                onMouseDown={(e) => {
-                  if (e.target === e.currentTarget) setSelectedId(null);
-                }}
-              >
-                <div className="studio-canvas-cover">
-                  <span className="doc-cover-org">{org.name}</span>
-                  <h1>{doc.meta.title || "Untitled document"}</h1>
-                  <p className="auth-sub">
-                    Cover, classification header and footer are added automatically when this
-                    document is published.
-                  </p>
-                </div>
-
-                {doc.blocks.length === 0 && (
-                  <p className="auth-sub studio-empty">
-                    Drag a block from the left, or click one to add it here.
-                  </p>
-                )}
-
-                {doc.blocks.map((block, index) => (
-                  <div
-                    key={block._id}
-                    ref={(el) => {
-                      blockEls.current[block._id] = el;
-                    }}
-                  >
-                    {dropIndex === index && <div className="studio-drop-line" aria-hidden />}
-                    <BlockCard
-                      block={block}
-                      index={index}
-                      total={doc.blocks.length}
-                      selected={selectedId === block._id}
-                      onSelect={() => setSelectedId(block._id)}
-                      onChange={updateBlock}
-                      onRemove={() => removeBlock(block._id)}
-                      onDuplicate={() => setBlocks((blocks) => duplicateAt(blocks, index))}
-                      onMove={(delta) =>
-                        setBlocks((blocks) =>
-                          moveBlock(blocks, index, delta < 0 ? index - 1 : index + 2),
-                        )
-                      }
-                      onConvert={(to) =>
-                        setBlocks((blocks) =>
-                          blocks.map((b) => (b._id === block._id ? convertBlock(b, to) : b)),
-                        )
-                      }
-                      onInsertAfter={() => insertBlock("paragraph", index + 1)}
-                      onDragStart={() => {
-                        dragFrom.current = index;
-                      }}
-                      onDragEnd={() => {
-                        dragFrom.current = null;
-                        setDropIndex(null);
-                      }}
-                      dragging={dragFrom.current === index}
-                    />
-                  </div>
-                ))}
-                {dropIndex === doc.blocks.length && <div className="studio-drop-line" aria-hidden />}
-
-                <div className="studio-add-row">
-                  <button type="button" className="btn btn-quiet btn-small" onClick={() => insertBlock("paragraph")}>
-                    + Text
-                  </button>
-                  <button type="button" className="btn btn-quiet btn-small" onClick={() => insertBlock("heading")}>
-                    + Heading
-                  </button>
-                  <button type="button" className="btn btn-quiet btn-small" onClick={() => insertBlock("table")}>
-                    + Table
-                  </button>
-                  <button type="button" className="btn btn-quiet btn-small" onClick={addPage}>
-                    + Page
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Canvas
+              blocks={doc.blocks}
+              theme={doc.meta.theme}
+              orgName={org.name}
+              title={doc.meta.title}
+              zoom={zoom}
+              selectedId={selectedId}
+              blockEls={blockEls}
+              showTemplates={untouched}
+              onSelect={setSelectedId}
+              onChange={updateBlock}
+              onRemove={removeBlock}
+              onDuplicate={(index) => setBlocks((blocks) => duplicateAt(blocks, index))}
+              onMove={(index, delta) =>
+                setBlocks((blocks) => moveBlock(blocks, index, delta < 0 ? index - 1 : index + 2))
+              }
+              onConvert={(id, to) =>
+                setBlocks((blocks) => blocks.map((b) => (b._id === id ? convertBlock(b, to) : b)))
+              }
+              onInsertAfter={(index) => insertBlock("paragraph", index + 1)}
+              onInsert={(type) => insertBlock(type)}
+              onAddPage={addPage}
+              onUseTemplate={useTemplate}
+            />
 
             <Inspector
               tab={inspectorTab}
@@ -794,6 +732,19 @@ function StudioInner() {
 
       {mode === "preview" && (
         <div className="studio-preview">
+          <div className="studio-device-bar">
+            {DEVICES.map((d) => (
+              <button
+                key={d.key}
+                type="button"
+                data-active={device === d.key}
+                onClick={() => setDevice(d.key)}
+                title={`Preview at ${d.label.toLowerCase()} width`}
+              >
+                <span aria-hidden>{d.icon}</span> {d.label}
+              </button>
+            ))}
+          </div>
           <div className={`doc-headerbar class-strip-${doc.meta.classification ?? "CONFIDENTIAL"}`}>
             <span className="doc-org">{org.name}</span>
             <span className="doc-class">
@@ -801,13 +752,18 @@ function StudioInner() {
             </span>
             <span className="doc-ver">draft</span>
           </div>
+          <div
+            className="studio-device-stage"
+            style={{ maxWidth: DEVICES.find((d) => d.key === device)?.width ?? undefined }}
+          >
           <article className="doc-sheet studio-preview-cover">
             <span className="doc-cover-org">{org.name}</span>
             <h1 className="doc-cover-title">{doc.meta.title || "Untitled document"}</h1>
             <p className="auth-sub">{doc.meta.description || "No description yet."}</p>
             {doc.meta.scope && <p className="auth-sub">Scope: {doc.meta.scope}</p>}
           </article>
-          <DocumentBody blocks={published} />
+          <DocumentBody blocks={published} theme={doc.meta.theme} />
+          </div>
         </div>
       )}
 
@@ -823,12 +779,13 @@ function StudioInner() {
             </button>
           </div>
           {previewPages.length ? (
-            <DocumentPages pages={previewPages} className="studio-present-stage" />
+            <DocumentPages pages={previewPages} theme={doc.meta.theme} className="studio-present-stage" />
           ) : (
             <p className="auth-sub studio-empty">Nothing to present yet — add some content.</p>
           )}
         </div>
       )}
     </div>
+    </DndProvider>
   );
 }

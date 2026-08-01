@@ -33,8 +33,11 @@ export const PALETTE: PaletteItem[] = [
   { type: "quote", label: "Quote", icon: "❝", hint: "Pull quote with source", group: "Text" },
   { type: "code", label: "Code", icon: "‹›", hint: "Monospaced snippet", group: "Text" },
   { type: "table", label: "Table", icon: "▦", hint: "Edit rows & columns like a sheet", group: "Data" },
+  { type: "toc", label: "Contents", icon: "☰", hint: "Built from your headings", group: "Data" },
+  { type: "accordion", label: "Collapsible", icon: "⌄", hint: "Expandable panels & FAQs", group: "Data" },
   { type: "image", label: "Image", icon: "🖼", hint: "Picture with caption", group: "Media" },
   { type: "media", label: "Audio / video", icon: "▶", hint: "Player with speed & quality", group: "Media" },
+  { type: "embed", label: "Embed", icon: "⧉", hint: "YouTube, Drive, Docs, Forms, Maps", group: "Media" },
   { type: "button", label: "Button", icon: "⬒", hint: "Call-to-action link", group: "Layout" },
   { type: "columns", label: "Columns", icon: "▥", hint: "Side-by-side sections", group: "Layout" },
   { type: "divider", label: "Divider", icon: "—", hint: "Section break", group: "Layout" },
@@ -96,6 +99,18 @@ export function createBlock(type: BlockType, options?: { rows?: number; cols?: n
           { title: "Second", html: "" },
         ],
       });
+    case "accordion":
+      return withId({
+        type,
+        panels: [
+          { title: "What does this cover?", html: "", open: true },
+          { title: "Who does it apply to?", html: "", open: false },
+        ],
+      });
+    case "toc":
+      return withId({ type, title: "Contents", depth: 3 });
+    case "embed":
+      return withId({ type, embed: { height: 480, showSource: false }, style: { width: 100 } });
     case "spacer":
       return withId({ type, size: 32 });
     case "pagebreak":
@@ -109,12 +124,13 @@ export function createBlock(type: BlockType, options?: { rows?: number; cols?: n
 /** Types a block can be turned into without losing its text. */
 export const CONVERTIBLE: Record<string, BlockType[]> = {
   heading: ["paragraph", "quote", "card"],
-  paragraph: ["heading", "quote", "card", "code", "checklist", "table"],
+  paragraph: ["heading", "quote", "card", "code", "checklist", "table", "accordion"],
   quote: ["paragraph", "heading", "card"],
   card: ["paragraph", "quote", "heading"],
   code: ["paragraph"],
-  checklist: ["paragraph", "table"],
+  checklist: ["paragraph", "table", "accordion"],
   table: ["checklist"],
+  accordion: ["checklist", "paragraph"],
 };
 
 const stripTags = (html: string) =>
@@ -149,7 +165,9 @@ export function convertBlock(block: EditorBlock, to: BlockType): EditorBlock {
     ? (block.cells ?? []).map((r) => r.map((c) => c.text).join(" · ")).join("\n")
     : block.type === "checklist"
       ? (block.list ?? []).map((i) => i.text).join("\n")
-      : stripTags(block.html ?? "");
+      : block.type === "accordion"
+        ? (block.panels ?? []).map((p) => p.title).join("\n")
+        : stripTags(block.html ?? "");
   const base = createBlock(to);
   switch (to) {
     case "checklist":
@@ -160,6 +178,15 @@ export function convertBlock(block: EditorBlock, to: BlockType): EditorBlock {
       };
     case "table":
       return { ...base, _id: block._id, cells: textToGrid(text || "Column 1\tColumn 2") };
+    case "accordion":
+      return {
+        ...base,
+        _id: block._id,
+        panels: text
+          .split("\n")
+          .filter(Boolean)
+          .map((t, i) => ({ title: t.slice(0, 200), html: "", open: i === 0 })),
+      };
     case "code":
       return { ...base, _id: block._id, html: text };
     case "heading":
@@ -221,6 +248,30 @@ export function editorPages(blocks: EditorBlock[]): EditorPage[] {
   return pages;
 }
 
+/**
+ * Move a whole page (its break plus everything up to the next break) to another position.
+ * Page 0 has no break of its own, so it can't be moved — the rail only offers a grip on
+ * pages that start with a break.
+ */
+export function movePage(blocks: EditorBlock[], from: number, to: number): EditorBlock[] {
+  const pages = editorPages(blocks);
+  const source = pages[from];
+  if (!source || source.breakAt == null || from === to) return blocks;
+  const end = pages[from + 1]?.breakAt ?? blocks.length;
+  const slice = blocks.slice(source.breakAt, end);
+  const rest = [...blocks.slice(0, source.breakAt), ...blocks.slice(end)];
+
+  // Where does the destination page begin, once the moved slice is out of the way?
+  const target = pages[to];
+  let at: number;
+  if (!target) at = rest.length;
+  else if (target.breakAt == null) at = 0; // dropped above page 1 — not allowed, clamp below it
+  else at = target.breakAt > source.breakAt ? target.breakAt - slice.length : target.breakAt;
+  if (at <= 0) at = pages[1]?.breakAt ?? rest.length; // never before the first page's content
+
+  return [...rest.slice(0, at), ...slice, ...rest.slice(at)];
+}
+
 /** Blocks worth publishing — empties are dropped so a stray card never ships. */
 export function meaningfulBlocks(blocks: EditorBlock[]): AuthoredBlock[] {
   return blocks.map(stripId).filter((b) => {
@@ -236,7 +287,12 @@ export function meaningfulBlocks(blocks: EditorBlock[]): AuthoredBlock[] {
       case "image":
       case "media":
       case "button":
+      case "embed":
         return !!b.url;
+      case "toc":
+        return true;
+      case "accordion":
+        return (b.panels ?? []).some((p) => p.title.trim() || stripTags(p.html ?? "").trim());
       case "columns":
         return (b.columns ?? []).some((c) => stripTags(c.html ?? "").trim() || c.title?.trim() || c.url);
       default:
@@ -254,7 +310,12 @@ export function documentStats(blocks: EditorBlock[]) {
         ? (b.cells ?? []).flat().map((c) => c.text).join(" ")
         : b.type === "checklist"
           ? (b.list ?? []).map((i) => i.text).join(" ")
-          : `${stripTags(b.html ?? "")} ${b.title ?? ""} ${(b.columns ?? []).map((c) => stripTags(c.html ?? "")).join(" ")}`;
+          : [
+              stripTags(b.html ?? ""),
+              b.title ?? "",
+              (b.columns ?? []).map((c) => stripTags(c.html ?? "")).join(" "),
+              (b.panels ?? []).map((p) => `${p.title} ${stripTags(p.html ?? "")}`).join(" "),
+            ].join(" ");
     words += text.split(/\s+/).filter(Boolean).length;
   }
   return {
@@ -279,6 +340,7 @@ export const EMPTY_META: StudioMeta = {
   mandatory: false,
   inherit: true,
   resets: true,
+  theme: {},
 };
 
 /** The starter document a fresh Studio session opens with. */

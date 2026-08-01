@@ -302,7 +302,8 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   text colour, highlight, alignment, lists, indent, link, clear formatting, undo/redo,
   zoom). Modes: **Edit**, **Preview** (the standard frame) and **Present** (full-screen deck).
   Blocks: heading, rich text, table, checklist, callout, quote, code, image, audio/video,
-  button, columns, divider, spacer and page break. Every block carries a typed `style`
+  **embed**, button, columns, **collapsible panels**, **contents**, divider, spacer and page
+  break. Every block carries a typed `style`
   (alignment, colours, font, size, width, padding, border, shadow, entrance animation), so
   no author-supplied CSS is ever stored. Stored through the `authored` storage adapter and
   rendered natively by the same renderer the viewer uses. Owners publish; granted members
@@ -318,6 +319,21 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
     that permits rewinding but refuses any jump past the furthest point actually watched.
   - **Pages** turn with a per-page animation (fade, slide, push, flip, zoom, reveal) chosen
     on the page break; readers turn pages with ← → in the viewer.
+  - **Drag and drop** runs on pointer events, not the browser's HTML5 drag API: one
+    implementation for mouse, pen and **touch**, with a ghost that follows the pointer, an
+    insertion line measured from the block cards themselves, auto-scroll near the edges and
+    **Esc** to cancel. Blocks are grabbed by a full-height grip on their left edge; palette
+    entries drop onto the page; pages reorder in the rail; column dividers drag to rebalance.
+  - **Collapsible panels** (FAQs, optional detail) and a **contents** block built from the
+    document's own headings, with anchors that scroll.
+  - **Embeds** frame content from an allow-listed host only — YouTube, Vimeo, Google Drive,
+    Docs/Sheets/Slides, Forms, Maps and Calendar. The address is re-parsed and the embed URL
+    is **rebuilt by us** (server-side, on save), then rendered in a sandboxed iframe.
+  - **Themes** set the whole document at once — type pairing, accent, paper, ink, density,
+    heading treatment and page measure — and travel with the blocks so the reader sees what
+    the author chose. **Templates** (Policy, Procedure, Handbook, Training, Announcement)
+    open a real document instead of a blank page. **Preview** switches between desktop,
+    tablet and phone widths.
   - **Drafts**: work in progress is always kept in the author's browser; **saving a draft to
     the server** (reopen from any device, `StudioDraft`) is a premium capability — see
     docs/pricing.md.

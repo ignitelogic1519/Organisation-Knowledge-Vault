@@ -145,6 +145,24 @@ export const checklistEntrySchema = z.object({
   hint: z.string().max(200).optional(),
 });
 
+/** One collapsible panel — a question, a policy clause, an optional detail. */
+export const panelSchema = z.object({
+  title: z.string().max(200).default(""),
+  html: z.string().max(20_000).optional(),
+  /** Open when the reader arrives (otherwise they expand it themselves). */
+  open: z.boolean().optional(),
+});
+export type DocPanel = z.infer<typeof panelSchema>;
+
+/** Framed content from an allow-listed host — see ./embeds. */
+export const embedOptionsSchema = z.object({
+  /** Height in px when the provider has no natural aspect ratio. */
+  height: z.number().int().min(120).max(1600).optional(),
+  /** Show the source address under the frame. */
+  showSource: z.boolean().optional(),
+});
+export type EmbedOptions = z.infer<typeof embedOptionsSchema>;
+
 export const authoredBlockTypes = [
   "heading",
   "paragraph",
@@ -160,6 +178,9 @@ export const authoredBlockTypes = [
   "columns", // side-by-side sections (site-style layout)
   "spacer",
   "button", // call-to-action link
+  "accordion", // collapsible panels — FAQs, policy clauses, optional detail
+  "toc", // contents, built from the document's own headings
+  "embed", // framed content from an allow-listed host
 ] as const;
 
 /**
@@ -184,6 +205,12 @@ export const authoredBlockSchema = z.object({
   list: z.array(checklistEntrySchema).max(100).optional(), // checklist entries (v2)
   media: mediaOptionsSchema.optional(),
   columns: z.array(docColumnSchema).max(4).optional(),
+  /** accordion: the collapsible panels. */
+  panels: z.array(panelSchema).max(30).optional(),
+  /** embed: framing options (the address itself is `url`). */
+  embed: embedOptionsSchema.optional(),
+  /** toc: deepest heading level listed (default 3). */
+  depth: z.number().int().min(1).max(6).optional(),
   style: blockStyleSchema.optional(),
   /** pagebreak: how the page it opens arrives. */
   transition: pageTransitionSchema.optional(),
@@ -202,6 +229,36 @@ export const authoredBlockSchema = z.object({
 });
 export type AuthoredBlock = z.infer<typeof authoredBlockSchema>;
 export const authoredBlocksSchema = z.array(authoredBlockSchema).min(1).max(400);
+
+/**
+ * The document's own look — chosen once and applied to every page, the way a site theme
+ * is. Stored alongside the blocks so the reader's viewer renders exactly what the author
+ * saw. Every field is optional; unset falls back to the organization's design tokens.
+ */
+export const documentThemeSchema = z.object({
+  /** The named preset the author picked (informational — the values below are authoritative). */
+  preset: z.string().max(40).optional(),
+  bodyFont: docFontSchema.optional(),
+  headingFont: docFontSchema.optional(),
+  accent: docColorSchema.optional(),
+  /** Page colour. */
+  paper: docColorSchema.optional(),
+  /** Body text colour. */
+  ink: docColorSchema.optional(),
+  /** Overall spacing and type scale. */
+  density: z.enum(["compact", "normal", "relaxed"]).optional(),
+  /** How headings are set. */
+  headingStyle: z.enum(["plain", "underlined", "accented", "uppercase"]).optional(),
+  /** Page width in rem — narrower reads better, wider fits tables. */
+  measure: z.number().int().min(32).max(72).optional(),
+});
+export type DocumentTheme = z.infer<typeof documentThemeSchema>;
+
+/** What the `authored` storage adapter holds: the blocks plus the document's theme. */
+export interface AuthoredDocument {
+  blocks: AuthoredBlock[];
+  theme?: DocumentTheme;
+}
 
 export const createCourseSchema = z.object({
   roleNodeId: z.string().uuid(), // uploading role — its number goes into the code
@@ -229,6 +286,8 @@ export const createCourseSchema = z.object({
   mime: z.string().max(100).optional(),
   /** Studio-authored interactive document. */
   blocks: authoredBlocksSchema.optional(),
+  /** The Studio document's theme, stored with the blocks. */
+  theme: documentThemeSchema.optional(),
   deadlineDays: z.number().int().positive().max(3650).optional(),
   retakeEveryNDays: z.number().int().positive().max(3650).optional(),
   resetsCompletionOnUpdate: z.boolean().default(false),
@@ -267,6 +326,7 @@ export const studioDocumentSchema = z.object({
   mandatory: z.boolean().default(false),
   inherit: z.boolean().default(true),
   resets: z.boolean().default(true),
+  theme: documentThemeSchema.default({}),
   blocks: z.array(authoredBlockSchema).max(400).default([]),
 });
 export type StudioDocument = z.infer<typeof studioDocumentSchema>;
@@ -313,6 +373,7 @@ export const updateCourseSchema = z.object({
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),
   blocks: authoredBlocksSchema.optional(),
+  theme: documentThemeSchema.optional(),
 });
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
 

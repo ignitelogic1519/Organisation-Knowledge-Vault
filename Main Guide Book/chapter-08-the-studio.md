@@ -58,12 +58,32 @@ are added automatically when you publish.** You focus on content.
 | **Quote** | A pull quote with its source |
 | **Code** | A monospaced snippet, stored exactly as typed |
 | **Table** | Rows and columns you edit like a sheet |
+| **Contents** | A table of contents, built from your own headings |
+| **Collapsible** | Expandable panels — FAQs, clauses, optional detail |
 | **Image** | A picture with a caption |
 | **Audio / video** | A player with speed, quality and skip rules |
+| **Embed** | YouTube, Vimeo, Drive, Docs, Sheets, Slides, Forms, Maps, Calendar |
 | **Button** | A call-to-action link |
 | **Columns** | Two to four side-by-side sections |
 | **Divider / Spacer** | A section break, or breathing room |
 | **New page** | A page break, with its own turn animation |
+
+---
+
+## Moving things around
+
+Everything on the page moves by dragging, with a mouse, a pen or a finger:
+
+- **Add a block** — drag it from the **Insert** rail onto the page. A coloured line shows
+  exactly where it will land; let go and it drops there. Clicking the entry instead adds it
+  at the end.
+- **Move a block** — grab the **grip strip down its left edge** (or the ⠿ button in its
+  toolbar) and drag. The block you are carrying rides along with the pointer as a small
+  label, so you always know what is moving.
+- **Reorder pages** — drag the page cards in the **Pages** tab.
+- **Rebalance columns** — drag the divider between two columns.
+- Drag near the top or bottom of the window and the page **scrolls by itself**. Press
+  **Esc** mid-drag to cancel and put everything back.
 
 ---
 
@@ -103,6 +123,29 @@ Add an **Audio / video** block, paste the address, then open the inspector's **F
 
 ---
 
+## Embedding other things
+
+The **Embed** block frames content from the tools an organization already uses: YouTube,
+Vimeo, Google Drive, Docs, Sheets, Slides, Forms, Maps and Calendar. Paste the ordinary
+share link and it appears in the document.
+
+Other addresses are refused on purpose. The platform only frames hosts it knows, and it
+rebuilds the address itself before storing it, so a document can carry a briefing video or
+a sign-up form without carrying anything else into the vault.
+
+---
+
+## Themes and templates
+
+- **Templates.** A new document offers a starting point — *Policy*, *Procedure*, *Handbook*,
+  *Training*, *Announcement* — each a real document with its sections already in place. Pick
+  one and edit; nothing is locked.
+- **Themes.** The inspector's **Document** tab sets the look of the whole document at once:
+  type pairing, accent colour, paper, density, how headings are set, and the page width. The
+  theme travels with the document, so readers see exactly what you chose.
+
+---
+
 ## Pages and motion
 
 Every **New page** block starts a new page, and carries the animation the page arrives with —
@@ -120,6 +163,9 @@ automatically.
   cover, description and scope.
 - **▷ Present** — a full-screen, page-by-page presentation. Turn pages with ← →, leave with
   **Esc**.
+
+Preview also has a **device switcher** — desktop, tablet, phone — so you can check the
+document reads properly on the screen your colleagues will actually open it on.
 
 ---
 

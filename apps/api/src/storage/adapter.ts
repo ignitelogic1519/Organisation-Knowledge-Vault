@@ -17,6 +17,8 @@ export interface StoredContent {
   file?: { filename: string; mime: string; data: Buffer };
   /** …or Studio-authored blocks rendered natively by the in-app viewer. */
   authored?: unknown;
+  /** The authored document's theme, when its author set one. */
+  theme?: unknown;
 }
 
 const MAX_INLINE_BYTES = 10 * 1024 * 1024;
@@ -59,9 +61,10 @@ export const storage = {
     return { adapter: "inline", fileId: row.id, gz: useGz };
   },
 
-  /** Studio-authored interactive documents: the blocks live inside the ref itself. */
-  async saveAuthored(blocks: unknown): Promise<StorageRef> {
-    return { adapter: "authored", blocks };
+  /** Studio-authored interactive documents: the blocks (and the document's theme) live
+   *  inside the ref itself — nothing external to fetch when a reader opens it. */
+  async saveAuthored(blocks: unknown, theme?: unknown): Promise<StorageRef> {
+    return { adapter: "authored", blocks, ...(theme ? { theme } : {}) };
   },
 
   async resolve(ref: StorageRef): Promise<StoredContent> {
@@ -69,7 +72,7 @@ export const storage = {
       case "link":
         return { url: String(ref.url) };
       case "authored":
-        return { authored: ref.blocks };
+        return { authored: ref.blocks, theme: ref.theme };
       case "inline": {
         const row = await db.storedFile.findUnique({ where: { id: String(ref.fileId) } });
         if (!row) throw Object.assign(new Error("Stored file is missing"), { statusCode: 404 });

@@ -1,6 +1,7 @@
 "use client";
 
-import type { Classification, MediaOptions, OrgPlanLimitsView } from "@vault/shared";
+import type { Classification, DocumentTheme, MediaOptions, OrgPlanLimitsView } from "@vault/shared";
+import { THEME_PRESETS } from "./presets";
 import type { EditorBlock, StudioMeta } from "./model";
 
 // The right-hand inspector: everything about the *selected block's* presentation on one
@@ -16,6 +17,14 @@ const CLASS_LABEL: Record<Classification, string> = {
 };
 
 const ANIMATIONS = ["none", "fade", "rise", "slide", "zoom", "flip"] as const;
+
+const FONT_OPTIONS = [
+  { key: "sans", label: "Sans" },
+  { key: "serif", label: "Serif" },
+  { key: "mono", label: "Mono" },
+  { key: "display", label: "Display" },
+  { key: "hand", label: "Handwriting" },
+];
 
 function Row({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -221,6 +230,8 @@ export function Inspector({
   const style = block?.style ?? {};
   const patchStyle = (patch: Record<string, unknown>) =>
     block && onBlockChange({ ...block, style: { ...style, ...patch } });
+  const setTheme = (patch: Partial<DocumentTheme>) =>
+    onMeta({ ...meta, theme: { ...meta.theme, ...patch, preset: "custom" } });
 
   return (
     <aside className="studio-inspector glass">
@@ -403,6 +414,31 @@ export function Inspector({
                 </>
               )}
 
+              {block.type === "embed" && (
+                <>
+                  <h4 className="insp-section">Embed</h4>
+                  <Row label="Height (px)" hint="Used when the source has no fixed shape.">
+                    <input
+                      type="number"
+                      min={120}
+                      max={1600}
+                      value={block.embed?.height ?? 480}
+                      onChange={(e) =>
+                        onBlockChange({
+                          ...block,
+                          embed: { ...block.embed, height: Number(e.target.value) },
+                        })
+                      }
+                    />
+                  </Row>
+                  <Toggle
+                    label="Show a link to the source"
+                    checked={!!block.embed?.showSource}
+                    onChange={(v) => onBlockChange({ ...block, embed: { ...block.embed, showSource: v } })}
+                  />
+                </>
+              )}
+
               {block.type === "media" && (
                 <MediaSettings
                   media={block.media ?? {}}
@@ -416,6 +452,111 @@ export function Inspector({
 
       {tab === "document" && (
         <div className="studio-inspector-body">
+          <h4 className="insp-section">Theme</h4>
+          <p className="insp-note">
+            Sets the type, colour and spacing of the whole document — readers see exactly this.
+          </p>
+          <div className="insp-themes">
+            {THEME_PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                className="insp-theme"
+                data-active={(meta.theme?.preset ?? "vault") === p.key}
+                title={p.blurb}
+                onClick={() => onMeta({ ...meta, theme: { ...p.theme } })}
+              >
+                <span
+                  className="insp-theme-swatch"
+                  style={{
+                    background: p.theme.paper ?? "var(--surface-solid)",
+                    borderColor: p.theme.accent ?? "var(--accent)",
+                    color: p.theme.accent ?? "var(--accent)",
+                  }}
+                >
+                  Aa
+                </span>
+                <span className="insp-theme-name">{p.name}</span>
+              </button>
+            ))}
+          </div>
+          <div className="insp-grid-2">
+            <Row label="Accent">
+              <input
+                type="color"
+                value={meta.theme?.accent ?? "#5b5bf0"}
+                onChange={(e) => setTheme({ accent: e.target.value })}
+              />
+            </Row>
+            <Row label="Paper">
+              <input
+                type="color"
+                value={meta.theme?.paper ?? "#ffffff"}
+                onChange={(e) => setTheme({ paper: e.target.value })}
+              />
+            </Row>
+          </div>
+          <div className="insp-grid-2">
+            <Row label="Body type">
+              <select
+                value={meta.theme?.bodyFont ?? "sans"}
+                onChange={(e) => setTheme({ bodyFont: e.target.value as DocumentTheme["bodyFont"] })}
+              >
+                {FONT_OPTIONS.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+            <Row label="Heading type">
+              <select
+                value={meta.theme?.headingFont ?? "sans"}
+                onChange={(e) => setTheme({ headingFont: e.target.value as DocumentTheme["headingFont"] })}
+              >
+                {FONT_OPTIONS.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          </div>
+          <div className="insp-grid-2">
+            <Row label="Density">
+              <select
+                value={meta.theme?.density ?? "normal"}
+                onChange={(e) => setTheme({ density: e.target.value as DocumentTheme["density"] })}
+              >
+                <option value="compact">Compact</option>
+                <option value="normal">Normal</option>
+                <option value="relaxed">Relaxed</option>
+              </select>
+            </Row>
+            <Row label="Headings">
+              <select
+                value={meta.theme?.headingStyle ?? "plain"}
+                onChange={(e) =>
+                  setTheme({ headingStyle: e.target.value as DocumentTheme["headingStyle"] })
+                }
+              >
+                <option value="plain">Plain</option>
+                <option value="underlined">Ruled</option>
+                <option value="accented">Accented</option>
+                <option value="uppercase">Uppercase</option>
+              </select>
+            </Row>
+          </div>
+          <Row label={`Page width — ${meta.theme?.measure ?? 46}rem`}>
+            <input
+              type="range"
+              min={32}
+              max={72}
+              value={meta.theme?.measure ?? 46}
+              onChange={(e) => setTheme({ measure: Number(e.target.value) })}
+            />
+          </Row>
+
           <h4 className="insp-section">Cover &amp; library</h4>
           <Row label="Classification *">
             <select

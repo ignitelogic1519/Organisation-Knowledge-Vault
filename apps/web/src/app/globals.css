@@ -5626,3 +5626,423 @@ button {
   font-size: 0.92rem;
   opacity: 0.95;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Studio v3 — pointer drag & drop, Sites-style blocks, themes & templates
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Drag and drop ───────────────────────────────────────────────────────── */
+
+body.is-dragging-block,
+body.is-dragging-block * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.studio-drag-ghost {
+  position: fixed;
+  z-index: 90;
+  transform: translate(14px, 10px) rotate(-1.5deg);
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 980px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--grad-accent);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: ghost-in 120ms var(--spring);
+}
+.studio-drag-ghost-grip {
+  opacity: 0.8;
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: translate(14px, 10px) scale(0.9);
+  }
+}
+
+/* The whole left edge of a block is the grab area — not a 12px dot */
+.studio-block-grip {
+  position: absolute;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  left: -1.55rem;
+  width: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding-top: 0.25rem;
+  border-radius: 8px;
+  cursor: grab;
+  opacity: 0;
+  background: transparent;
+  transition: opacity var(--dur-micro) var(--ease), background var(--dur-micro) var(--ease);
+}
+.studio-block:hover .studio-block-grip,
+.studio-block[data-selected="true"] .studio-block-grip {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.studio-block-grip:hover {
+  background: var(--accent-soft) !important;
+}
+.studio-block-grip:active {
+  cursor: grabbing;
+}
+.studio-grip-dots {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--accent);
+}
+.studio-tool-grab {
+  cursor: grab;
+}
+.studio-tool-grab:active {
+  cursor: grabbing;
+}
+
+.studio-block[data-dragging="true"] {
+  opacity: 0.4;
+  filter: saturate(0.6);
+}
+.studio-canvas[data-dropping="true"] {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -6px;
+}
+.studio-block-slot {
+  position: relative;
+}
+
+/* ── Sites-style blocks: collapsible, contents, embed ────────────────────── */
+
+.studio-accordion,
+.doc-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.studio-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 0.4rem 0.5rem;
+}
+.studio-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.studio-panel-caret {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+.studio-panel-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.doc-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  overflow: hidden;
+}
+.doc-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.doc-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.doc-panel-caret {
+  color: var(--doc-theme-accent, var(--accent));
+  transition: transform var(--dur-micro) var(--ease);
+}
+.doc-panel[open] .doc-panel-caret {
+  transform: rotate(90deg);
+}
+.doc-panel-body {
+  padding: 0 0.85rem 0.75rem;
+  animation: panel-open var(--dur-standard) var(--ease);
+}
+@keyframes panel-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.studio-toc-edit {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.studio-toc-mark {
+  font-weight: 650;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.doc-toc {
+  border-left: 3px solid var(--doc-theme-accent, var(--accent));
+  padding: 0.2rem 0 0.2rem 0.9rem;
+}
+.doc-toc h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1em;
+}
+.doc-toc ol {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.doc-toc li[data-level="2"] {
+  padding-left: 0.9rem;
+}
+.doc-toc li[data-level="3"] {
+  padding-left: 1.8rem;
+}
+.doc-toc li[data-level="4"],
+.doc-toc li[data-level="5"],
+.doc-toc li[data-level="6"] {
+  padding-left: 2.6rem;
+}
+.doc-toc a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.doc-toc a:hover {
+  border-bottom-color: var(--doc-theme-accent, var(--accent));
+}
+
+.doc-embed {
+  margin: 0.4rem 0;
+}
+.doc-embed-frame {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.doc-embed-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.studio-drop-hint[data-error="true"] {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+  color: var(--danger);
+}
+
+/* Column dividers you can drag to rebalance */
+.studio-column {
+  position: relative;
+}
+.studio-column-resize {
+  position: absolute;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  right: -0.42rem;
+  width: 0.55rem;
+  border-radius: 4px;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  transition: background var(--dur-micro) var(--ease);
+}
+.studio-column-resize:hover,
+.studio-column-resize:active {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ── Templates gallery ───────────────────────────────────────────────────── */
+
+.studio-templates {
+  border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  padding: 0.9rem;
+  margin-bottom: 0.6rem;
+}
+.studio-templates h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+.studio-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.studio-template {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--dur-micro) var(--spring), border-color var(--dur-micro) var(--ease);
+}
+.studio-template:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.studio-template-icon {
+  font-size: 1.1rem;
+}
+.studio-template-name {
+  font-weight: 650;
+  font-size: 0.85rem;
+}
+.studio-template-blurb {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+/* ── Theme picker ────────────────────────────────────────────────────────── */
+
+.insp-themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.2rem, 1fr));
+  gap: 0.35rem;
+}
+.insp-theme {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  font: inherit;
+}
+.insp-theme[data-active="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.insp-theme-swatch {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 1.7rem;
+  border-radius: 6px;
+  border: 2px solid;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+.insp-theme-name {
+  font-size: 0.66rem;
+  color: var(--text-secondary);
+}
+
+/* ── Device preview ──────────────────────────────────────────────────────── */
+
+.studio-device-bar {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+.studio-device-bar button {
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.7rem;
+  border-radius: 980px;
+  cursor: pointer;
+}
+.studio-device-bar button[data-active="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+.studio-device-stage {
+  margin: 0 auto;
+  transition: max-width var(--dur-standard) var(--ease);
+}
+
+/* ── Document themes ─────────────────────────────────────────────────────── */
+/* A themed sheet drives its own type, colour and measure from the author's choice. */
+
+.doc-sheet[data-themed="true"],
+.studio-canvas-sheet[data-density] {
+  font-family: var(--doc-body-font, inherit);
+}
+.doc-sheet[data-themed="true"] {
+  max-width: var(--doc-measure, 46rem);
+  background: var(--doc-paper, var(--surface-solid));
+  color: var(--doc-ink, var(--text));
+}
+.doc-sheet[data-themed="true"] h1,
+.doc-sheet[data-themed="true"] h2,
+.doc-sheet[data-themed="true"] h3,
+.doc-sheet[data-themed="true"] h4,
+.studio-canvas-sheet .studio-heading-area {
+  font-family: var(--doc-heading-font, inherit);
+}
+.doc-sheet[data-density="compact"],
+.studio-canvas-sheet[data-density="compact"] {
+  gap: 0.4rem;
+  line-height: 1.5;
+}
+.doc-sheet[data-density="relaxed"],
+.studio-canvas-sheet[data-density="relaxed"] {
+  gap: 1rem;
+  line-height: 1.85;
+}
+.doc-sheet[data-headings="underlined"] .doc-heading,
+.studio-canvas-sheet[data-headings="underlined"] .studio-heading-area {
+  border-bottom: 2px solid var(--doc-theme-accent, var(--accent));
+  padding-bottom: 0.2rem;
+}
+.doc-sheet[data-headings="accented"] .doc-heading,
+.studio-canvas-sheet[data-headings="accented"] .studio-heading-area {
+  color: var(--doc-theme-accent, var(--accent));
+}
+.doc-sheet[data-headings="uppercase"] .doc-heading,
+.studio-canvas-sheet[data-headings="uppercase"] .studio-heading-area {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.doc-sheet[data-themed="true"] .doc-card,
+.doc-sheet[data-themed="true"] .doc-quote,
+.doc-sheet[data-themed="true"] .doc-button {
+  --accent: var(--doc-theme-accent, var(--accent));
+}

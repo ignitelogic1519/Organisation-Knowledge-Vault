@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   RICH_TEXT_TAG_SET,
   isSafeHref,
+  resolveEmbed,
   sanitizeStyleAttribute,
   type AuthoredBlock,
   type BlockStyle,
+  type DocumentTheme,
+  type EmbedOptions,
   type MediaOptions,
   type TableCell,
 } from "@vault/shared";
@@ -295,9 +306,147 @@ export function DocumentMedia({
   );
 }
 
+// ── Embeds ───────────────────────────────────────────────────────────────────
+
+/**
+ * Framed content from an allow-listed host. The address is resolved through the shared
+ * allowlist (which rebuilds it from its parsed parts) and the frame is sandboxed, so a
+ * document can carry a training video or a form without carrying a script into our origin.
+ */
+export function DocumentEmbed({
+  url,
+  options,
+  caption,
+  style,
+}: {
+  url: string;
+  options?: EmbedOptions;
+  caption?: string;
+  style?: BlockStyle;
+}) {
+  const resolved = resolveEmbed(url);
+  if (!resolved) return null;
+  const ratio = resolved.ratio;
+  return (
+    <figure className="doc-embed" style={blockStyleToCss(style)}>
+      <div
+        className="doc-embed-frame"
+        style={
+          ratio
+            ? { aspectRatio: `${ratio}` }
+            : { height: `${options?.height ?? 480}px` }
+        }
+      >
+        <iframe
+          src={resolved.src}
+          title={caption || `${resolved.provider} embed`}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          referrerPolicy="strict-origin-when-cross-origin"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
+        />
+      </div>
+      {(caption || options?.showSource) && (
+        <figcaption className="doc-caption">
+          {caption}
+          {options?.showSource && (
+            <>
+              {caption ? " · " : ""}
+              <a href={resolved.src} target="_blank" rel="noreferrer noopener">
+                open the source ↗
+              </a>
+            </>
+          )}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/** Collapsible panels — the reader expands what they need. */
+function DocumentAccordion({ block, css }: { block: AuthoredBlock; css: CSSProperties }) {
+  return (
+    <div className="doc-accordion" style={css}>
+      {(block.panels ?? []).map((panel, i) => (
+        <details key={i} className="doc-panel" open={panel.open}>
+          <summary>
+            <span className="doc-panel-caret" aria-hidden>
+              ▸
+            </span>
+            {panel.title || `Section ${i + 1}`}
+          </summary>
+          <div
+            className="doc-panel-body"
+            dangerouslySetInnerHTML={{ __html: sanitize(panel.html ?? "") }}
+          />
+        </details>
+      ))}
+    </div>
+  );
+}
+
+/** Strip tags from authored HTML so a heading can become a contents entry. */
+function headingText(html: string): string {
+  if (typeof document === "undefined") return html.replace(/<[^>]*>/g, "").trim();
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  return (tpl.content.textContent ?? "").trim();
+}
+
+/** A slug stable enough to anchor to, and unique per document position. */
+export function headingId(text: string, index: number): string {
+  const base = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+  return `h-${index}${base ? `-${base}` : ""}`;
+}
+
+/** Contents built from the document's own headings, with anchors that scroll. */
+function DocumentToc({
+  block,
+  headings,
+  css,
+}: {
+  block: AuthoredBlock;
+  headings: { id: string; text: string; level: number }[];
+  css: CSSProperties;
+}) {
+  const depth = block.depth ?? 3;
+  const listed = headings.filter((h) => h.level <= depth);
+  return (
+    <nav className="doc-toc" style={css} aria-label={block.title || "Contents"}>
+      <h3>{block.title || "Contents"}</h3>
+      {listed.length === 0 ? (
+        <p className="auth-sub">Add headings to this document and they will appear here.</p>
+      ) : (
+        <ol>
+          {listed.map((h) => (
+            <li key={h.id} data-level={h.level}>
+              <a
+                href={`#${h.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById(h.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                {h.text}
+              </a>
+            </li>
+          ))}
+        </ol>
+      )}
+    </nav>
+  );
+}
+
 // ── Blocks ───────────────────────────────────────────────────────────────────
 
-export function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
+/** Headings the current page's contents block can point at. */
+const HeadingContext = createContext<{ id: string; text: string; level: number }[]>([]);
+
+export function AuthoredBlockView({ block, index = 0 }: { block: AuthoredBlock; index?: number }) {
   const css = withAccent(blockStyleToCss(block.style), block.style?.accent);
   const animation = block.style?.animation && block.style.animation !== "none"
     ? block.style.animation
@@ -314,7 +463,12 @@ export function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
       const level = Math.min(6, Math.max(1, block.level ?? 2));
       const Tag = `h${level}` as "h1";
       return wrap(
-        <Tag className="doc-heading" style={css} dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }} />,
+        <Tag
+          className="doc-heading"
+          id={headingId(headingText(block.html ?? ""), index)}
+          style={css}
+          dangerouslySetInnerHTML={{ __html: sanitize(block.html ?? "") }}
+        />,
       );
     }
     case "paragraph":
@@ -468,9 +622,25 @@ export function AuthoredBlockView({ block }: { block: AuthoredBlock }) {
             />,
           )
         : null;
+    case "embed":
+      return block.url
+        ? wrap(
+            <DocumentEmbed url={block.url} options={block.embed} caption={block.caption} style={block.style} />,
+          )
+        : null;
+    case "accordion":
+      return wrap(<DocumentAccordion block={block} css={css} />);
+    case "toc":
+      return <TocSlot block={block} css={css} />;
     default:
       return null; // pagebreak is handled by the pager, not rendered inline
   }
+}
+
+/** The contents block reads the page's headings from context. */
+function TocSlot({ block, css }: { block: AuthoredBlock; css: CSSProperties }) {
+  const headings = useContext(HeadingContext);
+  return <DocumentToc block={block} headings={headings} css={css} />;
 }
 
 /** Scroll-triggered entrance for a single block (honors reduced-motion). */
@@ -528,18 +698,33 @@ export function paginate(blocks: AuthoredBlock[]): DocumentPage[] {
  * Studio preview and present mode — `page`/`onPage` make it controllable, otherwise it
  * keeps its own position.
  */
+/** The document theme as CSS custom properties on the sheet. */
+export function themeToCss(theme?: DocumentTheme): CSSProperties {
+  if (!theme) return {};
+  const css: Record<string, string> = {};
+  if (theme.bodyFont) css["--doc-body-font"] = FONT_STACKS[theme.bodyFont] ?? "";
+  if (theme.headingFont) css["--doc-heading-font"] = FONT_STACKS[theme.headingFont] ?? "";
+  if (theme.accent) css["--doc-theme-accent"] = theme.accent;
+  if (theme.paper) css["--doc-paper"] = theme.paper;
+  if (theme.ink) css["--doc-ink"] = theme.ink;
+  if (theme.measure) css["--doc-measure"] = `${theme.measure}rem`;
+  return css as CSSProperties;
+}
+
 export function DocumentPages({
   pages,
   page,
   onPage,
   showPager = true,
   className = "",
+  theme,
 }: {
   pages: DocumentPage[];
   page?: number;
   onPage?: (n: number) => void;
   showPager?: boolean;
   className?: string;
+  theme?: DocumentTheme;
 }) {
   const [own, setOwn] = useState(0);
   const current = Math.min(page ?? own, Math.max(0, pages.length - 1));
@@ -565,6 +750,19 @@ export function DocumentPages({
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // Headings on this page, so a contents block can link to them
+  const headings = useMemo(
+    () =>
+      (active?.blocks ?? [])
+        .map((b, i) => ({ b, i }))
+        .filter(({ b }) => b.type === "heading")
+        .map(({ b, i }) => {
+          const text = headingText(b.html ?? "");
+          return { id: headingId(text, i), text: text || "Untitled section", level: b.level ?? 2 };
+        }),
+    [active],
+  );
+
   if (!active) return null;
   return (
     <div className={`doc-authored ${className}`}>
@@ -572,11 +770,17 @@ export function DocumentPages({
         className="doc-sheet doc-turn"
         key={current}
         data-transition={active.transition}
+        data-density={theme?.density ?? "normal"}
+        data-headings={theme?.headingStyle ?? "plain"}
+        data-themed={theme ? Object.keys(theme).length > 0 : false}
         data-direction={direction}
+        style={themeToCss(theme)}
       >
-        {active.blocks.map((b, i) => (
-          <AuthoredBlockView key={i} block={b} />
-        ))}
+        <HeadingContext.Provider value={headings}>
+          {active.blocks.map((b, i) => (
+            <AuthoredBlockView key={i} block={b} index={i} />
+          ))}
+        </HeadingContext.Provider>
       </article>
       {showPager && pages.length > 1 && (
         <div className="doc-pager glass-strong">
@@ -600,7 +804,15 @@ export function DocumentPages({
 }
 
 /** Convenience: paginate + render in one call (Studio preview). */
-export function DocumentBody({ blocks, className }: { blocks: AuthoredBlock[]; className?: string }) {
+export function DocumentBody({
+  blocks,
+  className,
+  theme,
+}: {
+  blocks: AuthoredBlock[];
+  className?: string;
+  theme?: DocumentTheme;
+}) {
   const pages = useMemo(() => paginate(blocks), [blocks]);
-  return <DocumentPages pages={pages} className={className} />;
+  return <DocumentPages pages={pages} className={className} theme={theme} />;
 }

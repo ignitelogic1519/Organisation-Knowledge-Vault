@@ -125,7 +125,7 @@ export async function courseRoutes(app: FastifyInstance) {
 
       let ref: StorageRef;
       if (body.blocks) {
-        ref = await storage.saveAuthored(sanitizeBlocks(body.blocks));
+        ref = await storage.saveAuthored(sanitizeBlocks(body.blocks), body.theme);
       } else if (body.url) {
         ref = await storage.saveLink(body.url);
       } else if (body.fileBase64 && body.filename && body.mime) {
@@ -275,7 +275,7 @@ export async function courseRoutes(app: FastifyInstance) {
       const content = await storage.resolve(course.storageRef as unknown as StorageRef);
       if (content.authored !== undefined) {
         // Native rendering by the viewer inside the standardized document frame
-        return { authored: content.authored };
+        return { authored: content.authored, theme: content.theme };
       }
       if (content.url) return { url: content.url };
 
@@ -444,7 +444,7 @@ export async function courseRoutes(app: FastifyInstance) {
       // between the plan's two allowances — charge the bucket it lands in.
       if (body.blocks) {
         if (source !== "STUDIO") await assertContentQuota(course.orgId, "STUDIO");
-        ref = await storage.saveAuthored(sanitizeBlocks(body.blocks));
+        ref = await storage.saveAuthored(sanitizeBlocks(body.blocks), body.theme);
         source = "STUDIO";
         contentChanged = true;
       } else if (body.url) {

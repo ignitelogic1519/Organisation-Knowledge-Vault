@@ -358,6 +358,22 @@ the renderer falls back to them when the richer fields are absent. `apps/web/src
 DocumentView.tsx` is the single renderer, shared by the viewer, the Studio preview and
 present mode.
 
+The `authored` ref carries `{ blocks, theme }`: a document theme (type pairing, accent,
+paper, ink, density, heading treatment, measure) is stored beside the blocks and applied by
+the renderer as CSS custom properties, so a reader sees the document exactly as its author
+set it.
+
+**Embeds** are allow-listed in `@vault/shared/embeds`: `resolveEmbed()` parses the pasted
+address, refuses any host outside the list, and REBUILDS the embed URL from the parsed id.
+The API runs the same function on save (`sanitizeBlocks`), so what is stored is only ever a
+URL we constructed; the renderer then frames it sandboxed.
+
+**Drag and drop** (`apps/web/src/components/studio/dnd.tsx`) is pointer-event based rather
+than HTML5 DnD — the native API cannot be styled, needs `dataTransfer` populated in Firefox
+to start at all, and does nothing on touch devices. One provider tracks the drag, each drop
+zone measures its own children, and a drag is only lifted after a few pixels of travel so
+clicks and taps still work.
+
 ### Live updates
 An in-memory per-org SSE registry (`apps/api/src/events.ts`) broadcasts `{topic}` hints
 (`structure` | `requests` | `courses` | `notifications`). This is single-instance; scaling
