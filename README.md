@@ -75,6 +75,7 @@ docs/             The project contract — read these first
 | [docs/design.md](docs/design.md) | Design language: glassmorphism tokens, constellation graph |
 | [docs/setup-guide.md](docs/setup-guide.md) | Step-by-step Vercel / Render / Neon deployment |
 | [docs/future.md](docs/future.md) | Deferred features register — including the planned AI library assistant |
+| [docs/enterprise-identity.md](docs/enterprise-identity.md) | Feasibility study: Entra ID / Active Directory SSO, SCIM user lifecycle, Intune device trust |
 | [docs/confidence-report.md](docs/confidence-report.md) | Pre-coding design review & scores |
 
 ## Quick start

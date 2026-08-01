@@ -140,3 +140,23 @@ A running backlog of proven ideas from mature platforms, ranked roughly by value
   time-boxed/temporary access grants.
 - **Bulk operations**: bulk assign/remove people, bulk course placement, CSV import of an org
   structure.
+
+## 14. Enterprise identity — Entra ID / Active Directory / Intune (studied 2026-08-01)
+Connect an organization to the customer's Microsoft directory so people, branches and access
+maintain themselves. Feasible and high-value; **not started**. Four separable pillars:
+- **SSO** — "Sign in with Microsoft" over OpenID Connect. Smallest phase, reuses the dormant
+  Google OAuth pattern (§9), and incidentally solves the unrecoverable-password gap in §10.
+- **User lifecycle** — a SCIM 2.0 server that Entra pushes joiners/movers/leavers into
+  (~40-minute cycles; Microsoft Graph delta + change notifications for genuine real-time).
+- **Groups → Constellation** — map Entra groups onto RoleNode placements. Map, never mirror:
+  AD OU trees model IT administration, not training responsibility.
+- **Intune** — device compliance via Conditional Access, gating our existing
+  `Classification` levels ("Secret opens only on a managed device"), plus mobile app delivery.
+
+Key constraints found: identity is username-only today so an `ExternalIdentity` table keyed on
+Entra's immutable object ID is needed (never on email); deprovisioning must remove access but
+retain `CompletionRecord` evidence; the Supreme gate is never bypassed by SSO and a local
+break-glass owner stays mandatory; plan member caps and the free-tier Render sleep both break
+Microsoft's provisioning service, so this belongs to a paid enterprise tier.
+
+Full study, phasing, effort and requirements: [enterprise-identity.md](enterprise-identity.md).
