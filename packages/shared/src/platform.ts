@@ -66,23 +66,54 @@ export interface AdminRequestRow {
   priceCoins: number | null;
   adminMessage: string | null;
   targetOrgNumber: number | null;
+  /** Resolved name of the target org (PLAN_RENEWAL / RESTORE_ORG), when it still exists. */
+  targetOrgName: string | null;
+  /** The target org's current plan, so the admin decides without leaving the inbox. */
+  targetOrgPlanKey: string | null;
+  targetOrgPlanExpiresAt: string | null;
   createdAt: string;
   decidedAt: string | null;
 }
 
-/** Admin decides a request: approve (issues an OTP + terms) or deny — both with a message. */
+/**
+ * Admin decides a request: approve or deny, both with a message.
+ *
+ * For CREATE_ORG / CUSTOM_PLAN / RESTORE_ORG an approval mints an OTP the user redeems.
+ * For PLAN_RENEWAL the organization already exists, so there is nothing to redeem — the
+ * approval APPLIES the plan straight away and the extra fields below carry the terms.
+ */
 export const decidePlatformRequestSchema = z
   .object({
     decision: z.enum(["APPROVE", "DENY"]),
     grantedDays: z.number().int().positive().max(3650).optional(),
     priceCoins: z.number().int().nonnegative().max(1_000_000).optional(),
     adminMessage: z.string().max(600).optional(),
+    // ── PLAN_RENEWAL only: what to apply, and any allowance overrides ──
+    applyPlanKey: z.string().max(60).optional(),
+    memberLimit: z.number().int().positive().max(1_000_000).nullable().optional(),
+    documentLimit: z.number().int().positive().max(1_000_000).nullable().optional(),
+    uploadLimit: z.number().int().positive().max(1_000_000).nullable().optional(),
+    /** Coins to gift the requester alongside the decision (e.g. a goodwill top-up). */
+    grantCoins: z.number().int().max(1_000_000).optional(),
   })
   .refine((v) => v.decision !== "APPROVE" || v.priceCoins != null, {
     message: "Set the coin price for an approval",
     path: ["priceCoins"],
   });
 export type DecidePlatformRequestInput = z.infer<typeof decidePlatformRequestSchema>;
+
+/**
+ * The dashboard's at-a-glance counters — what needs the admin's attention right now.
+ * Polled by the console so a new request or an approaching expiry surfaces without
+ * the admin having to open each tab and look.
+ */
+export interface AdminSummary {
+  pendingRequests: number;
+  /** Organizations whose plan lapses within the first reminder window (20 days). */
+  expiringSoon: number;
+  /** Organizations already past their expiry date. */
+  expiredOrgs: number;
+}
 
 /** Gift or deduct coins for a user (top-up from the admin's end). */
 export const giftCoinsSchema = z.object({
@@ -103,6 +134,21 @@ export const upgradePlanSchema = z.object({
   message: z.string().max(600).optional(),
 });
 export type UpgradePlanInput = z.infer<typeof upgradePlanSchema>;
+
+/** A pricing plan as the admin console lists it (the raw row, not the public card). */
+export interface AdminPlanRow {
+  id: string;
+  key: string;
+  name: string;
+  category: string;
+  priceCoins: number;
+  durationDays: number | null;
+  memberLimit: number | null;
+  documentLimit: number | null;
+  uploadLimit: number | null;
+  isCustom: boolean;
+  active: boolean;
+}
 
 /** Add another project member as a super-admin. */
 export const addAdminSchema = z.object({

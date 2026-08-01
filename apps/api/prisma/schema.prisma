@@ -134,6 +134,11 @@ model Organization {
   planExpiresAt   DateTime? // null = unlimited / none
   planIsCustom    Boolean    @default(false)
   planGrantedById String? // PlatformAdmin.id that last set the plan
+  // Lowest expiry-reminder rung already sent to the owners for the CURRENT plan period
+  // (20 → 7 → 1 days out; see PLAN_REMINDER_DAYS). Reset to null whenever the plan
+  // changes, so a renewed plan starts its ladder again. Makes the nightly sweep
+  // idempotent without querying the notification table.
+  planReminderDays Int?
   memberLimit     Int? // per-org cap (customisable by the admin); null = use the plan's limit
   documentLimit   Int? // per-org cap on Studio documents; null = use the plan's limit
   uploadLimit     Int? // per-org cap on uploads/links; null = use the plan's limit
@@ -416,6 +421,7 @@ enum PlatformRequestKind {
   CREATE_ORG // permission (OTP) to create a new organization on a chosen plan
   CUSTOM_PLAN // user proposes their own days + coin offer; admin negotiates
   RESTORE_ORG // key to restore an expired/purged org from its .main
+  PLAN_RENEWAL // renew/upgrade an EXISTING org — approval applies the plan directly, no OTP
 }
 
 enum PlatformRequestStatus {

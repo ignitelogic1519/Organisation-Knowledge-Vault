@@ -8,6 +8,7 @@ import { orgs, requests } from "@/lib/orgs-client";
 import { AppShell, type ShellNavItem } from "@/components/AppShell";
 import { OrgContext } from "@/components/org-context";
 import { OrgEventsProvider, useOrgEvent } from "@/components/org-events";
+import { PlanBanner } from "@/components/PlanBanner";
 import {
   IconBack,
   IconBook,
@@ -130,6 +131,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             : section
         }
         >
+          <PlanBanner />
           {children}
         </AppShell>
       </OrgContext.Provider>

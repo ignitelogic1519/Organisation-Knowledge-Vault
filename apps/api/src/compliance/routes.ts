@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   can,
+  daysUntil,
   isSelfOrAncestor,
+  planReminderStage,
   type AppNotification,
   type ComplianceCourse,
   type ComplianceReport,
@@ -12,7 +14,22 @@ import { env } from "../env.js";
 import { coursesReaching, escalationTargets, notify, toLearningItem } from "../courses/helpers.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { purgeOrganization } from "../orgs/purge.js";
-import { ADMIN_NOTIFICATION_KINDS, ADMIN_NOTIFICATION_RETENTION_MS } from "../platform/notify.js";
+import {
+  ADMIN_NOTIFICATION_KINDS,
+  ADMIN_NOTIFICATION_RETENTION_MS,
+  notifyFromAdmin,
+} from "../platform/notify.js";
+
+/** Profile ids of an org's root-role owners — who plan notices are addressed to. */
+async function orgOwnerProfileIds(orgId: string): Promise<string[]> {
+  const root = await db.roleNode.findFirst({ where: { orgId, parentId: null }, select: { id: true } });
+  if (!root) return [];
+  const owners = await db.placement.findMany({
+    where: { roleNodeId: root.id, kind: "OWNER" },
+    select: { membership: { select: { profileId: true } } },
+  });
+  return [...new Set(owners.map((o) => o.membership.profileId))];
+}
 
 /** Messages self-clean after 7 days — the database never accumulates stale noise. */
 const NOTIFICATION_RETENTION_MS = 7 * 86400_000;
@@ -273,6 +290,8 @@ export async function complianceRoutes(app: FastifyInstance) {
     const report = {
       expiredCompletions: 0,
       overdueNotices: 0,
+      planReminders: 0,
+      planExpiries: 0,
       purgedOrgs: 0,
       prunedNotifications: 0,
       prunedRequests: 0,
@@ -368,6 +387,62 @@ export async function complianceRoutes(app: FastifyInstance) {
           report.overdueNotices++;
         }
       }
+    }
+
+    // 2b. Plan expiry: warn the owners on the reminder ladder (20 → 7 → 1 days out),
+    //     then mark the plan EXPIRED once it lapses. `planReminderDays` records the
+    //     lowest rung already sent for this plan period, so re-running is a no-op and a
+    //     renewed plan (which clears the field) starts its ladder again.
+    const planned = await db.organization.findMany({
+      where: { deletedAt: null, planStatus: { in: ["DEMO", "ACTIVE"] }, planExpiresAt: { not: null } },
+    });
+    for (const org of planned) {
+      const left = daysUntil(org.planExpiresAt!);
+
+      if (left <= 0) {
+        await db.organization.update({
+          where: { id: org.id },
+          data: { planStatus: "EXPIRED", planReminderDays: null },
+        });
+        for (const pid of await orgOwnerProfileIds(org.id)) {
+          await notifyFromAdmin(pid, "plan_expired", {
+            title: `${org.name}'s plan has expired`,
+            message:
+              `The ${org.planKey ?? "current"} plan for ${org.name} (#${org.orgNumber}) has ended. ` +
+              "Renew or upgrade it to restore full access — you can request this from the " +
+              "organization's page, or contact the Knowledge Base team.",
+            orgNumber: org.orgNumber,
+            planKey: org.planKey,
+            expiresAt: org.planExpiresAt!.toISOString(),
+          });
+        }
+        report.planExpiries++;
+        continue;
+      }
+
+      const stage = planReminderStage(left);
+      // Only ever tighten: skip when this rung (or a closer one) already went out.
+      if (stage == null || (org.planReminderDays != null && stage >= org.planReminderDays)) continue;
+      await db.organization.update({
+        where: { id: org.id },
+        data: { planReminderDays: stage },
+      });
+      for (const pid of await orgOwnerProfileIds(org.id)) {
+        await notifyFromAdmin(pid, "plan_expiring", {
+          title: `${org.name}'s plan expires in ${left} day${left === 1 ? "" : "s"}`,
+          message:
+            `The ${org.planKey ?? "current"} plan for ${org.name} (#${org.orgNumber}) ends on ` +
+            `${org.planExpiresAt!.toISOString().slice(0, 10)}. Renew it, move to a larger plan, ` +
+            "or ask the Knowledge Base team for a custom arrangement — all from the " +
+            "organization's page.",
+          orgNumber: org.orgNumber,
+          planKey: org.planKey,
+          expiresAt: org.planExpiresAt!.toISOString(),
+          daysLeft: left,
+          stage,
+        });
+      }
+      report.planReminders++;
     }
 
     // 3. Purge organizations soft-deleted more than 30 days ago (structure.md §4.3)

@@ -52,9 +52,54 @@ export async function pricingRoutes(app: FastifyInstance) {
     return { coins: profile.coins };
   });
 
-  // File a request to the super-admin (create an org / propose a custom plan / restore).
-  app.post("/platform-requests", { preHandler: app.authenticate }, async (req) => {
+  // File a request to the super-admin (create an org / custom plan / restore / renew).
+  app.post("/platform-requests", { preHandler: app.authenticate }, async (req, reply) => {
     const body = createPlatformRequestSchema.parse(req.body);
+
+    // A renewal changes an existing organization's plan, so only that organization's
+    // owners may ask for it — and only once at a time, so the inbox stays readable.
+    if (body.kind === "PLAN_RENEWAL") {
+      const org = await db.organization.findUnique({
+        where: { orgNumber: body.targetOrgNumber! },
+        select: { id: true, deletedAt: true },
+      });
+      if (!org || org.deletedAt) {
+        return reply.status(404).send({ error: "No such organization" });
+      }
+      const root = await db.roleNode.findFirst({
+        where: { orgId: org.id, parentId: null },
+        select: { id: true },
+      });
+      const isOwner = root
+        ? await db.placement.findFirst({
+            where: {
+              roleNodeId: root.id,
+              kind: "OWNER",
+              membership: { profileId: req.profileId },
+            },
+            select: { id: true },
+          })
+        : null;
+      if (!isOwner) {
+        return reply.status(403).send({
+          error: "Only an owner of this organization can request a plan renewal",
+        });
+      }
+      const pending = await db.platformRequest.findFirst({
+        where: {
+          kind: "PLAN_RENEWAL",
+          status: "PENDING",
+          targetOrgNumber: body.targetOrgNumber,
+        },
+        select: { id: true },
+      });
+      if (pending) {
+        return reply.status(409).send({
+          error: "A renewal request for this organization is already waiting for a decision",
+        });
+      }
+    }
+
     const created = await db.platformRequest.create({
       data: {
         kind: body.kind,

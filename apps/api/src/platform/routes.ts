@@ -7,8 +7,10 @@ import {
   giftCoinsSchema,
   upgradePlanSchema,
   addAdminSchema,
+  PLAN_REMINDER_DAYS,
   type AdminOrgRow,
   type AdminRequestRow,
+  type AdminSummary,
   type AdminTreeNode,
 } from "@vault/shared";
 import { db } from "../db.js";
@@ -17,6 +19,7 @@ import { generateOtp, hashOtp } from "./otp.js";
 import { notifyFromAdmin } from "./notify.js";
 import { getDefaultCoins, setDefaultCoins } from "./settings.js";
 import { purgeOrganization } from "../orgs/purge.js";
+import { applyPlanToOrg, effectivePlanStatus } from "../orgs/plan.js";
 
 const OTP_TTL_MS = 24 * 3600_000;
 
@@ -138,7 +141,9 @@ export async function platformRoutes(app: FastifyInstance) {
         orgNumber: o.orgNumber,
         ownerUsernames: owners,
         planKey: o.planKey,
-        planStatus: o.planStatus,
+        // Read through effectivePlanStatus: a lapsed plan is only rewritten to EXPIRED by
+        // the nightly sweep, so the raw column can still say ACTIVE past its expiry date.
+        planStatus: effectivePlanStatus(o.planStatus, o.planExpiresAt),
         planExpiresAt: o.planExpiresAt?.toISOString() ?? null,
         planIsCustom: o.planIsCustom,
         memberCount,
@@ -185,6 +190,34 @@ export async function platformRoutes(app: FastifyInstance) {
     },
   );
 
+  // ── Dashboard summary (what needs attention right now) ───────────────────────
+  // Cheap counters the console polls so a new request or an approaching expiry is
+  // visible on the tab bar without opening every tab.
+  app.get("/admin/summary", { preHandler: app.authenticateAdmin }, async (): Promise<AdminSummary> => {
+    const firstRung = Math.max(...PLAN_REMINDER_DAYS);
+    const now = new Date();
+    const [pendingRequests, expiringSoon, expiredOrgs] = await Promise.all([
+      db.platformRequest.count({ where: { status: "PENDING" } }),
+      db.organization.count({
+        where: {
+          deletedAt: null,
+          planStatus: { in: ["DEMO", "ACTIVE"] },
+          planExpiresAt: { gt: now, lte: new Date(Date.now() + firstRung * 86400_000) },
+        },
+      }),
+      db.organization.count({
+        where: {
+          deletedAt: null,
+          OR: [
+            { planStatus: "EXPIRED" },
+            { planStatus: { in: ["DEMO", "ACTIVE"] }, planExpiresAt: { lt: now } },
+          ],
+        },
+      }),
+    ]);
+    return { pendingRequests, expiringSoon, expiredOrgs };
+  });
+
   // ── Requests inbox (approve / deny → OTP + notification) ─────────────────────
   app.get("/admin/requests", { preHandler: app.authenticateAdmin }, async (req): Promise<{ requests: AdminRequestRow[] }> => {
     const status = (req.query as { status?: string })?.status;
@@ -194,6 +227,16 @@ export async function platformRoutes(app: FastifyInstance) {
       take: 200,
       include: { requester: { select: { username: true, displayName: true, coins: true } } },
     });
+    // Resolve the target orgs in one query — a renewal is decided against the org's
+    // CURRENT plan, so the admin needs to see it without leaving the inbox.
+    const targetNumbers = [...new Set(reqs.map((r) => r.targetOrgNumber).filter((n): n is number => n != null))];
+    const targets = targetNumbers.length
+      ? await db.organization.findMany({
+          where: { orgNumber: { in: targetNumbers } },
+          select: { orgNumber: true, name: true, planKey: true, planExpiresAt: true },
+        })
+      : [];
+    const targetByNumber = new Map(targets.map((t) => [t.orgNumber, t]));
     return {
       requests: reqs.map((r) => ({
         id: r.id,
@@ -210,6 +253,13 @@ export async function platformRoutes(app: FastifyInstance) {
         priceCoins: r.priceCoins,
         adminMessage: r.adminMessage,
         targetOrgNumber: r.targetOrgNumber,
+        targetOrgName: r.targetOrgNumber != null ? targetByNumber.get(r.targetOrgNumber)?.name ?? null : null,
+        targetOrgPlanKey:
+          r.targetOrgNumber != null ? targetByNumber.get(r.targetOrgNumber)?.planKey ?? null : null,
+        targetOrgPlanExpiresAt:
+          r.targetOrgNumber != null
+            ? targetByNumber.get(r.targetOrgNumber)?.planExpiresAt?.toISOString() ?? null
+            : null,
         createdAt: r.createdAt.toISOString(),
         decidedAt: r.decidedAt?.toISOString() ?? null,
       })),
@@ -239,7 +289,125 @@ export async function platformRoutes(app: FastifyInstance) {
         return { ok: true, status: "DENIED" };
       }
 
+      // Coins the admin chose to gift as part of this decision, applied BEFORE any
+      // charge so "gift 200, charge 200" works as one action.
+      const applyCoinGrant = async (): Promise<void> => {
+        if (!body.grantCoins) return;
+        const profile = await db.profile.findUniqueOrThrow({ where: { id: request.requesterId } });
+        const balance = profile.coins + body.grantCoins;
+        if (balance < 0) throw Object.assign(new Error("That would take their balance below zero"), { statusCode: 400 });
+        await db.$transaction([
+          db.profile.update({ where: { id: profile.id }, data: { coins: balance } }),
+          db.coinTransaction.create({
+            data: {
+              profileId: profile.id,
+              delta: body.grantCoins,
+              balance,
+              reason: body.grantCoins > 0 ? "ADMIN_GIFT" : "ADMIN_DEDUCT",
+              note: body.adminMessage ?? "Applied with a plan decision",
+              byAdminId: req.adminId,
+            },
+          }),
+        ]);
+      };
+
+      // PLAN_RENEWAL → the organization already exists, so there is nothing to redeem:
+      // apply the plan now, charge the agreed price, and tell the owners.
+      if (request.kind === "PLAN_RENEWAL") {
+        if (request.targetOrgNumber == null) {
+          return reply.status(400).send({ error: "This renewal request has no target organization" });
+        }
+        const org = await db.organization.findUnique({ where: { orgNumber: request.targetOrgNumber } });
+        if (!org || org.deletedAt) {
+          return reply.status(404).send({ error: "That organization no longer exists" });
+        }
+        const planKey = body.applyPlanKey ?? request.planKey;
+        if (!planKey) {
+          return reply.status(400).send({ error: "Choose which plan to apply" });
+        }
+
+        await applyCoinGrant();
+
+        // Charge the agreed price. Refuse rather than overdraw — the admin can gift
+        // coins (grantCoins) or lower the price and decide again.
+        const price = body.priceCoins ?? request.offeredCoins ?? 0;
+        if (price > 0) {
+          const payer = await db.profile.findUniqueOrThrow({ where: { id: request.requesterId } });
+          if (payer.coins < price) {
+            return reply.status(409).send({
+              error: `@${payer.username} has ${payer.coins} coins but the price is ${price}. Gift the difference or lower the price.`,
+            });
+          }
+          await db.$transaction([
+            db.profile.update({ where: { id: payer.id }, data: { coins: payer.coins - price } }),
+            db.coinTransaction.create({
+              data: {
+                profileId: payer.id,
+                delta: -price,
+                balance: payer.coins - price,
+                reason: "PLAN_SPEND",
+                note: `Plan renewal for ${org.name} (#${org.orgNumber})`,
+                byAdminId: req.adminId,
+              },
+            }),
+          ]);
+        }
+
+        const applied = await applyPlanToOrg({
+          orgId: org.id,
+          planKey,
+          durationDays: body.grantedDays ?? request.requestedDays ?? undefined,
+          memberLimit: body.memberLimit,
+          documentLimit: body.documentLimit,
+          uploadLimit: body.uploadLimit,
+          grantedById: req.adminId,
+        });
+
+        await db.platformRequest.update({
+          where: { id: request.id },
+          data: {
+            // USED, not APPROVED: there is no code left to redeem, the change is done.
+            status: "USED",
+            planKey,
+            grantedDays: body.grantedDays ?? request.requestedDays ?? null,
+            priceCoins: price,
+            adminMessage: body.adminMessage ?? null,
+            decidedById: req.adminId,
+            decidedAt: new Date(),
+            usedAt: new Date(),
+          },
+        });
+
+        const until = applied.expiresAt
+          ? `, valid until ${applied.expiresAt.toISOString().slice(0, 10)}.`
+          : " (no expiry).";
+        for (const pid of await ownerProfileIds(org.id)) {
+          await notifyFromAdmin(pid, "plan_upgraded", {
+            title: "Your organization plan was renewed",
+            message:
+              `${org.name} is now on the ${applied.planName} plan${until}` +
+              (body.adminMessage ? ` ${body.adminMessage}` : ""),
+            orgNumber: org.orgNumber,
+            planKey: applied.planKey,
+            expiresAt: applied.expiresAt?.toISOString() ?? null,
+          });
+        }
+        await audit(req.adminId, "approve_renewal", {
+          requestId: request.id,
+          orgNumber: org.orgNumber,
+          planKey: applied.planKey,
+          price,
+        });
+        return {
+          ok: true,
+          status: "USED",
+          planKey: applied.planKey,
+          expiresAt: applied.expiresAt?.toISOString() ?? null,
+        };
+      }
+
       // APPROVE → mint an OTP, record terms, notify the user.
+      await applyCoinGrant();
       const otp = generateOtp();
       const grantedDays = body.grantedDays ?? request.requestedDays ?? null;
       const expiresAt = new Date(Date.now() + OTP_TTL_MS);
@@ -312,39 +480,35 @@ export async function platformRoutes(app: FastifyInstance) {
     const body = upgradePlanSchema.parse(req.body);
     const org = await db.organization.findUnique({ where: { orgNumber: body.orgNumber } });
     if (!org) return reply.status(404).send({ error: "No such organization" });
-    const plan = await db.pricingPlan.findUnique({ where: { key: body.planKey } });
-    if (!plan) return reply.status(404).send({ error: "No such plan" });
-    const days = body.durationDays === undefined ? plan.durationDays : body.durationDays;
-    const expiresAt = days ? new Date(Date.now() + days * 86400_000) : null;
-    await db.organization.update({
-      where: { id: org.id },
-      data: {
-        planKey: plan.key,
-        planStatus: "ACTIVE",
-        planActivatedAt: new Date(),
-        planExpiresAt: expiresAt,
-        planIsCustom: body.durationDays != null,
-        planGrantedById: req.adminId,
-        // undefined = leave as-is; null = fall back to the plan's own allowance
-        memberLimit: body.memberLimit,
-        documentLimit: body.documentLimit,
-        uploadLimit: body.uploadLimit,
-      },
+
+    // Same write path an approved renewal takes, so the two can never drift apart.
+    const applied = await applyPlanToOrg({
+      orgId: org.id,
+      planKey: body.planKey,
+      durationDays: body.durationDays,
+      memberLimit: body.memberLimit,
+      documentLimit: body.documentLimit,
+      uploadLimit: body.uploadLimit,
+      grantedById: req.adminId,
     });
     for (const pid of await ownerProfileIds(org.id)) {
       await notifyFromAdmin(pid, "plan_upgraded", {
         title: "Your organization plan was updated",
         message:
-          `${org.name} is now on the ${plan.name} plan` +
-          (expiresAt ? `, valid until ${expiresAt.toISOString().slice(0, 10)}.` : " (no expiry).") +
+          `${org.name} is now on the ${applied.planName} plan` +
+          (applied.expiresAt ? `, valid until ${applied.expiresAt.toISOString().slice(0, 10)}.` : " (no expiry).") +
           (body.message ? ` ${body.message}` : ""),
         orgNumber: org.orgNumber,
-        planKey: plan.key,
-        expiresAt: expiresAt?.toISOString() ?? null,
+        planKey: applied.planKey,
+        expiresAt: applied.expiresAt?.toISOString() ?? null,
       });
     }
-    await audit(req.adminId, "upgrade_plan", { orgNumber: org.orgNumber, planKey: plan.key, days });
-    return { ok: true, planKey: plan.key, expiresAt: expiresAt?.toISOString() ?? null };
+    await audit(req.adminId, "upgrade_plan", {
+      orgNumber: org.orgNumber,
+      planKey: applied.planKey,
+      expiresAt: applied.expiresAt?.toISOString() ?? null,
+    });
+    return { ok: true, planKey: applied.planKey, expiresAt: applied.expiresAt?.toISOString() ?? null };
   });
 
   // ── Pricing plan management (so cards can be edited without raw SQL) ──────────

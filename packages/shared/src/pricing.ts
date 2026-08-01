@@ -6,8 +6,13 @@ import { z } from "zod";
 /** Plan/subscription state on an organization (mirrors Prisma `PlanStatus`). */
 export type PlanStatus = "NONE" | "DEMO" | "ACTIVE" | "EXPIRED";
 
-/** The three kinds of ask a user can send the super-admin. */
-export type PlatformRequestKind = "CREATE_ORG" | "CUSTOM_PLAN" | "RESTORE_ORG";
+/** The kinds of ask a user can send the super-admin. */
+export type PlatformRequestKind =
+  | "CREATE_ORG"
+  | "CUSTOM_PLAN"
+  | "RESTORE_ORG"
+  /** Renew or upgrade the plan of an organization that already exists. */
+  | "PLAN_RENEWAL";
 export type PlatformRequestStatus =
   | "PENDING"
   | "APPROVED"
@@ -71,23 +76,51 @@ export interface OrgPlanLimitsView {
   upgradeNotice: string;
 }
 
-/** A user filing a request (create an org / propose a custom plan / restore an org). */
+/** A user filing a request (create an org / propose a custom plan / restore / renew). */
 export const createPlatformRequestSchema = z
   .object({
-    kind: z.enum(["CREATE_ORG", "CUSTOM_PLAN", "RESTORE_ORG"]),
+    kind: z.enum(["CREATE_ORG", "CUSTOM_PLAN", "RESTORE_ORG", "PLAN_RENEWAL"]),
     planKey: z.string().max(60).optional(),
     requestedDays: z.number().int().positive().max(3650).optional(),
     offeredCoins: z.number().int().nonnegative().max(1_000_000).optional(),
     message: z.string().max(600).optional(),
-    targetOrgNumber: z.number().int().positive().optional(), // RESTORE_ORG
+    targetOrgNumber: z.number().int().positive().optional(), // RESTORE_ORG | PLAN_RENEWAL
   })
   .refine((v) => v.kind !== "CUSTOM_PLAN" || (v.requestedDays && v.offeredCoins != null), {
     message: "A custom-plan request needs the number of days and the coins you offer",
   })
   .refine((v) => v.kind !== "RESTORE_ORG" || v.targetOrgNumber != null, {
     message: "A restore request needs the organization number",
+  })
+  .refine((v) => v.kind !== "PLAN_RENEWAL" || v.targetOrgNumber != null, {
+    message: "A renewal request needs the organization number",
   });
 export type CreatePlatformRequestInput = z.infer<typeof createPlatformRequestSchema>;
+
+// ── Plan expiry reminders ────────────────────────────────────────────────────
+// The org's owners are reminded on a fixed ladder before the plan lapses. The first
+// notice lands 20 days out — early enough to arrange a renewal, upgrade, or a
+// conversation with the super-admin without any interruption to the organization.
+
+export const PLAN_REMINDER_DAYS = [20, 7, 1] as const;
+export type PlanReminderStage = (typeof PLAN_REMINDER_DAYS)[number];
+
+/**
+ * Which reminder rung `daysLeft` falls on, or null when expiry is still far away.
+ * Returns the SMALLEST threshold that still covers the remaining days, so the ladder
+ * only ever tightens: 15 days left → the 20-day notice, 5 → the 7-day, 0.5 → the 1-day.
+ * Callers persist the rung they last sent, which makes the sweep idempotent.
+ */
+export function planReminderStage(daysLeft: number): PlanReminderStage | null {
+  const covering = PLAN_REMINDER_DAYS.filter((d) => daysLeft <= d);
+  return covering.length ? (Math.min(...covering) as PlanReminderStage) : null;
+}
+
+/** Whole days (rounded up) until `expiresAt`; negative once the plan has lapsed. */
+export function daysUntil(expiresAt: string | Date): number {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  return Math.ceil(ms / 86_400_000);
+}
 
 /** A user's view of one of their requests (and, once approved, the OTP itself). */
 export interface PlatformRequestView {

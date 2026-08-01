@@ -2,16 +2,33 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AdminOrgRow, AdminRequestRow, AdminSession } from "@vault/shared";
+import type {
+  AdminOrgRow,
+  AdminPlanRow,
+  AdminRequestRow,
+  AdminSession,
+  AdminSummary,
+} from "@vault/shared";
+import { daysUntil, PLAN_REMINDER_DAYS } from "@vault/shared";
 import { admin, AdminApiError, clearAdminSession, hasAdminSession } from "@/lib/admin-client";
 
 type Tab = "orgs" | "requests" | "coins" | "admins";
+
+/** The plan keys every "set plan" control offers — loaded once, shared by both forms. */
+function usePlanKeys(): AdminPlanRow[] {
+  const [plans, setPlans] = useState<AdminPlanRow[]>([]);
+  useEffect(() => {
+    admin.plans().then((r) => setPlans(r.plans.filter((p) => p.active))).catch(() => setPlans([]));
+  }, []);
+  return plans;
+}
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [me, setMe] = useState<AdminSession["admin"] | null>(null);
   const [tab, setTab] = useState<Tab>("orgs");
   const [toast, setToast] = useState<string | null>(null);
+  const [summary, setSummary] = useState<AdminSummary | null>(null);
 
   useEffect(() => {
     if (!hasAdminSession()) {
@@ -20,6 +37,16 @@ export default function AdminDashboard() {
     }
     admin.me().then((r) => setMe(r.admin)).catch(() => router.replace("/kbase/login"));
   }, [router]);
+
+  // Attention counters — polled so a new request or an approaching expiry surfaces on
+  // the tab bar even while the admin is looking at another tab.
+  useEffect(() => {
+    if (!me || me.mustChangePassword) return;
+    const load = () => admin.summary().then(setSummary).catch(() => undefined);
+    load();
+    const t = setInterval(load, 8000);
+    return () => clearInterval(t);
+  }, [me]);
 
   const flash = (m: string) => {
     setToast(m);
@@ -49,12 +76,37 @@ export default function AdminDashboard() {
       </header>
 
       <nav className="kbase-tabs">
-        {(["orgs", "requests", "coins", "admins"] as Tab[]).map((t) => (
-          <button key={t} className={`btn btn-small ${tab === t ? "btn-primary" : "btn-quiet"}`} onClick={() => setTab(t)}>
-            {t === "orgs" ? "Organizations" : t === "requests" ? "Requests" : t === "coins" ? "Coins" : "Admins"}
-          </button>
-        ))}
+        {(["orgs", "requests", "coins", "admins"] as Tab[]).map((t) => {
+          const count =
+            t === "requests"
+              ? summary?.pendingRequests ?? 0
+              : t === "orgs"
+                ? (summary?.expiringSoon ?? 0) + (summary?.expiredOrgs ?? 0)
+                : 0;
+          return (
+            <button key={t} className={`btn btn-small ${tab === t ? "btn-primary" : "btn-quiet"}`} onClick={() => setTab(t)}>
+              {t === "orgs" ? "Organizations" : t === "requests" ? "Requests" : t === "coins" ? "Coins" : "Admins"}
+              {count > 0 && (
+                <span className="badge badge-danger" style={{ marginLeft: "0.4rem" }}>{count}</span>
+              )}
+            </button>
+          );
+        })}
       </nav>
+
+      {summary && (summary.pendingRequests > 0 || summary.expiringSoon > 0 || summary.expiredOrgs > 0) && (
+        <p className="auth-sub" style={{ margin: "0 0 0.6rem" }}>
+          {summary.pendingRequests > 0 && (
+            <><strong>{summary.pendingRequests}</strong> request{summary.pendingRequests === 1 ? "" : "s"} waiting for a decision. </>
+          )}
+          {summary.expiringSoon > 0 && (
+            <><strong>{summary.expiringSoon}</strong> organization{summary.expiringSoon === 1 ? "" : "s"} expiring within {Math.max(...PLAN_REMINDER_DAYS)} days. </>
+          )}
+          {summary.expiredOrgs > 0 && (
+            <><strong>{summary.expiredOrgs}</strong> already expired.</>
+          )}
+        </p>
+      )}
 
       {toast && <div className="kbase-toast glass">{toast}</div>}
 
@@ -204,7 +256,7 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
                 <td>{o.ownerUsernames.map((u) => `@${u}`).join(", ") || "—"}</td>
                 <td>{o.planKey ?? "—"}</td>
                 <td><span className={`badge ${o.planStatus === "ACTIVE" ? "badge-ok" : o.planStatus === "EXPIRED" ? "badge-danger" : ""}`}>{o.planStatus.toLowerCase()}</span></td>
-                <td>{o.planExpiresAt ? o.planExpiresAt.slice(0, 10) : "—"}</td>
+                <td><ExpiryCell o={o} /></td>
                 <td>{o.memberCount}{o.memberLimit != null ? ` / ${o.memberLimit}` : ""}</td>
                 <td>{o.documentCount}{o.documentLimit != null ? ` / ${o.documentLimit}` : ""}</td>
                 <td>{o.uploadCount}{o.uploadLimit != null ? ` / ${o.uploadLimit}` : ""}</td>
@@ -238,8 +290,22 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
   );
 }
 
+/** Expiry cell: the date, plus how close it is, so the table itself flags what to chase. */
+function ExpiryCell({ o }: { o: AdminOrgRow }) {
+  if (!o.planExpiresAt) return <>—</>;
+  const left = daysUntil(o.planExpiresAt);
+  const warn = left <= Math.max(...PLAN_REMINDER_DAYS);
+  return (
+    <span className={left <= 0 ? "badge badge-danger" : warn ? "badge" : undefined}>
+      {o.planExpiresAt.slice(0, 10)}
+      {left <= 0 ? " · expired" : warn ? ` · ${left}d left` : ""}
+    </span>
+  );
+}
+
 function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () => void; onDone: (m: string) => void }) {
   const [error, setError] = useState<string | null>(null);
+  const plans = usePlanKeys();
   return (
     <form
       className="kbase-inline glass"
@@ -260,11 +326,18 @@ function UpgradeForm({ org, onClose, onDone }: { org: AdminOrgRow; onClose: () =
       }}
     >
       <strong>Set plan for {org.name} (#{org.orgNumber})</strong>
+      <p className="auth-sub" style={{ margin: 0 }}>
+        Currently {org.planKey ?? "no plan"} · {org.planStatus.toLowerCase()}
+        {org.planExpiresAt ? ` · expires ${org.planExpiresAt.slice(0, 10)}` : ""}
+      </p>
       <label className="field"><span>Plan key</span>
-        <select name="planKey" defaultValue="organisation">
-          <option value="demo">demo</option>
-          <option value="monthly">monthly</option>
-          <option value="organisation">organisation</option>
+        <select name="planKey" defaultValue={org.planKey ?? plans[0]?.key ?? ""}>
+          {plans.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.key} — {p.name}
+              {p.durationDays ? ` (${p.durationDays}d)` : ""}
+            </option>
+          ))}
         </select>
       </label>
       <label className="field"><span>Duration (days — blank = unlimited/plan default)</span><input name="days" type="number" min={1} /></label>
@@ -295,7 +368,7 @@ function RequestsTab({ flash }: { flash: (m: string) => void }) {
       <div className="kbase-panel-head">
         <div>
           <h2>Requests</h2>
-          <p className="auth-sub">Users asking to create an organization, propose a custom plan, or restore an expired org. Live — refreshes every 8s.</p>
+          <p className="auth-sub">Users asking to create an organization, propose a custom plan, restore an expired org, or renew/upgrade an existing one. Live — refreshes every 8s.</p>
         </div>
         <button className="btn btn-quiet btn-small" onClick={load}>↻ Refresh</button>
       </div>
@@ -309,7 +382,13 @@ function RequestsTab({ flash }: { flash: (m: string) => void }) {
                 {r.planKey && <span className="badge"> {r.planKey}</span>}
                 {r.requestedDays != null && <span className="auth-sub"> · wants {r.requestedDays}d</span>}
                 {r.offeredCoins != null && <span className="auth-sub"> · offers {r.offeredCoins} coins</span>}
-                {r.targetOrgNumber != null && <span className="auth-sub"> · org #{r.targetOrgNumber}</span>}
+                {r.targetOrgNumber != null && (
+                  <span className="auth-sub">
+                    {" "}· {r.targetOrgName ?? "org"} #{r.targetOrgNumber}
+                    {r.targetOrgPlanKey && ` · now on ${r.targetOrgPlanKey}`}
+                    {r.targetOrgPlanExpiresAt && ` until ${r.targetOrgPlanExpiresAt.slice(0, 10)}`}
+                  </span>
+                )}
               </div>
               {r.message && <p className="auth-sub">“{r.message}”</p>}
               {r.adminMessage && <p className="auth-sub">Reply: {r.adminMessage}</p>}
@@ -325,6 +404,11 @@ function RequestsTab({ flash }: { flash: (m: string) => void }) {
 function DecideForm({ r, onDone }: { r: AdminRequestRow; onDone: (m: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [otp, setOtp] = useState<string | null>(null);
+  const plans = usePlanKeys();
+  // A renewal targets an org that already exists — approving APPLIES the plan there and
+  // then, so this form sets the terms directly instead of minting a code to redeem.
+  const isRenewal = r.kind === "PLAN_RENEWAL";
+
   if (otp) {
     return (
       <div className="kbase-inline glass">
@@ -342,26 +426,68 @@ function DecideForm({ r, onDone }: { r: AdminRequestRow; onDone: (m: string) => 
         setError(null);
         const d = new FormData(e.currentTarget);
         const decision = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "deny" ? "DENY" : "APPROVE";
+        const num = (k: string) => (d.get(k) ? Number(d.get(k)) : undefined);
         try {
           const res = await admin.decide(r.id, {
             decision,
-            grantedDays: d.get("days") ? Number(d.get("days")) : undefined,
-            priceCoins: d.get("price") ? Number(d.get("price")) : undefined,
+            grantedDays: num("days"),
+            priceCoins: num("price"),
             adminMessage: String(d.get("message") || "") || undefined,
+            ...(isRenewal
+              ? {
+                  applyPlanKey: String(d.get("applyPlanKey") || "") || undefined,
+                  memberLimit: d.get("memberLimit") ? Number(d.get("memberLimit")) : null,
+                  documentLimit: d.get("documentLimit") ? Number(d.get("documentLimit")) : null,
+                  uploadLimit: d.get("uploadLimit") ? Number(d.get("uploadLimit")) : null,
+                }
+              : {}),
+            ...(num("grantCoins") ? { grantCoins: num("grantCoins") } : {}),
           });
           if (res.otp) { setOtp(res.otp); onDone(`Approved @${r.requesterUsername}`); }
-          else onDone(`Denied @${r.requesterUsername}`);
+          else if (decision === "APPROVE" && isRenewal) {
+            onDone(`${r.targetOrgName ?? `#${r.targetOrgNumber}`} → ${res.planKey}${res.expiresAt ? ` (until ${res.expiresAt.slice(0, 10)})` : ""}`);
+          } else onDone(`Denied @${r.requesterUsername}`);
         } catch (err) {
           setError(err instanceof AdminApiError ? err.message : "Failed");
         }
       }}
     >
-      <label className="field"><span>Granted days</span><input name="days" type="number" min={1} defaultValue={r.requestedDays ?? undefined} /></label>
+      {isRenewal && (
+        <>
+          <strong>Renew {r.targetOrgName ?? `org #${r.targetOrgNumber}`}</strong>
+          <p className="auth-sub" style={{ margin: 0 }}>
+            Approving applies this plan immediately — no access code is issued.
+          </p>
+          <label className="field"><span>Plan to apply</span>
+            <select name="applyPlanKey" defaultValue={r.planKey ?? r.targetOrgPlanKey ?? plans[0]?.key ?? ""}>
+              {plans.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.key} — {p.name}{p.durationDays ? ` (${p.durationDays}d)` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+      <label className="field"><span>Granted days{isRenewal ? " (blank = the plan's own duration)" : ""}</span><input name="days" type="number" min={1} defaultValue={r.requestedDays ?? undefined} /></label>
       <label className="field"><span>Price (coins)</span><input name="price" type="number" min={0} defaultValue={r.offeredCoins ?? undefined} /></label>
+      {isRenewal && (
+        <>
+          <label className="field"><span>Member limit (blank = the plan&apos;s limit)</span><input name="memberLimit" type="number" min={1} /></label>
+          <label className="field"><span>Custom-document limit (blank = plan&apos;s)</span><input name="documentLimit" type="number" min={1} /></label>
+          <label className="field"><span>Upload limit (blank = plan&apos;s)</span><input name="uploadLimit" type="number" min={1} /></label>
+        </>
+      )}
+      <label className="field">
+        <span>Gift coins with this decision (optional)</span>
+        <input name="grantCoins" type="number" placeholder="e.g. 200" />
+      </label>
       <label className="field"><span>Message</span><input name="message" placeholder="Custom note to the user" /></label>
       {error && <p className="form-error">{error}</p>}
       <div className="tree-actions">
-        <button className="btn btn-primary btn-small" value="approve">Approve + issue OTP</button>
+        <button className="btn btn-primary btn-small" value="approve">
+          {isRenewal ? "Approve + apply plan" : "Approve + issue OTP"}
+        </button>
         <button className="btn btn-danger btn-small" value="deny">Deny</button>
       </div>
     </form>

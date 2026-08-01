@@ -39,6 +39,51 @@ export async function redeemAccessCode(
   };
 }
 
+export interface ApplyPlanInput {
+  orgId: string;
+  planKey: string;
+  /** undefined = use the plan's own duration; null = no expiry. */
+  durationDays?: number | null;
+  /** undefined = leave the org's override as-is; null = fall back to the plan's allowance. */
+  memberLimit?: number | null;
+  documentLimit?: number | null;
+  uploadLimit?: number | null;
+  grantedById: string; // PlatformAdmin.id
+}
+
+/**
+ * Put an organization onto a plan — the single write path for both the admin's direct
+ * "Set plan" action and an approved PLAN_RENEWAL request, so the two can never drift.
+ *
+ * Clears `planReminderDays`: a renewed plan starts its expiry-reminder ladder afresh,
+ * otherwise the owners would never hear about the NEXT expiry.
+ */
+export async function applyPlanToOrg(
+  input: ApplyPlanInput,
+): Promise<{ planKey: string; planName: string; expiresAt: Date | null }> {
+  const plan = await db.pricingPlan.findUnique({ where: { key: input.planKey } });
+  if (!plan) throw Object.assign(new Error("No such plan"), { statusCode: 404 });
+
+  const days = input.durationDays === undefined ? plan.durationDays : input.durationDays;
+  const expiresAt = expiryFrom(days);
+  await db.organization.update({
+    where: { id: input.orgId },
+    data: {
+      planKey: plan.key,
+      planStatus: planStatusFor(plan.key),
+      planActivatedAt: new Date(),
+      planExpiresAt: expiresAt,
+      planIsCustom: input.durationDays != null,
+      planGrantedById: input.grantedById,
+      planReminderDays: null,
+      memberLimit: input.memberLimit,
+      documentLimit: input.documentLimit,
+      uploadLimit: input.uploadLimit,
+    },
+  });
+  return { planKey: plan.key, planName: plan.name, expiresAt };
+}
+
 export function planStatusFor(planKey: string | null): PlanStatus {
   if (!planKey || planKey === "custom") return planKey === "custom" ? "ACTIVE" : "NONE";
   return planKey === "demo" ? "DEMO" : "ACTIVE";

@@ -3,8 +3,10 @@
 import type {
   AddAdminInput,
   AdminOrgRow,
+  AdminPlanRow,
   AdminRequestRow,
   AdminSession,
+  AdminSummary,
   AdminTreeNode,
   DecidePlatformRequestInput,
   GiftCoinsInput,
@@ -63,13 +65,14 @@ export const admin = {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword, confirm }),
     }),
+  summary: () => call<AdminSummary>("/admin/summary"),
   orgs: () => call<{ orgs: AdminOrgRow[] }>("/admin/orgs"),
   orgTree: (orgNumber: number) =>
     call<{ name: string; nodes: AdminTreeNode[] }>(`/admin/orgs/${orgNumber}/tree`),
   requests: (status?: string) =>
     call<{ requests: AdminRequestRow[] }>(`/admin/requests${status ? `?status=${status}` : ""}`),
   decide: (id: string, input: DecidePlatformRequestInput) =>
-    call<{ ok: boolean; status: string; otp?: string; expiresAt?: string }>(
+    call<{ ok: boolean; status: string; otp?: string; expiresAt?: string; planKey?: string }>(
       `/admin/requests/${id}/decide`,
       { method: "POST", body: JSON.stringify(input) },
     ),
@@ -91,7 +94,7 @@ export const admin = {
       method: "PUT",
       body: JSON.stringify({ defaultCoins }),
     }),
-  plans: () => call<{ plans: unknown[] }>("/admin/plans"),
+  plans: () => call<{ plans: AdminPlanRow[] }>("/admin/plans"),
   admins: () =>
     call<{ admins: { id: string; username: string; displayName: string; active: boolean; createdAt: string; lastLoginAt: string | null }[] }>(
       "/admin/admins",
