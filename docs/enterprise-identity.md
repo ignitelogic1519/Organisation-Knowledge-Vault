@@ -403,7 +403,117 @@ own IT scheduling — which is usually the real critical path.
 
 ---
 
-## 10. How to pitch it
+## 10. The Organizational plan — gating, adoption and the two-layer session
+
+> Owner proposal, 2026-08-01, reviewed below. The existing way into the platform does not
+> change: profiles are still username + password, organizations are still created with
+> Knowledge Coins and an OTP. Directory features are an **Organizational plan** capability
+> only.
+
+### 10.1 Plan gating — accepted as proposed
+Correct, and it costs almost nothing to build: `Organization.planKey` / `planStatus` /
+`planExpiresAt` already exist and already gate creation and restore (`pricing.md`). Directory
+import becomes one more plan capability beside `allowDrafts`, `memberLimit`, `documentLimit`.
+
+This is also the right *commercial* shape. SSO and directory sync are the classic features that
+justify a top tier — every enterprise SaaS prices them exactly here. Keeping the coin/OTP funnel
+untouched means the self-serve path and the enterprise path never interfere.
+
+Consequence to design for: a plan that lapses must **not** silently strip directory access.
+Expiry should freeze syncing (structure and people stay exactly as they are, entry keeps
+working) and warn, never delete. Deleting people because an invoice is late is not a defensible
+product behaviour.
+
+### 10.2 Import — **adopt**, do not **replace**
+
+The proposal was that importing the directory *deletes the current branches and builds new ones*.
+The goal is right; the mechanism needs to change, because in this codebase a wipe destroys four
+things that are not recoverable:
+
+| What breaks | Why | Severity |
+|---|---|---|
+| **Every `.bkp` file the org ever exported** | `structureFingerprint()` (`vault-files/container.ts:93`) hashes `{path, roleNumber, children}` and restore demands **exact** equality. New role numbers ⇒ every previously downloaded `.bkp` is permanently un-restorable. | **Critical** — this is the custody model, the spine of the product |
+| **All course placements** | `CoursePlacement` is keyed on `roleNodeId`: mandatory flags, per-branch deadline overrides, recurrence overrides, inheritance. All of it dies with the node. | **Critical** — the org's entire training configuration |
+| **Course code lineage** | Codes are `<org>-<role>-<item>` (`456-989-0001`) and permanent. After a wipe, the middle segment names a role number that no longer exists. | Moderate — cosmetic but permanent and visible |
+| **Branch configuration** | Visibility (`isPublic`), owner capability flags, course-request approval settings. | Moderate |
+
+One piece of good news: **`CompletionRecord` survives.** It is keyed on
+`courseId / courseCode / profileId / orgId` with no `roleNodeId` — so training history is not
+at risk either way. That is exactly the design decision in `structure.md` §3.7 paying off.
+
+**The better mechanism — a reconciled adoption, in five steps:**
+
+1. **Mandatory `.main` export first.** Reuse the pattern the deletion flow already uses: the
+   owner cannot proceed until the file is downloaded. Non-negotiable for a structural rewrite.
+2. **Dry run.** Read the directory, produce a mapping table and show it *before anything
+   changes*: each existing branch → its matched Entra group, each group with no branch, each
+   branch with no group. Nothing is written in this step.
+3. **The owner resolves the unmatched.** For every branch with no directory match: *keep as a
+   local branch*, *archive*, or *merge into <group>*. **No branch is ever deleted silently.**
+   This step is the whole difference between a feature and an incident.
+4. **Apply in one transaction**, carrying `CoursePlacement` rows, branch settings and existing
+   people across the mapping. New nodes draw fresh numbers from `nextRoleNumber` — never
+   reused, invariant preserved (`structure.md` §5.1).
+5. **Emit a migration report** — applied / carried / archived / skipped and why. The restore
+   flow already has this pattern (`architecture.md` §5); mirror it exactly.
+
+**Fast path:** an org whose tree is still just the root has nothing to reconcile. There,
+steps 2–3 collapse to a preview-and-confirm. Most enterprise customers will buy the plan and
+import immediately, so this is the common case — but it must be a *detected* case, not an
+assumption, because the customer with three years of structure is the one who will be hurt.
+
+**Re-import** is the same pipeline: it is a reconciliation, so running it twice is safe and
+idempotent. That is a property a wipe-and-rebuild can never have.
+
+### 10.3 Two-layer sessions — accepted, and the strongest part of the proposal
+
+The proposal: the global login stays as it is; entering a *directory-bound organization*
+additionally requires the Microsoft identity. This is the correct answer to a real problem —
+one profile belongs to many organizations, so identity requirements cannot be global.
+
+It also has a precedent already in the codebase. The **Supreme gate**
+(`apps/api/src/orgs/supreme.ts`) is exactly this shape: verify → short-lived scoped JWT
+(`{scope:"supreme", orgId}`) → route guard on a header → every attempt rate-limited and
+audit-logged. The org-entry gate is the same machinery with a different scope:
+
+```ts
+{ scope: "org-entry", orgId, externalId }   // TTL in hours, not Supreme's 10 minutes
+```
+
+Design notes:
+
+- **It is not a second username and password.** Do not build it, or describe it, as "log in
+  again". It is *"verifying you with Contoso"* — one click, and usually silent, because the
+  browser normally already holds a live Microsoft session. Framed as a second login it reads
+  as friction; framed as verification it reads as security.
+- **The failure mode is the feature.** Entra account disabled at 09:00 → the gate refuses at
+  09:01 → that organization is closed to them, **while their global profile and every other
+  organization they belong to are untouched.** This delivers real-time revocation *without*
+  waiting for the ~40-minute provisioning cycle (§6). Provisioning removes them tidily later;
+  the gate stops them immediately. Say this in the pitch — it is a genuinely strong answer to
+  "how fast does access die when we fire someone?"
+- **Break-glass stays mandatory.** Refuse to enable enforced org entry unless at least one
+  owner retains a working local path. A tenant outage or an expired contract must never lock an
+  organization away from the people who own it.
+- **Supreme is never SSO.** It stays a human-held password. Custody of the organization's
+  existence does not delegate to a third party, including Microsoft (`structure.md` §5).
+- **Grace on flip.** When an owner turns enforcement on, existing members need a window and a
+  clear notification to link their Microsoft account, or the org locks its own people out on
+  the first day. Link-then-enforce, never enforce-then-link.
+
+### 10.4 Summary of the verdict
+
+| Proposal | Verdict |
+|---|---|
+| Coin/OTP creation path unchanged | ✅ Keep exactly as is |
+| Directory features gated behind an Organizational plan | ✅ Correct, and correctly priced |
+| Import **deletes** branches and rebuilds | ⚠️ **Change to reconciled adoption** (§10.2) — the goal is right, the wipe is not |
+| Per-organization Microsoft sign-in on top of a global profile | ✅ Best idea in the proposal — build on the Supreme-gate pattern |
+| Global login untouched | ✅ Keep; two layers, not a replacement |
+
+---
+
+## 11. How to pitch it
 
 Four sentences, in this order:
 

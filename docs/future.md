@@ -159,4 +159,25 @@ retain `CompletionRecord` evidence; the Supreme gate is never bypassed by SSO an
 break-glass owner stays mandatory; plan member caps and the free-tier Render sleep both break
 Microsoft's provisioning service, so this belongs to a paid enterprise tier.
 
+Owner shaping (2026-08-01), reviewed in §10 of the study: the coin/OTP creation funnel stays
+untouched; directory features are an **Organizational plan** capability; entering a
+directory-bound org needs a Microsoft identity check *on top of* the unchanged global login
+(two layers, built on the existing Supreme-gate pattern — a person belongs to many orgs, so the
+requirement cannot be global). One change from the proposal: import must **adopt** the directory
+through a reviewed, reconciled migration, not **delete and rebuild** — a wipe permanently
+invalidates every `.bkp` the org ever exported (the `structureHash` gate) and destroys all
+course placements. Completion history survives either way.
+
 Full study, phasing, effort and requirements: [enterprise-identity.md](enterprise-identity.md).
+
+## 15. Electronic signatures & document lifecycle (studied 2026-08-01)
+Signed approval and signed read-and-understood acknowledgement, bound to a document version and
+content hash — the feature that turns training records into audit evidence. Seeds already
+present: the `CONTENT_REVIEW` draft/review flow, `Course.version`, the append-only `AuditLog`,
+and the Studio's generated cover/scope pages (a signature page is the same machinery).
+Independent of the directory work — signed acknowledgement ships standalone and simply gets
+stronger once Entra verifies the signer. Two concrete code changes it forces: signature audit
+entries must be **exempt from the nightly retention trim**, and signatures must supersede
+(never silently carry) across document versions.
+
+Full study, components, data model and phasing: [document-signing.md](document-signing.md).
