@@ -326,8 +326,12 @@ export function documentStats(blocks: EditorBlock[]) {
   };
 }
 
-/** The publish/draft metadata the Studio edits alongside the blocks. */
-export type StudioMeta = Omit<StudioDocument, "blocks">;
+/**
+ * The publish/draft metadata the Studio edits alongside the body it is writing. Identical
+ * for both creation modes — a document and an exam are classified, described, shelved and
+ * placed in exactly the same way; only the body differs (`blocks` vs `exam`).
+ */
+export type StudioMeta = Omit<StudioDocument, "blocks" | "exam">;
 
 export const EMPTY_META: StudioMeta = {
   title: "",

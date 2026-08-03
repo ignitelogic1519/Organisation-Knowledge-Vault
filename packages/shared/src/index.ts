@@ -7,6 +7,7 @@ export * from "./auth.js";
 export * from "./orgs.js";
 export * from "./roles.js";
 export * from "./courses.js";
+export * from "./exams.js";
 export * from "./requests.js";
 export * from "./pricing.js";
 export * from "./platform.js";

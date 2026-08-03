@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { examBodySchema } from "./exams.js";
 import type { Classification, CompletionStatus, CourseKind } from "./types.js";
 
 // Course & learning contracts — docs/structure.md §3 (courses), §5 (assignment), §6 (surfaces).
@@ -262,7 +263,7 @@ export interface AuthoredDocument {
 
 export const createCourseSchema = z.object({
   roleNodeId: z.string().uuid(), // uploading role — its number goes into the code
-  kind: z.enum(["DOCUMENT", "BOOK", "LINK", "AUDIO", "VIDEO"]),
+  kind: z.enum(["DOCUMENT", "BOOK", "LINK", "AUDIO", "VIDEO", "EXAM"]),
   title: z.string().min(2, "Title is too short").max(120),
   /** Short description — shown in the library and on the course's detail view. */
   description: z.string().min(8, "Describe the course in a sentence or two").max(500),
@@ -286,6 +287,8 @@ export const createCourseSchema = z.object({
   mime: z.string().max(100).optional(),
   /** Studio-authored interactive document. */
   blocks: authoredBlocksSchema.optional(),
+  /** Studio-authored MCQ exam (kind = EXAM) — questions plus the paper's rules. */
+  exam: examBodySchema.optional(),
   /** The Studio document's theme, stored with the blocks. */
   theme: documentThemeSchema.optional(),
   deadlineDays: z.number().int().positive().max(3650).optional(),
@@ -311,6 +314,11 @@ export type PlaceCourseInput = z.infer<typeof placeCourseSchema>;
 // settings, parked on the server so the author can leave and come back from any device.
 // It is NOT the member-proposal `Course.draft` flag — nothing is created in the library
 // until the author publishes or submits for review.
+//
+// One shape covers both of the Studio's creation modes: `kind` says which was chosen, and
+// the body it wrote lives in `blocks` (a document) or `exam` (an MCQ paper). Everything
+// around it — classification, description, library shelf, placement — is identical, which
+// is exactly why an exam is authored through the same publish settings a document is.
 
 export const studioDocumentSchema = z.object({
   title: z.string().trim().max(120).default(""),
@@ -321,13 +329,15 @@ export const studioDocumentSchema = z.object({
     .enum(["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"])
     .nullable()
     .default(null),
-  kind: z.enum(["DOCUMENT", "BOOK"]).default("DOCUMENT"),
+  kind: z.enum(["DOCUMENT", "BOOK", "EXAM"]).default("DOCUMENT"),
   inLibrary: z.boolean().default(true),
   mandatory: z.boolean().default(false),
   inherit: z.boolean().default(true),
   resets: z.boolean().default(true),
   theme: documentThemeSchema.default({}),
   blocks: z.array(authoredBlockSchema).max(400).default([]),
+  /** kind = EXAM: the paper being written. Absent on document drafts. */
+  exam: examBodySchema.optional(),
 });
 export type StudioDocument = z.infer<typeof studioDocumentSchema>;
 
@@ -344,7 +354,10 @@ export interface StudioDraftSummary {
   id: string;
   roleNodeId: string;
   roleName: string;
+  /** Which Studio mode wrote it — each editor lists only the drafts it can open. */
+  kind: StudioDocument["kind"];
   title: string;
+  /** Blocks in a document draft; questions in an exam draft. */
   blockCount: number;
   updatedAt: string;
   createdAt: string;
@@ -373,6 +386,7 @@ export const updateCourseSchema = z.object({
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),
   blocks: authoredBlocksSchema.optional(),
+  exam: examBodySchema.optional(),
   theme: documentThemeSchema.optional(),
 });
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;

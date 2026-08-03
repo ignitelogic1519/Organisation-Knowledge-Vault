@@ -744,12 +744,13 @@ function CoursesPanel({
         </button>
         <button
           className="btn btn-quiet btn-small"
-          title="Create an interactive document from scratch"
+          title="Create an interactive document or an MCQ exam from scratch"
           onClick={() => {
             if (documentsFull) {
               void allowanceNotice("custom documents", limits?.documents.limit ?? null);
               return;
             }
+            // The Studio asks what is being created (document or exam) before it opens.
             router.push(`/orgs/${orgId}/studio?role=${node.id}`);
           }}
         >

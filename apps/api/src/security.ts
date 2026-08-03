@@ -108,6 +108,39 @@ export function sanitizeBlocks<T extends SanitizableBlock[]>(blocks: T): T {
   return blocks;
 }
 
+/** Every text field of an exam is rendered as PLAIN text — markup is simply removed. */
+const stripMarkup = (input: string) => input.replace(/<[^>]*>/g, "");
+
+interface SanitizableExam {
+  intro?: string;
+  questions?: {
+    prompt?: string;
+    help?: string;
+    explanation?: string;
+    options?: { text?: string }[];
+  }[];
+}
+
+/**
+ * Clean an authored MCQ paper on the way in. Questions, options and explanations are shown
+ * to candidates as text nodes, never as HTML, so the safest thing to store is text with no
+ * tags at all — that keeps a paper harmless no matter which surface renders it later.
+ */
+export function sanitizeExam<T extends SanitizableExam>(exam: T): T {
+  if (typeof exam.intro === "string") exam.intro = stripMarkup(exam.intro);
+  for (const question of exam.questions ?? []) {
+    if (typeof question.prompt === "string") question.prompt = stripMarkup(question.prompt);
+    if (typeof question.help === "string") question.help = stripMarkup(question.help);
+    if (typeof question.explanation === "string") {
+      question.explanation = stripMarkup(question.explanation);
+    }
+    for (const option of question.options ?? []) {
+      if (typeof option.text === "string") option.text = stripMarkup(option.text);
+    }
+  }
+  return exam;
+}
+
 // ── Audit log ────────────────────────────────────────────────────────────────
 
 export async function audit(

@@ -12,7 +12,7 @@ import {
 import { db } from "../db.js";
 import { assertDraftsAllowed, orgPlanLimitsView } from "../orgs/plan.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
-import { sanitizeBlocks } from "../security.js";
+import { sanitizeBlocks, sanitizeExam } from "../security.js";
 
 // Document Studio server routes: what the organization's plan allows, and the premium
 // draft store that lets an author park an unfinished document and resume it anywhere.
@@ -39,14 +39,26 @@ async function assertCanAuthor(profileId: string, roleNodeId: string, orgId: str
 }
 
 function toSummary(
-  row: { id: string; roleNodeId: string; title: string; blockCount: number; createdAt: Date; updatedAt: Date },
+  row: {
+    id: string;
+    roleNodeId: string;
+    title: string;
+    blockCount: number;
+    document: unknown;
+    createdAt: Date;
+    updatedAt: Date;
+  },
   roleName: string,
 ): StudioDraftSummary {
+  // Which Studio mode wrote it lives in the stored document — each editor lists only the
+  // drafts it can reopen, so an exam never turns up in the document editor's tray.
+  const kind = (row.document as { kind?: StudioDraftSummary["kind"] } | null)?.kind ?? "DOCUMENT";
   return {
     id: row.id,
     roleNodeId: row.roleNodeId,
     roleName,
-    title: row.title || "Untitled document",
+    kind,
+    title: row.title || (kind === "EXAM" ? "Untitled exam" : "Untitled document"),
     blockCount: row.blockCount,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -110,10 +122,12 @@ export async function studioRoutes(app: FastifyInstance) {
       const node = await assertCanAuthor(req.profileId, body.roleNodeId, req.params.id);
 
       // Authored HTML is sanitized on the way in, exactly as it is when publishing, so a
-      // draft can never become a delivery route for stored markup.
+      // draft can never become a delivery route for stored markup. An exam draft carries
+      // questions instead of blocks and is cleaned the same way.
       const document: StudioDocument = {
         ...body.document,
         blocks: sanitizeBlocks(body.document.blocks),
+        ...(body.document.exam ? { exam: sanitizeExam(body.document.exam) } : {}),
       };
       const data = {
         orgId: req.params.id,
@@ -121,7 +135,9 @@ export async function studioRoutes(app: FastifyInstance) {
         authorProfileId: req.profileId,
         title: document.title.slice(0, 120),
         document: document as object,
-        blockCount: document.blocks.length,
+        // "How much is in it", shown in the drafts tray: blocks for a document, questions
+        // for an exam.
+        blockCount: document.exam ? document.exam.questions.length : document.blocks.length,
       };
 
       let row;

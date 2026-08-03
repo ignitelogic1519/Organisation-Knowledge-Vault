@@ -1,20 +1,16 @@
 "use client";
 
-import type { Classification, DocumentTheme, MediaOptions, OrgPlanLimitsView } from "@vault/shared";
+import type { DocumentTheme, MediaOptions, OrgPlanLimitsView } from "@vault/shared";
+import { DocumentProperties } from "./DocumentProperties";
+import { Row, Toggle } from "./fields";
 import { THEME_PRESETS } from "./presets";
 import type { EditorBlock, StudioMeta } from "./model";
 
 // The right-hand inspector: everything about the *selected block's* presentation on one
 // tab, and everything about the *document* (its cover data, placement and the plan's
 // allowances) on the other. Nothing here changes content — only how it is presented.
-
-const CLASSES: Classification[] = ["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"];
-const CLASS_LABEL: Record<Classification, string> = {
-  PUBLIC: "Public",
-  CONFIDENTIAL: "Confidential",
-  PRIVATE: "Private",
-  SECRET: "Secret",
-};
+// The document half is the shared DocumentProperties panel, which the exam editor publishes
+// through as well.
 
 const ANIMATIONS = ["none", "fade", "rise", "slide", "zoom", "flip"] as const;
 
@@ -25,55 +21,6 @@ const FONT_OPTIONS = [
   { key: "display", label: "Display" },
   { key: "hand", label: "Handwriting" },
 ];
-
-function Row({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
-  return (
-    <label className="insp-row">
-      <span className="insp-label">{label}</span>
-      {children}
-      {hint && <small className="insp-hint">{hint}</small>}
-    </label>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-  hint,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  hint?: string;
-}) {
-  return (
-    <label className="insp-toggle">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>
-        {label}
-        {hint && <small>{hint}</small>}
-      </span>
-    </label>
-  );
-}
-
-function Meter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
-  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  return (
-    <div className="insp-meter" data-full={limit != null && used >= limit}>
-      <div className="insp-meter-head">
-        <span>{label}</span>
-        <span>{limit == null ? `${used} · unlimited` : `${used} / ${limit}`}</span>
-      </div>
-      {limit != null && (
-        <div className="insp-meter-track">
-          <span style={{ width: `${pct}%` }} />
-        </div>
-      )}
-    </div>
-  );
-}
 
 function MediaSettings({
   media,
@@ -557,105 +504,13 @@ export function Inspector({
             />
           </Row>
 
-          <h4 className="insp-section">Cover &amp; library</h4>
-          <Row label="Classification *">
-            <select
-              value={meta.classification ?? ""}
-              onChange={(e) =>
-                onMeta({ ...meta, classification: (e.target.value || null) as Classification | null })
-              }
-            >
-              <option value="">Choose…</option>
-              {CLASSES.map((c) => (
-                <option key={c} value={c}>
-                  {CLASS_LABEL[c]}
-                </option>
-              ))}
-            </select>
-          </Row>
-          <Row label="Document type">
-            <select
-              value={meta.kind}
-              onChange={(e) => onMeta({ ...meta, kind: e.target.value as "DOCUMENT" | "BOOK" })}
-            >
-              <option value="DOCUMENT">Document</option>
-              <option value="BOOK">Book (multi-page)</option>
-            </select>
-          </Row>
-          <Row label="Library shelf">
-            <input
-              list="studio-shelves"
-              value={meta.category}
-              maxLength={40}
-              placeholder="AI, Safety, Onboarding…"
-              onChange={(e) => onMeta({ ...meta, category: e.target.value })}
-            />
-          </Row>
-          <datalist id="studio-shelves">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-          <Row label="Description *" hint="Printed on the document's description page.">
-            <textarea
-              rows={3}
-              maxLength={500}
-              value={meta.description}
-              onChange={(e) => onMeta({ ...meta, description: e.target.value })}
-            />
-          </Row>
-          <Row label="Scope" hint="Who it applies to and what it covers.">
-            <textarea
-              rows={3}
-              maxLength={2000}
-              value={meta.scope}
-              onChange={(e) => onMeta({ ...meta, scope: e.target.value })}
-            />
-          </Row>
-
-          <h4 className="insp-section">Placement</h4>
-          <Toggle
-            label="Publish to the library"
-            checked={meta.inLibrary}
-            onChange={(v) => onMeta({ ...meta, inLibrary: v })}
+          <DocumentProperties
+            meta={meta}
+            onMeta={onMeta}
+            limits={limits}
+            categories={categories}
+            needsReview={needsReview}
           />
-          {!needsReview && (
-            <>
-              <Toggle
-                label="Mandatory for this branch"
-                checked={meta.mandatory}
-                onChange={(v) => onMeta({ ...meta, mandatory: v })}
-              />
-              <Toggle
-                label="Inherit to lower branches"
-                checked={meta.inherit}
-                onChange={(v) => onMeta({ ...meta, inherit: v })}
-              />
-            </>
-          )}
-          <Toggle
-            label="Re-reading required after an update"
-            checked={meta.resets}
-            onChange={(v) => onMeta({ ...meta, resets: v })}
-          />
-
-          {limits && (
-            <>
-              <h4 className="insp-section">Plan allowance</h4>
-              <Meter
-                label="Studio documents"
-                used={limits.documents.used}
-                limit={limits.documents.limit}
-              />
-              <Meter label="Uploaded documents" used={limits.uploads.used} limit={limits.uploads.limit} />
-              <p className="insp-note">
-                {limits.planName ? `${limits.planName} plan` : "No active plan"}
-                {limits.draftsEnabled
-                  ? " · drafts included"
-                  : " · drafts are a premium capability"}
-              </p>
-            </>
-          )}
         </div>
       )}
     </aside>

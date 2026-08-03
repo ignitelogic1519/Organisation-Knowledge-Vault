@@ -19,6 +19,7 @@ import { useDialogs } from "@/components/dialogs";
 const KIND_LABELS: Record<string, string> = {
   DOCUMENT: "Document",
   BOOK: "Book",
+  EXAM: "Exam",
   LINK: "Link",
   AUDIO: "Audio",
   VIDEO: "Video",

@@ -500,6 +500,7 @@ export async function requestRoutes(app: FastifyInstance) {
             db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
             db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
             db.courseReview.deleteMany({ where: { courseId: course.id } }),
+            db.examAttempt.deleteMany({ where: { courseId: course.id } }),
             ...(sref.adapter === "inline" && sref.fileId
               ? [db.storedFile.deleteMany({ where: { id: sref.fileId } })]
               : []),
@@ -593,6 +594,7 @@ export async function requestRoutes(app: FastifyInstance) {
             db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
             db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
             db.courseReview.deleteMany({ where: { courseId: course.id } }),
+            db.examAttempt.deleteMany({ where: { courseId: course.id } }),
             ...(sref.adapter === "inline" && sref.fileId
               ? [db.storedFile.deleteMany({ where: { id: sref.fileId } })]
               : []),

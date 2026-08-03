@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuthoredBlock, Classification, LearningItem } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
+import { CourseExam } from "./CourseExam";
 import { AuthoredBlockView, DocumentPages, paginate } from "./DocumentView";
 import { PdfView } from "./PdfView";
 import { useDialogs } from "./dialogs";
@@ -107,6 +108,9 @@ export function CourseViewer({
   const locked = item.missingPrerequisites.length > 0;
   const completed = item.status === "COMPLETED";
   const pages = authored ? paginate(authored) : [];
+  // An exam is delivered question by question by its own routes — there is no document to
+  // fetch, and it completes by being passed rather than by being declared done.
+  const isExam = item.kind === "EXAM";
 
   // Load the content: files render natively by kind (PDF via PDF.js so it never depends
   // on the browser's flaky iframe PDF viewer); links embed; authored → block array.
@@ -119,6 +123,7 @@ export function CourseViewer({
     setFile(null);
     setUnpreviewable(null);
     setLoadError(null);
+    if (isExam) return; // the exam runner fetches its own paper
     (async () => {
       try {
         const res = await authFetch(`/courses/${item.code}/content`);
@@ -171,7 +176,7 @@ export function CourseViewer({
       cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [item.code]);
+  }, [item.code, isExam]);
 
   useEffect(() => {
     if (!completed) return;
@@ -280,9 +285,11 @@ export function CourseViewer({
           {!showCover && (
             <>
               {loadError && <p className="form-error viewer-note">{loadError}</p>}
-              {!src && !authored && !file && !unpreviewable && !loadError && (
+              {!isExam && !src && !authored && !file && !unpreviewable && !loadError && (
                 <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
               )}
+              {/* MCQ exam: sat in place, marked by the server */}
+              {isExam && <CourseExam code={item.code} onCompleted={onChanged} />}
               {/* Type that can't render safely inline (e.g. an Office doc) — offer download */}
               {unpreviewable && (
                 <div className="viewer-unpreviewable">
@@ -402,7 +409,8 @@ export function CourseViewer({
               {reviewOpen ? "Hide review" : "★ Rate & review"}
             </button>
           )}
-          {!completed && !readOnly && (
+          {/* An exam has no "mark complete" — passing it is what completes it. */}
+          {!completed && !readOnly && !isExam && (
             <button
               className="btn btn-primary btn-small"
               disabled={locked || busy}

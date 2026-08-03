@@ -6046,3 +6046,712 @@ body.is-dragging-block * {
 .doc-sheet[data-themed="true"] .doc-button {
   --accent: var(--doc-theme-accent, var(--accent));
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Studio: choosing what to create, and the MCQ exam builder & runner.
+   Same surfaces, spacing and motion as the document editor — an exam is a
+   different kind of material, not a different product.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── "What are you creating?" ────────────────────────────────────────────── */
+
+.studio-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  align-items: center;
+  padding: 1.5rem 0 2.5rem;
+}
+.studio-chooser-head {
+  text-align: center;
+}
+.studio-chooser-head h1 {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  letter-spacing: -0.02em;
+}
+.studio-chooser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 22rem));
+  gap: 1rem;
+  justify-content: center;
+  width: 100%;
+}
+.studio-chooser-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  text-align: left;
+  padding: 1.3rem 1.3rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform var(--dur-standard) var(--spring),
+    border-color var(--dur-micro) var(--ease),
+    box-shadow var(--dur-standard) var(--ease);
+}
+.studio-chooser-card:hover,
+.studio-chooser-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 16px 40px rgba(10, 14, 30, 0.16);
+}
+.studio-chooser-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+.studio-chooser-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.studio-chooser-blurb {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.studio-chooser-points {
+  margin: 0.2rem 0 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.studio-chooser-go {
+  margin-top: 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+/* ── The builder: the paper ──────────────────────────────────────────────── */
+
+.exam-sheet {
+  gap: 0.9rem;
+}
+.exam-sheet-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  padding-bottom: 0.8rem;
+}
+.exam-sheet-head h1 {
+  font-size: 1.55rem;
+  letter-spacing: -0.02em;
+}
+.exam-intro-input {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.35rem 0.4rem;
+}
+.exam-intro-input:hover {
+  border-color: var(--border);
+}
+.exam-intro-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.exam-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem 0.6rem;
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease);
+}
+.exam-card[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-left-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.exam-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.exam-card-no,
+.exam-outline-no,
+.exam-question-no,
+.exam-review-no {
+  display: grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  border-radius: 980px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex: none;
+}
+.exam-card-type {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: inherit;
+}
+.exam-card-points {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.exam-card-points input {
+  width: 4.2rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+}
+.exam-card-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 0.1rem;
+  opacity: 0.35;
+  transition: opacity var(--dur-micro) var(--ease);
+}
+.exam-card:hover .exam-card-tools,
+.exam-card[data-selected="true"] .exam-card-tools {
+  opacity: 1;
+}
+.exam-card-prompt,
+.exam-card-help {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.25rem 0.1rem;
+  resize: vertical;
+}
+.exam-card-prompt {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.exam-card-help {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.exam-card-prompt:focus,
+.exam-card-help:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.exam-card-image {
+  max-width: 100%;
+  max-height: 12rem;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  align-self: flex-start;
+}
+
+.exam-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.exam-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: var(--radius-sm);
+}
+.exam-option[data-correct="true"] {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.exam-option-mark {
+  flex: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--success);
+  cursor: pointer;
+}
+.exam-option-text {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1px dashed var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.87rem;
+  padding: 0.2rem 0.1rem;
+}
+.exam-option-text:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+  border-bottom-style: solid;
+}
+.exam-option-text[readonly] {
+  color: var(--text-secondary);
+  border-bottom-color: transparent;
+}
+.exam-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding-top: 0.2rem;
+  border-top: 1px dashed var(--border);
+}
+.exam-card-state {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.exam-add-question {
+  align-self: center;
+  margin-top: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 980px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease);
+}
+.exam-add-question:hover {
+  background: var(--accent-soft);
+}
+
+/* ── The builder: the outline rail ───────────────────────────────────────── */
+
+.exam-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.exam-outline-item:hover {
+  background: var(--surface-2);
+}
+.exam-outline-item[data-active="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.exam-outline-item[data-unfinished="true"] .exam-outline-no {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+.exam-outline-text {
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exam-rail-add {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+/* ── Sitting an exam ─────────────────────────────────────────────────────── */
+
+.exam-run {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.6rem 0.2rem 1.5rem;
+  max-width: 46rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* The Studio's preview pane has no horizontal padding of its own — the note above the
+   author's own sitting brings its own. */
+.studio-preview-note {
+  padding: 0.7rem 1rem 0;
+  text-align: center;
+}
+
+/* In the course viewer the exam fills the frame and scrolls on its own, the same way an
+   authored document does. */
+.exam-frame {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--surface-2);
+  padding: 0.8rem 1.2rem 1.2rem;
+}
+.exam-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 1.4rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+.exam-intro h2 {
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+.exam-intro-text {
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+.exam-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.6rem;
+  width: 100%;
+  margin: 0;
+}
+.exam-facts dt {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.exam-facts dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.exam-note {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.exam-note-ok {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.exam-note-bad {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.exam-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 980px;
+  border: 1px solid var(--border);
+  background: var(--glass-strong);
+  backdrop-filter: blur(12px);
+  font-size: 0.78rem;
+}
+.exam-bar-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.exam-bar-track span {
+  display: block;
+  height: 100%;
+  background: var(--grad-accent);
+  transition: width var(--dur-standard) var(--ease);
+}
+.exam-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.exam-timer[data-low="true"] {
+  color: var(--danger);
+}
+
+.exam-paper {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.exam-question {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+.exam-question[data-checked="true"] {
+  border-color: color-mix(in srgb, var(--success) 50%, var(--border));
+}
+.exam-question[data-checked="false"] {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+}
+.exam-question-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.exam-question-prompt {
+  flex: 1;
+  min-width: 12rem;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+.exam-question-help {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.exam-question-image {
+  max-width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  align-self: flex-start;
+}
+.exam-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.exam-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
+}
+.exam-choice:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.exam-choice[data-chosen="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.exam-choice[data-key="true"] {
+  border-color: color-mix(in srgb, var(--success) 60%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.exam-choice input {
+  accent-color: var(--accent);
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+}
+.exam-choice span {
+  white-space: pre-wrap;
+}
+.exam-tag {
+  margin-left: auto;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+.exam-tag-key {
+  color: var(--success);
+  font-weight: 700;
+}
+.exam-feedback {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.exam-feedback[data-correct="true"] {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.exam-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding-top: 0.3rem;
+}
+
+/* ── The result ──────────────────────────────────────────────────────────── */
+
+.exam-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 1.6rem 1.2rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  text-align: center;
+}
+.exam-score-ring {
+  display: grid;
+  place-items: center;
+  width: 8.5rem;
+  height: 8.5rem;
+  border-radius: 50%;
+  border: 6px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  animation: exam-pop var(--dur-large) var(--spring);
+}
+.exam-score-ring[data-passed="true"] {
+  border-color: color-mix(in srgb, var(--success) 60%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.exam-score-ring strong {
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+.exam-score-ring small {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+@keyframes exam-pop {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+}
+.exam-result-line {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.exam-review {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+.exam-review-item {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  background: var(--surface-2);
+}
+.exam-review-item[data-correct="true"] {
+  border-left-color: var(--success);
+}
+.exam-review-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+.exam-review-prompt {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+.exam-review-mark {
+  font-weight: 700;
+}
+.exam-review-item[data-correct="true"] .exam-review-mark {
+  color: var(--success);
+}
+.exam-review-item[data-correct="false"] .exam-review-mark {
+  color: var(--danger);
+}
+.exam-review-options {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+}
+.exam-review-options li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+.exam-review-options li[data-chosen="true"] {
+  color: var(--text);
+  background: var(--accent-soft);
+}
+.exam-review-options li[data-key="true"] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.exam-review-why {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.insp-toggle[data-disabled] {
+  opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+  .exam-card-tools {
+    opacity: 1;
+  }
+  .exam-facts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

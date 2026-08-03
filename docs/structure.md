@@ -140,11 +140,27 @@ A course is an **org-level entity**; branches receive **placements**, never copi
 - Hard prerequisites: item X requires completed item Y first.
 - Courses form their own small dependency trees, fully independent of the org tree.
 
-### 3.6 Exams — DEFERRED OUT OF v1 ✅ DECIDED
-- v1 ships **no exams**: a scored exam requires the platform to know questions and answers,
-  which belongs to the authoring suite. The full exam system (builder, pass/fail scoring,
-  thresholds, retake-after-failure flow, certificates) moves to `future.md`.
-- Recurrence (`retake_every_n_days`) is **not** exam-specific and stays in v1 for all courses.
+### 3.6 Exams — MCQ exams ship with the Studio ✅ DECIDED (revised 2026-08-03)
+Originally deferred (a scored exam needs the platform to know the questions and answers,
+which needed the authoring suite). The Studio now IS that suite, so the multiple-choice half
+ships with it; the rest of the exam roadmap stays in `future.md` §5b.
+- The Studio asks what is being created — a **document** or an **exam** — and an exam is a
+  Course of kind `EXAM`: same platform code, classification, description/scope, library
+  shelf, mandatory/inherit placement and member-proposal review as any document.
+- Question types: one answer, several answers (the whole set must be picked), true/false.
+- Marking: **equal weights by default**; an exam may be switched to unequal weights, where
+  each question carries the marks its author gave it. A **pass percentage** decides the
+  outcome.
+- Delivery options: randomise the question order, randomise the options, one question per
+  screen, a time limit, and a cap on attempts.
+- **Answer reveal** is the author's choice: as the candidate answers (live), after they
+  submit, or never — with separate switches for showing which option was right, the
+  author's explanation, and the score itself.
+- Marking happens **on the server**: the answer key never travels to a candidate, and the
+  live-feedback mode asks the server one question at a time.
+- Completion: passing the exam writes the ordinary completion record (§3.7), so exams reach
+  compliance through the same door documents do. An exam is never "marked complete" by hand.
+- Recurrence (`retake_every_n_days`) is **not** exam-specific and applies to all courses.
 
 ### 3.7 Completion (v1) ✅ DECIDED
 - Manual **"mark as complete"** for all v1 content. Advanced tracking → `future.md`.

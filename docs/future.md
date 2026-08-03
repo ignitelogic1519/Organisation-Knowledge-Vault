@@ -37,15 +37,23 @@ v1 is upload-only. Later:
 - AI conversion of uploaded documents into standardized documentation.
 - Video / audio / audiobook upload pipelines (processing, previews).
 
-## 5b. Exam system (deferred from v1 — decided 2026-07-17)
-v1 ships no exams: a scored exam requires the platform to know questions and answers, which
-belongs here. The full system arrives together:
-- In-platform exam builder (multiple-choice first).
-- Pass/fail scoring with per-exam pass thresholds.
+## 5b. Exam system (partly shipped 2026-08-03 — see structure.md §3.6)
+Deferred on 2026-07-17 because a scored exam needs the platform to know the questions and
+answers. The Studio supplied that, so the multiple-choice core shipped with it:
+- ✅ In-platform MCQ builder (one answer / several answers / true-false), pass percentage,
+  equal or unequal question weights, randomised questions and options, time limit, attempt
+  cap, and author-controlled answer reveal (live / after submission / never).
+- ✅ Server-side marking, one `ExamAttempt` per sitting, and a passing attempt writing the
+  ordinary `CompletionRecord`.
+
+Still ahead:
+- Free-text and numeric questions, question banks, and drawing N questions from a pool.
+- A results dashboard for the exam's managers (per-question difficulty, score spread) on
+  top of the attempts already recorded.
 - Retake-after-failure flow: notification to the escalation target → retake unlock.
 - Certificates (`issues_certificate` toggle at publish) and pass expiry.
-- Exam fields (score, pass/fail, re-attempt time) extend the existing `CompletionRecord`,
-  which already carries course code, version, and expiry — no schema redesign needed.
+- Server-enforced timing (an issued-paper token) rather than the client's own clock.
+- Score and re-attempt time on `CompletionRecord` itself, so a report needs no join.
 
 ## 6. Additional storage adapters
 v1 ships the storage adapter interface with **Google Drive** as the first backend. Later adapters

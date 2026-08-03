@@ -21,7 +21,7 @@ enum CourseKind {
   LINK
   AUDIO
   VIDEO
-  // EXAM arrives post-v1 (docs/future.md §5b)
+  EXAM // MCQ test built in the Studio — marked by the server, see ExamAttempt
 }
 
 // How a course's content entered the vault — the two metered allowances on a plan.
@@ -241,6 +241,31 @@ model Course {
   requiredBy               CoursePrerequisite[] @relation("requires")
   adminAccess              CourseAdminAccess[]
   reviews                  CourseReview[]
+  examAttempts             ExamAttempt[]
+}
+
+// One sitting of an MCQ exam. Marking happens on the server (the answer key never leaves
+// it), and a passing attempt writes the ordinary CompletionRecord — so an exam reaches the
+// compliance views through exactly the same door a document does.
+model ExamAttempt {
+  id            String   @id @default(uuid())
+  courseId      String
+  course        Course   @relation(fields: [courseId], references: [id])
+  profileId     String
+  orgId         String
+  /// Version of the exam that was sat — an edited paper doesn't rewrite history.
+  courseVersion Int      @default(1)
+  /// Per-question outcome: [{ questionId, optionIds, correct, points, earned }]
+  answers       Json
+  earnedPoints  Float
+  totalPoints   Float
+  scorePercent  Int
+  passed        Boolean
+  seconds       Int? // how long the candidate took, when the client reported it
+  submittedAt   DateTime @default(now())
+
+  @@index([courseId, profileId])
+  @@index([orgId, submittedAt])
 }
 
 model CoursePlacement {

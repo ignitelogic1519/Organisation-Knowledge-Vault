@@ -104,7 +104,7 @@ model Course {
   orgId                    String
   code                     String  @unique  // "456-989-0001"
   uploaderRoleNodeId       String
-  kind                     CourseKind      // DOCUMENT | AUDIO | VIDEO | BOOK | LINK (EXAM: post-v1)
+  kind                     CourseKind      // DOCUMENT | AUDIO | VIDEO | BOOK | LINK | EXAM
   title                    String
   storageRef               Json            // adapter-specific pointer (Drive fileId, …)
   deadlineDays             Int?            // optional deadline
@@ -151,7 +151,22 @@ model CompletionRecord {   // part of the USER's data, keyed by course code (str
   completedAt  DateTime?
   validUntil   DateTime?         // expiry: completedAt + retakeEveryNDays
   courseVersion Int              // which version was completed
-  // exam fields (score, pass/fail, re-attempt time) join here when exams ship (future.md)
+  // an EXAM writes this record when it is passed; the score lives on ExamAttempt
+}
+
+model ExamAttempt {          // one sitting of an MCQ exam (structure.md §3.6)
+  id            String   @id @default(uuid())
+  courseId      String
+  profileId     String
+  orgId         String
+  courseVersion Int
+  answers       Json     // per-question: chosen options, correct, points, earned
+  earnedPoints  Float
+  totalPoints   Float
+  scorePercent  Int
+  passed        Boolean
+  seconds       Int?
+  submittedAt   DateTime @default(now())
 }
 
 model Notification {       // in-app only (v1)
@@ -263,7 +278,11 @@ GET    /courses/:code/admin         → course admin page (separate ACL)
 
 GET    /orgs/:id/my-learning        → assignments + opt-in catalog + prereq state
 GET    /orgs/:id/my-structure       → user's slice of the tree
-POST   /courses/:code/complete      → mark complete (exam submission arrives post-v1)
+POST   /courses/:code/complete      → mark complete (refused for EXAM — it is passed, not declared)
+
+GET    /courses/:code/exam          → the candidate's paper: no answer key, dealt to order
+POST   /courses/:code/exam/check    → live feedback on ONE answer (reveal = immediate only)
+POST   /courses/:code/exam/attempts → submit: marked server-side, recorded, completes on pass
 GET    /notifications               → in-app feed
 
 POST   /orgs/:id/roles/:rid/backup  → export .bkp

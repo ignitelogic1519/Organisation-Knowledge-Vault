@@ -4,6 +4,7 @@ import {
   can,
   canProposeContent,
   createCourseSchema,
+  examProblems,
   grantAdminAccessSchema,
   isSelfOrAncestor,
   placeCourseSchema,
@@ -15,7 +16,7 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
-import { audit, sanitizeBlocks } from "../security.js";
+import { audit, sanitizeBlocks, sanitizeExam } from "../security.js";
 import { assertContentQuota } from "../orgs/plan.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
@@ -24,6 +25,7 @@ import {
   coursesReaching,
   nextCourseCode,
   notify,
+  recordCompletion,
   toLearningItem,
 } from "./helpers.js";
 
@@ -118,20 +120,38 @@ export async function courseRoutes(app: FastifyInstance) {
       // A member's content is a DRAFT that a manager must review before it publishes.
       const asDraft = !canPublish;
 
-      // The plan meters Studio-built documents and uploads/links separately. Check the
+      // An exam and its questions must agree — the kind is what tells every later surface
+      // (viewer, library, compliance) that this course is sat rather than read.
+      if (body.kind === "EXAM" && !body.exam) {
+        return reply.status(400).send({ error: "An exam needs its questions" });
+      }
+      if (body.exam && body.kind !== "EXAM") {
+        return reply.status(400).send({ error: "Questions can only be published as an EXAM" });
+      }
+
+      // The plan meters Studio-built material and uploads/links separately; an exam is
+      // built in the Studio, so it draws on the same custom-document allowance. Check the
       // allowance BEFORE any bytes are stored, so a refusal leaves nothing behind.
-      const source: "STUDIO" | "UPLOAD" = body.blocks ? "STUDIO" : "UPLOAD";
+      const source: "STUDIO" | "UPLOAD" = body.blocks || body.exam ? "STUDIO" : "UPLOAD";
       await assertContentQuota(node.orgId, source);
 
       let ref: StorageRef;
-      if (body.blocks) {
+      if (body.exam) {
+        // Refuse a paper that cannot be marked fairly — the Studio shows the same list
+        // before it ever calls us, so this is the guard for anything else.
+        const problems = examProblems(body.exam);
+        if (problems.length > 0) return reply.status(400).send({ error: problems[0] });
+        ref = await storage.saveExam(sanitizeExam(body.exam), body.theme);
+      } else if (body.blocks) {
         ref = await storage.saveAuthored(sanitizeBlocks(body.blocks), body.theme);
       } else if (body.url) {
         ref = await storage.saveLink(body.url);
       } else if (body.fileBase64 && body.filename && body.mime) {
         ref = await storage.saveInline(node.orgId, body.filename, body.mime, body.fileBase64);
       } else {
-        return reply.status(400).send({ error: "Provide a file, a url, or authored content" });
+        return reply
+          .status(400)
+          .send({ error: "Provide a file, a url, authored content, or an exam" });
       }
 
       // Hard prerequisites must exist inside the same org
@@ -277,6 +297,17 @@ export async function courseRoutes(app: FastifyInstance) {
         // Native rendering by the viewer inside the standardized document frame
         return { authored: content.authored, theme: content.theme };
       }
+      if (content.exam !== undefined) {
+        // The stored paper carries its answer key, so it is handed out only to the people
+        // who may edit the exam. A candidate gets the paper from /courses/:code/exam,
+        // which strips the key and marks their answers on the server.
+        if (!(await canManageCourse(req.profileId, course))) {
+          return reply.status(403).send({
+            error: "This is an exam — open it from My Learning to sit it question by question",
+          });
+        }
+        return { exam: content.exam, theme: content.theme };
+      }
       if (content.url) return { url: content.url };
 
       const wantsDownload = req.query.download === "1";
@@ -382,6 +413,12 @@ export async function courseRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const course = await courseByCode(req.params.code);
       if (!course) return reply.status(404).send({ error: "Course not found" });
+      // An exam is completed by passing it, never by declaring it done.
+      if (course.kind === "EXAM") {
+        return reply
+          .status(409)
+          .send({ error: "This is an exam — sit it and reach the pass mark to complete it" });
+      }
       const reaching = await coursesReaching(req.profileId, course.orgId);
       const reach = reaching.find((r) => r.course.id === course.id);
       if (!reach) return reply.status(403).send({ error: "This course isn't assigned or available to you" });
@@ -393,32 +430,7 @@ export async function courseRoutes(app: FastifyInstance) {
         });
       }
 
-      const validUntil = reach.retakeEveryNDays
-        ? new Date(Date.now() + reach.retakeEveryNDays * 86400_000)
-        : null;
-      const existing = await db.completionRecord.findFirst({
-        where: { profileId: req.profileId, courseId: course.id },
-      });
-      const data = {
-        status: "COMPLETED" as const,
-        completedAt: new Date(),
-        validUntil,
-        courseVersion: course.version,
-      };
-      if (existing) {
-        await db.completionRecord.update({ where: { id: existing.id }, data });
-      } else {
-        await db.completionRecord.create({
-          data: {
-            ...data,
-            courseId: course.id,
-            courseCode: course.code,
-            profileId: req.profileId,
-            orgId: course.orgId,
-          },
-        });
-      }
-      broadcast(course.orgId, "courses");
+      const validUntil = await recordCompletion(req.profileId, course, reach);
       return { ok: true, validUntil: validUntil?.toISOString() ?? null };
     },
   );
@@ -442,7 +454,17 @@ export async function courseRoutes(app: FastifyInstance) {
       let source = course.source;
       // Replacing an upload with a Studio document (or the reverse) moves the course
       // between the plan's two allowances — charge the bucket it lands in.
-      if (body.blocks) {
+      if (body.exam) {
+        if (course.kind !== "EXAM") {
+          return reply.status(400).send({ error: "This course is not an exam" });
+        }
+        const problems = examProblems(body.exam);
+        if (problems.length > 0) return reply.status(400).send({ error: problems[0] });
+        if (source !== "STUDIO") await assertContentQuota(course.orgId, "STUDIO");
+        ref = await storage.saveExam(sanitizeExam(body.exam), body.theme);
+        source = "STUDIO";
+        contentChanged = true;
+      } else if (body.blocks) {
         if (source !== "STUDIO") await assertContentQuota(course.orgId, "STUDIO");
         ref = await storage.saveAuthored(sanitizeBlocks(body.blocks), body.theme);
         source = "STUDIO";
@@ -669,6 +691,9 @@ export async function courseRoutes(app: FastifyInstance) {
         db.coursePlacement.deleteMany({ where: { courseId: course.id } }),
         db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
         db.courseReview.deleteMany({ where: { courseId: course.id } }),
+        // Sittings of a deleted exam go with it; the completion records they produced
+        // survive, keyed by the never-reused course code.
+        db.examAttempt.deleteMany({ where: { courseId: course.id } }),
         ...(ref.adapter === "inline" && ref.fileId
           ? [db.storedFile.deleteMany({ where: { id: ref.fileId } })]
           : []),

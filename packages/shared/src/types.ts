@@ -3,7 +3,7 @@
 
 export type PlacementKind = "OWNER" | "MEMBER";
 
-export type CourseKind = "DOCUMENT" | "BOOK" | "LINK" | "AUDIO" | "VIDEO"; // EXAM: post-v1
+export type CourseKind = "DOCUMENT" | "BOOK" | "LINK" | "AUDIO" | "VIDEO" | "EXAM";
 
 export type CompletionStatus = "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "EXPIRED";
 

@@ -17,6 +17,8 @@ export interface StoredContent {
   file?: { filename: string; mime: string; data: Buffer };
   /** …or Studio-authored blocks rendered natively by the in-app viewer. */
   authored?: unknown;
+  /** …or a Studio-authored MCQ paper, delivered question by question by the exam routes. */
+  exam?: unknown;
   /** The authored document's theme, when its author set one. */
   theme?: unknown;
 }
@@ -67,12 +69,21 @@ export const storage = {
     return { adapter: "authored", blocks, ...(theme ? { theme } : {}) };
   },
 
+  /** Studio-authored MCQ exams: the questions AND the answer key live in the ref. It is
+   *  never resolved straight to a candidate — /courses/:code/exam deals the paper without
+   *  the key, and marking happens on the server. */
+  async saveExam(exam: unknown, theme?: unknown): Promise<StorageRef> {
+    return { adapter: "exam", exam, ...(theme ? { theme } : {}) };
+  },
+
   async resolve(ref: StorageRef): Promise<StoredContent> {
     switch (ref.adapter) {
       case "link":
         return { url: String(ref.url) };
       case "authored":
         return { authored: ref.blocks, theme: ref.theme };
+      case "exam":
+        return { exam: ref.exam, theme: ref.theme };
       case "inline": {
         const row = await db.storedFile.findUnique({ where: { id: String(ref.fileId) } });
         if (!row) throw Object.assign(new Error("Stored file is missing"), { statusCode: 404 });

@@ -2,15 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type {
-  AuthoredBlock,
-  Classification,
-  OrgPlanLimitsView,
-  StudioDraftSummary,
-  TreeNode,
-} from "@vault/shared";
+import type { AuthoredBlock, Classification } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
-import { roles } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
 import { DocumentBody, DocumentPages, paginate } from "@/components/DocumentView";
@@ -19,6 +12,9 @@ import { DndProvider, type DragPayload, type DropTarget } from "@/components/stu
 import { Inspector } from "@/components/studio/Inspector";
 import { Ribbon } from "@/components/studio/Ribbon";
 import { SideRail } from "@/components/studio/SideRail";
+import { StudioChooser } from "@/components/studio/StudioChooser";
+import { ExamStudio } from "@/components/studio/exam/ExamStudio";
+import { useStudioSession } from "@/components/studio/session";
 import { DEVICES, starterFor } from "@/components/studio/presets";
 import { RichTextProvider } from "@/components/studio/rich";
 import {
@@ -42,11 +38,17 @@ import {
 import { useOrg } from "@/components/org-context";
 import { useDialogs } from "@/components/dialogs";
 
-// ── The Document Studio ──────────────────────────────────────────────────────
-// A three-pane editor in the shape people already know: an insert/pages rail on the left,
-// a paper canvas in the middle with a formatting ribbon above it, and a block inspector on
-// the right. Everything is drag-and-drop, everything is styleable, and the preview and
-// present modes render through the very same component the reader's viewer uses.
+// ── The Studio ───────────────────────────────────────────────────────────────
+// Creating in the Studio starts with a question — a document to read, or an exam to sit —
+// because the two are authored very differently even though they publish identically. The
+// chooser below routes to one of the two editors and keeps the choice in the URL, so a link
+// straight into either still works.
+//
+// The document editor is a three-pane editor in the shape people already know: an
+// insert/pages rail on the left, a paper canvas in the middle with a formatting ribbon
+// above it, and a block inspector on the right. Everything is drag-and-drop, everything is
+// styleable, and the preview and present modes render through the very same component the
+// reader's viewer uses.
 
 const CLASS_LABEL: Record<Classification, string> = {
   PUBLIC: "Public",
@@ -63,10 +65,50 @@ interface Doc {
 export default function StudioPage() {
   return (
     <Suspense fallback={<div className="skeleton" style={{ minHeight: "12rem" }} />}>
+      <StudioRoute />
+    </Suspense>
+  );
+}
+
+/** Which editor is open — or, until the author has said, the question itself. */
+function StudioRoute() {
+  const params = useSearchParams();
+  const roleId = params.get("role");
+  const type = params.get("type");
+
+  if (!roleId) {
+    return (
+      <div className="empty-card glass">
+        <h2>Studio</h2>
+        <p className="auth-sub">
+          Open the Studio from a branch — its panel has a “Create in Studio” button.
+        </p>
+      </div>
+    );
+  }
+  if (type === "exam") return <ExamStudio roleId={roleId} />;
+  if (type === "document") {
+    return (
       <RichTextProvider>
         <StudioInner />
       </RichTextProvider>
-    </Suspense>
+    );
+  }
+  return <ChooseWhatToCreate roleId={roleId} />;
+}
+
+function ChooseWhatToCreate({ roleId }: { roleId: string }) {
+  const { org, isSupremeOwner } = useOrg();
+  const session = useStudioSession(org.id, roleId, isSupremeOwner);
+  return (
+    <StudioChooser
+      node={session.node}
+      limits={session.limits}
+      roleId={roleId}
+      orgId={org.id}
+      canProceed={session.canProceed}
+      needsReview={session.needsReview}
+    />
   );
 }
 
@@ -76,11 +118,9 @@ function StudioInner() {
   const dialogs = useDialogs();
   const params = useSearchParams();
   const roleId = params.get("role");
+  const session = useStudioSession(org.id, roleId, isSupremeOwner);
+  const { node, limits, categories, needsReview, quotaFull } = session;
 
-  const [node, setNode] = useState<TreeNode | null>(null);
-  // Every branch the user owns — publish rights are computed from the tree itself,
-  // robustly, rather than trusting a single per-node flag.
-  const [ownedPaths, setOwnedPaths] = useState<string[]>([]);
   const [doc, setDoc] = useState<Doc>({ blocks: starterBlocks(), meta: EMPTY_META });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "preview" | "present">("edit");
@@ -89,11 +129,8 @@ function StudioInner() {
   const [zoom, setZoom] = useState(100);
   const [busy, setBusy] = useState<null | "publish" | "draft">(null);
   const [restored, setRestored] = useState(false);
-  const [limits, setLimits] = useState<OrgPlanLimitsView | null>(null);
-  const [drafts, setDrafts] = useState<StudioDraftSummary[]>([]);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [categories, setCategories] = useState<string[]>([]);
   const [device, setDevice] = useState("desktop");
   const [activePage, setActivePage] = useState(0);
 
@@ -150,35 +187,6 @@ function StudioInner() {
     [commit],
   );
 
-  // ── Loading ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!roleId) return;
-    roles
-      .structure(org.id)
-      .then((v) => {
-        setNode(v.nodes.find((n) => n.id === roleId) ?? null);
-        setOwnedPaths(v.nodes.filter((n) => n.my.kinds.includes("OWNER")).map((n) => n.path));
-      })
-      .catch(() => setNode(null));
-  }, [org.id, roleId]);
-
-  const reloadPlan = useCallback(() => {
-    studio.limits(org.id).then(setLimits).catch(() => undefined);
-    studio
-      .drafts(org.id)
-      .then((r) => setDrafts(r.drafts))
-      .catch(() => setDrafts([]));
-  }, [org.id]);
-
-  useEffect(reloadPlan, [reloadPlan]);
-
-  useEffect(() => {
-    courses
-      .suggestCategory(org.id, "", "")
-      .then((r) => setCategories(r.categories))
-      .catch(() => undefined);
-  }, [org.id]);
-
   // Local recovery: the browser always keeps the work in progress, on every plan, so a
   // reload or a crash never costs the author their document.
   useEffect(() => {
@@ -215,19 +223,15 @@ function StudioInner() {
     return () => clearTimeout(t);
   }, [doc, restored, draftKey]);
 
-  // ── Rights ─────────────────────────────────────────────────────────────────
-  const ownsHereOrAbove =
-    !!node && ownedPaths.some((p) => node.path === p || node.path.startsWith(`${p}.`));
-  const canPublish = isSupremeOwner || ownsHereOrAbove || !!node?.my.canPublishContent;
-  const canPropose = !!node?.my.canProposeContent;
-  const canProceed = node && (canPublish || canPropose);
-  const needsReview = !canPublish && canPropose;
-
   const selected = doc.blocks.find((b) => b._id === selectedId) ?? null;
   const pages = useMemo(() => editorPages(doc.blocks), [doc.blocks]);
   const stats = useMemo(() => documentStats(doc.blocks), [doc.blocks]);
   const published = useMemo(() => meaningfulBlocks(doc.blocks), [doc.blocks]);
-  const quotaFull = limits?.documents.remaining === 0;
+  // Exam drafts belong to the other editor — this tray offers only what it can open.
+  const documentDrafts = useMemo(
+    () => session.drafts.filter((d) => d.kind !== "EXAM"),
+    [session.drafts],
+  );
 
   // ── Block operations ───────────────────────────────────────────────────────
   const insertBlock = useCallback(
@@ -367,7 +371,7 @@ function StudioInner() {
       });
       setDraftId(saved.id);
       setSavedAt(new Date().toLocaleTimeString());
-      reloadPlan();
+      session.reloadPlan();
       dialogs.toast("Draft saved — reopen it from the Drafts tab on any device.", "success");
     } catch (err) {
       if (err instanceof ApiError && err.status === 402) await premiumNotice("Saving a document as a draft");
@@ -408,7 +412,7 @@ function StudioInner() {
     try {
       await studio.deleteDraft(org.id, id);
       if (draftId === id) setDraftId(null);
-      reloadPlan();
+      session.reloadPlan();
     } catch (err) {
       dialogs.toast(err instanceof ApiError ? err.message : "Could not delete the draft", "danger");
     }
@@ -552,7 +556,7 @@ function StudioInner() {
     );
   }
   if (!node) return <div className="skeleton" style={{ minHeight: "12rem" }} />;
-  if (!canProceed) {
+  if (!session.canProceed) {
     return (
       <div className="empty-card glass">
         <h2>Studio</h2>
@@ -667,7 +671,7 @@ function StudioInner() {
               onAddPage={addPage}
               onRemovePage={removePage}
               onPageTransition={setPageTransition}
-              drafts={drafts}
+              drafts={documentDrafts}
               draftsEnabled={!!limits?.draftsEnabled}
               currentDraftId={draftId}
               onOpenDraft={openDraft}

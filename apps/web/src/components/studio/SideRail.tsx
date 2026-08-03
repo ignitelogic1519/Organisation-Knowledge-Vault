@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { StudioDraftSummary } from "@vault/shared";
+import { DraftsTray } from "./DraftsTray";
 import { grip, useDnd, useDropZone } from "./dnd";
 import { PALETTE, type BlockType, type EditorPage } from "./model";
 
@@ -193,42 +194,16 @@ export function SideRail({
       )}
 
       {tab === "drafts" && (
-        <div className="studio-rail-body">
-          {!draftsEnabled && (
-            <p className="studio-premium-note">
-              <strong>Premium capability.</strong> Documents in progress can be parked on the
-              server and reopened from any device on a premium plan. On the free demo
-              structure your work is still kept in this browser while you write.
-            </p>
-          )}
-          {draftsEnabled && drafts.length === 0 && (
-            <p className="studio-rail-hint">
-              No drafts yet. Use <strong>Save draft</strong> to park this document and come back
-              to it later.
-            </p>
-          )}
-          {drafts.map((d) => (
-            <div key={d.id} className="studio-draft-card" data-active={d.id === currentDraftId}>
-              <button type="button" className="studio-draft-open" onClick={() => onOpenDraft(d.id)}>
-                <span className="studio-draft-title">{d.title}</span>
-                <span className="studio-draft-meta">
-                  {d.roleName} · {d.blockCount} blocks · {new Date(d.updatedAt).toLocaleString()}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="icon-btn icon-btn-danger"
-                title="Delete draft"
-                onClick={() => onDeleteDraft(d.id)}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          <button type="button" className="btn btn-quiet btn-small" onClick={onNewDocument}>
-            ✎ Start a new document
-          </button>
-        </div>
+        <DraftsTray
+          drafts={drafts}
+          draftsEnabled={draftsEnabled}
+          currentDraftId={currentDraftId}
+          onOpenDraft={onOpenDraft}
+          onDeleteDraft={onDeleteDraft}
+          onNew={onNewDocument}
+          noun="document"
+          countLabel="block"
+        />
       )}
     </aside>
   );

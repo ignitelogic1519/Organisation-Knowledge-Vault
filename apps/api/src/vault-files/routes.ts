@@ -409,11 +409,12 @@ export async function vaultFileRoutes(app: FastifyInstance) {
         deadlineDays: number | null; retakeEveryNDays: number | null;
         resetsCompletionOnUpdate: boolean; version: number; createdByProfileId: string;
       }[]) {
-        // Authored (Studio) documents live inside storageRef itself — they survive
-        // revival intact; file/link media still needs storage reconnection.
+        // Studio-built material (documents and exams alike) lives inside storageRef
+        // itself — it survives revival intact; file/link media still needs storage
+        // reconnection.
         const srcRef = c.storageRef as { adapter?: string } | null;
-        const storageRef =
-          srcRef?.adapter === "authored" ? (srcRef as object) : { adapter: "unreachable" };
+        const fromStudio = srcRef?.adapter === "authored" || srcRef?.adapter === "exam";
+        const storageRef = fromStudio ? (srcRef as object) : { adapter: "unreachable" };
         const course = await tx.course.create({
           data: {
             orgId: created.id,
@@ -432,7 +433,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             draft: c.draft ?? false,
             // Keep the plan's two allowances accurate across a revival: a Studio document
             // is still a Studio document, everything else counts as an upload.
-            source: srcRef?.adapter === "authored" ? "STUDIO" : "UPLOAD",
+            source: fromStudio ? "STUDIO" : "UPLOAD",
             storageRef,
             deadlineDays: c.deadlineDays,
             retakeEveryNDays: c.retakeEveryNDays,

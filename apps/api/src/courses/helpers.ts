@@ -148,6 +148,40 @@ export async function toLearningItem(
 }
 
 /**
+ * Write (or refresh) the caller's completion of a course and tell the org about it. Used
+ * by the manual "mark complete" action and by a passing exam attempt, so both arrive in
+ * the compliance views through exactly the same record.
+ * Returns the expiry the recurrence rule gives this completion (null = it never lapses).
+ */
+export async function recordCompletion(
+  profileId: string,
+  course: Course,
+  reach: Pick<ReachingCourse, "retakeEveryNDays">,
+): Promise<Date | null> {
+  const validUntil = reach.retakeEveryNDays
+    ? new Date(Date.now() + reach.retakeEveryNDays * 86400_000)
+    : null;
+  const existing = await db.completionRecord.findFirst({
+    where: { profileId, courseId: course.id },
+  });
+  const data = {
+    status: "COMPLETED" as const,
+    completedAt: new Date(),
+    validUntil,
+    courseVersion: course.version,
+  };
+  if (existing) {
+    await db.completionRecord.update({ where: { id: existing.id }, data });
+  } else {
+    await db.completionRecord.create({
+      data: { ...data, courseId: course.id, courseCode: course.code, profileId, orgId: course.orgId },
+    });
+  }
+  broadcast(course.orgId, "courses");
+  return validUntil;
+}
+
+/**
  * The branch's HANDLER for content decisions — the nearest level that actually has an
  * owner (the node itself, else the closest ancestor with one), NOT every level up to the
  * top. Returns that node's id, or null when the whole chain is ownerless.
