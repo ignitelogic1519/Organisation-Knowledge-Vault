@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { AuthoredBlock, Classification } from "@vault/shared";
+import { versionLabel, type AuthoredBlock, type Classification } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
@@ -12,9 +12,11 @@ import { DndProvider, type DragPayload, type DropTarget } from "@/components/stu
 import { Inspector } from "@/components/studio/Inspector";
 import { Ribbon } from "@/components/studio/Ribbon";
 import { SideRail } from "@/components/studio/SideRail";
+import { EditBanner } from "@/components/studio/EditBanner";
 import { StudioChooser } from "@/components/studio/StudioChooser";
 import { ExamStudio } from "@/components/studio/exam/ExamStudio";
 import { documentDraftKey } from "@/components/studio/local-drafts";
+import { useCourseEdit } from "@/components/studio/edit-session";
 import { useStudioSession } from "@/components/studio/session";
 import { DEVICES, starterFor } from "@/components/studio/presets";
 import { RichTextProvider } from "@/components/studio/rich";
@@ -79,6 +81,13 @@ function StudioRoute() {
   // Set when the author picked a parked draft to continue — the editor opens it instead of
   // the copy this browser is holding.
   const draftId = params.get("draft");
+  // Set when revising something already published: the editor loads that course instead.
+  const editCode = params.get("course");
+
+  // A revision link that doesn't say which editor to open: ask the course itself.
+  if (editCode && type !== "exam" && type !== "document") {
+    return <ResolveEditor code={editCode} roleId={roleId} />;
+  }
 
   if (!roleId) {
     return (
@@ -90,7 +99,7 @@ function StudioRoute() {
       </div>
     );
   }
-  if (type === "exam") return <ExamStudio roleId={roleId} openDraftId={draftId} />;
+  if (type === "exam") return <ExamStudio roleId={roleId} openDraftId={draftId} editCode={editCode} />;
   if (type === "document") {
     return (
       <RichTextProvider>
@@ -99,6 +108,35 @@ function StudioRoute() {
     );
   }
   return <ChooseWhatToCreate roleId={roleId} />;
+}
+
+/** `?course=` without a `type`: look the course up and send the author to its editor. */
+function ResolveEditor({ code, roleId }: { code: string; roleId: string | null }) {
+  const { org } = useOrg();
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    courses
+      .info(code)
+      .then((c) => {
+        const mode = c.kind === "EXAM" ? "exam" : "document";
+        router.replace(
+          `/orgs/${org.id}/studio?role=${roleId ?? ""}&type=${mode}&course=${c.code}`,
+        );
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Course not found"));
+  }, [code, org.id, roleId, router]);
+
+  if (error) {
+    return (
+      <div className="empty-card glass">
+        <h2>Studio</h2>
+        <p className="auth-sub">{error}</p>
+      </div>
+    );
+  }
+  return <div className="skeleton" style={{ minHeight: "12rem" }} />;
 }
 
 function ChooseWhatToCreate({ roleId }: { roleId: string }) {
@@ -149,6 +187,9 @@ function StudioInner() {
   const draftKey = documentDraftKey(org.id, roleId);
   /** ?draft=… — a parked draft the author chose to continue, instead of the local copy. */
   const openDraftId = params.get("draft");
+  /** ?course=… — revising something already published, rather than writing something new. */
+  const editCode = params.get("course");
+  const edit = useCourseEdit(editCode);
 
   // ── Document state with undo history ───────────────────────────────────────
   const commit = useCallback((updater: (d: Doc) => Doc) => {
@@ -204,6 +245,39 @@ function StudioInner() {
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
+    if (editCode) {
+      // Revising: always the edition as it is published. Deliberately not kept in this
+      // browser — a half-finished edit resurfacing days later, over a course someone else
+      // may have republished since, would be worse than losing it.
+      Promise.all([courses.info(editCode), courses.content(editCode)])
+        .then(([info, content]) => {
+          const blocks = (content.authored ?? []).map(withId);
+          const next: Doc = {
+            blocks: blocks.length ? blocks : starterBlocks(),
+            meta: {
+              ...EMPTY_META,
+              title: info.title,
+              description: info.description ?? "",
+              scope: info.scope ?? "",
+              category: info.category ?? "",
+              classification: info.classification,
+              kind: info.kind === "BOOK" ? "BOOK" : "DOCUMENT",
+              inLibrary: info.inLibrary,
+              resets: info.resetsCompletionOnUpdate,
+              theme: content.theme ?? {},
+            },
+          };
+          docRef.current = next;
+          setDoc(next);
+        })
+        .catch((err) =>
+          dialogs.toast(
+            err instanceof ApiError ? err.message : "Could not open that document",
+            "danger",
+          ),
+        );
+      return;
+    }
     if (openDraftId) {
       studio
         .draft(org.id, openDraftId)
@@ -247,7 +321,7 @@ function StudioInner() {
   }, [draftKey, openDraftId]);
 
   useEffect(() => {
-    if (!restored) return;
+    if (!restored || editCode) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem(
@@ -259,7 +333,7 @@ function StudioInner() {
       }
     }, 600);
     return () => clearTimeout(t);
-  }, [doc, restored, draftKey]);
+  }, [doc, restored, draftKey, editCode]);
 
   const selected = doc.blocks.find((b) => b._id === selectedId) ?? null;
   const pages = useMemo(() => editorPages(doc.blocks), [doc.blocks]);
@@ -497,6 +571,39 @@ function StudioInner() {
       dialogs.toast("Add some content before publishing.", "danger");
       return;
     }
+
+    // ── Revising something already published ────────────────────────────────
+    if (editCode) {
+      if (edit.live) {
+        dialogs.toast("Take it out of deployment before publishing the new edition.", "danger");
+        return;
+      }
+      setBusy("publish");
+      try {
+        const { version } = await courses.update(editCode, {
+          title: meta.title.trim(),
+          description: meta.description.trim(),
+          scope: meta.scope.trim() || null,
+          category: meta.category.trim() || null,
+          classification: meta.classification,
+          inLibrary: meta.inLibrary,
+          resetsCompletionOnUpdate: meta.resets,
+          blocks: published,
+          theme: meta.theme,
+        });
+        dialogs.toast(
+          `Published ${versionLabel(version)} of ${editCode} — it is back in deployment.`,
+          "success",
+        );
+        router.push(`/orgs/${org.id}`);
+      } catch (err) {
+        dialogs.toast(err instanceof ApiError ? err.message : "Publish failed", "danger");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
     if (quotaFull) {
       await dialogs.alert({
         title: "Document allowance reached",
@@ -630,11 +737,14 @@ function StudioInner() {
             />
             <span className="studio-title-sub">
               {node.name}
+              {editCode && edit.detail
+                ? ` · revising ${editCode} · ${versionLabel(edit.detail.version)} live`
+                : ""}
               {doc.meta.classification ? ` · ${CLASS_LABEL[doc.meta.classification]}` : ""}
               {savedAt ? ` · draft saved ${savedAt}` : ""}
             </span>
           </div>
-          {needsReview && <span className="badge">needs manager review</span>}
+          {needsReview && !editCode && <span className="badge">needs manager review</span>}
         </div>
         <div className="studio-topbar-actions">
           <div className="studio-mode-switch" role="tablist" aria-label="Studio mode">
@@ -666,24 +776,43 @@ function StudioInner() {
               ▷ Present
             </button>
           </div>
+          {!editCode && (
+            <button
+              className="btn btn-quiet btn-small"
+              disabled={busy !== null}
+              data-locked={!limits?.draftsEnabled}
+              title={
+                limits?.draftsEnabled
+                  ? "Park this document on the server (Ctrl+S)"
+                  : "Premium plans can park a document as a draft"
+              }
+              onClick={saveDraft}
+            >
+              {busy === "draft" ? "Saving…" : limits?.draftsEnabled ? "🖫 Save draft" : "🔒 Save draft"}
+            </button>
+          )}
           <button
-            className="btn btn-quiet btn-small"
-            disabled={busy !== null}
-            data-locked={!limits?.draftsEnabled}
+            className="btn btn-primary btn-small"
+            disabled={busy !== null || (!!editCode && edit.live)}
             title={
-              limits?.draftsEnabled
-                ? "Park this document on the server (Ctrl+S)"
-                : "Premium plans can park a document as a draft"
+              editCode && edit.live
+                ? "Take the document out of deployment before publishing the new edition"
+                : undefined
             }
-            onClick={saveDraft}
+            onClick={publish}
           >
-            {busy === "draft" ? "Saving…" : limits?.draftsEnabled ? "🖫 Save draft" : "🔒 Save draft"}
-          </button>
-          <button className="btn btn-primary btn-small" disabled={busy !== null} onClick={publish}>
-            {busy === "publish" ? "Working…" : needsReview ? "Submit for review" : "Publish"}
+            {busy === "publish"
+              ? "Working…"
+              : editCode
+                ? `Publish ${edit.detail ? versionLabel(edit.detail.version + 1) : "the new edition"}`
+                : needsReview
+                  ? "Submit for review"
+                  : "Publish"}
           </button>
         </div>
       </div>
+
+      {editCode && <EditBanner session={edit} noun="document" />}
 
       {mode === "edit" && (
         <>
@@ -754,6 +883,9 @@ function StudioInner() {
               limits={limits}
               categories={categories}
               needsReview={needsReview}
+              // Where a course is placed is the branch's business, not the reviser's — a
+              // new edition lands on exactly the placements the old one had.
+              showPlacement={!editCode}
             />
           </div>
 

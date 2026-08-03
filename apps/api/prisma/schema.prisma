@@ -226,6 +226,11 @@ model Course {
   allowDownload            Boolean            @default(false) // owner-controlled download from preview
   archived                 Boolean            @default(false) // archived: kept, but reaches nobody new
   draft                    Boolean            @default(false) // member proposal pending manager review
+  // Taken out of deployment while a new edition is prepared: it reaches nobody and leaves
+  // the library, its placements are kept intact, and publishing the edit puts it back and
+  // bumps `version` (docs/structure.md §3.8).
+  withdrawn                Boolean            @default(false)
+  withdrawnAt              DateTime?
   // Where the content came from — drives the plan's separate allowances for documents
   // built in the Studio vs. documents brought in as a file/link. Derived from storageRef
   // at creation so quota counting is a plain indexed query.
@@ -262,6 +267,10 @@ model ExamAttempt {
   scorePercent  Int
   passed        Boolean
   seconds       Int? // how long the candidate took, when the client reported it
+  /// Times the candidate left the paper for longer than the invigilator allows.
+  violations    Int      @default(0)
+  /// True when the invigilator handed the paper in (third interruption, or time up).
+  autoSubmitted Boolean  @default(false)
   submittedAt   DateTime @default(now())
 
   @@index([courseId, profileId])

@@ -42,6 +42,7 @@ export function ExamInspector({
   limits,
   categories,
   needsReview,
+  showPlacement = true,
   passMark,
   totalPoints,
 }: {
@@ -56,6 +57,8 @@ export function ExamInspector({
   limits: OrgPlanLimitsView | null;
   categories: string[];
   needsReview: boolean;
+  /** false while revising a published exam — placements belong to the branch. */
+  showPlacement?: boolean;
   /** Marks needed to pass, given the current weights — the pass mark made concrete. */
   passMark: number;
   totalPoints: number;
@@ -269,6 +272,7 @@ export function ExamInspector({
             needsReview={needsReview}
             noun="exam"
             showKind={false}
+            showPlacement={showPlacement}
           />
         </div>
       )}

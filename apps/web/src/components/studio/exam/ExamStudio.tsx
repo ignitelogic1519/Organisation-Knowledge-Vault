@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   correctOptionIds,
   EMPTY_EXAM_SETTINGS,
+  versionLabel,
   examProblems,
   gradeExam,
   isAnswerCorrect,
@@ -21,6 +22,8 @@ import { ExamRunner } from "@/components/ExamRunner";
 import { useDialogs } from "@/components/dialogs";
 import { useOrg } from "@/components/org-context";
 import { DraftsTray } from "../DraftsTray";
+import { EditBanner } from "../EditBanner";
+import { useCourseEdit } from "../edit-session";
 import { examDraftKey } from "../local-drafts";
 import { EMPTY_META, type StudioMeta } from "../model";
 import { useStudioSession } from "../session";
@@ -59,15 +62,19 @@ export function ExamStudio({
   roleId,
   /** ?draft=… — a parked draft the author chose to continue, instead of the local copy. */
   openDraftId,
+  /** ?course=… — revising a published exam, rather than writing a new one. */
+  editCode,
 }: {
   roleId: string;
   openDraftId?: string | null;
+  editCode?: string | null;
 }) {
   const { org, isSupremeOwner } = useOrg();
   const router = useRouter();
   const dialogs = useDialogs();
   const session = useStudioSession(org.id, roleId, isSupremeOwner);
   const { node, limits, categories, needsReview, quotaFull } = session;
+  const edit = useCourseEdit(editCode ?? null);
 
   const [doc, setDoc] = useState<ExamDoc>({
     meta: { ...EMPTY_META, kind: "EXAM" },
@@ -162,6 +169,37 @@ export function ExamStudio({
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
+    if (editCode) {
+      // Revising: always the edition as it is published (see the document editor for why
+      // this one is deliberately not kept in the browser).
+      Promise.all([courses.info(editCode), courses.content(editCode)])
+        .then(([info, content]) => {
+          if (!content.exam) {
+            dialogs.toast("That course is not an exam.", "danger");
+            return;
+          }
+          adopt(
+            {
+              title: info.title,
+              description: info.description ?? "",
+              scope: info.scope ?? "",
+              category: info.category ?? "",
+              classification: info.classification,
+              inLibrary: info.inLibrary,
+              resets: info.resetsCompletionOnUpdate,
+              theme: content.theme ?? {},
+            },
+            content.exam,
+          );
+        })
+        .catch((err) =>
+          dialogs.toast(
+            err instanceof ApiError ? err.message : "Could not open that exam",
+            "danger",
+          ),
+        );
+      return;
+    }
     if (openDraftId) {
       studio
         .draft(org.id, openDraftId)
@@ -199,7 +237,7 @@ export function ExamStudio({
   }, [draftKey, openDraftId]);
 
   useEffect(() => {
-    if (!restored) return;
+    if (!restored || editCode) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem(draftKey, JSON.stringify(doc));
@@ -208,7 +246,7 @@ export function ExamStudio({
       }
     }, 600);
     return () => clearTimeout(t);
-  }, [doc, restored, draftKey]);
+  }, [doc, restored, draftKey, editCode]);
 
   const selected = doc.exam.questions.find((q) => q.id === selectedId) ?? null;
   const stats = useMemo(() => examStats(doc.exam), [doc.exam]);
@@ -392,6 +430,38 @@ export function ExamStudio({
       });
       return;
     }
+    // ── Revising something already published ────────────────────────────────
+    if (editCode) {
+      if (edit.live) {
+        dialogs.toast("Take it out of deployment before publishing the new edition.", "danger");
+        return;
+      }
+      setBusy("publish");
+      try {
+        const { version } = await courses.update(editCode, {
+          title: meta.title.trim(),
+          description: meta.description.trim(),
+          scope: meta.scope.trim() || null,
+          category: meta.category.trim() || null,
+          classification: meta.classification,
+          inLibrary: meta.inLibrary,
+          resetsCompletionOnUpdate: meta.resets,
+          exam,
+          theme: meta.theme,
+        });
+        dialogs.toast(
+          `Published ${versionLabel(version)} of ${editCode} — it is back in deployment.`,
+          "success",
+        );
+        router.push(`/orgs/${org.id}`);
+      } catch (err) {
+        dialogs.toast(err instanceof ApiError ? err.message : "Publish failed", "danger");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
     if (quotaFull) {
       await dialogs.alert({
         title: "Document allowance reached",
@@ -520,11 +590,14 @@ export function ExamStudio({
             />
             <span className="studio-title-sub">
               {node.name} · exam
+              {editCode && edit.detail
+                ? ` · revising ${editCode} · ${versionLabel(edit.detail.version)} live`
+                : ""}
               {doc.meta.classification ? ` · ${CLASS_LABEL[doc.meta.classification]}` : ""}
               {savedAt ? ` · draft saved ${savedAt}` : ""}
             </span>
           </div>
-          {needsReview && <span className="badge">needs manager review</span>}
+          {needsReview && !editCode && <span className="badge">needs manager review</span>}
         </div>
         <div className="studio-topbar-actions">
           <div className="studio-mode-switch" role="tablist" aria-label="Studio mode">
@@ -550,24 +623,43 @@ export function ExamStudio({
               ▷ Try it
             </button>
           </div>
+          {!editCode && (
+            <button
+              className="btn btn-quiet btn-small"
+              disabled={busy !== null}
+              data-locked={!limits?.draftsEnabled}
+              title={
+                limits?.draftsEnabled
+                  ? "Park this exam on the server (Ctrl+S)"
+                  : "Premium plans can park an exam as a draft"
+              }
+              onClick={saveDraft}
+            >
+              {busy === "draft" ? "Saving…" : limits?.draftsEnabled ? "🖫 Save draft" : "🔒 Save draft"}
+            </button>
+          )}
           <button
-            className="btn btn-quiet btn-small"
-            disabled={busy !== null}
-            data-locked={!limits?.draftsEnabled}
+            className="btn btn-primary btn-small"
+            disabled={busy !== null || (!!editCode && edit.live)}
             title={
-              limits?.draftsEnabled
-                ? "Park this exam on the server (Ctrl+S)"
-                : "Premium plans can park an exam as a draft"
+              editCode && edit.live
+                ? "Take the exam out of deployment before publishing the new edition"
+                : undefined
             }
-            onClick={saveDraft}
+            onClick={publish}
           >
-            {busy === "draft" ? "Saving…" : limits?.draftsEnabled ? "🖫 Save draft" : "🔒 Save draft"}
-          </button>
-          <button className="btn btn-primary btn-small" disabled={busy !== null} onClick={publish}>
-            {busy === "publish" ? "Working…" : needsReview ? "Submit for review" : "Publish"}
+            {busy === "publish"
+              ? "Working…"
+              : editCode
+                ? `Publish ${edit.detail ? versionLabel(edit.detail.version + 1) : "the new edition"}`
+                : needsReview
+                  ? "Submit for review"
+                  : "Publish"}
           </button>
         </div>
       </div>
+
+      {editCode && <EditBanner session={edit} noun="exam" />}
 
       {mode === "edit" && (
         <>
@@ -709,6 +801,7 @@ export function ExamStudio({
               limits={limits}
               categories={categories}
               needsReview={needsReview}
+              showPlacement={!editCode}
               passMark={stats.passMark}
               totalPoints={stats.totalPoints}
             />
@@ -761,6 +854,8 @@ export function ExamStudio({
                   : {}),
               };
             }}
+            // The author's own run is marked here in the browser — and, being a preview,
+            // is neither invigilated nor recorded.
             onSubmit={async (answers: ExamAnswer[]) => {
               const exam = cleanExam(doc.exam);
               const result = gradeExam(exam, answers);

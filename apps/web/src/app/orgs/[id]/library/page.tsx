@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CourseComplianceView, CourseReviewView, LibraryCourse } from "@vault/shared";
+import {
+  versionLabel,
+  type CourseComplianceView,
+  type CourseReviewView,
+  type LibraryCourse,
+} from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
@@ -94,6 +99,7 @@ function CourseDetail({
             <h3>{course.title}</h3>
             <span className="chip">{course.code}</span>
             <span className="badge">{KIND_LABELS[course.kind] ?? course.kind}</span>
+            <span className="chip">{versionLabel(course.version)}</span>
             <span className={`badge class-badge class-${course.classification}`}>
               {CLASS_LABEL[course.classification]}
             </span>

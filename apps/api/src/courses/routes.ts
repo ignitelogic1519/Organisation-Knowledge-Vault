@@ -269,6 +269,13 @@ export async function courseRoutes(app: FastifyInstance) {
         publishedAt: course.createdAt.toISOString(),
         creatorName: creator?.displayName ?? "—",
         draft: course.draft,
+        // Everything the Studio needs to reopen this course for a new edition.
+        category: course.category,
+        inLibrary: course.inLibrary,
+        resetsCompletionOnUpdate: course.resetsCompletionOnUpdate,
+        source: course.source,
+        withdrawn: course.withdrawn,
+        canManage: await canManageCourse(req.profileId, course),
       };
     },
   );
@@ -435,8 +442,38 @@ export async function courseRoutes(app: FastifyInstance) {
     },
   );
 
-  // Modify a course — metadata and/or content. A content change (new file/url/blocks)
-  // bumps the version; the reset flag then expires old completions (structure.md §5.7).
+  // Take a course out of deployment, or put it back. Out of deployment it reaches nobody
+  // and leaves the library, but every placement is kept — this is the "roll it back, revise
+  // it, publish the next edition" step, not an unplacement.
+  app.post<{ Params: { code: string } }>(
+    "/courses/:code/withdraw",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const { withdrawn } = z.object({ withdrawn: z.boolean() }).parse(req.body);
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      if (!(await canManageCourse(req.profileId, course))) {
+        return reply.status(403).send({
+          error: "Only this course's editors or the owners of its branch can take it out of deployment",
+        });
+      }
+      await db.course.update({
+        where: { id: course.id },
+        data: { withdrawn, withdrawnAt: withdrawn ? new Date() : null },
+      });
+      await audit(course.orgId, withdrawn ? "course.withdraw" : "course.redeploy", {
+        actorProfileId: req.profileId,
+        ip: req.ip,
+        detail: { code: course.code, version: course.version },
+      });
+      broadcast(course.orgId, "courses");
+      return { ok: true, withdrawn };
+    },
+  );
+
+  // Modify a course — metadata and/or content. A content change publishes the next edition:
+  // it bumps the version (v1.0 → v2.0), returns the course to deployment, and — when the
+  // reset flag is set — expires old completions (structure.md §5.7).
   app.patch<{ Params: { code: string } }>(
     "/courses/:code",
     { preHandler: app.authenticate },
@@ -444,8 +481,10 @@ export async function courseRoutes(app: FastifyInstance) {
       const body = updateCourseSchema.parse(req.body);
       const course = await courseByCode(req.params.code);
       if (!course) return reply.status(404).send({ error: "Course not found" });
+      // The course's own editors, OR the owners governing its home branch — the branch
+      // manager and the levels above them, who answer for what the branch publishes.
       const access = await adminLevel(req.profileId, course.id, course.createdByProfileId);
-      if (access?.level !== "EDIT") {
+      if (access?.level !== "EDIT" && !(await canManageCourse(req.profileId, course))) {
         return reply.status(403).send({ error: "Edit access to this course is required" });
       }
 
@@ -481,6 +520,15 @@ export async function courseRoutes(app: FastifyInstance) {
         contentChanged = true;
       }
 
+      // Republishing is deliberate: a live course must be taken out of deployment first,
+      // so nobody is ever mid-read (or mid-exam) on an edition that is being rewritten.
+      if (contentChanged && !course.withdrawn) {
+        return reply.status(409).send({
+          error:
+            "Take this course out of deployment before publishing a new edition — its readers are still on the current one",
+        });
+      }
+
       const updated = await db.course.update({
         where: { id: course.id },
         data: {
@@ -491,14 +539,21 @@ export async function courseRoutes(app: FastifyInstance) {
             ? { category: body.category?.trim() ? body.category.trim() : null }
             : {}),
           ...(body.classification !== undefined ? { classification: body.classification } : {}),
+          ...(body.inLibrary !== undefined ? { inLibrary: body.inLibrary } : {}),
+          ...(body.resetsCompletionOnUpdate !== undefined
+            ? { resetsCompletionOnUpdate: body.resetsCompletionOnUpdate }
+            : {}),
           ...(body.allowDownload !== undefined ? { allowDownload: body.allowDownload } : {}),
           storageRef: ref as object,
           source,
-          ...(contentChanged ? { version: { increment: 1 } } : {}),
+          // A new edition goes straight back into deployment on the placements it kept.
+          ...(contentChanged
+            ? { version: { increment: 1 }, withdrawn: false, withdrawnAt: null }
+            : {}),
         },
       });
 
-      if (contentChanged && course.resetsCompletionOnUpdate) {
+      if (contentChanged && updated.resetsCompletionOnUpdate) {
         const outdated = await db.completionRecord.findMany({
           where: { courseId: course.id, status: "COMPLETED", courseVersion: { lt: updated.version } },
         });
@@ -628,6 +683,12 @@ export async function courseRoutes(app: FastifyInstance) {
               classification: r.course.classification,
               inLibrary: r.course.inLibrary,
               archived: r.course.archived,
+              // What the branch panel needs to offer "revise this": which edition is live,
+              // whether it is currently out of deployment, and whether it is ours to edit
+              // in the Studio at all (an uploaded file is replaced, not edited).
+              version: r.course.version,
+              withdrawn: r.course.withdrawn,
+              source: r.course.source,
               allowDownload: r.course.allowDownload,
               mandatory: r.mandatory,
               inheritToDescendants: r.inheritToDescendants,
@@ -723,7 +784,8 @@ export async function courseRoutes(app: FastifyInstance) {
 
       const q = (req.query.q ?? "").trim().toLowerCase();
       const list = await db.course.findMany({
-        where: { orgId: req.params.id, inLibrary: true },
+        // Out of deployment = off the shelves until its next edition is published.
+        where: { orgId: req.params.id, inLibrary: true, withdrawn: false },
         include: { placements: true },
         orderBy: { createdAt: "desc" },
       });
@@ -762,6 +824,7 @@ export async function courseRoutes(app: FastifyInstance) {
             category: c.category,
             classification: c.classification,
             archived: c.archived,
+            version: c.version,
             uploaderRoleName: nodes.find((n) => n.id === c.uploaderRoleNodeId)?.name ?? "—",
             createdAt: c.createdAt.toISOString(),
             completedCount: completions.find((x) => x.courseId === c.id)?._count ?? 0,

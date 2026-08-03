@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { OrgPlanLimitsView, TreeNode } from "@vault/shared";
+import { versionLabel, type OrgPlanLimitsView, type TreeNode } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { orgs, requests, roles } from "@/lib/orgs-client";
 import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-client";
@@ -963,8 +963,10 @@ function CoursesPanel({
               <span className={`badge class-badge class-${c.classification}`}>
                 {c.classification.toLowerCase()}
               </span>
+              <span className="chip">{versionLabel(c.version)}</span>
               {c.inLibrary && <span className="badge badge-ok">in library</span>}
               {c.archived && <span className="badge badge-danger">archived</span>}
+              {c.withdrawn && <span className="badge badge-danger">out of deployment</span>}
             </div>
             {c.description && <p className="person-sub">{c.description}</p>}
             <div className="person-actions">
@@ -1005,6 +1007,32 @@ function CoursesPanel({
               >
                 Unplace
               </button>
+              {c.canManage && c.source === "STUDIO" && (
+                <>
+                  <button
+                    className="btn btn-quiet btn-small"
+                    title={
+                      c.withdrawn
+                        ? "Put it back into deployment unchanged"
+                        : "Take it out of deployment so it can be revised — placements are kept"
+                    }
+                    onClick={() => run(() => courses.withdraw(c.code, !c.withdrawn))}
+                  >
+                    {c.withdrawn ? "▲ Put back" : "⏸ Take out of deployment"}
+                  </button>
+                  <button
+                    className="btn btn-quiet btn-small"
+                    title={`Open ${versionLabel(c.version)} in the Studio and publish ${versionLabel(c.version + 1)}`}
+                    onClick={() =>
+                      router.push(
+                        `/orgs/${orgId}/studio?role=${node.id}&type=${c.kind === "EXAM" ? "exam" : "document"}&course=${c.code}`,
+                      )
+                    }
+                  >
+                    ✎ Revise
+                  </button>
+                </>
+              )}
               {c.canManage && (
                 <button
                   className="btn btn-quiet btn-small"

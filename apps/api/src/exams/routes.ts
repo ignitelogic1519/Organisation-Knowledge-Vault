@@ -246,6 +246,10 @@ export async function examRoutes(app: FastifyInstance) {
             scorePercent: result.percent,
             passed: result.passed,
             seconds: body.seconds ?? null,
+            // What the invigilator saw: how often they left the paper, and whether it was
+            // handed in for them.
+            violations: body.violations ?? 0,
+            autoSubmitted: body.autoSubmitted ?? false,
           },
         });
       }

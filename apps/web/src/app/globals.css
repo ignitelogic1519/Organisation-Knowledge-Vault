@@ -6837,3 +6837,126 @@ body.is-dragging-block * {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ── Revising something already published ────────────────────────────────── */
+
+.studio-edit-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  font-size: 0.8rem;
+}
+.studio-edit-banner[data-live="false"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+}
+.studio-edit-state {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.studio-edit-text {
+  flex: 1;
+  min-width: 14rem;
+  line-height: 1.55;
+}
+
+/* ── Invigilation ────────────────────────────────────────────────────────── */
+
+.exam-strikes {
+  font-weight: 700;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.exam-guard {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1.2rem;
+  background: color-mix(in srgb, var(--bg) 82%, black);
+  backdrop-filter: blur(14px);
+  animation: exam-guard-in var(--dur-standard) var(--ease);
+}
+@keyframes exam-guard-in {
+  from {
+    opacity: 0;
+  }
+}
+.exam-guard-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 28rem;
+  text-align: center;
+  padding: 1.8rem 1.6rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: var(--surface-solid);
+  box-shadow: 0 20px 60px rgba(10, 14, 30, 0.35);
+}
+.exam-guard-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--danger);
+}
+.exam-guard-card h3 {
+  font-size: 1.15rem;
+}
+.exam-guard-card p {
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+/* Full screen: the paper owns the whole display, and keeps its own scroll. */
+.exam-run:fullscreen {
+  max-width: none;
+  padding: 1.5rem clamp(1rem, 8vw, 10rem) 3rem;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.exam-run:fullscreen .exam-bar {
+  max-width: 46rem;
+  margin: 0 auto;
+  width: 100%;
+}
+.exam-run:fullscreen .exam-paper,
+.exam-run:fullscreen .exam-actions,
+.exam-run:fullscreen .exam-result,
+.exam-run:fullscreen .exam-intro {
+  max-width: 46rem;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+.exam-note-rules {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  line-height: 1.6;
+}
+
+.exam-guard-card[data-tone="ask"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.exam-guard-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.3rem;
+}
+.exam-notice {
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  font-size: 0.82rem;
+  cursor: pointer;
+}

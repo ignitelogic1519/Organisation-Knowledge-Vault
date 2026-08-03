@@ -28,6 +28,8 @@ export function DocumentProperties({
   noun = "document",
   /** The DOCUMENT/BOOK selector, which an exam has no use for. */
   showKind = true,
+  /** false while revising something already published — placements belong to the branch. */
+  showPlacement = true,
 }: {
   meta: StudioMeta;
   onMeta: (next: StudioMeta) => void;
@@ -36,6 +38,7 @@ export function DocumentProperties({
   needsReview: boolean;
   noun?: string;
   showKind?: boolean;
+  showPlacement?: boolean;
 }) {
   return (
     <>
@@ -104,7 +107,13 @@ export function DocumentProperties({
         onChange={(v) => onMeta({ ...meta, inLibrary: v })}
         hint="Members can find it there and request it for their own branch."
       />
-      {!needsReview && (
+      {!showPlacement && (
+        <p className="insp-note">
+          Where this sits on the branch — mandatory, inherited — is managed from the branch
+          itself. A new edition keeps exactly the placements this one has.
+        </p>
+      )}
+      {showPlacement && !needsReview && (
         <>
           <Toggle
             label="Mandatory for this branch"

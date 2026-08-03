@@ -329,6 +329,10 @@ export const submitExamSchema = z.object({
     .max(200),
   /** Seconds the candidate spent — recorded with the attempt, never used for marking. */
   seconds: z.number().int().min(0).max(86_400).optional(),
+  /** Times the candidate left the paper for longer than the invigilator allows. */
+  violations: z.number().int().min(0).max(50).optional(),
+  /** True when the invigilator handed the paper in, not the candidate. */
+  autoSubmitted: z.boolean().optional(),
 });
 export type SubmitExamInput = z.infer<typeof submitExamSchema>;
 
@@ -349,6 +353,18 @@ export interface ExamCheckView {
  * Deterministic-per-call shuffle (Fisher–Yates on a copy). Used server-side when dealing a
  * paper, so two candidates opening the same exam get different orders.
  */
+// ── Invigilation ─────────────────────────────────────────────────────────────
+// A candidate sits the paper full-screen. Leaving it — another tab, another window —
+// is tolerated briefly (a notification, a misclick) and then counted: two warnings, and
+// the third interruption hands the paper in as it stands. The rules live here so the
+// runner, the wording people read and the recorded attempt all agree on the numbers.
+
+/** How long a candidate may be away before it counts against them, in milliseconds. */
+export const EXAM_AWAY_GRACE_MS = 5_000;
+
+/** Interruptions that only earn a warning. The next one ends the paper. */
+export const EXAM_MAX_WARNINGS = 2;
+
 export function shuffled<T>(items: T[]): T[] {
   const out = [...items];
   for (let i = out.length - 1; i > 0; i -= 1) {

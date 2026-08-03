@@ -110,7 +110,9 @@ model Course {
   deadlineDays             Int?            // optional deadline
   retakeEveryNDays         Int?            // recurrence (§3.4) — applies to all course kinds
   resetsCompletionOnUpdate Boolean @default(false)
-  version                  Int     @default(1)
+  version                  Int     @default(1)   // the edition: v1.0, v2.0 … (structure.md §3.8)
+  withdrawn                Boolean @default(false) // out of deployment while it is revised
+  withdrawnAt              DateTime?
   prerequisites            CoursePrerequisite[]
   placements               CoursePlacement[]
 }
@@ -166,6 +168,8 @@ model ExamAttempt {          // one sitting of an MCQ exam (structure.md §3.6)
   scorePercent  Int
   passed        Boolean
   seconds       Int?
+  violations    Int      @default(0)     // times the candidate left the paper (§3.6c)
+  autoSubmitted Boolean  @default(false) // handed in by the invigilator, not by them
   submittedAt   DateTime @default(now())
 }
 
@@ -274,6 +278,8 @@ POST   /orgs/:id/roles/:rid/people  → invite/add owner or member (email flow)
 POST   /orgs/:id/courses            → upload (goes through storage adapter)
 GET    /courses/:code               → resolve by platform-unique code
 POST   /courses/:code/placements    → place into a branch (mandatory/inherit flags)
+POST   /courses/:code/withdraw      → take out of deployment / put back (editors & owners)
+PATCH  /courses/:code               → revise; a content change publishes the next edition
 GET    /courses/:code/admin         → course admin page (separate ACL)
 
 GET    /orgs/:id/my-learning        → assignments + opt-in catalog + prereq state

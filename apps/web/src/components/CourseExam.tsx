@@ -36,7 +36,7 @@ export function CourseExam({ code, onCompleted }: { code: string; onCompleted?: 
       <ExamRunner
         paper={paper}
         onCheck={(questionId, optionIds) => exams.check(code, { questionId, optionIds })}
-        onSubmit={(answers, seconds) => exams.submit(code, { answers, seconds })}
+        onSubmit={(answers, sitting) => exams.submit(code, { answers, ...sitting })}
         // A retry asks the server for a fresh paper, so the shuffle is dealt again.
         onRetry={load}
         onCompleted={onCompleted}

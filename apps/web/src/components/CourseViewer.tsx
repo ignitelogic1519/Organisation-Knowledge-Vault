@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AuthoredBlock, Classification, LearningItem } from "@vault/shared";
+import { versionLabel, type AuthoredBlock, type Classification, type LearningItem } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
 import { CourseExam } from "./CourseExam";
@@ -237,7 +237,7 @@ export function CourseViewer({
         <div className={`doc-headerbar class-strip-${item.classification}`}>
           <span className="doc-org">{orgName}</span>
           <span className="doc-class">{CLASS_LABEL[item.classification]}</span>
-          <span className="doc-ver">v{item.version}</span>
+          <span className="doc-ver">{versionLabel(item.version)}</span>
         </div>
 
         <div className="viewer-frame-wrap" ref={frameWrapRef}>
@@ -257,7 +257,7 @@ export function CourseViewer({
                   </div>
                   <div>
                     <dt>Version</dt>
-                    <dd>{item.version}</dd>
+                    <dd>{versionLabel(item.version)}</dd>
                   </div>
                   <div>
                     <dt>Author</dt>
@@ -358,7 +358,7 @@ export function CourseViewer({
                 {orgName} · {CLASS_LABEL[item.classification]}
               </span>
               <span>
-                {item.code} · v{item.version} · {publishedDate}
+                {item.code} · {versionLabel(item.version)} · {publishedDate}
               </span>
             </div>
           )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LearningItem, MyLearningView } from "@vault/shared";
+import { versionLabel, type LearningItem, type MyLearningView } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
 import { CourseViewer } from "./CourseViewer";
@@ -44,6 +44,7 @@ function Row({
       <div className="learning-main">
         <strong>{item.title}</strong> <span className="chip">{item.code}</span>{" "}
         <span className="badge">{item.kind.toLowerCase()}</span>{" "}
+        <span className="chip">{versionLabel(item.version)}</span>{" "}
         <span className="badge">{item.mandatory ? "mandatory" : "opt-in"}</span>{" "}
         <StatusBadge item={item} />
         <div className="auth-sub">

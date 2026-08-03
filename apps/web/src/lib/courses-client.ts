@@ -16,6 +16,31 @@ import { api, authFetch } from "./auth-client";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+/** Everything GET /courses/:code answers — including what the Studio needs to reopen it. */
+export interface CourseDetail {
+  code: string;
+  title: string;
+  kind: import("@vault/shared").CourseKind;
+  version: number;
+  deadlineDays: number | null;
+  retakeEveryNDays: number | null;
+  prerequisiteCodes: string[];
+  description: string | null;
+  scope: string | null;
+  category: string | null;
+  classification: import("@vault/shared").Classification;
+  allowDownload: boolean;
+  inLibrary: boolean;
+  resetsCompletionOnUpdate: boolean;
+  source: "STUDIO" | "UPLOAD";
+  /** Out of deployment: it reaches nobody while its next edition is written. */
+  withdrawn: boolean;
+  canManage: boolean;
+  publishedAt: string;
+  creatorName: string;
+  draft: boolean;
+}
+
 export const courses = {
   create: (orgId: string, input: CreateCourseInput) =>
     api<{ code: string; id: string; draft: boolean }>(`/orgs/${orgId}/courses`, {
@@ -36,22 +61,22 @@ export const courses = {
   compliance: (code: string) =>
     api<import("@vault/shared").CourseComplianceView>(`/courses/${code}/compliance`),
   info: (code: string) =>
+    api<CourseDetail>(`/courses/${code}`),
+  /** The stored content itself — authored blocks, an exam paper, or a link. Managers only
+   *  for an exam: the answer key lives in there. */
+  content: (code: string) =>
     api<{
-      code: string;
-      title: string;
-      kind: import("@vault/shared").CourseKind;
-      version: number;
-      deadlineDays: number | null;
-      retakeEveryNDays: number | null;
-      prerequisiteCodes: string[];
-      description: string | null;
-      scope: string | null;
-      classification: import("@vault/shared").Classification;
-      allowDownload: boolean;
-      publishedAt: string;
-      creatorName: string;
-      draft: boolean;
-    }>(`/courses/${code}`),
+      authored?: import("@vault/shared").AuthoredBlock[];
+      exam?: import("@vault/shared").ExamBody;
+      theme?: import("@vault/shared").DocumentTheme;
+      url?: string;
+    }>(`/courses/${code}/content`),
+  /** Take a course out of deployment (or put it back) while a new edition is written. */
+  withdraw: (code: string, withdrawn: boolean) =>
+    api<{ ok: boolean; withdrawn: boolean }>(`/courses/${code}/withdraw`, {
+      method: "POST",
+      body: JSON.stringify({ withdrawn }),
+    }),
   admin: (code: string) => api<CourseAdminView>(`/courses/${code}/admin`),
   grantAccess: (code: string, username: string, level: "VIEW" | "EDIT", canGrant: boolean) =>
     api<{ ok: boolean }>(`/courses/${code}/admin/access`, {
@@ -80,6 +105,9 @@ export const courses = {
         classification: import("@vault/shared").Classification;
         inLibrary: boolean;
         archived: boolean;
+        version: number;
+        withdrawn: boolean;
+        source: "STUDIO" | "UPLOAD";
         allowDownload: boolean;
         mandatory: boolean;
         inheritToDescendants: boolean;

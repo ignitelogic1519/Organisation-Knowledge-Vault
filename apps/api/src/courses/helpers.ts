@@ -46,8 +46,10 @@ export async function coursesReaching(profileId: string, orgId: string): Promise
     where: { membership: { profileId, orgId } },
     include: { roleNode: true },
   });
+  // A course out of deployment reaches nobody while its next edition is written — its
+  // placements are untouched, so republishing restores exactly the audience it had.
   const coursePlacements = await db.coursePlacement.findMany({
-    where: { course: { orgId } },
+    where: { course: { orgId, withdrawn: false } },
     include: { course: true, },
   });
   const nodeById = new Map(

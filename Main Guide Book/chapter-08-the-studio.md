@@ -268,6 +268,51 @@ your browser and recorded nowhere, so try it as often as you like.
 standard document frame. Marking happens on the server — the answers never travel to the
 candidate's browser — and an exam is completed by **passing** it, not by ticking it off.
 
+**Exam conditions.** A candidate's paper opens on the **whole screen** and stays there: if
+they leave full screen, the paper is covered until they come back. Leaving the exam
+altogether — another tab, another window — for more than **five seconds** is counted:
+
+| Interruption | What happens |
+|---|---|
+| 1st | The paper is covered: *"You left the exam — warning 1 of 2."* |
+| 2nd | The same, with the warning that the next one ends it. |
+| 3rd | The paper is **handed in automatically** and marked on whatever was answered. |
+
+The rules are stated on the exam's start screen, before anyone begins, and each attempt
+records how often the candidate left. Your own **▷ Try it** run is not policed — only real
+sittings are.
+
+---
+
+## Revising something you already published
+
+Documents and exams built in the Studio can be revised by the people who answer for them:
+the course's editors, the **branch's owner**, and the **owners above them**. Because readers
+are on the current edition, the order is fixed — and the Studio walks you through it.
+
+From the branch's **Courses** panel, each Studio-built course shows its edition (**v1.0**)
+and two controls:
+
+1. **⏸ Take out of deployment** — the course stops reaching anyone and leaves the library.
+   Its placements are kept exactly as they are, so nothing has to be set up again.
+2. **✎ Revise** — opens the published edition in the Studio it was written in.
+3. **Publish v2.0** — saves your changes as the next edition and puts the course straight
+   back into deployment on the same branches.
+
+While the course is still live the Studio says so and keeps **Publish** disabled, with the
+button right there to take it out of deployment. You can also take a course out and simply
+**▲ Put back** unchanged.
+
+- **The version label** — v1.0, v2.0, v3.0 — follows the course everywhere people see it:
+  the library, My Learning, the reader's header bar and the branch's list.
+- **Placement is not part of a revision.** Mandatory and inheritance belong to the branch;
+  a new edition keeps whatever the old one had.
+- If the course has **Re-reading required after an update** switched on, publishing a new
+  edition expires the completions of the old one and asks those people to read (or sit) it
+  again.
+- Revisions are not drafts: the Studio opens the edition as published, and **Save draft** is
+  not offered while revising.
+
 ---
 
 ## Tips

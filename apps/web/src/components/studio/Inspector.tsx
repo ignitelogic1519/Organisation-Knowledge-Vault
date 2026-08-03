@@ -163,6 +163,7 @@ export function Inspector({
   limits,
   categories,
   needsReview,
+  showPlacement = true,
 }: {
   tab: "format" | "document";
   onTab: (t: "format" | "document") => void;
@@ -173,6 +174,8 @@ export function Inspector({
   limits: OrgPlanLimitsView | null;
   categories: string[];
   needsReview: boolean;
+  /** false while revising a published document — its placements are the branch's. */
+  showPlacement?: boolean;
 }) {
   const style = block?.style ?? {};
   const patchStyle = (patch: Record<string, unknown>) =>
@@ -510,6 +513,7 @@ export function Inspector({
             limits={limits}
             categories={categories}
             needsReview={needsReview}
+            showPlacement={showPlacement}
           />
         </div>
       )}

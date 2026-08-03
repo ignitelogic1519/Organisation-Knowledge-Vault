@@ -13,6 +13,13 @@ export const documentDraftKey = (orgId: string, roleId: string | null) =>
 
 export const examDraftKey = (orgId: string, roleId: string) => `kv.studio.exam.${orgId}.${roleId}`;
 
+/**
+ * Revising a PUBLISHED course is not "work in progress on this branch" — it belongs to that
+ * course. It gets its own key so an unfinished edit can survive a crash without ever being
+ * mistaken for (or overwriting) the new document someone was writing.
+ */
+export const editDraftKey = (code: string) => `kv.studio.edit.${code}`;
+
 export interface LocalDraft {
   mode: "document" | "exam";
   title: string;

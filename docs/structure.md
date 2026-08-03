@@ -171,12 +171,43 @@ ships with it; the rest of the exam roadmap stays in `future.md` §5b.
 - Both are private to the author until they publish. The Studio's front door lists both under
   *Continue a draft*, and each entry reopens in the editor that wrote it.
 
+### 3.6c Invigilation (MCQ exams) ✅ DECIDED
+- A candidate's sitting runs **full screen**, and the paper is covered whenever it is not.
+- Leaving the paper — another tab, another window — for more than **5 seconds** is counted.
+  **Two** interruptions earn a warning; the **third** hands the paper in as it stands, marked
+  on whatever was answered.
+- An absence is counted either while it happens or on return, so suspending the tab does not
+  evade it. An author's preview is never invigilated.
+- `ExamAttempt` records the count and whether the paper was handed in by the invigilator, so
+  a result can always be read in context.
+- This is a deterrent, not a proctor: it is client-side, and deliberately says so. Real
+  proctoring (identity, camera, screen) is out of scope — see future.md.
+
 ### 3.7 Completion (v1) ✅ DECIDED
 - Manual **"mark as complete"** for all v1 content. Advanced tracking → `future.md`.
 - A completion record is keyed to the **course's unique platform code** and is part of the
   **user's data**, carrying: the course code, the completed course version, the completion
   date, and the **expiry time** (`completedAt + retake_every_n_days`, when recurrence is set).
   When exams arrive (future), the re-attempt time joins the same record.
+
+### 3.8 Editions: revising something already published ✅ DECIDED
+Studio-built material (documents and exams) is revised in place, by the people who answer
+for it — **the course's editors, the branch's owner, and the owners above them**.
+
+The order is deliberate, because readers are on the current edition:
+1. **Take it out of deployment.** It reaches nobody and leaves the library; every placement
+   is kept exactly as it was.
+2. **Revise it** in the Studio, which opens the edition as published.
+3. **Publish**, which bumps the version (`v1.0` → `v2.0`), returns it to deployment on the
+   same placements, and — when *updates reset completion* is set — expires the completions
+   of the older edition and asks those people to read (or sit) it again.
+
+- The API refuses a content change while the course is still deployed; the Studio disables
+  publishing until it is withdrawn, and says why.
+- Placement (mandatory / inherited) is NOT part of a revision: it belongs to the branch, and
+  a new edition inherits it untouched.
+- The version is written as an **edition label** — `v1.0`, `v2.0` — wherever people see the
+  course: library, My Learning, the viewer's header, and the branch's course list.
 
 ---
 

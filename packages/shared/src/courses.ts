@@ -380,6 +380,8 @@ export const updateCourseSchema = z.object({
   scope: z.string().trim().max(2000).nullable().optional(),
   category: z.string().trim().max(40).nullable().optional(),
   classification: z.enum(["PUBLIC", "CONFIDENTIAL", "PRIVATE", "SECRET"]).optional(),
+  inLibrary: z.boolean().optional(),
+  resetsCompletionOnUpdate: z.boolean().optional(),
   allowDownload: z.boolean().optional(),
   url: z.string().url().optional(),
   fileBase64: z.string().optional(),
@@ -401,6 +403,16 @@ export interface CourseInfo {
   prerequisiteCodes: string[];
 }
 
+/**
+ * How a course's version is written wherever people see it. The stored number counts
+ * publications (1, 2, 3 …); the label is the edition it names — v1.0, v2.0 — so a reader
+ * can tell at a glance that what reaches them today is not what reached them last month.
+ * Minor numbers are reserved: every publication is a full edition today.
+ */
+export function versionLabel(version: number): string {
+  return `v${version}.0`;
+}
+
 /** A library entry: course metadata plus usage & completion signals for the detail view. */
 export interface LibraryCourse {
   code: string;
@@ -410,6 +422,8 @@ export interface LibraryCourse {
   category: string | null;
   classification: Classification;
   archived: boolean;
+  /** Which edition is on the shelf — see versionLabel(). */
+  version: number;
   uploaderRoleName: string;
   createdAt: string;
   /** How many people completed it (org-wide, across versions). */
