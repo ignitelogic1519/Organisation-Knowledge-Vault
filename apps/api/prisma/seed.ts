@@ -25,6 +25,7 @@ const PLANS = [
     category: "Plans",
     priceCoins: 0,
     durationDays: 60, memberLimit: 10, // 2-month cap
+    allowDrafts: false, // parking work on the server is a paid capability
     imageUrl: null as string | null,
     criteria: "One demo organization per profile. Expires after 2 months.",
     badge: "Free",
@@ -89,6 +90,7 @@ async function main() {
         priceCoins: p.priceCoins,
         durationDays: p.durationDays ?? null,
         memberLimit: (p as { memberLimit?: number|null }).memberLimit ?? null,
+        allowDrafts: (p as { allowDrafts?: boolean }).allowDrafts ?? true,
         isCustom: (p as { isCustom?: boolean }).isCustom ?? false,
         criteria: p.criteria,
         badge: p.badge,
@@ -103,6 +105,7 @@ async function main() {
         priceCoins: p.priceCoins,
         durationDays: p.durationDays ?? null,
         memberLimit: (p as { memberLimit?: number|null }).memberLimit ?? null,
+        allowDrafts: (p as { allowDrafts?: boolean }).allowDrafts ?? true,
         isCustom: (p as { isCustom?: boolean }).isCustom ?? false,
         imageUrl: p.imageUrl,
         criteria: p.criteria,

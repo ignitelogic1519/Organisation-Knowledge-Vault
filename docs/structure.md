@@ -162,6 +162,15 @@ ships with it; the rest of the exam roadmap stays in `future.md` §5b.
   compliance through the same door documents do. An exam is never "marked complete" by hand.
 - Recurrence (`retake_every_n_days`) is **not** exam-specific and applies to all courses.
 
+### 3.6b Where unfinished work lives ✅ DECIDED
+- **The browser** keeps whatever is open in either Studio editor (one document and one exam
+  per branch), on every plan. It is a crash guard, not a store: this device only.
+- **The server** (`StudioDraft`) holds what an author explicitly parks with *Save draft* —
+  the body plus its publish settings, under their account, reopenable anywhere. A **paid**
+  capability (docs/pricing.md §2b).
+- Both are private to the author until they publish. The Studio's front door lists both under
+  *Continue a draft*, and each entry reopens in the editor that wrote it.
+
 ### 3.7 Completion (v1) ✅ DECIDED
 - Manual **"mark as complete"** for all v1 content. Advanced tracking → `future.md`.
 - A completion record is keyed to the **course's unique platform code** and is part of the

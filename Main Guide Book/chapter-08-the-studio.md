@@ -15,6 +15,29 @@ of your own positions via **✍ Propose a document**.
 
 ---
 
+## The front door: what are you creating?
+
+The Studio asks one question before it opens anything:
+
+- **Document** — the block editor described in this chapter.
+- **Test / exam** — a multiple-choice paper people sit, marked against a pass mark. See
+  *Building an exam* below.
+
+Underneath sits **Continue a draft**, which lists unfinished work in the two places it can
+live:
+
+- **On this browser** — whatever you last had open here. Kept as you type, on **every plan**,
+  on this device only. A reload or a crash never costs you your work.
+- **Saved drafts** — work you parked on the server with **Save draft**. It belongs to your
+  account, carries the branch it was written for, and opens on any device you sign in from.
+  Parking work on the server is part of a **paid plan**; on the free plan the section says so
+  and **Save draft** is locked in both editors.
+
+Selecting any entry reopens it in the editor that wrote it, exactly where you left off. The
+✕ beside a saved draft deletes it from the server.
+
+---
+
 ## The layout
 
 The Studio has four parts:
@@ -171,12 +194,20 @@ document reads properly on the screen your colleagues will actually open it on.
 
 ## Saving your work
 
-- **Always** — the document is kept in your browser as you write, so a reload or a crash
-  never costs you your work.
-- **Save draft** (premium plans) — parks the document on the server so you can close the
-  laptop and reopen it from any device, from the **Drafts** tab. On the free demo structure
-  the button explains that this is a premium capability; ask your organization's main
-  administrator to arrange an upgrade.
+Work in progress lives in two places, and both editors behave the same way:
+
+- **This browser — always, on every plan.** What you are writing is kept here as you type, so
+  a reload or a crash never costs you your work. It is this device only, and it holds one
+  document and one exam per branch.
+- **The server — Save draft, paid plans only.** Parks the whole thing (content *and* its
+  publish settings) under your account, so you can close the laptop and pick it up anywhere.
+  Reopen it from the **Drafts** tab inside the editor, or from **Continue a draft** on the
+  Studio's front door. On the **free plan** the button shows a padlock and explains the
+  capability; ask your organization's main administrator to arrange an upgrade. Nothing is
+  lost meanwhile — the browser copy is still there, and you can publish at any time.
+
+Neither copy is visible to anyone else. A draft becomes something colleagues can see only
+when you publish it (or submit it for review).
 
 Keyboard: **Ctrl + Z** undo, **Ctrl + Shift + Z** redo, **Ctrl + S** save draft.
 
@@ -197,6 +228,45 @@ Keyboard: **Ctrl + Z** undo, **Ctrl + Shift + Z** redo, **Ctrl + S** save draft.
 Your plan includes a number of **custom documents**; the status bar and the inspector show
 how many are left. When the allowance is used up, the Studio says so and points you at your
 main administrator, who can arrange a premium plan.
+
+---
+
+## Building an exam
+
+Choosing **Test / exam** at the front door opens the same room with a form in the middle: an
+ordered list of questions instead of a page of blocks. Everything *around* it is unchanged —
+the exam is a course with the same code, classification, description, library shelf and
+placement switches a document has, and a member's exam goes through the same review.
+
+**The questions.** Each card has its type, the question, an optional helper line, and its
+answer options with the right one(s) ticked:
+
+| Type | Answering |
+|------|-----------|
+| **One answer** | Exactly one option is right |
+| **Several answers** | The whole set must be picked — half an answer is not a right answer |
+| **True / false** | A statement to judge |
+
+The card tells you what is still missing ("no correct answer marked"), and the left rail
+lists every question so you can jump around and reorder.
+
+**The rules** (inspector → **Exam**):
+
+- **Pass mark** — the percentage needed to pass, shown as the marks it works out to.
+- **Marks** — every question counts the same by default. Switch on **unequal weights** and
+  each card gains a marks box.
+- **Answer feedback** — whether the candidate is told if an answer is right: **as they
+  answer** (live, question by question), **after submitting**, or **never**. Separate
+  switches show which option was right, your explanation, and the score.
+- **Delivery** — randomise the question order and/or the options, one question per screen, a
+  time limit, and how many attempts each person may take.
+
+**Trying it.** **▷ Try it** sits your own paper exactly as a candidate would. It is marked in
+your browser and recorded nowhere, so try it as often as you like.
+
+**Sitting it.** Members open the exam from My Learning like any other course, inside the
+standard document frame. Marking happens on the server — the answers never travel to the
+candidate's browser — and an exam is completed by **passing** it, not by ticking it off.
 
 ---
 

@@ -6127,6 +6127,88 @@ body.is-dragging-block * {
   color: var(--accent);
 }
 
+/* ── Continue a draft ────────────────────────────────────────────────────── */
+
+.studio-resume {
+  width: 100%;
+  max-width: 45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.studio-resume-head h2 {
+  font-size: 1.05rem;
+  margin-bottom: 0.15rem;
+}
+.studio-resume-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-secondary);
+}
+.studio-resume-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.studio-resume-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    transform var(--dur-micro) var(--ease);
+}
+.studio-resume-open:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  transform: translateX(2px);
+}
+.studio-resume-icon {
+  font-size: 1.15rem;
+  flex: none;
+}
+.studio-resume-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.studio-resume-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-resume-meta {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.studio-resume-go {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 /* ── The builder: the paper ──────────────────────────────────────────────── */
 
 .exam-sheet {

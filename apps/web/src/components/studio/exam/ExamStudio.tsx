@@ -21,6 +21,7 @@ import { ExamRunner } from "@/components/ExamRunner";
 import { useDialogs } from "@/components/dialogs";
 import { useOrg } from "@/components/org-context";
 import { DraftsTray } from "../DraftsTray";
+import { examDraftKey } from "../local-drafts";
 import { EMPTY_META, type StudioMeta } from "../model";
 import { useStudioSession } from "../session";
 import { ExamInspector } from "./ExamInspector";
@@ -54,7 +55,14 @@ const CLASS_LABEL: Record<string, string> = {
   SECRET: "Secret",
 };
 
-export function ExamStudio({ roleId }: { roleId: string }) {
+export function ExamStudio({
+  roleId,
+  /** ?draft=… — a parked draft the author chose to continue, instead of the local copy. */
+  openDraftId,
+}: {
+  roleId: string;
+  openDraftId?: string | null;
+}) {
   const { org, isSupremeOwner } = useOrg();
   const router = useRouter();
   const dialogs = useDialogs();
@@ -81,7 +89,7 @@ export function ExamStudio({ roleId }: { roleId: string }) {
   const lastHistoryPush = useRef(0);
   const [, bumpHistory] = useState(0);
   const cardEls = useRef<Record<string, HTMLElement | null>>({});
-  const draftKey = `kv.studio.exam.${org.id}.${roleId}`;
+  const draftKey = examDraftKey(org.id, roleId);
 
   // ── State with undo history (the document editor's model, applied to questions) ──
   const commit = useCallback((updater: (d: ExamDoc) => ExamDoc) => {
@@ -133,33 +141,62 @@ export function ExamStudio({ roleId }: { roleId: string }) {
     [setExam],
   );
 
-  // Local recovery: the browser keeps the paper on every plan, so a reload never costs the
-  // author their questions.
+  /** Turn a stored document into editor state, filling in anything an older Studio missed. */
+  const adopt = useCallback((meta: Partial<StudioMeta>, exam: ExamBody): ExamDoc => {
+    const next: ExamDoc = {
+      meta: { ...EMPTY_META, ...meta, kind: "EXAM" },
+      exam: { ...blankExam(), ...exam, settings: { ...EMPTY_EXAM_SETTINGS, ...exam.settings } },
+    };
+    past.current = [];
+    future.current = [];
+    docRef.current = next;
+    setDoc(next);
+    return next;
+  }, []);
+
+  // What the builder opens with: the draft the author asked to continue (?draft=), or the
+  // copy this browser keeps of the paper — which it holds on every plan, so a reload never
+  // costs the author their questions. Once only, so dropping ?draft= from the address (on
+  // "start a new exam") never pulls an old copy back in.
+  const opened = useRef(false);
   useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    if (openDraftId) {
+      studio
+        .draft(org.id, openDraftId)
+        .then((loaded) => {
+          const { blocks: _blocks, exam, ...meta } = loaded.document;
+          if (!exam) {
+            dialogs.toast("That draft is a document — open it in the document editor.", "info");
+            return;
+          }
+          adopt(meta, exam);
+          setDraftId(openDraftId);
+        })
+        .catch((err) =>
+          dialogs.toast(
+            err instanceof ApiError ? err.message : "Could not open that draft",
+            "danger",
+          ),
+        )
+        // Local autosave only starts once the draft is in, so it cannot overwrite the
+        // browser copy with the blank paper shown while it loads.
+        .finally(() => setRestored(true));
+      return;
+    }
     try {
       const saved = localStorage.getItem(draftKey);
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<ExamDoc>;
-        if (parsed.exam?.questions?.length) {
-          // Merge over the defaults rather than trusting the stored shape: a paper written
-          // by an older Studio reopens with anything it never knew about filled in.
-          const next: ExamDoc = {
-            meta: { ...EMPTY_META, kind: "EXAM", ...(parsed.meta ?? {}) },
-            exam: {
-              ...blankExam(),
-              ...parsed.exam,
-              settings: { ...EMPTY_EXAM_SETTINGS, ...(parsed.exam.settings ?? {}) },
-            },
-          };
-          docRef.current = next;
-          setDoc(next);
-        }
+        if (parsed.exam?.questions?.length) adopt(parsed.meta ?? {}, parsed.exam);
       }
     } catch {
       /* ignore a corrupt local copy */
     }
     setRestored(true);
-  }, [draftKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, openDraftId]);
 
   useEffect(() => {
     if (!restored) return;
@@ -276,18 +313,7 @@ export function ExamStudio({ roleId }: { roleId: string }) {
         dialogs.toast("That draft is a document — open it in the document editor.", "info");
         return;
       }
-      const next: ExamDoc = {
-        meta: { ...EMPTY_META, ...meta, kind: "EXAM" },
-        exam: {
-          ...blankExam(),
-          ...exam,
-          settings: { ...EMPTY_EXAM_SETTINGS, ...exam.settings },
-        },
-      };
-      past.current = [];
-      future.current = [];
-      docRef.current = next;
-      setDoc(next);
+      adopt(meta, exam);
       setDraftId(id);
       setSelectedId(null);
       dialogs.toast("Draft opened.", "success");
@@ -327,6 +353,8 @@ export function ExamStudio({ roleId }: { roleId: string }) {
     setDoc(next);
     setDraftId(null);
     setSelectedId(null);
+    // The address may still name the draft that was open — a blank paper is not that draft.
+    if (openDraftId) router.replace(`/orgs/${org.id}/studio?role=${roleId}&type=exam`);
   };
 
   // ── Publish ────────────────────────────────────────────────────────────────

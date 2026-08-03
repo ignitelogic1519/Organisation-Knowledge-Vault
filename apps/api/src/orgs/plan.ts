@@ -132,16 +132,22 @@ export async function orgPlanTerms(orgId: string): Promise<PlanContentTerms> {
   const status = effectivePlanStatus(org.planStatus, org.planExpiresAt);
   // "Free" = the demo plan, an expired plan, or an org that never activated one. A
   // grandfathered NONE org keeps its unlimited legacy behaviour (no plan row, no limits).
-  const isFreePlan = status === "DEMO" || status === "EXPIRED" || (plan?.priceCoins ?? 0) === 0;
+  const free =
+    (status === "DEMO" || status === "EXPIRED" || (plan?.priceCoins ?? 0) === 0) &&
+    org.planStatus !== "NONE";
   return {
     planKey: org.planKey,
     planName: plan?.name ?? null,
     planStatus: status,
-    isFreePlan: isFreePlan && org.planStatus !== "NONE",
+    isFreePlan: free,
     documentLimit: org.documentLimit ?? plan?.documentLimit ?? null,
     uploadLimit: org.uploadLimit ?? plan?.uploadLimit ?? null,
     memberLimit: org.memberLimit ?? plan?.memberLimit ?? null,
-    allowDrafts: plan?.allowDrafts ?? true,
+    // Parking work on the server is a paid capability (docs/pricing.md §2b). A free plan
+    // never has it, and a plan that has LAPSED loses it — otherwise an expired paid org
+    // would keep a premium capability indefinitely. A grandfathered NONE org (one created
+    // before plans existed) is not "free", it is unmetered, and keeps its drafts.
+    allowDrafts: (plan?.allowDrafts ?? true) && !free,
   };
 }
 

@@ -41,6 +41,12 @@ tune one customer without touching the plan card.
 | **Uploaded documents** (files & external links) | `PricingPlan.uploadLimit` | `Organization.uploadLimit` | **30** | unlimited |
 | **Server-side Studio drafts** | `PricingPlan.allowDrafts` | — | **off** | on |
 
+- Drafts are the one capability that also depends on the plan's *state*: an organization that
+  reads as free — the demo plan, a zero-price plan, or a **lapsed** paid one — cannot park
+  work on the server, whatever its plan row says. (A grandfathered `NONE` org, from before
+  plans existed, is unmetered and keeps them.) The browser copy of work in progress is not
+  metered at all: every plan keeps it, on the device it was written on.
+
 - Which allowance a course counts against is decided at creation from
   `Course.source` (`STUDIO` for `authored` content, `UPLOAD` for files and links) — a plain
   indexed count, and it survives a `.main` revival.

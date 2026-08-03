@@ -14,6 +14,7 @@ import { Ribbon } from "@/components/studio/Ribbon";
 import { SideRail } from "@/components/studio/SideRail";
 import { StudioChooser } from "@/components/studio/StudioChooser";
 import { ExamStudio } from "@/components/studio/exam/ExamStudio";
+import { documentDraftKey } from "@/components/studio/local-drafts";
 import { useStudioSession } from "@/components/studio/session";
 import { DEVICES, starterFor } from "@/components/studio/presets";
 import { RichTextProvider } from "@/components/studio/rich";
@@ -75,6 +76,9 @@ function StudioRoute() {
   const params = useSearchParams();
   const roleId = params.get("role");
   const type = params.get("type");
+  // Set when the author picked a parked draft to continue — the editor opens it instead of
+  // the copy this browser is holding.
+  const draftId = params.get("draft");
 
   if (!roleId) {
     return (
@@ -86,7 +90,7 @@ function StudioRoute() {
       </div>
     );
   }
-  if (type === "exam") return <ExamStudio roleId={roleId} />;
+  if (type === "exam") return <ExamStudio roleId={roleId} openDraftId={draftId} />;
   if (type === "document") {
     return (
       <RichTextProvider>
@@ -104,6 +108,8 @@ function ChooseWhatToCreate({ roleId }: { roleId: string }) {
     <StudioChooser
       node={session.node}
       limits={session.limits}
+      drafts={session.drafts}
+      onDraftsChanged={session.reloadPlan}
       roleId={roleId}
       orgId={org.id}
       canProceed={session.canProceed}
@@ -140,7 +146,9 @@ function StudioInner() {
   const lastHistoryPush = useRef(0);
   const [, bumpHistory] = useState(0);
   const blockEls = useRef<Record<string, HTMLElement | null>>({});
-  const draftKey = `kv.studio.${org.id}.${roleId ?? "none"}`;
+  const draftKey = documentDraftKey(org.id, roleId);
+  /** ?draft=… — a parked draft the author chose to continue, instead of the local copy. */
+  const openDraftId = params.get("draft");
 
   // ── Document state with undo history ───────────────────────────────────────
   const commit = useCallback((updater: (d: Doc) => Doc) => {
@@ -187,9 +195,39 @@ function StudioInner() {
     [commit],
   );
 
-  // Local recovery: the browser always keeps the work in progress, on every plan, so a
-  // reload or a crash never costs the author their document.
+  // What the editor opens with. Either the draft the author asked to continue (?draft=),
+  // or the copy this browser keeps of the work in progress — which it holds on every plan,
+  // so a reload or a crash never costs the author their document. It happens exactly once:
+  // after that the editor owns its own state, and dropping ?draft= from the address (on
+  // "start a new document") must never pull an old copy back in.
+  const opened = useRef(false);
   useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    if (openDraftId) {
+      studio
+        .draft(org.id, openDraftId)
+        .then((loaded) => {
+          const { blocks, exam: _exam, ...meta } = loaded.document;
+          const next: Doc = {
+            blocks: blocks.length ? blocks.map(withId) : starterBlocks(),
+            meta: { ...EMPTY_META, ...meta },
+          };
+          docRef.current = next;
+          setDoc(next);
+          setDraftId(openDraftId);
+        })
+        .catch((err) =>
+          dialogs.toast(
+            err instanceof ApiError ? err.message : "Could not open that draft",
+            "danger",
+          ),
+        )
+        // Local autosave only starts once the draft is in, so it can't overwrite the
+        // browser copy with the blank document shown while it loads.
+        .finally(() => setRestored(true));
+      return;
+    }
     try {
       const saved = localStorage.getItem(draftKey);
       if (saved) {
@@ -206,7 +244,7 @@ function StudioInner() {
     }
     setRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey]);
+  }, [draftKey, openDraftId]);
 
   useEffect(() => {
     if (!restored) return;
@@ -432,6 +470,8 @@ function StudioInner() {
     setDoc(next);
     setDraftId(null);
     setSelectedId(null);
+    // The address may still name the draft that was open — a blank page is not that draft.
+    if (openDraftId) router.replace(`/orgs/${org.id}/studio?role=${roleId}&type=document`);
   };
 
   // ── Publish ────────────────────────────────────────────────────────────────
