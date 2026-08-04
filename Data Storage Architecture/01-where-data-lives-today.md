@@ -58,14 +58,40 @@ expire, and the viewer already handles it.
 
 ## What moves, and what does not
 
-**Moves:** uploaded files. That is the whole storage problem.
+**Owner decision, 2026-08-04:** *everything that is the organization's own content* moves to
+their storage — uploaded files, Studio-authored documents, and exams/quizzes alike. If an
+organization created it, it lives on their storage unit.
 
-**Stays:** Studio documents and exam papers. They are structured data rather than files —
-small, queried, versioned, and in the exam's case security-critical (the answer key must
-never leave the server). Moving them would buy nothing and cost a great deal.
+**Moves:**
 
-**Also stays:** everything non-storage. Roles, placements, capabilities, requests,
-compliance records, exam attempts, the mailbox, plans, coins. None of it is large.
+| Content | Today | Note |
+|---------|-------|------|
+| Uploaded files | `StoredFile.data` (Bytes) | the obvious one |
+| Studio documents | `Course.storageRef` JSON, `adapter:"authored"` | the block array becomes an object in their storage |
+| Exams / quizzes | `Course.storageRef` JSON, `adapter:"exam"` | questions **and** answer key |
+| Studio drafts | `StudioDraft.document` JSON | work in progress is still their content |
+
+**Stays with us — and must, for the platform to work at all:**
+
+Everything that answers *who may see what* and *what has been done*. This is not content; it
+is the index and the record, it is small, and it has to be queryable and available even when
+their storage is not.
+
+- Roles, placements, capabilities, the whole structure
+- Course **metadata**: code, title, description, classification, kind, version, category,
+  placements, prerequisites, deadlines, recurrence
+- Completion records and exam **results** (score, pass/fail, attempts used, violations)
+- Requests, mailbox, plans, coins, audit logs
+- The `storageRef` pointer itself, and the per-file integrity hash
+
+The dividing line: **we keep the catalogue, they keep the contents.** A library card index
+stays with the librarian; the books go on their shelves.
+
+> **Consequence to design for.** Moving exams means the answer key lives in their storage, so
+> marking an attempt now needs a fetch-and-decrypt on our server before it can grade. That is
+> workable — the key is still never sent to the candidate's browser — but it makes exam
+> submission depend on their storage being reachable, and it wants a short-lived server-side
+> cache of the decrypted paper for the duration of a sitting. See the handoff brief.
 
 ---
 

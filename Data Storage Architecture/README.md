@@ -10,6 +10,7 @@ and the numbered documents are rewritten to match whatever we settle on.
 
 | Document | What it covers |
 |----------|----------------|
+| [00 — Handoff brief](00-handoff-brief.md) | **Start here.** Self-contained briefing for a fresh session: the job, the current state, the conclusions, the open decisions |
 | [01 — Where data lives today](01-where-data-lives-today.md) | The current state, honestly measured, and why it doesn't scale |
 | [02 — Backend requirements](02-backend-requirements.md) | Every storage type, what we need from the organization, and what each can and can't do |
 | [03 — The Knowledge Vault map](03-knowledge-vault-map.md) | The manifest file we write into their storage |
@@ -101,8 +102,9 @@ To be explicit, because scope creep here would be expensive:
 - Roles, placements, capabilities, requests, compliance, exams, the mailbox, plans and coins
   all stay in our Postgres. None of that is storage-heavy.
 - The `.main` and `.bkp` custody files stay as they are, with one addition (document 04).
-- Studio-authored documents and exam papers are structured data, not files — they are small,
-  they need to be queried, and they stay with us. Only **uploaded files** move.
+- **All organization content moves** — uploaded files, Studio-authored documents, and
+  exams/quizzes. What stays is the catalogue: structure, course metadata, placements,
+  completion records and exam results. See document 01 for the exact line.
 - The existing `storage` adapter port already isolates all of this behind one interface. No
   course, exam, viewer or compliance code has to change.
 
@@ -115,6 +117,7 @@ Appended as we agree things. Nothing is settled until it appears here.
 | Date | Decision | Why |
 |------|----------|-----|
 | 2026-08-04 | Document bytes move to organization-provided storage; our DB keeps everything else | Free-tier Postgres holds ~50 files platform-wide; storage cost should sit with the company generating it |
+| 2026-08-04 | Scope widened: **Studio documents and exams move too**, not just uploads | Anything the organization creates is their content and belongs on their storage unit |
 | 2026-08-04 | *(open)* Reachability strategy for NAS / LAN servers | See question 1 |
 | 2026-08-04 | *(open)* Encryption posture | See question 2 |
 
