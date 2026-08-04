@@ -36,6 +36,9 @@ export default function NewOrgPage() {
   const [kvepUser, setKvepUser] = useState("");
   const [kvepPass, setKvepPass] = useState("");
   const [kvepCheck, setKvepCheck] = useState<"idle" | "checking" | "ok" | "bad">("idle");
+  // The reason, not just the fact. A blanket "wrong password" hides the far likelier
+  // causes — the endpoint not deployed yet, or the API asleep.
+  const [kvepCheckMsg, setKvepCheckMsg] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(null);
   const [orgName, setOrgName] = useState("");
 
@@ -220,8 +223,9 @@ export default function NewOrgPage() {
                 <strong>This organization will use Knowledge Vault&rsquo;s storage.</strong>
                 <p>
                   Nothing to set up, and the plan&rsquo;s storage allowance applies as it
-                  always did. Your access code must be an employee-perk code — an ordinary
-                  one will be refused.
+                  always did. Plans and access codes work exactly as usual — any approved
+                  code will do. The super-admin credentials below are what make it an
+                  employee perk.
                 </p>
               </div>
               <label className="field">
@@ -255,11 +259,27 @@ export default function NewOrgPage() {
                   disabled={kvepCheck === "checking" || !kvepUser.trim() || !kvepPass}
                   onClick={async () => {
                     setKvepCheck("checking");
+                    setKvepCheckMsg(null);
                     try {
                       await orgs.verifyKvep(kvepUser.trim(), kvepPass);
                       setKvepCheck("ok");
-                    } catch {
+                    } catch (err) {
                       setKvepCheck("bad");
+                      if (err instanceof ApiError && err.status === 401) {
+                        setKvepCheckMsg(
+                          "That username and password were not accepted. Use the same ones you sign in to the super-admin portal with, at /kbase.",
+                        );
+                      } else if (err instanceof ApiError && err.status === 404) {
+                        setKvepCheckMsg(
+                          "This check is not available on the server yet — it ships with the employee-perk feature. Your credentials were not tested. Wait for the API to finish deploying and try again.",
+                        );
+                      } else {
+                        setKvepCheckMsg(
+                          err instanceof ApiError
+                            ? `The check could not run (${err.status}): ${err.message}`
+                            : "The check could not reach the server. It may be waking up — try again in a moment.",
+                        );
+                      }
                     }
                   }}
                 >
@@ -269,11 +289,8 @@ export default function NewOrgPage() {
                   <span className="ok-text">✓ Recognised — these are valid super-admin credentials.</span>
                 )}
               </div>
-              {kvepCheck === "bad" && (
-                <p className="form-error">
-                  Not recognised. Use the same username and password you sign in to the
-                  super-admin portal with, at <code>/kbase</code>.
-                </p>
+              {kvepCheck === "bad" && kvepCheckMsg && (
+                <p className="form-error">{kvepCheckMsg}</p>
               )}
             </div>
           )}
@@ -297,16 +314,6 @@ export default function NewOrgPage() {
             <Link href="/pricing">Pricing page</Link>.
           </p>
 
-          {mode === "KVEP" && (
-            <div className="info-box">
-              <strong>Requesting an employee-perk code.</strong>
-              <p>
-                With KVEP selected, the plan request below asks for an <em>employee-perk</em>
-                code. An ordinary code will not create a KVEP organization, and a KVEP code
-                will not create an ordinary one — so pick the mode before you request.
-              </p>
-            </div>
-          )}
           {plans.map((p) => {
             const req = mine.find((m) => m.planKey === p.key && (m.status === "PENDING" || m.status === "APPROVED"));
             return (

@@ -109,33 +109,33 @@ export async function orgRoutes(app: FastifyInstance) {
     // KVEP is our staff perk: it skips organization-provided storage and keeps content
     // in our database, so it must be provably internal. The code says it is a KVEP
     // request; these credentials say the person redeeming it is one of us.
+    // The plan and its access code work exactly as they always have — a KVEP
+    // organization is bought and approved like any other. What makes it a KVEP is the
+    // super-admin credentials supplied here, nothing about the code itself. Requesting
+    // as KVEP_ORG still records the intent, but it is not required and never blocks.
+    let isKvep = plan.isKvep;
     let kvepAdminId: string | null = null;
-    if (plan.isKvep) {
-      if (!body.kvepAdmin) {
-        return reply.status(400).send({
-          error:
-            "This is an employee-perk (KVEP) code, so it needs a super-admin username and password. Choose KVEP under \u201cWhere your documents will live\u201d and enter them.",
-        }) as never;
-      }
+    if (body.kvepAdmin) {
       const admin = await verifyPlatformAdminCredentials(
         body.kvepAdmin.username,
         body.kvepAdmin.password,
       );
       kvepAdminId = admin.id;
+      isKvep = true;
       if (body.storage) {
         return reply.status(400).send({
           error:
-            "An employee-perk organization uses Knowledge Vault's own storage — leave the storage fields empty.",
+            "An employee-perk organization uses Knowledge Vault's own storage \u2014 leave the storage fields empty.",
         }) as never;
       }
-    } else if (body.kvepAdmin) {
+    } else if (plan.isKvep) {
       return reply.status(400).send({
         error:
-          "Your access code is an ordinary one, so it cannot create an employee-perk organization. " +
-          "Either switch back to NAS, or select KVEP first and request a new code \u2014 the code has to be " +
-          "issued as an employee-perk code, and this one was not.",
+          "This code was issued as an employee perk, so it needs a super-admin username and password. " +
+          "Choose KVEP under \u201cWhere your documents will live\u201d and enter them.",
       }) as never;
     }
+
     const profile = await db.profile.findUniqueOrThrow({ where: { id: req.profileId } });
     if (profile.coins < plan.priceCoins) {
       return reply
@@ -183,7 +183,7 @@ export async function orgRoutes(app: FastifyInstance) {
           // KVEP organizations never connect their own storage: the inline adapter and
           // the plan's storage ceiling apply to them exactly as they did before
           // organization-provided storage existed.
-          isKvep: plan.isKvep,
+          isKvep,
           logo: body.logo ?? null,
         },
       });

@@ -1,3 +1,4 @@
+import { verify as argonVerify } from "@node-rs/argon2";
 import { db } from "../db.js";
 import { hashOtp } from "../platform/otp.js";
 import type { OrgPlanLimitsView, PlanAllowance, PlanStatus } from "@vault/shared";
@@ -159,7 +160,8 @@ export async function verifyPlatformAdminCredentials(
   username: string,
   password: string,
 ): Promise<{ id: string; username: string }> {
-  const { verify: argonVerify } = await import("@node-rs/argon2");
+  // Statically imported, exactly as the portal's own login route does, so the two
+  // paths cannot drift.
   const admin = await db.platformAdmin.findUnique({
     where: { username: username.trim().toLowerCase() },
   });
