@@ -11,6 +11,8 @@ import { pricing } from "@/lib/pricing-client";
 import { AppShell } from "@/components/AppShell";
 import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconUser } from "@/components/icons";
+import { StorageSetupFields, emptyStorageConfig } from "@/components/StorageSetupFields";
+import type { StorageConfigInput } from "@vault/shared";
 
 const NAV = [
   { href: "/orgs", label: "Organizations", icon: <IconGrid /> },
@@ -24,6 +26,9 @@ export default function NewOrgPage() {
   const dialogs = useDialogs();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Where this organization's documents will live (docs/structure.md §9.3). Tested
+  // before the organization is created, so a failed test costs nothing.
+  const [storage, setStorage] = useState<StorageConfigInput>(emptyStorageConfig);
 
   // Plan chooser (shown beside the form)
   const [plans, setPlans] = useState<PricingPlanView[]>([]);
@@ -73,6 +78,7 @@ export default function NewOrgPage() {
       supremePassword: data.get("supremePassword"),
       acknowledgedUnrecoverable: data.get("ack") === "on" ? true : false,
       accessCode: String(data.get("accessCode") ?? "").trim(),
+      storage,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
@@ -141,6 +147,19 @@ export default function NewOrgPage() {
               <span>I understand the Supreme password is unrecoverable</span>
             </label>
           </div>
+
+          <hr className="soft-rule" />
+          <h3 className="section-heading">Where your documents will live</h3>
+          <p className="muted">
+            Knowledge Vault keeps your structure, people and records. Your documents
+            themselves go onto storage you own and control — so the space is yours, the
+            cost is yours, and you can walk away with everything at any time.
+          </p>
+          <StorageSetupFields
+            value={storage}
+            onChange={setStorage}
+            webOrigin={typeof window === "undefined" ? "" : window.location.origin}
+          />
 
           {error && <p className="form-error">{error}</p>}
           <button className="btn btn-primary btn-block" disabled={busy}>

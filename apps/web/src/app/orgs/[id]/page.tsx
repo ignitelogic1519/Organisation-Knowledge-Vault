@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { versionLabel, type OrgPlanLimitsView, type TreeNode } from "@vault/shared";
+import { versionLabel, type OrgPlanLimitsView, type StorageView, type TreeNode } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { orgs, requests, roles } from "@/lib/orgs-client";
 import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
+import { storageApi, uploadFile } from "@/lib/storage-client";
+import { StoragePanel } from "@/components/StoragePanel";
 import { GraphLegend, OrgGraph } from "@/components/OrgGraph";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
@@ -249,6 +251,14 @@ function ConfigPanel({
       {/* Supreme zone — root node only, replaces the old Admin console */}
       {isRoot && isSupremeOwner && (
         <>
+          {/* Where the organization's documents live. Governance, so it sits behind the
+              same Supreme gate as owner management (docs/structure.md §9.3). */}
+          <StoragePanel
+            orgId={org.id}
+            supremeToken={supremeToken}
+            onNeedSupreme={() => void unlockSupreme()}
+          />
+
           <h3 className="learning-h">Supreme zone</h3>
           <p className="auth-sub">
             Owners of {org.ownerRole.name}. Changes require the Supreme password.
@@ -673,6 +683,16 @@ function CoursesPanel({
   const router = useRouter();
   const [list, setList] = useState<RoleCourses | null>(null);
   const [showNew, setShowNew] = useState(false);
+  // The organization's own storage, when it has connected one (docs/structure.md §9).
+  // Uploads go straight to it; without it they fall back to the inline adapter.
+  const [orgStorage, setOrgStorage] = useState<StorageView | null>(null);
+  const [uploadStage, setUploadStage] = useState<string | null>(null);
+  useEffect(() => {
+    storageApi
+      .get(orgId)
+      .then(setOrgStorage)
+      .catch(() => setOrgStorage(null));
+  }, [orgId]);
   const [category, setCategory] = useState("");
   const [limits, setLimits] = useState<OrgPlanLimitsView | null>(null);
   const [catInfo, setCatInfo] = useState<{ suggestion: string | null; categories: string[] }>({
@@ -772,6 +792,25 @@ function CoursesPanel({
             const file = d.get("file") as File | null;
             const url = String(d.get("url") || "");
             run(async () => {
+              // When the organization has its own storage, the file goes straight from
+              // this browser to their hardware and we only pass on the reference. The
+              // inline (base64 through our API) path stays for organizations that have
+              // not connected storage yet. docs/structure.md §9.3.
+              let uploaded: { storageObjectId: string } | null = null;
+              if (file && file.size > 0 && orgStorage?.status === "ACTIVE") {
+                uploaded = await uploadFile(orgId, file, (stage) =>
+                  setUploadStage(
+                    stage === "encrypting"
+                      ? "Encrypting…"
+                      : stage === "uploading"
+                        ? "Uploading to your storage…"
+                        : stage === "finishing"
+                          ? "Finishing…"
+                          : "Preparing…",
+                  ),
+                );
+                setUploadStage(null);
+              }
               const created = await courses.create(orgId, {
                 roleNodeId: node.id,
                 kind: (d.get("kind") as "DOCUMENT") ?? "DOCUMENT",
@@ -787,10 +826,14 @@ function CoursesPanel({
                 inLibrary: d.get("inLibrary") === "on",
                 category: category.trim() || undefined,
                 url: url || undefined,
-                fileBase64: file && file.size > 0 ? await fileToBase64(file) : undefined,
-                filename: file && file.size > 0 ? file.name : undefined,
+                storageObjectId: uploaded?.storageObjectId,
+                fileBase64:
+                  !uploaded && file && file.size > 0 ? await fileToBase64(file) : undefined,
+                filename: !uploaded && file && file.size > 0 ? file.name : undefined,
                 mime:
-                  file && file.size > 0 ? file.type || "application/octet-stream" : undefined,
+                  !uploaded && file && file.size > 0
+                    ? file.type || "application/octet-stream"
+                    : undefined,
                 deadlineDays: d.get("deadline") ? Number(d.get("deadline")) : undefined,
                 retakeEveryNDays: d.get("retake") ? Number(d.get("retake")) : undefined,
                 resetsCompletionOnUpdate: d.get("resets") === "on",
@@ -895,8 +938,25 @@ function CoursesPanel({
             <input name="url" type="url" placeholder="https://…" />
           </label>
           <label className="field">
-            <span>…or a file (≤ 10 MB)</span>
+            <span>
+              {orgStorage?.status === "ACTIVE"
+                ? "…or a file (≤ 200 MB)"
+                : "…or a file (≤ 10 MB)"}
+            </span>
             <input name="file" type="file" />
+            {orgStorage?.status === "ACTIVE" && (
+              <small>
+                Goes straight to your own storage
+                {orgStorage.encryption === "ENCRYPTED" ? ", encrypted in this browser first" : ""}.
+              </small>
+            )}
+            {orgStorage?.status === "DEGRADED" && (
+              <small className="form-error">
+                Your storage is unreachable, so uploads are paused. Existing documents are
+                safe.
+              </small>
+            )}
+            {uploadStage && <small>{uploadStage}</small>}
           </label>
           <label className="field">
             <span>Deadline (days, optional)</span>

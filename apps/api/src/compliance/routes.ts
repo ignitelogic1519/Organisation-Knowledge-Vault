@@ -15,6 +15,7 @@ import { orgOwnerProfileIds } from "../orgs/owners.js";
 import { sweepExpired } from "../notifications/mailbox.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { audit } from "../security.js";
+import { collectOrphans, drainDeletionQueue, runHealthChecks } from "../storage/jobs.js";
 import { broadcast } from "../events.js";
 
 /** Decided requests are removed as they are decided; this is the belt-and-braces sweep. */
@@ -345,6 +346,12 @@ export async function complianceRoutes(app: FastifyInstance) {
       prunedRequests: 0,
       prunedAudits: 0,
       prunedTokens: 0,
+      // Storage (docs/structure.md §9.8, §9.10)
+      storageChecked: 0,
+      storageDegraded: 0,
+      storagePausedOrgs: 0,
+      storageDeletesDone: 0,
+      storageOrphansCollected: 0,
     };
 
     // 0a. Mail expires on its own schedule — every message carries the instant it dies,
@@ -404,8 +411,21 @@ export async function complianceRoutes(app: FastifyInstance) {
     }
 
     // 2. Overdue mandatory courses: notify the user + escalation chain (once per day per course)
+    //
+    // Organizations whose storage is unhealthy are SKIPPED (docs/structure.md §9.8). An
+    // overdue notice raised while their documents cannot be opened is a false accusation
+    // with an audit trail, against someone who physically could not do the reading.
     const orgs = await db.organization.findMany({ where: { deletedAt: null } });
+    const degradedOrgIds = new Set(
+      (
+        await db.orgStorage.findMany({ where: { status: "DEGRADED" }, select: { orgId: true } })
+      ).map((s) => s.orgId),
+    );
     for (const org of orgs) {
+      if (degradedOrgIds.has(org.id)) {
+        report.storagePausedOrgs++;
+        continue;
+      }
       const members = await db.membership.findMany({ where: { orgId: org.id } });
       for (const m of members) {
         const reaching = await coursesReaching(m.profileId, org.id);
@@ -489,6 +509,24 @@ export async function complianceRoutes(app: FastifyInstance) {
     for (const org of doomed) {
       await purgeOrganization(org.id);
       report.purgedOrgs++;
+    }
+
+    // 4. Organization-provided storage (docs/structure.md §9.8, §9.10). Health first, so
+    //    the deletion drain works against backends we have just confirmed reachable.
+    //    None of this may take the nightly job down — a customer's NAS being off is not
+    //    a reason for recurrence and retention to stop running.
+    try {
+      const health = await runHealthChecks();
+      report.storageChecked = health.checked;
+      report.storageDegraded = health.degraded;
+    } catch (err) {
+      app.log.error({ err }, "storage health sweep failed");
+    }
+    try {
+      report.storageDeletesDone = (await drainDeletionQueue(200)).done;
+      report.storageOrphansCollected = await collectOrphans();
+    } catch (err) {
+      app.log.error({ err }, "storage cleanup failed");
     }
 
     app.log.info({ report }, "nightly job finished");

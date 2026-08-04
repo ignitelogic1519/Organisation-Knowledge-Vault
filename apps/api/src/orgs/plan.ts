@@ -114,10 +114,32 @@ export interface PlanContentTerms {
   allowDrafts: boolean;
 }
 
-/** Bytes this organization currently holds in the inline store, in MB (rounded up). */
+/**
+ * Bytes this organization currently holds, in MB (rounded up).
+ *
+ * Counts both stores: files still in our Postgres (`StoredFile`) and objects in the
+ * organization's own storage (`StorageObject`). Before organization-provided storage
+ * existed this summed `StoredFile` alone, which is also why the plan ceilings have
+ * never seen a Studio document or an exam paper — those live inside `Course.storageRef`
+ * JSON and are not metered by either table (docs/structure.md §9.12).
+ */
 export async function orgStorageUsedMb(orgId: string): Promise<number> {
-  const agg = await db.storedFile.aggregate({ where: { orgId }, _sum: { size: true } });
-  return Math.ceil((agg._sum.size ?? 0) / (1024 * 1024));
+  const [inline, external] = await Promise.all([
+    db.storedFile.aggregate({ where: { orgId }, _sum: { size: true } }),
+    db.storageObject.aggregate({ where: { orgId }, _sum: { bytes: true } }),
+  ]);
+  const total = (inline._sum.size ?? 0) + (external._sum.bytes ?? 0);
+  return Math.ceil(total / (1024 * 1024));
+}
+
+/**
+ * Storage ceilings apply to what WE hold. Once an organization brings its own storage
+ * the bytes are on their hardware and their bill, so the platform ceiling stops
+ * applying — the document and upload counts still do.
+ */
+export async function orgUsesOwnStorage(orgId: string): Promise<boolean> {
+  const row = await db.orgStorage.findUnique({ where: { orgId }, select: { status: true } });
+  return row != null && row.status !== "UNCONFIGURED";
 }
 
 /** Resolve an org's effective content terms: per-org override → plan row → unlimited. */
@@ -219,7 +241,9 @@ export async function assertContentQuota(
       );
     }
   }
-  if (terms.storageLimitMb != null) {
+  // The storage ceiling meters OUR disks. An organization storing on its own hardware
+  // has already taken that cost off us, so the ceiling no longer applies to it.
+  if (terms.storageLimitMb != null && !(await orgUsesOwnStorage(orgId))) {
     const usedMb = await orgStorageUsedMb(orgId);
     const addingMb = Math.ceil(addingBytes / (1024 * 1024));
     if (usedMb + addingMb > terms.storageLimitMb) {

@@ -19,6 +19,7 @@ import { requestRoutes } from "./requests/routes.js";
 import { complianceRoutes } from "./compliance/routes.js";
 import { notificationRoutes } from "./notifications/routes.js";
 import { vaultFileRoutes } from "./vault-files/routes.js";
+import { storageRoutes } from "./storage/routes.js";
 import { eventRoutes } from "./events.js";
 
 // Body limit must clear a 10 MB inline file: base64 inflates by ~33% (~13.3 MB) plus the
@@ -74,6 +75,7 @@ await app.register(requestRoutes);
 await app.register(complianceRoutes);
 await app.register(notificationRoutes);
 await app.register(vaultFileRoutes);
+await app.register(storageRoutes);
 await app.register(eventRoutes);
 
 app.get("/health", async (): Promise<HealthResponse> => ({

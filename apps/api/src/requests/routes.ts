@@ -18,6 +18,8 @@ import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { ownersAbove } from "../roles/routes.js";
 import { isSelfOrAncestor } from "@vault/shared";
 import { courseHandlerNodeId, notify } from "../courses/helpers.js";
+import { deletionOpsFor } from "../storage/adapter.js";
+import { drainSoon } from "../storage/jobs.js";
 
 /** Decided requests only live 7 days — history stays lean, the database stays clean. */
 const DECIDED_RETENTION_MS = 7 * 86400_000;
@@ -510,7 +512,7 @@ export async function requestRoutes(app: FastifyInstance) {
         // Rejected draft: remove it entirely (its file/blocks + admin/review rows)
         const course = await db.course.findUnique({ where: { id: request.courseId } });
         if (course?.draft) {
-          const sref = course.storageRef as { adapter?: string; fileId?: string };
+          const sref = course.storageRef as { adapter?: string; fileId?: string; objectKey?: string };
           await db.$transaction([
             db.coursePrerequisite.deleteMany({
               where: { OR: [{ courseId: course.id }, { requiresCourseId: course.id }] },
@@ -519,11 +521,10 @@ export async function requestRoutes(app: FastifyInstance) {
             db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
             db.courseReview.deleteMany({ where: { courseId: course.id } }),
             db.examAttempt.deleteMany({ where: { courseId: course.id } }),
-            ...(sref.adapter === "inline" && sref.fileId
-              ? [db.storedFile.deleteMany({ where: { id: sref.fileId } })]
-              : []),
+            ...deletionOpsFor(course.orgId, sref),
             db.course.delete({ where: { id: course.id } }),
           ]);
+          drainSoon();
         }
       }
 
@@ -620,7 +621,7 @@ export async function requestRoutes(app: FastifyInstance) {
       if (request.kind === "CONTENT_REVIEW" && request.status === "PENDING" && request.courseId) {
         const course = await db.course.findUnique({ where: { id: request.courseId } });
         if (course?.draft) {
-          const sref = course.storageRef as { adapter?: string; fileId?: string };
+          const sref = course.storageRef as { adapter?: string; fileId?: string; objectKey?: string };
           await db.$transaction([
             db.coursePrerequisite.deleteMany({
               where: { OR: [{ courseId: course.id }, { requiresCourseId: course.id }] },
@@ -629,11 +630,10 @@ export async function requestRoutes(app: FastifyInstance) {
             db.courseAdminAccess.deleteMany({ where: { courseId: course.id } }),
             db.courseReview.deleteMany({ where: { courseId: course.id } }),
             db.examAttempt.deleteMany({ where: { courseId: course.id } }),
-            ...(sref.adapter === "inline" && sref.fileId
-              ? [db.storedFile.deleteMany({ where: { id: sref.fileId } })]
-              : []),
+            ...deletionOpsFor(course.orgId, sref),
             db.course.delete({ where: { id: course.id } }),
           ]);
+          drainSoon();
         }
       }
 

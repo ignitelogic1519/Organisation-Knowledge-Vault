@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PlacementKind } from "./types.js";
+import { storageConfigSchema } from "./storage.js";
 
 // Organization contracts — docs/structure.md §1.2, §4.1.
 
@@ -22,6 +23,12 @@ export const createOrgSchema = z.object({
     .string()
     .trim()
     .min(1, "Enter the access code the super-admin sent you"),
+  /**
+   * Where this organization's documents will live (docs/structure.md §9.3). The
+   * dropdown currently offers one backend — NAS — and its connection is tested BEFORE
+   * the organization is created, so a failed test consumes nothing.
+   */
+  storage: storageConfigSchema.optional(),
 });
 export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 

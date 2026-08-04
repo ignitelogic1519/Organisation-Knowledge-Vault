@@ -292,6 +292,24 @@ export const NOTIFICATION_KINDS: Record<string, NotificationKindMeta> = {
     retentionDays: RETENTION_DAYS.SYSTEM,
     icon: "🧹",
   },
+  // Storage health (docs/structure.md §9.8). Both are HIGH because an owner needs to
+  // act, and both are worded so the state never reads as data loss — it is not.
+  storage_degraded: {
+    label: "Your storage is not reachable",
+    category: "SYSTEM",
+    priority: "HIGH",
+    retentionDays: RETENTION_DAYS.SYSTEM,
+    sublabel: "Storage",
+    icon: "🔌",
+  },
+  storage_recovered: {
+    label: "Your storage is reachable again",
+    category: "SYSTEM",
+    priority: "HIGH",
+    retentionDays: RETENTION_DAYS.SYSTEM,
+    sublabel: "Storage",
+    icon: "✅",
+  },
 };
 
 /** Sub-labels for request messages, derived from the request kind they carry. */

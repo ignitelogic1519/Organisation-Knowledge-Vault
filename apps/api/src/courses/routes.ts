@@ -12,13 +12,18 @@ import {
   updateCourseSchema,
   type CourseAdminView,
   type CourseComplianceView,
+  type DownloadTicket,
   type MyLearningView,
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
 import { audit, sanitizeBlocks, sanitizeExam } from "../security.js";
 import { assertContentQuota } from "../orgs/plan.js";
-import { storage, type StorageRef } from "../storage/adapter.js";
+import { deletionOpsFor, storage, type StorageRef } from "../storage/adapter.js";
+import { drainSoon } from "../storage/jobs.js";
+import { dekFor, fullKey, s3ConfigFor, storageFor } from "../storage/org-storage.js";
+import { presign } from "../storage/s3.js";
+import { unwrapFileKey } from "../storage/secrets.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import {
   courseHandlerNodeId,
@@ -28,6 +33,9 @@ import {
   recordCompletion,
   toLearningItem,
 } from "./helpers.js";
+
+/** Download tickets are bearer tokens: minted per view, one object, short-lived. */
+const DOWNLOAD_TICKET_TTL = 300;
 
 async function courseByCode(code: string) {
   return db.course.findUnique({ where: { code }, include: { org: true } });
@@ -138,6 +146,9 @@ export async function courseRoutes(app: FastifyInstance) {
       await assertContentQuota(node.orgId, source, incomingBytes);
 
       let ref: StorageRef;
+      // Set when the content is an object in the org's own storage, so the object row
+      // can be pointed at the course once the course exists.
+      let attachObjectId: string | null = null;
       if (body.exam) {
         // Refuse a paper that cannot be marked fairly — the Studio shows the same list
         // before it ever calls us, so this is the guard for anything else.
@@ -148,6 +159,19 @@ export async function courseRoutes(app: FastifyInstance) {
         ref = await storage.saveAuthored(sanitizeBlocks(body.blocks), body.theme);
       } else if (body.url) {
         ref = await storage.saveLink(body.url);
+      } else if (body.storageObjectId) {
+        // The browser has already PUT this straight into the organization's storage —
+        // the bytes never came near us. All we do is confirm the object is theirs and
+        // not already claimed by another course.
+        const object = await db.storageObject.findUnique({ where: { id: body.storageObjectId } });
+        if (!object || object.orgId !== node.orgId) {
+          return reply.status(404).send({ error: "That upload was not found in your storage" });
+        }
+        if (object.courseId) {
+          return reply.status(409).send({ error: "That upload is already attached to a document" });
+        }
+        ref = await storage.saveObject(object.id, object.objectKey);
+        attachObjectId = object.id;
       } else if (body.fileBase64 && body.filename && body.mime) {
         ref = await storage.saveInline(node.orgId, body.filename, body.mime, body.fileBase64);
       } else {
@@ -191,6 +215,15 @@ export async function courseRoutes(app: FastifyInstance) {
           },
         },
       });
+
+      // Claim the object for this course, so orphan collection can tell a live object
+      // from one whose course never materialised (§9.10).
+      if (attachObjectId) {
+        await db.storageObject.update({
+          where: { id: attachObjectId },
+          data: { courseId: course.id },
+        });
+      }
 
       if (asDraft) {
         // File a Document-review request to the branch's handler (nearest owner level)
@@ -324,6 +357,57 @@ export async function courseRoutes(app: FastifyInstance) {
         return reply
           .status(403)
           .send({ error: "The owner has not enabled downloads for this document" });
+      }
+
+      // An object in the organization's own storage: we hand back a short-lived
+      // presigned URL and, when the posture is ENCRYPTED, this one object's key. The
+      // browser fetches the ciphertext straight from their storage and decrypts it
+      // there, so the bytes never touch us and our server never holds the plaintext
+      // (docs/structure.md §9.5).
+      if (content.object) {
+        const object = await db.storageObject.findUnique({
+          where: { id: content.object.storageObjectId },
+        });
+        if (!object) {
+          return reply.status(404).send({ error: "This document is missing from your storage" });
+        }
+        const store = await storageFor(course.orgId);
+        if (!store || store.status === "UNCONFIGURED") {
+          return reply.status(409).send({
+            error: "This content is unreachable until the organization reconnects its storage",
+          });
+        }
+        if (store.status === "DEGRADED") {
+          // Degraded is a read problem, not data loss — say so in those words.
+          return reply.status(409).send({
+            error:
+              "This content is unreachable until the organization reconnects its storage" +
+              (store.lastError ? ` (${store.lastError})` : ""),
+          });
+        }
+        const ticket: DownloadTicket = {
+          downloadUrl: presign(
+            s3ConfigFor(store),
+            "GET",
+            fullKey(store, object.objectKey),
+            DOWNLOAD_TICKET_TTL,
+          ),
+          encrypted: object.encrypted,
+          mime: object.mime,
+          filename: object.filename,
+          bytes: object.bytes,
+          sha256: object.sha256,
+          expiresInSeconds: DOWNLOAD_TICKET_TTL,
+        };
+        if (object.encrypted && object.wrappedKey) {
+          // Scoped to one object and one already-authenticated request. Never logged.
+          ticket.fileKey = unwrapFileKey(
+            dekFor(store),
+            object.wrappedKey,
+            object.objectKey,
+          ).toString("base64");
+        }
+        return ticket;
       }
 
       // Serve the CORRECT content-type sniffed from magic bytes (many files upload as a
@@ -490,9 +574,16 @@ export async function courseRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "Edit access to this course is required" });
       }
 
+      const previousRef = course.storageRef as unknown as {
+        adapter?: string;
+        fileId?: string;
+        objectKey?: string;
+      };
       let ref = course.storageRef as unknown as StorageRef;
       let contentChanged = false;
       let source = course.source;
+      // Set when a new edition replaces the content with an object in the org's storage.
+      let newObjectId: string | null = null;
       // Replacing an upload with a Studio document (or the reverse) moves the course
       // between the plan's two allowances — charge the bucket it lands in.
       if (body.exam) {
@@ -513,6 +604,19 @@ export async function courseRoutes(app: FastifyInstance) {
       } else if (body.url) {
         if (source !== "UPLOAD") await assertContentQuota(course.orgId, "UPLOAD");
         ref = await storage.saveLink(body.url);
+        source = "UPLOAD";
+        contentChanged = true;
+      } else if (body.storageObjectId) {
+        if (source !== "UPLOAD") await assertContentQuota(course.orgId, "UPLOAD");
+        const object = await db.storageObject.findUnique({ where: { id: body.storageObjectId } });
+        if (!object || object.orgId !== course.orgId) {
+          return reply.status(404).send({ error: "That upload was not found in your storage" });
+        }
+        if (object.courseId && object.courseId !== course.id) {
+          return reply.status(409).send({ error: "That upload is already attached to a document" });
+        }
+        ref = await storage.saveObject(object.id, object.objectKey);
+        newObjectId = object.id;
         source = "UPLOAD";
         contentChanged = true;
       } else if (body.fileBase64 && body.filename && body.mime) {
@@ -554,6 +658,23 @@ export async function courseRoutes(app: FastifyInstance) {
             : {}),
         },
       });
+
+      // A new edition orphans whatever the old one pointed at. Release it through the
+      // port so an inline row is dropped and a remote object is queued for deletion —
+      // otherwise the organization keeps paying to store every superseded edition.
+      if (contentChanged && previousRef.adapter) {
+        const ops = deletionOpsFor(course.orgId, previousRef);
+        if (ops.length > 0) {
+          await db.$transaction(ops);
+          drainSoon();
+        }
+      }
+      if (newObjectId) {
+        await db.storageObject.update({
+          where: { id: newObjectId },
+          data: { courseId: course.id },
+        });
+      }
 
       if (contentChanged && updated.resetsCompletionOnUpdate) {
         const outdated = await db.completionRecord.findMany({
@@ -746,7 +867,11 @@ export async function courseRoutes(app: FastifyInstance) {
       const releasedPrereqs = await db.coursePrerequisite.count({
         where: { requiresCourseId: course.id },
       });
-      const ref = course.storageRef as unknown as { adapter?: string; fileId?: string };
+      const ref = course.storageRef as unknown as {
+        adapter?: string;
+        fileId?: string;
+        objectKey?: string;
+      };
       await db.$transaction([
         db.coursePrerequisite.deleteMany({
           where: { OR: [{ courseId: course.id }, { requiresCourseId: course.id }] },
@@ -757,11 +882,12 @@ export async function courseRoutes(app: FastifyInstance) {
         // Sittings of a deleted exam go with it; the completion records they produced
         // survive, keyed by the never-reused course code.
         db.examAttempt.deleteMany({ where: { courseId: course.id } }),
-        ...(ref.adapter === "inline" && ref.fileId
-          ? [db.storedFile.deleteMany({ where: { id: ref.fileId } })]
-          : []),
+        // Releases whatever the ref holds: a Postgres row for `inline`, a queued remote
+        // delete for `s3` — the remote call cannot run inside this transaction (§9.10).
+        ...deletionOpsFor(course.orgId, ref),
         db.course.delete({ where: { id: course.id } }),
       ]);
+      drainSoon();
       await audit(course.orgId, "course.delete", {
         actorProfileId: req.profileId,
         ip: req.ip,

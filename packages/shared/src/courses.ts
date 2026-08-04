@@ -281,10 +281,15 @@ export const createCourseSchema = z.object({
   allowDownload: z.boolean().default(false),
   /** LINK/AUDIO/VIDEO hosted elsewhere: external URL. */
   url: z.string().url().optional(),
-  /** Files (≤ 10 MB) via the inline adapter. */
+  /** Files (≤ 10 MB) via the inline adapter — organizations without their own storage. */
   fileBase64: z.string().optional(),
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),
+  /**
+   * An object the browser has already uploaded straight into the organization's own
+   * storage (docs/structure.md §9.3). Carries no bytes — the upload never touched us.
+   */
+  storageObjectId: z.string().uuid().optional(),
   /** Studio-authored interactive document. */
   blocks: authoredBlocksSchema.optional(),
   /** Studio-authored MCQ exam (kind = EXAM) — questions plus the paper's rules. */
@@ -387,6 +392,8 @@ export const updateCourseSchema = z.object({
   fileBase64: z.string().optional(),
   filename: z.string().max(200).optional(),
   mime: z.string().max(100).optional(),
+  /** Swap in an object already uploaded to the organization's own storage (§9.3). */
+  storageObjectId: z.string().uuid().optional(),
   blocks: authoredBlocksSchema.optional(),
   exam: examBodySchema.optional(),
   theme: documentThemeSchema.optional(),

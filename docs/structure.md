@@ -443,11 +443,24 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
 
 ---
 
-## 9. Organization-provided storage ✅ DECIDED (2026-08-04) — specified, not yet built
+## 9. Organization-provided storage ✅ DECIDED (2026-08-04) — built for files
 
-> This section is normative and precedes the code. The working record of how it was reached
-> lives in `Data Storage Architecture/`; where that folder and this section disagree, **this
-> section wins**.
+> This section is normative. The working record of how it was reached lives in
+> `Data Storage Architecture/`; where that folder and this section disagree, **this section
+> wins**.
+>
+> **Shipped:** uploaded files. An organization connects an S3-compatible backend at creation,
+> and its files go browser → their storage, encrypted in the browser when the posture is
+> `ENCRYPTED`. Migration, the delete queue, health checks and the degraded state are live.
+>
+> **Not yet moved:** Studio-authored documents, exam papers and Studio drafts still live in
+> `Course.storageRef` / `StudioDraft.document` JSON exactly as before. They are kilobytes
+> each and are not the cost problem; moving them adds a network round trip to the most common
+> action in the product, so they follow as their own phase. §9.9 describes the exam behaviour
+> that phase must implement.
+>
+> **Required environment variable:** `STORAGE_KEK` — 32 bytes, hex or base64. The API refuses
+> to boot without it in production. See §9.5.
 
 ### 9.1 The principle
 

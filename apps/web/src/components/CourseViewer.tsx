@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { versionLabel, type AuthoredBlock, type Classification, type LearningItem } from "@vault/shared";
+import { versionLabel, type AuthoredBlock, type Classification, type DownloadTicket, type LearningItem } from "@vault/shared";
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
+import { fetchAndDecrypt } from "@/lib/storage-crypto";
 import { CourseExam } from "./CourseExam";
 import { AuthoredBlockView, DocumentPages, paginate } from "./DocumentView";
 import { PdfView } from "./PdfView";
@@ -99,6 +100,10 @@ export function CourseViewer({
   const [file, setFile] = useState<{ kind: "pdf" | "image" | "audio" | "video" | "text"; url: string; buf: ArrayBuffer; text?: string } | null>(null);
   const [unpreviewable, setUnpreviewable] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Storage unreachable is NOT a load error — the document exists and is safe, we just
+  // cannot fetch it right now (docs/structure.md §9.8). It gets its own state so the
+  // viewer can say that in those words instead of showing a red failure.
+  const [storageDown, setStorageDown] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
@@ -112,6 +117,16 @@ export function CourseViewer({
   // fetch, and it completes by being passed rather than by being declared done.
   const isExam = item.kind === "EXAM";
 
+  /** Which native renderer handles this content type, or null if none can. */
+  function renderKind(type: string): "pdf" | "image" | "audio" | "video" | "text" | null {
+    if (type === "application/pdf") return "pdf";
+    if (type.startsWith("image/")) return "image";
+    if (type.startsWith("audio/")) return "audio";
+    if (type.startsWith("video/")) return "video";
+    if (type === "text/plain") return "text";
+    return null;
+  }
+
   // Load the content: files render natively by kind (PDF via PDF.js so it never depends
   // on the browser's flaky iframe PDF viewer); links embed; authored → block array.
   useEffect(() => {
@@ -123,20 +138,50 @@ export function CourseViewer({
     setFile(null);
     setUnpreviewable(null);
     setLoadError(null);
+    setStorageDown(null);
     if (isExam) return; // the exam runner fetches its own paper
     (async () => {
       try {
         const res = await authFetch(`/courses/${item.code}/content`);
         if (!res.ok) {
           const err = (await res.json().catch(() => ({}))) as { error?: string };
+          // 409 is the organization's storage being unreachable or not yet reconnected.
+          // The document is there; we cannot reach it. Say exactly that.
+          if (res.status === 409) {
+            if (!cancelled) setStorageDown(err.error ?? "");
+            return;
+          }
           throw new Error(err.error ?? "Could not load the content");
         }
         const type = (res.headers.get("content-type") ?? "").split(";")[0];
         if (type.includes("application/json")) {
-          const data = (await res.json()) as { url?: string; authored?: AuthoredBlock[] };
+          const data = (await res.json()) as {
+            url?: string;
+            authored?: AuthoredBlock[];
+            downloadUrl?: string;
+          };
           if (cancelled) return;
           if (data.authored) setAuthored(data.authored);
-          else if (data.url) {
+          else if (data.downloadUrl) {
+            // An object in the organization's own storage: fetch the ciphertext straight
+            // from their hardware and decrypt it here. Nothing routes through our API.
+            const bytes = await fetchAndDecrypt(data as unknown as DownloadTicket);
+            if (cancelled) return;
+            const mime = (data as unknown as DownloadTicket).mime || "application/octet-stream";
+            const kind = renderKind(mime);
+            if (!kind) {
+              setUnpreviewable(mime);
+              return;
+            }
+            const buf = bytes.slice().buffer as ArrayBuffer;
+            blobUrl = URL.createObjectURL(new Blob([buf], { type: mime }));
+            setFile({
+              kind,
+              url: blobUrl,
+              buf,
+              text: kind === "text" ? new TextDecoder().decode(bytes) : undefined,
+            });
+          } else if (data.url) {
             setExternalUrl(data.url);
             setSrc(data.url);
           }
@@ -285,9 +330,35 @@ export function CourseViewer({
           {!showCover && (
             <>
               {loadError && <p className="form-error viewer-note">{loadError}</p>}
-              {!isExam && !src && !authored && !file && !unpreviewable && !loadError && (
-                <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
+              {/* Storage unreachable — a waiting state, not a failure. The document is
+                  intact on the organization's own storage; we cannot reach it right now
+                  (docs/structure.md §9.8). Never dressed up as data loss. */}
+              {storageDown && (
+                <div className="viewer-unpreviewable">
+                  <span className="viewer-unprev-icon" aria-hidden>
+                    🔌
+                  </span>
+                  <p>
+                    <strong>This document is waiting on your storage.</strong>
+                  </p>
+                  <p className="muted">
+                    It is safe and unchanged on your organization&rsquo;s own storage —
+                    Knowledge Vault just cannot reach it at the moment. It will open
+                    normally as soon as the connection is restored. Your organization&rsquo;s
+                    owners have been told.
+                  </p>
+                  {storageDown && <p className="muted viewer-note">{storageDown}</p>}
+                </div>
               )}
+              {!isExam &&
+                !src &&
+                !authored &&
+                !file &&
+                !unpreviewable &&
+                !loadError &&
+                !storageDown && (
+                  <div className="skeleton" style={{ position: "absolute", inset: 0 }} />
+                )}
               {/* MCQ exam: sat in place, marked by the server */}
               {isExam && <CourseExam code={item.code} onCompleted={onChanged} />}
               {/* Type that can't render safely inline (e.g. an Office doc) — offer download */}

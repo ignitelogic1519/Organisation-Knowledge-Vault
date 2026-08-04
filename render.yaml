@@ -29,3 +29,15 @@ services:
         sync: false # your Vercel URL, e.g. https://your-app.vercel.app
       - key: JOB_SECRET
         generateValue: true # shared with the GitHub Actions nightly-job workflow
+      - key: STORAGE_KEK
+        # The key that encrypts organizations' storage credentials and wraps their
+        # per-org data keys (docs/structure.md §9.5). It lives HERE and never in the
+        # database, so a database dump alone cannot reach a customer's storage or
+        # decrypt a customer's documents.
+        #
+        # Render mints it once and keeps it. Treat it like the database itself:
+        # LOSING IT MAKES EVERY ORGANIZATION'S STORED DOCUMENTS UNREADABLE through the
+        # platform. (Organizations can still recover from their own storage using their
+        # `.main` file and Supreme password — that is exactly why the data key is
+        # wrapped twice.) Back it up somewhere outside Render before going live.
+        generateValue: true

@@ -143,6 +143,7 @@ model Organization {
   courses        Course[]
   studioDrafts   StudioDraft[]
   supremeAudits  SupremeAudit[]
+  storage        OrgStorage?
 }
 
 // Audit trail of Supreme-gate activity — the Supreme itself performs no actions, so every
@@ -600,6 +601,93 @@ model PlatformSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ── Organization-provided storage (docs/structure.md §9) ─────────────────────
+// The organization's own S3-compatible backend (MinIO on their NAS today; S3, R2,
+// GCS, Wasabi, B2 and Spaces are the same adapter with a different endpoint).
+// Secrets are encrypted with STORAGE_KEK, which lives in the environment and NEVER
+// in this database — a dump alone must not reach a customer's storage.
+
+enum StorageStatus {
+  UNCONFIGURED // no backend connected: the org still uses the inline adapter
+  ACTIVE // last health check passed
+  DEGRADED // unreachable or refusing us — read-only, never "data loss" (§9.8)
+}
+
+enum EncryptionPosture {
+  ENCRYPTED // objects land as opaque .kvblob ciphertext (default)
+  PLAIN // objects land as ordinary readable files, by the org's informed choice
+}
+
+model OrgStorage {
+  id      String       @id @default(uuid())
+  orgId   String       @unique
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  adapter String       @default("s3") // the only backend today; the dropdown shows it as "NAS"
+
+  // ── Non-secret connection config ──
+  endpoint       String // https://storage.acme.com — their MinIO address
+  bucket         String
+  region         String  @default("us-east-1") // MinIO ignores it; real S3 needs it
+  prefix         String  @default("") // lets them share a bucket with other systems
+  forcePathStyle Boolean @default(true) // MinIO needs this on
+
+  // ── Secrets, sealed with STORAGE_KEK (see storage/secrets.ts) ──
+  accessKeyIdEnc String
+  secretKeyEnc   String
+
+  // The org's data key, wrapped by the platform KEK. The Supreme-wrapped copy is
+  // computed at .main export time and deliberately NEVER stored (§9.5).
+  wrappedDek String?
+
+  status      StorageStatus     @default(UNCONFIGURED)
+  encryption  EncryptionPosture @default(ENCRYPTED)
+  lastCheckAt DateTime?
+  lastError   String? // the precise reason the last check failed, shown to owners
+  degradedAt  DateTime? // when it entered DEGRADED — compliance pauses from here (§9.8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// One row per object we hold in the organization's storage. Unlike StoredFile this
+// carries a real course link and an integrity hash, so orphan collection is an
+// indexed query rather than a scan of every course's storageRef JSON.
+model StorageObject {
+  id        String  @id @default(uuid())
+  orgId     String
+  objectKey String // objects/2026/08/<hash>.kvblob — relative to the configured prefix
+  sha256    String // of the PLAINTEXT, verified after decryption (§9.4)
+  bytes     Int // plaintext size — what the user downloads and what quota counts
+  mime      String
+  filename  String
+  encrypted Boolean @default(true)
+  /// This object's file key, wrapped under the org DEK. Null when encryption is PLAIN.
+  /// Every object gets its own key, so one compromised file never unlocks the next.
+  wrappedKey String?
+  courseId  String? // null while a course is mid-create, or for orphans awaiting collection
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, objectKey])
+  @@index([orgId])
+  @@index([courseId])
+}
+
+// Durable delete queue. A remote delete cannot run inside a Postgres transaction, so
+// course deletion commits a queue row with the transaction and the drain runs after
+// it, with retries (§9.10).
+model StorageDeletion {
+  id        String   @id @default(uuid())
+  orgId     String
+  objectKey String
+  attempts  Int      @default(0)
+  lastError String?
+  nextTryAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([nextTryAt])
+  @@index([orgId])
 }
 
 // Append-only audit of every super-admin action (god-mode needs a trail).

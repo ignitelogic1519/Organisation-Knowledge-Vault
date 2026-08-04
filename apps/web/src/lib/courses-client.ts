@@ -62,14 +62,23 @@ export const courses = {
     api<import("@vault/shared").CourseComplianceView>(`/courses/${code}/compliance`),
   info: (code: string) =>
     api<CourseDetail>(`/courses/${code}`),
-  /** The stored content itself — authored blocks, an exam paper, or a link. Managers only
-   *  for an exam: the answer key lives in there. */
+  /** The stored content itself — authored blocks, an exam paper, a link, or a ticket for
+   *  an object in the organization's own storage. Managers only for an exam: the answer
+   *  key lives in there. */
   content: (code: string) =>
     api<{
       authored?: import("@vault/shared").AuthoredBlock[];
       exam?: import("@vault/shared").ExamBody;
       theme?: import("@vault/shared").DocumentTheme;
       url?: string;
+      /** Present for the `s3` adapter: fetch and decrypt in the browser (§9.5). */
+      downloadUrl?: string;
+      encrypted?: boolean;
+      fileKey?: string;
+      mime?: string;
+      filename?: string;
+      bytes?: number;
+      sha256?: string;
     }>(`/courses/${code}/content`),
   /** Take a course out of deployment (or put it back) while a new edition is written. */
   withdraw: (code: string, withdrawn: boolean) =>

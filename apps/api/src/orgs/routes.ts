@@ -11,6 +11,8 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { audit } from "../security.js";
+import { connectStorage, testConnection } from "../storage/org-storage.js";
 import { redeemAccessCode, planStatusFor, expiryFrom, effectivePlanStatus } from "./plan.js";
 import {
   auditSupreme,
@@ -52,6 +54,30 @@ export async function orgRoutes(app: FastifyInstance) {
   // (docs/structure.md §4.1). The unrecoverability acknowledgement is enforced server-side.
   app.post("/orgs", { preHandler: app.authenticate }, async (req, reply): Promise<OrgSummary> => {
     const body = createOrgSchema.parse(req.body);
+
+    // Storage is chosen in the creation form (docs/structure.md §9.3). Test it FIRST:
+    // the test is a network call to their storage and cannot run inside the creation
+    // transaction, and a failure must leave the access code unspent so they can fix
+    // their NAS and retry with the same code.
+    if (body.storage) {
+      const probe = await testConnection(
+        {
+          endpoint: body.storage.endpoint.replace(/\/+$/, ""),
+          bucket: body.storage.bucket,
+          region: body.storage.region || "us-east-1",
+          accessKeyId: body.storage.accessKeyId,
+          secretAccessKey: body.storage.secretAccessKey,
+          forcePathStyle: body.storage.forcePathStyle,
+        },
+        body.storage.prefix,
+      );
+      if (!probe.ok) {
+        return reply.status(400).send({
+          error: probe.error ?? "Your storage could not be verified",
+          storageTest: probe,
+        }) as never;
+      }
+    }
 
     // Paywall gate: a valid super-admin access code (OTP) is required to create ANY org.
     // The code carries the plan the admin approved (plan key, coin price, granted days).
@@ -126,6 +152,20 @@ export async function orgRoutes(app: FastifyInstance) {
       });
       return created;
     });
+
+    // Persist the storage that already passed its test above. It is deliberately
+    // outside the transaction: sealing credentials and generating the data key are
+    // local work, and the connection they describe has already been proven.
+    if (body.storage) {
+      const outcome = await connectStorage(org.id, body.storage);
+      if (outcome.ok) {
+        await audit(org.id, "storage.connect", {
+          actorProfileId: req.profileId,
+          ip: req.ip,
+          detail: { endpoint: outcome.row.endpoint, bucket: outcome.row.bucket },
+        });
+      }
+    }
 
     return {
       id: org.id,

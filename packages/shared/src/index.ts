@@ -12,3 +12,4 @@ export * from "./requests.js";
 export * from "./pricing.js";
 export * from "./platform.js";
 export * from "./notifications.js";
+export * from "./storage.js";
