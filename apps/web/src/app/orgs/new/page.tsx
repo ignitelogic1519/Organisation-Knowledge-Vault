@@ -12,6 +12,7 @@ import { AppShell } from "@/components/AppShell";
 import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconUser } from "@/components/icons";
 import { StorageSetupFields, emptyStorageConfig } from "@/components/StorageSetupFields";
+import { OrgLogoField } from "@/components/OrgLogoField";
 import type { StorageConfigInput } from "@vault/shared";
 
 const NAV = [
@@ -29,6 +30,13 @@ export default function NewOrgPage() {
   // Where this organization's documents will live (docs/structure.md §9.3). Tested
   // before the organization is created, so a failed test costs nothing.
   const [storage, setStorage] = useState<StorageConfigInput>(emptyStorageConfig);
+  // Where the documents go. NAS is the ordinary answer; KVEP is our staff perk, which
+  // skips storage entirely and keeps content in our database (docs/structure.md §9.13).
+  const [mode, setMode] = useState<"NAS" | "KVEP">("NAS");
+  const [kvepUser, setKvepUser] = useState("");
+  const [kvepPass, setKvepPass] = useState("");
+  const [logo, setLogo] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState("");
 
   // Plan chooser (shown beside the form)
   const [plans, setPlans] = useState<PricingPlanView[]>([]);
@@ -52,8 +60,15 @@ export default function NewOrgPage() {
       }))
     )
       return;
-    await pricing.request({ kind: "CREATE_ORG", planKey: plan.key });
-    dialogs.toast("Request sent — your code will arrive in your notifications.", "success");
+    // A KVEP request asks for an employee-perk code. The plan and the review are the same
+    // as any other; the code it produces is what lets creation skip storage setup.
+    await pricing.request({ kind: mode === "KVEP" ? "KVEP_ORG" : "CREATE_ORG", planKey: plan.key });
+    dialogs.toast(
+      mode === "KVEP"
+        ? "Employee-perk request sent — your code will arrive in your notifications."
+        : "Request sent — your code will arrive in your notifications.",
+      "success",
+    );
     loadPlans();
   };
 
@@ -78,7 +93,12 @@ export default function NewOrgPage() {
       supremePassword: data.get("supremePassword"),
       acknowledgedUnrecoverable: data.get("ack") === "on" ? true : false,
       accessCode: String(data.get("accessCode") ?? "").trim(),
-      storage,
+      // A KVEP organization sends no storage at all — it uses ours — and instead proves
+      // the creator is one of our staff.
+      ...(mode === "KVEP"
+        ? { kvepAdmin: { username: kvepUser.trim(), password: kvepPass } }
+        : { storage }),
+      ...(logo ? { logo } : {}),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
@@ -117,8 +137,15 @@ export default function NewOrgPage() {
           </label>
           <label className="field">
             <span>Organization name</span>
-            <input name="name" required minLength={2} />
+            <input
+              name="name"
+              required
+              minLength={2}
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+            />
           </label>
+          <OrgLogoField name={orgName} value={logo} onChange={setLogo} />
           <label className="field">
             <span>First role name</span>
             <input name="ownerRoleName" placeholder="Owner / CEO / Principal…" required />
@@ -150,16 +177,76 @@ export default function NewOrgPage() {
 
           <hr className="soft-rule" />
           <h3 className="section-heading">Where your documents will live</h3>
-          <p className="muted">
-            Knowledge Vault keeps your structure, people and records. Your documents
-            themselves go onto storage you own and control — so the space is yours, the
-            cost is yours, and you can walk away with everything at any time.
-          </p>
-          <StorageSetupFields
-            value={storage}
-            onChange={setStorage}
-            webOrigin={typeof window === "undefined" ? "" : window.location.origin}
-          />
+
+          <div className="mode-choice">
+            <label className="ack-row">
+              <input
+                type="radio"
+                name="storageMode"
+                checked={mode === "NAS"}
+                onChange={() => setMode("NAS")}
+              />
+              <span>
+                <strong>NAS — your own storage.</strong> Your documents live on hardware you
+                own and control. The space is yours, the cost is yours, and you can walk
+                away with everything at any time.
+              </span>
+            </label>
+            <label className="ack-row">
+              <input
+                type="radio"
+                name="storageMode"
+                checked={mode === "KVEP"}
+                onChange={() => setMode("KVEP")}
+              />
+              <span>
+                <strong>KVEP — Knowledge Vault Employee Perk.</strong> Documents stay on
+                Knowledge Vault&rsquo;s own storage, with no setup at all. Reserved for our
+                staff: it needs a super-admin username and password.
+              </span>
+            </label>
+          </div>
+
+          {mode === "NAS" ? (
+            <StorageSetupFields
+              value={storage}
+              onChange={setStorage}
+              webOrigin={typeof window === "undefined" ? "" : window.location.origin}
+            />
+          ) : (
+            <div className="kvep-fields">
+              <div className="info-box">
+                <strong>This organization will use Knowledge Vault&rsquo;s storage.</strong>
+                <p>
+                  Nothing to set up, and the plan&rsquo;s storage allowance applies as it
+                  always did. Your access code must be an employee-perk code — an ordinary
+                  one will be refused.
+                </p>
+              </div>
+              <label className="field">
+                <span>Super-admin username</span>
+                <input
+                  value={kvepUser}
+                  onChange={(e) => setKvepUser(e.target.value)}
+                  autoComplete="off"
+                  placeholder="adminbase"
+                />
+              </label>
+              <label className="field">
+                <span>Super-admin password</span>
+                <input
+                  type="password"
+                  value={kvepPass}
+                  onChange={(e) => setKvepPass(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <small>
+                  Checked against the super-admin portal. It is never stored with the
+                  organization — it only proves the perk is going to one of our own.
+                </small>
+              </label>
+            </div>
+          )}
 
           {error && <p className="form-error">{error}</p>}
           <button className="btn btn-primary btn-block" disabled={busy}>

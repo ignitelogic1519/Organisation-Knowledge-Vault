@@ -171,6 +171,12 @@ cannot reach a customer's storage. `render.yaml` generates one on first deploy �
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
+**KVEP (Knowledge Vault Employee Perk)** is the exception: an organization created by one of
+your own super-admins for staff use. It skips storage setup entirely and keeps its content in
+our database via the inline adapter. It is gated twice by a super-admin's own username and
+password — once when the request is raised, and again at creation — which is what keeps the
+perk internal (`docs/structure.md` §9.13).
+
 Google Drive and OneDrive/SharePoint plug into the same port later (`future.md` §9); both
 proxy bytes through us, which is why the S3-compatible adapter came first.
 

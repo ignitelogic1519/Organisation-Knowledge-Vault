@@ -693,3 +693,47 @@ export screen and in the Main Guide Book (Chapter 16): if the organization delet
 - Plan ceilings are re-stated against organization-provided storage. The free plan's current
   **150 GB** figure is unbuildable on our database and paid plans currently carry **no storage
   ceiling at all** (`storageLimitMb: null`); both are corrected when this ships.
+- **The storage ceiling only meters what we hold.** An organization storing on its own
+  hardware has taken that cost off us, so the ceiling stops applying to it; the document and
+  upload counts still do. A KVEP organization (§9.13) is metered normally, because its content
+  is on our disks.
+
+### 9.13 KVEP — the Knowledge Vault Employee Perk ✅ DECIDED (2026-08-04)
+
+An organization created by one of **our own staff**, for staff use. It is the one shape that
+does **not** bring its own storage: its content stays in our database through the `inline`
+adapter, exactly as every organization worked before §9 existed, and the plan's storage
+ceiling applies to it normally.
+
+**What makes the perk internal is a double gate on a super-admin's own credentials:**
+
+1. **At request time** — the request is raised as kind `KVEP_ORG` rather than `CREATE_ORG`.
+2. **At creation time** — a super-admin **username and password** are entered again and
+   verified against the `PlatformAdmin` table.
+
+Both are required. Creation refuses:
+
+- a KVEP code with no credentials,
+- credentials supplied against an ordinary code,
+- storage fields on a KVEP creation.
+
+Credential failure is **deliberately generic** — it never reveals whether a username exists,
+and it is checked before any coins are charged or any row is created.
+
+The organization carries `isKvep` so every later surface can tell the two apart: it never
+shows the storage panel, never enters the degraded state of §9.8, and never appears in the
+migration of §9.12 because it has nowhere to migrate to.
+
+### 9.14 Organization logo ✅ DECIDED (2026-08-04)
+
+An optional logo, chosen when the organization is created and stored as a **client-downscaled
+square data URL** (256 px, ≤ 300 KB) in the same shape as a profile picture. It is never
+required.
+
+**Without one, the badge is generated**: the first letter of the organization's name on a hue
+derived from its `orgNumber`, so two organizations are distinguishable at a glance and no
+organization ever renders as a blank square.
+
+The badge appears wherever an organization is identified — the organization card, the
+super-admin console, and the document frame, so a published or printed document carries the
+mark of the organization that issued it.

@@ -43,9 +43,42 @@ Fill in the fields:
 1. **Access code** — the 8-character code the Knowledge Base team sent you (it's in your
    notification bell and on your Account page). It's valid for 24 hours and works once.
 2. **Organization name** — your company or team name (e.g. *Aurora Robotics*).
-3. **First role name** — the name of the top role you'll occupy. This is the root of your
+3. **Organization logo** — optional. Upload a square-ish image and it appears on your
+   organization card and on every document you publish. Skip it and Knowledge Vault draws a
+   badge from the first letter of your name instead, in a colour picked for your
+   organization — so you never end up with a blank square.
+4. **First role name** — the name of the top role you'll occupy. This is the root of your
    whole structure. Common choices: *Owner*, *CEO*, *Principal*, *Executive Office*.
-4. **Supreme password** — at least **12 characters**. Retype it to confirm.
+5. **Supreme password** — at least **12 characters**. Retype it to confirm.
+6. **Where your documents will live** — see the next section.
+
+## Where your documents will live
+
+Knowledge Vault always keeps your structure, your people and your records. Your **documents
+themselves** are a separate question, and the founding form asks it.
+
+**NAS — your own storage.** The normal choice. Your documents live on hardware you own and
+control: the space is yours, the running cost is yours, and you can walk away with everything
+at any time. You enter the address, the bucket and an access key, then press **Test
+connection** — Knowledge Vault writes a test file, reads it back, checks the bytes match,
+confirms the storage isn't readable by the public, and cleans up after itself. It tells you
+exactly which of those steps failed if one does.
+
+You also choose here whether documents are **encrypted** on your storage. Encrypted is
+recommended and means nobody can open them from the storage itself — not even your own IT —
+only through Knowledge Vault, or with your `.main` file and Supreme password. The alternative
+keeps them as ordinary browsable files. **This choice is fixed once storage is connected**,
+because changing it means re-encrypting everything you have stored.
+
+If you don't have a NAS, the setup guide in the repository walks through turning a folder on
+an ordinary laptop into one, so you can try the whole thing before buying hardware.
+
+**KVEP — Knowledge Vault Employee Perk.** Reserved for Knowledge Vault staff. Documents stay
+on Knowledge Vault's own storage with nothing to set up, and the plan's storage allowance
+applies as usual. It needs a **super-admin username and password**, entered both when the
+access code is requested and again when the organization is created — which is what keeps the
+perk internal. An ordinary access code will not create a KVEP organization, and a KVEP code
+will not create an ordinary one.
 
 ### The Supreme password — read this carefully
 
