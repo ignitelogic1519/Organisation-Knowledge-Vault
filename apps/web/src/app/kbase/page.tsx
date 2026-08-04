@@ -418,238 +418,308 @@ function OrgDetailPanel({
   };
 
   const st = detail.storage;
+  const o = detail.org;
+  const dirty = Object.keys(edits).length > 0;
 
+  // A right-hand drawer: a fixed header that always says which organization this is, a
+  // scrolling body, and actions pinned to the bottom so Save stays reachable however far
+  // down you are. Everything the console knows lives here — the grid behind is an index.
   return (
-    // A right-hand drawer over a scrim, so the grid stays visible behind it and one
-    // organization is inspected at a time. Everything about the organization lives in
-    // here; the card behind it stays deliberately sparse.
     <>
-      <div className="kbase-scrim" onClick={onClose} aria-hidden />
-      <aside className="kbase-drawer glass" role="dialog" aria-label={`${detail.org.name} properties`}>
-      <header className="kbase-detail-head">
-        <div className="kbase-drawer-id">
-          <OrgBadge
-            name={detail.org.name}
-            logo={detail.org.logo}
-            orgNumber={detail.org.orgNumber}
-            size={46}
-          />
-          <div>
-            <h3>
-              {detail.org.name} <span className="chip">#{detail.org.orgNumber}</span>
-            </h3>
-            <p className="auth-sub">
-              Created {detail.org.createdAt.slice(0, 10)} · last active{" "}
-              {timeAgo(detail.org.lastActivityAt)}
-              {detail.org.isKvep && <span className="chip chip-kvep">KVEP</span>}
+      <div className="kbd-scrim" onClick={onClose} aria-hidden />
+      <aside className="kbd" role="dialog" aria-label={`${o.name} properties`}>
+        <header className="kbd-head">
+          <OrgBadge name={o.name} logo={o.logo} orgNumber={o.orgNumber} size={44} />
+          <div className="kbd-head-text">
+            <h3>{o.name}</h3>
+            <p>
+              <span className="chip">#{o.orgNumber}</span>
+              <span
+                className={`badge ${
+                  o.planStatus === "ACTIVE"
+                    ? "badge-ok"
+                    : o.planStatus === "EXPIRED"
+                      ? "badge-danger"
+                      : ""
+                }`}
+              >
+                {o.planStatus.toLowerCase()}
+              </span>
+              {o.isKvep && <span className="chip chip-kvep">KVEP</span>}
+              {o.deletedAt && <span className="badge badge-danger">deleted</span>}
             </p>
           </div>
-        </div>
-        <button className="icon-btn" aria-label="Close" onClick={onClose}>
-          ✕
-        </button>
-      </header>
+          <button className="kbd-close" aria-label="Close" onClick={onClose}>
+            ✕
+          </button>
+        </header>
 
-      {/* Owners — with the profile id, which is what a support ticket or an audit trail
-          actually keys on. */}
-      <section className="kbase-drawer-section">
-        <h4>Owners</h4>
-        {detail.owners.length === 0 && <p className="auth-sub">No owners.</p>}
-        {detail.owners.map((o) => (
-          <div key={o.profileId} className="kbase-owner">
-            <div>
-              <strong>{o.displayName}</strong>{" "}
-              <span className="auth-sub">@{o.username}</span>
+        <div className="kbd-body">
+          {/* The counts that used to be scattered across the card, gathered in one block. */}
+          <section className="kbd-section">
+            <h4>At a glance</h4>
+            <div className="kbd-stats">
+              <div>
+                <dt>People</dt>
+                <dd>{fmtLimit(o.memberCount, o.memberLimit)}</dd>
+              </div>
+              <div>
+                <dt>Documents</dt>
+                <dd>{fmtLimit(o.documentCount, o.documentLimit)}</dd>
+              </div>
+              <div>
+                <dt>Uploads</dt>
+                <dd>{fmtLimit(o.uploadCount, o.uploadLimit)}</dd>
+              </div>
+              <div>
+                <dt>Storage used</dt>
+                <dd>
+                  {o.storageUsedMb} MB{o.storageLimitMb != null ? ` / ${o.storageLimitMb}` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>Roles</dt>
+                <dd>
+                  {o.roleCount} · depth {o.treeDepth}
+                </dd>
+              </div>
+              <div>
+                <dt>Plan</dt>
+                <dd>
+                  {o.planKey ?? "none"}
+                  {o.planIsCustom ? " (custom)" : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>Expires</dt>
+                <dd>{o.planExpiresAt ? o.planExpiresAt.slice(0, 10) : "—"}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{o.createdAt.slice(0, 10)}</dd>
+              </div>
+              <div>
+                <dt>Last active</dt>
+                <dd>{timeAgo(o.lastActivityAt)}</dd>
+              </div>
+              <div className="kbd-stat-wide">
+                <dt>Organization ID</dt>
+                <dd>
+                  <code className="kbd-id">{o.id}</code>
+                </dd>
+              </div>
             </div>
-            <code className="kbase-id" title="Profile ID">
-              {o.profileId}
-            </code>
-            <span className="auth-sub">{o.coins} coins</span>
-          </div>
-        ))}
-      </section>
+          </section>
 
-      {/* Storage — where this organization's documents actually live, and whether we can
-          still reach it (docs/structure.md §9). */}
-      <section className="kbase-drawer-section">
-        <h4>Storage</h4>
-        {detail.org.isKvep ? (
-          <p className="auth-sub">
-            Employee perk (KVEP) — documents are held on Knowledge Vault&rsquo;s own storage.
-            The plan&rsquo;s storage allowance applies.
-          </p>
-        ) : !st ? (
-          <p className="auth-sub">
-            No storage connected. Uploads fall back to our database at the 10 MB inline cap.
-          </p>
-        ) : (
-          <>
-            <dl className="kv-list">
-              <dt>Status</dt>
-              <dd>
-                {st.status === "ACTIVE" ? "✓ Connected" : "⚠ Unreachable"}
-                {st.lastCheckAt && (
-                  <span className="auth-sub"> · checked {st.lastCheckAt.slice(0, 16).replace("T", " ")}</span>
-                )}
-              </dd>
-              <dt>Address</dt>
-              <dd className="kbase-wrap">{st.endpoint}</dd>
-              <dt>Bucket</dt>
-              <dd>
-                {st.bucket}
-                {st.prefix ? ` / ${st.prefix}` : ""}
-              </dd>
-              <dt>Region</dt>
-              <dd>{st.region ?? "—"}</dd>
-              <dt>Access key</dt>
-              <dd>{st.accessKeyIdMasked}</dd>
-              <dt>Encryption</dt>
-              <dd>{st.encryption === "ENCRYPTED" ? "Encrypted (.kvblob)" : "Readable files"}</dd>
-              <dt>Objects</dt>
-              <dd>
-                {st.objectCount} · {Math.max(1, Math.round(st.bytesUsed / (1024 * 1024)))} MB
-              </dd>
-              {st.pendingMigration > 0 && (
-                <>
-                  <dt>Not migrated</dt>
-                  <dd>{st.pendingMigration} still in our database</dd>
-                </>
-              )}
-            </dl>
-            {st.lastError && <p className="form-error">{st.lastError}</p>}
-            <div className="row-actions">
-              <button
-                className="btn btn-small"
-                disabled={checking}
-                onClick={async () => {
-                  setChecking(true);
-                  try {
-                    const r = await admin.checkOrgStorage(detail.org.orgNumber);
-                    onSaved(
-                      r.status === "ACTIVE"
-                        ? "Storage is reachable."
-                        : `Still unreachable — ${r.error ?? "no detail given"}`,
-                    );
-                  } catch (e) {
-                    setError(e instanceof AdminApiError ? e.message : "Check failed");
-                  } finally {
-                    setChecking(false);
-                  }
-                }}
-              >
-                {checking ? "Checking…" : "Test connection"}
-              </button>
-            </div>
-          </>
-        )}
-      </section>
+          {/* Owners, with the profile id — what support tickets and audit trails key on. */}
+          <section className="kbd-section">
+            <h4>Owners ({detail.owners.length})</h4>
+            {detail.owners.length === 0 && <p className="kbd-dim">No owners.</p>}
+            {detail.owners.map((ow) => (
+              <div key={ow.profileId} className="kbd-owner">
+                <div className="kbd-owner-top">
+                  <strong>{ow.displayName}</strong>
+                  <span className="kbd-dim">@{ow.username}</span>
+                  <span className="kbd-dim">{ow.coins} coins</span>
+                </div>
+                <code className="kbd-id" title="Profile ID — click to select">
+                  {ow.profileId}
+                </code>
+              </div>
+            ))}
+          </section>
 
-      <h4 className="kbase-drawer-section">All properties</h4>
+          {/* Where this organization's documents actually live (docs/structure.md §9). */}
+          <section className="kbd-section">
+            <h4>Storage</h4>
+            {o.isKvep ? (
+              <p className="kbd-dim">
+                Employee perk (KVEP) — documents are held on Knowledge Vault&rsquo;s own
+                storage and the plan&rsquo;s allowance applies. Nothing to configure.
+              </p>
+            ) : !st ? (
+              <p className="kbd-dim">
+                No storage connected. Uploads fall back to our database at the 10 MB inline cap.
+              </p>
+            ) : (
+              <>
+                <div className="kbd-rows">
+                  <div>
+                    <dt>Status</dt>
+                    <dd>
+                      {st.status === "ACTIVE" ? "✓ Connected" : "⚠ Unreachable"}
+                      {st.lastCheckAt && (
+                        <span className="kbd-dim">
+                          {" · checked "}
+                          {st.lastCheckAt.slice(0, 16).replace("T", " ")}
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Address</dt>
+                    <dd className="kbd-break">{st.endpoint}</dd>
+                  </div>
+                  <div>
+                    <dt>Bucket</dt>
+                    <dd>
+                      {st.bucket}
+                      {st.prefix ? ` / ${st.prefix}` : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Region</dt>
+                    <dd>{st.region ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Access key</dt>
+                    <dd>{st.accessKeyIdMasked}</dd>
+                  </div>
+                  <div>
+                    <dt>Encryption</dt>
+                    <dd>
+                      {st.encryption === "ENCRYPTED" ? "Encrypted (.kvblob)" : "Readable files"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Objects</dt>
+                    <dd>
+                      {st.objectCount} · {Math.round(st.bytesUsed / (1024 * 1024))} MB
+                    </dd>
+                  </div>
+                  {st.pendingMigration > 0 && (
+                    <div>
+                      <dt>Not migrated</dt>
+                      <dd>{st.pendingMigration} still in our database</dd>
+                    </div>
+                  )}
+                </div>
+                {st.lastError && <p className="form-error">{st.lastError}</p>}
+                <button
+                  className="btn btn-small"
+                  disabled={checking}
+                  onClick={async () => {
+                    setChecking(true);
+                    try {
+                      const r = await admin.checkOrgStorage(o.orgNumber);
+                      onSaved(
+                        r.status === "ACTIVE"
+                          ? "Storage is reachable."
+                          : `Still unreachable — ${r.error ?? "no detail given"}`,
+                      );
+                    } catch (e) {
+                      setError(e instanceof AdminApiError ? e.message : "Check failed");
+                    } finally {
+                      setChecking(false);
+                    }
+                  }}
+                >
+                  {checking ? "Checking…" : "Test connection"}
+                </button>
+              </>
+            )}
+          </section>
 
-      <div className="table-scroll">
-        <table className="kbase-table kbase-props">
-          <thead>
-            <tr>
-              <th>Property</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {detail.properties.map((p) => (
-              <tr key={p.key}>
-                <th scope="row">
-                  {p.label}
-                  {p.hint && <span className="auth-sub kbase-prop-hint">{p.hint}</span>}
-                </th>
-                <td>
-                  {p.type === "readonly" ? (
-                    <span>{p.value ?? "—"}</span>
-                  ) : p.type === "select" ? (
+          {/* Every property, editable in place. */}
+          <section className="kbd-section">
+            <h4>All properties</h4>
+            <div className="kbd-props">
+              {detail.properties.map((pr) => (
+                <label key={pr.key} className="kbd-prop">
+                  <span className="kbd-prop-label">
+                    {pr.label}
+                    {pr.hint && <em>{pr.hint}</em>}
+                  </span>
+                  {pr.type === "readonly" ? (
+                    <span className="kbd-prop-ro">{pr.value ?? "—"}</span>
+                  ) : pr.type === "select" ? (
                     <select
-                      value={valueOf(p.key, p.value)}
-                      onChange={(e) => setEdits((v) => ({ ...v, [p.key]: e.target.value }))}
+                      value={valueOf(pr.key, pr.value)}
+                      onChange={(e) => setEdits((v) => ({ ...v, [pr.key]: e.target.value }))}
                     >
                       <option value="">—</option>
-                      {(p.options ?? []).map((o) => (
-                        <option key={o} value={o}>
-                          {o}
+                      {(pr.options ?? []).map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
                         </option>
                       ))}
                     </select>
                   ) : (
                     <input
-                      type={p.type === "number" ? "number" : p.type === "date" ? "date" : "text"}
-                      value={valueOf(p.key, p.value)}
-                      placeholder={p.type === "number" ? "blank = plan default" : ""}
-                      onChange={(e) => setEdits((v) => ({ ...v, [p.key]: e.target.value }))}
+                      type={pr.type === "number" ? "number" : pr.type === "date" ? "date" : "text"}
+                      value={valueOf(pr.key, pr.value)}
+                      placeholder={pr.type === "number" ? "blank = plan default" : ""}
+                      onChange={(e) => setEdits((v) => ({ ...v, [pr.key]: e.target.value }))}
                     />
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </label>
+              ))}
+            </div>
+          </section>
 
-      {error && <p className="form-error">{error}</p>}
+          {detail.recentActivity.length > 0 && (
+            <section className="kbd-section">
+              <h4>Recent activity</h4>
+              <ul className="kbd-activity">
+                {detail.recentActivity.map((a, i) => (
+                  <li key={i}>
+                    <span>{a.action}</span>
+                    <span className="kbd-dim">{new Date(a.at).toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-      <div className="kbase-detail-actions">
-        <button className="btn btn-primary btn-small" disabled={Object.keys(edits).length === 0} onClick={save}>
-          Save changes
-        </button>
-        <button className="btn btn-quiet btn-small" onClick={() => setMessaging((v) => !v)}>
-          ✉ Message the owners
-        </button>
-        {confirmDelete ? (
-          <>
-            <span className="auth-sub">Delete forever?</span>
-            <button
-              className="btn btn-danger btn-small"
-              onClick={async () => {
-                try {
-                  await admin.purgeOrg(detail.org.orgNumber);
-                  onDeleted(`Permanently deleted ${detail.org.name}`);
-                } catch (e) {
-                  setError(e instanceof AdminApiError ? e.message : "Delete failed");
-                }
+          {messaging && (
+            <BroadcastForm
+              orgNumbers={[o.orgNumber]}
+              onClose={() => setMessaging(false)}
+              onDone={(m) => {
+                onSaved(m);
+                setMessaging(false);
               }}
-            >
-              Yes, delete
-            </button>
-            <button className="btn btn-quiet btn-small" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <button className="btn btn-danger btn-small" onClick={() => setConfirmDelete(true)}>
-            Delete organization
-          </button>
-        )}
-      </div>
-
-      {messaging && (
-        <BroadcastForm
-          orgNumbers={[detail.org.orgNumber]}
-          onClose={() => setMessaging(false)}
-          onDone={(m) => {
-            onSaved(m);
-            setMessaging(false);
-          }}
-        />
-      )}
-
-      {detail.recentActivity.length > 0 && (
-        <div className="kbase-detail-activity">
-          <strong>Recent activity</strong>
-          <ul className="owner-list">
-            {detail.recentActivity.map((a, i) => (
-              <li key={i} className="auth-sub">
-                {a.action} · {new Date(a.at).toLocaleString()}
-              </li>
-            ))}
-          </ul>
+            />
+          )}
         </div>
-      )}
+
+        {/* Pinned, so Save is reachable however far down the properties you have scrolled. */}
+        <footer className="kbd-foot">
+          {error && <p className="form-error kbd-foot-error">{error}</p>}
+          <div className="kbd-foot-row">
+            <button className="btn btn-primary btn-small" disabled={!dirty} onClick={save}>
+              {dirty ? "Save changes" : "Saved"}
+            </button>
+            <button className="btn btn-quiet btn-small" onClick={() => setMessaging((v) => !v)}>
+              ✉ Message
+            </button>
+            {confirmDelete ? (
+              <>
+                <span className="kbd-dim">Delete forever?</span>
+                <button
+                  className="btn btn-danger btn-small"
+                  onClick={async () => {
+                    try {
+                      await admin.purgeOrg(o.orgNumber);
+                      onDeleted(`Permanently deleted ${o.name}`);
+                    } catch (e) {
+                      setError(e instanceof AdminApiError ? e.message : "Delete failed");
+                    }
+                  }}
+                >
+                  Yes, delete
+                </button>
+                <button className="btn btn-quiet btn-small" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-danger btn-small" onClick={() => setConfirmDelete(true)}>
+                Delete
+              </button>
+            )}
+          </div>
+        </footer>
       </aside>
     </>
   );
