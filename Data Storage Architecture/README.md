@@ -16,6 +16,7 @@ and the numbered documents are rewritten to match whatever we settle on.
 | [03 — The Knowledge Vault map](03-knowledge-vault-map.md) | The manifest file we write into their storage |
 | [04 — Security & encryption](04-security-and-encryption.md) | How "nobody else can look at this document" is actually achieved |
 | [05 — Open questions](05-open-questions.md) | What I need decided before any of this can be built |
+| [06 — Risks & concerns](06-risks-and-concerns.md) | What worries me about the migration, ranked by cost of discovering it late |
 
 ---
 

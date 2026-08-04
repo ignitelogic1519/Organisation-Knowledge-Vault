@@ -104,6 +104,7 @@ Relevant existing pieces:
 | `03-knowledge-vault-map.md` | The `Knowledge_vault_map` manifest written into their storage |
 | `04-security-and-encryption.md` | Envelope encryption; three postures; the custody model |
 | `05-open-questions.md` | Eight decisions still open, each with a recommendation |
+| `06-risks-and-concerns.md` | Eight risks, ranked — two of which change the design |
 
 **Read all five before proposing a design.** The conclusions below are load-bearing.
 
@@ -181,6 +182,11 @@ of a sitting, and a clear failure mode if their storage is down mid-exam.
 | 8 | Max file size once off Postgres | ~200 MB S3-family, ~50 MB Drive/OneDrive |
 
 **Questions 1 and 2 block the build.** Everything else can be decided as you go.
+
+Also read `06-risks-and-concerns.md` — in particular risk 1 (moving Studio documents costs
+latency on the most common action in the product, and saves almost no space) and risk 2 (we
+become custodian of write credentials to every customer's cloud storage, which is a much larger
+liability than what we hold today).
 
 ---
 
