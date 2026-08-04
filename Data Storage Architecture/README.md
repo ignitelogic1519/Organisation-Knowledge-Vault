@@ -119,8 +119,13 @@ Appended as we agree things. Nothing is settled until it appears here.
 |------|----------|-----|
 | 2026-08-04 | Document bytes move to organization-provided storage; our DB keeps everything else | Free-tier Postgres holds ~50 files platform-wide; storage cost should sit with the company generating it |
 | 2026-08-04 | Scope widened: **Studio documents and exams move too**, not just uploads | Anything the organization creates is their content and belongs on their storage unit |
-| 2026-08-04 | *(open)* Reachability strategy for NAS / LAN servers | See question 1 |
-| 2026-08-04 | *(open)* Encryption posture | See question 2 |
+| 2026-08-04 | **NAS is the first backend**, ahead of the cloud drives | Owner's call: build for the NAS case first, add other backends after |
+| 2026-08-04 | **The NAS adapter is S3-compatible, with MinIO as the recommended server** — not WebDAV or SFTP | Question 1. Only S3 issues presigned URLs, so bytes go browser-to-NAS directly: free for them, zero egress for us, least code. WebDAV/SFTP would proxy every byte through a 512 MB instance. The same adapter later covers S3, R2, GCS, Wasabi, B2 and Spaces as configuration |
+| 2026-08-04 | **Reachability is the organization's job, and Cloudflare Tunnel is the recommended route** | A LAN-only NAS is unreachable from our datacentre. A tunnel daemon makes an *outbound* connection and yields a real HTTPS hostname — the connector's security posture (no inbound rule, no NAS on the public internet) with nothing for us to build, package or support |
+| 2026-08-04 | **Encryption posture is a per-organization choice made at setup**, `ENCRYPTED` default | Question 2. Organizations that want their storage browsable can have it; those that want "not even our IT can read this" can have that. Fixed once activated — changing it re-encrypts everything |
+| 2026-08-04 | Storage is chosen in a dropdown **at organization creation**, currently offering only NAS | Owner's call. Requires the connection test to run *before* the creation transaction, and a failed test must not consume the access code |
+| 2026-08-04 | The Supreme-wrapped DEK is **computed at `.main` export time and never persisted** | Persisting it would put an offline attack on a human-chosen password into every database dump, defeating the point of holding the platform key outside the database |
+| 2026-08-04 | Behaviour written into `docs/structure.md` §9 — that section is now normative | Working agreement: docs before code. Where this folder and §9 disagree, §9 wins |
 
 ---
 

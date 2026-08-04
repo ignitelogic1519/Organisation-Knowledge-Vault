@@ -170,18 +170,40 @@ of a sitting, and a clear failure mode if their storage is down mid-exam.
 
 ## Open decisions (see `05-open-questions.md` for full reasoning)
 
-| # | Question | Standing recommendation |
-|---|----------|------------------------|
-| 1 | Private-network NAS: connector, browser-direct, expose, or MinIO guidance? | **MinIO guidance now**; connector only on real demand |
-| 2 | Encryption: everything / by classification / none? | **Encrypt everything**, per-org setting, opt-out available |
-| 3 | Org storage required, or optional? | **Required above the free plan**; free plan uses ours with small honest caps |
+| # | Question | Status |
+|---|----------|--------|
+| 1 | Private-network NAS: connector, browser-direct, expose, or MinIO guidance? | ✅ **DECIDED** — NAS is the **first** backend, served by an **S3-compatible adapter with MinIO**; reachability is theirs, via **Cloudflare Tunnel** |
+| 2 | Encryption: everything / by classification / none? | ✅ **DECIDED** — **per-organization choice at setup**, `ENCRYPTED` default, `PLAIN` available; fixed once activated |
+| 3 | Org storage required, or optional? | Chosen **at organization creation** (dropdown, currently NAS only) |
 | 4 | Migrate existing `StoredFile` rows, or leave them? | **Migrate** — background, resumable, verify-then-drop |
 | 5 | How much detail in the map? | Roles in the JSON; resolved names in a nightly `.md` |
-| 6 | Free plan numbers (currently promises 150 GB on a 0.5 GB DB) | **Fix to ~500 MB / 30 documents** |
+| 6 | Free plan numbers (currently promises 150 GB on a 0.5 GB DB) | Open — note that **paid plans have no ceiling at all** today |
 | 7 | Who configures storage? | **Root owners, behind the Supreme gate** |
-| 8 | Max file size once off Postgres | ~200 MB S3-family, ~50 MB Drive/OneDrive |
+| 8 | Max file size once off Postgres | **200 MB**, with multipart + framed browser-side encryption |
 
-**Questions 1 and 2 block the build.** Everything else can be decided as you go.
+**Questions 1 and 2 are answered — the build is unblocked.** The behaviour they settle is
+specified in **`docs/structure.md` §9**, which is now the normative source; this folder is the
+working record of how it was reached. Where they disagree, §9 wins.
+
+**Note for a fresh session — three claims in this brief are overstated, verified against the
+code on 2026-08-04:**
+
+- *"No route, viewer or compliance code touches bytes."* True for reads. **Deletion reaches
+  around the port in four places** — `courses/routes.ts:760`, `requests/routes.ts:523` and
+  `:633`, `orgs/purge.ts:13` — each matching `ref.adapter === "inline"` **inside a
+  `db.$transaction`**. A remote delete cannot live in a Postgres transaction. Unpicking these
+  is step one, not a detail.
+- *"The `unreachable` viewer state is handled gracefully."* It is not. `CourseViewer.tsx:130`
+  renders the API's error string as a generic load failure. The degraded state in §9.8 is new
+  work.
+- *"The storage adapter port already exists."* `architecture.md` §4 declares
+  `upload/getStreamUrl/delete/healthCheck`; the real `adapter.ts` implements
+  `saveLink/saveInline/saveAuthored/saveExam/resolve`. The three methods this project needs
+  most exist only in the spec, and there is **no per-org backend selection at all** — the
+  adapter is chosen per *course*, by content kind.
+
+Also verified: **the repository has zero tests**, so the contract-test harness risk 7 assumes
+does not yet exist.
 
 Also read `06-risks-and-concerns.md` — in particular risk 1 (moving Studio documents costs
 latency on the most common action in the product, and saves almost no space) and risk 2 (we

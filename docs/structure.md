@@ -440,3 +440,243 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
   cleared on publish) on every plan; server-side drafts on premium plans.
 - **Profiles**: optional profile picture — a client-downscaled 256px JPEG data URL,
   size-capped and type-checked server-side.
+
+---
+
+## 9. Organization-provided storage ✅ DECIDED (2026-08-04) — specified, not yet built
+
+> This section is normative and precedes the code. The working record of how it was reached
+> lives in `Data Storage Architecture/`; where that folder and this section disagree, **this
+> section wins**.
+
+### 9.1 The principle
+
+Organization content moves out of our database and onto storage the organization provides,
+configures and pays for. **We keep the catalogue; they keep the contents.**
+
+| Moves to their storage | Stays in our database |
+|------------------------|-----------------------|
+| Uploaded files (PDF, image, audio, video) | Roles, placements, capabilities |
+| Studio-authored documents (the block array) | Course *metadata* — code, title, description, classification, kind, version, category, placements, prerequisites, deadlines, recurrence |
+| Exams / quizzes (questions **and** answer key) | Completion records, exam *results* (score, pass/fail, attempts, violations) |
+| Studio drafts | Requests, mailbox, plans, coins, audit logs |
+| | The `storageRef` pointer, object size and SHA-256 |
+
+The dividing line: anything that answers *who may see what* or *what has been done* stays
+with us, is small, and must stay queryable when their storage is not.
+
+### 9.2 The backend — one adapter, presented as "NAS"
+
+The first (and initially only) backend is **S3-compatible object storage**, offered to
+organizations as **NAS** and documented with **MinIO** as the recommended server to run on it.
+
+The adapter speaks the S3 API. That is a deliberate economy: the same adapter later serves
+Amazon S3, Cloudflare R2, Google Cloud Storage (interoperability mode), Wasabi, Backblaze B2
+and DigitalOcean Spaces as **configuration**, not as new code.
+
+**Why S3-compatible rather than the WebDAV or SFTP already built into every NAS:** only
+S3 issues **presigned URLs**, so the reader's browser fetches straight from the organization's
+NAS and the bytes never enter our infrastructure. WebDAV and SFTP would proxy every byte of
+every read through our API — which we pay for, and which would hold whole files in the memory
+of a 512 MB instance. S3 is free for them (open-source server, hardware they own), free for us
+(zero egress), and the least code.
+
+WebDAV and SFTP may be added later as additional protocols under the same **NAS** option, on
+the explicit understanding that they are the expensive path.
+
+### 9.3 Storage is chosen when the organization is created
+
+The organization creation form carries a **Storage** dropdown. It currently offers one option
+— **NAS** — with its configuration fields beneath it. More backends appear in this dropdown as
+adapters ship; nothing else about the flow changes when they do.
+
+Fields collected:
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| Endpoint URL | yes | `https://storage.acme.com` — their MinIO address. HTTPS only |
+| Bucket | yes | Must already exist; we never create buckets |
+| Access key ID | yes | |
+| Secret access key | yes | Encrypted at rest; never returned to the browser after saving |
+| Path prefix | no | Lets them share a bucket with other systems |
+| Region | no | `us-east-1` by default; MinIO ignores it |
+| Force path-style | no | **On** by default — MinIO needs it |
+| TLS fingerprint | no | Only when their certificate is self-signed |
+| Encryption posture | yes | See §9.5 |
+
+**Ordering rule (load-bearing).** The connection test (§9.4) is a network call to their
+storage and **must complete before the creation transaction opens**. A failed test aborts
+creation and **does not consume the access code** — the creator fixes their storage and
+retries with the same code.
+
+**Consequence, stated plainly:** an organization cannot be created until its storage is
+reachable and working. That is the cost of choosing storage at creation time rather than
+after it.
+
+### 9.4 The connection test
+
+Before any backend is activated — at creation, and again whenever credentials are replaced:
+
+1. Write a probe object under the configured prefix.
+2. Read it back.
+3. Compare the bytes.
+4. Delete it.
+
+The test reports the **exact** failure, never a generic one: bad credentials, bucket missing,
+no write permission, **bucket is publicly readable** (refused — a public bucket makes every
+permission rule in this document decorative), certificate untrusted, CORS missing, clock skew.
+
+A backend that "seems configured" but fails on the first real upload is the outcome this test
+exists to prevent.
+
+### 9.5 Encryption — a per-organization choice, fixed at setup
+
+The organization chooses one of two postures when it connects storage:
+
+**`ENCRYPTED` (default, recommended).** Every object is encrypted before it leaves us. Their
+storage holds opaque `.kvblob` objects. Nobody with access to the storage — including their
+own IT administrator — can read a document without going through Knowledge Vault or the
+recovery route in §9.11.
+
+**`PLAIN`.** Objects are stored as ordinary files. Their storage stays browsable, and anyone
+with access to it can read anything in it. Offered for organizations that knowingly want this
+and are told what it means.
+
+**The posture is fixed once storage is activated.** Changing it re-encrypts or decrypts every
+object already stored, so it is a migration with a progress bar, not a settings toggle. The
+setup screen must say so before the choice is made.
+
+**Key hierarchy** (`ENCRYPTED` only):
+
+```
+File Key (FK)      fresh 256-bit key per object, AES-256-GCM
+     │ wrapped by
+Data Key (DEK)     one per organization
+     │ wrapped by ─┬─ Platform KEK   environment variable, never in the database
+                   └─ Supreme KEK    derived from the Supreme password
+```
+
+- The **platform wrap is persisted** in the database and makes normal reading seamless.
+- The **Supreme wrap is never persisted.** It is computed at `.main` export time, from the
+  live DEK and the Supreme password the export route has just verified, and written only into
+  the exported file. Storing it would put an offline attack on a human-chosen password into
+  every database dump, which defeats the point of holding the platform key outside the
+  database.
+
+**Decryption happens in the reader's browser** (Web Crypto, AES-GCM). Our API sends the
+per-file key over its already-authenticated channel; the ciphertext travels from their storage
+to the browser directly. Bandwidth cost stays at zero and **our server never holds plaintext**.
+
+**Object format (fixed before the first object is written — changing it later means
+re-encrypting everything).** Objects are written as a small plaintext header followed by
+fixed **4 MB frames**, each sealed independently with a nonce derived from its frame counter.
+Frame boundaries align with S3 multipart upload parts. Web Crypto's AES-GCM does not stream:
+without framing, a 200 MB file would need 200 MB in memory twice and would crash a mid-range
+phone.
+
+### 9.6 Object layout
+
+```
+<bucket>/<prefix>/
+├── Knowledge_vault_map.json     signed manifest — see §9.7
+├── Knowledge_vault_map.md       the same, readable by a person
+├── README.txt                   "what is this folder, do not edit"
+└── objects/2026/08/3f2a…c1.kvblob
+```
+
+Objects are **content-addressed and date-sharded**, never named after the document. A filename
+like `Redundancy-Consultation-Legal-Advice.pdf` leaks confidential information to anyone who
+can list the folder; date shards keep any one directory small.
+
+### 9.7 The `Knowledge_vault_map` manifest
+
+We write a signed manifest into their storage describing the role tree, the people on it, and
+one entry per object with the audience our database says it reaches.
+
+**It is a mirror, never the authority.** Permissions are read from our database and nowhere
+else. If the map were ever consulted for access decisions, anyone able to write to that folder
+would control access to every document in the organization.
+
+On read we verify its Ed25519 signature. A mismatch raises a **tampering** message to the
+owners and the map is rewritten from the database. **Access is unaffected either way.**
+
+It contains role numbers, not resolved member lists; a nightly `.md` twin carries resolved
+names for auditors. It must never contain the Supreme password or anything derived from it,
+storage credentials, encryption keys, exam answer keys, password hashes, session material, or
+document contents.
+
+Rewritten on any change it describes, **debounced by about a minute**, plus a nightly rewrite
+that doubles as a storage health check.
+
+### 9.8 Degraded state — never data loss
+
+`OrgStorage.status` is one of `ACTIVE`, `DEGRADED` or `UNCONFIGURED`. A scheduled health check
+maintains it.
+
+While `DEGRADED`:
+
+- **Uploads and publishing are blocked**, with a message naming the storage problem.
+- **Existing documents report "unreachable until your storage is reconnected"** — the
+  `unreachable` adapter state, surfaced by the viewer as **its own state with an explanation
+  and a link to the storage settings**, not as a generic load error. (This is new work: the
+  viewer currently renders the API's error string.)
+- **Owners receive a high-priority mailbox message** on entering and on leaving the state.
+- **Deadline, overdue and escalation processing pauses.** An overdue notice generated during a
+  storage outage is a false accusation with an audit trail against someone who physically
+  could not open the document.
+
+Nothing in this state is presented as data loss, because it is not.
+
+### 9.9 Exams
+
+The answer key moves to the organization's storage with the rest of the paper. Marking stays
+**server-side** and the key is **never** sent to a candidate's browser — unchanged.
+
+**The paper is fetched and decrypted when it is dealt** (`GET /courses/:code/exam`) and held
+in a short-lived server-side cache, keyed to the sitting, with a TTL covering the exam's
+duration. Marking reads that cache.
+
+The rule exists because the alternative fails badly: if the paper were fetched at submission
+time instead, a storage outage during a sitting would reject the submission **after** the
+candidate had spent the full duration answering, losing their answers. Their *attempt* is
+already safe — `loadExam()` runs before any attempt row is written — but their work is not.
+
+If the cache is missing and storage is unreachable at submission, the submission is rejected
+with a message naming the storage problem, and **no attempt is consumed**.
+
+### 9.10 Deletion and orphan collection
+
+Deleting a course deletes its object. The remote delete **cannot run inside the database
+transaction**, so deletion is recorded as a durable queue entry committed with the transaction
+and executed after it, with retries.
+
+A reconciliation job finds objects with no course and removes them. Deletion is soft on some
+backends (bucket versioning, NAS snapshots); the map and the deletion documentation say so
+honestly rather than implying a shredder.
+
+### 9.11 Custody — what `.main` now promises
+
+`.main` continues to hold structure, people, course metadata and completion records, and now
+additionally the **Supreme-wrapped DEK** (§9.5). It does **not** hold the bytes.
+
+Recovery therefore becomes: **their storage + the map + `.main` + the Supreme password.** A
+competent engineer with those four things can recover everything without us, and we ship a
+standalone open-source decrypt tool so that promise is demonstrable rather than merely stated.
+
+**This is a real reduction in what `.main` alone guarantees**, and it must be stated on the
+export screen and in the Main Guide Book (Chapter 16): if the organization deletes its bucket,
+`.main` cannot bring the documents back.
+
+### 9.12 Quotas, limits and migration
+
+- **Usage is measured from stored objects**, counting uploads, authored documents, exams and
+  drafts alike. (The current `orgStorageUsedMb()` sums `StoredFile.size` only, so authored
+  documents and exams have never counted toward any ceiling.)
+- **Maximum object size rises to 200 MB** with multipart upload and framed browser-side
+  encryption, from the 10 MB the Postgres-backed `inline` adapter allowed.
+- **Existing `StoredFile` rows migrate in the background** when an organization connects
+  storage: copy up, verify the SHA-256, rewrite the `storageRef`, drop the row. Resumable, one
+  object at a time, verify-then-drop.
+- Plan ceilings are re-stated against organization-provided storage. The free plan's current
+  **150 GB** figure is unbuildable on our database and paid plans currently carry **no storage
+  ceiling at all** (`storageLimitMb: null`); both are corrected when this ships.

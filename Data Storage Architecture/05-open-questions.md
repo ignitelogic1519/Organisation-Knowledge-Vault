@@ -5,7 +5,35 @@ changes.
 
 ---
 
-## 1 · Private-network NAS — which route? *(biggest impact)*
+> **Questions 1 and 2 are decided (2026-08-04).** See the answers inline below and the
+> decision log in `README.md`. The behaviour they settle is specified in `docs/structure.md`
+> §9, which is now the normative source.
+
+---
+
+## 1 · Private-network NAS — which route? ✅ DECIDED
+
+**Decision: NAS is the first backend, served by an S3-compatible adapter with MinIO as the
+recommended server. Reachability is the organization's responsibility, and Cloudflare Tunnel
+is the documented route.**
+
+This is D4's substance reached by a better path. The options below were framed as "support the
+NAS or don't", but they missed a fifth route: a **tunnel daemon** (Cloudflare Tunnel, Tailscale
+Funnel) running on the NAS makes an **outbound** connection and yields a real HTTPS hostname
+with a valid certificate. No port forwarding, no inbound firewall rule, no NAS exposed to the
+internet — D2's security posture with none of D2's build cost. It takes the organization about
+ten minutes.
+
+The protocol question was decided on cost. WebDAV and SFTP are already built into every NAS
+and need no container, but neither issues presigned URLs, so every byte of every read would
+proxy through our API — paid egress, and whole files resident in a 512 MB instance. MinIO
+speaks S3, so the browser fetches straight from their NAS: free for them, **zero for us**, and
+the adapter is reusable for every cloud backend later. WebDAV/SFTP may follow as additional
+protocols under the same NAS option, understood as the expensive path.
+
+*Original analysis follows.*
+
+### The original framing
 
 An organization's NAS at `192.168.1.50` is unreachable from our datacentre. No credential
 fixes that. Document 02 · Group D covers the options.
@@ -26,7 +54,28 @@ would be the most expensive thing in this folder.
 
 ---
 
-## 2 · Encryption posture
+## 2 · Encryption posture ✅ DECIDED
+
+**Decision: a per-organization choice made at setup — `ENCRYPTED` (Posture 1) by default,
+`PLAIN` (Posture 3) available to organizations that knowingly choose it. Posture 2
+(by classification) is not built.**
+
+So the answer to *"are you comfortable telling an organization their documents will be
+unreadable blobs in their own storage?"* is: **that is offered, not imposed.** An organization
+that wants "not even our own IT can read this" gets it; one that wants its storage to stay
+browsable gets that instead, having been told what it gives up.
+
+Two consequences now specified in `docs/structure.md` §9.5:
+
+- **The posture is fixed once storage is activated.** Changing it re-encrypts or decrypts every
+  stored object — a migration with a progress bar, not a settings toggle.
+- **The Supreme-wrapped DEK is never persisted.** It is computed at `.main` export time from
+  the live DEK and the just-verified Supreme password. Storing it in the database would make
+  every database dump an offline attack on a human-chosen password (`.main` derives its key
+  with scrypt), which would defeat the entire point of keeping the platform key out of the
+  database.
+
+*Original analysis follows.*
 
 Document 04 sets out three. In short:
 
