@@ -69,7 +69,21 @@ installer and nothing to uninstall later; you delete the file when you are done.
 **Windows (PowerShell):**
 ```powershell
 mkdir C:\minio
-curl.exe -o C:\minio\minio.exe https://dl.min.io/server/minio/release/windows-amd64/minio.exe
+Invoke-WebRequest -Uri "https://dl.min.io/server/minio/release/windows-amd64/minio.exe" `
+                  -OutFile "C:\minio\minio.exe"
+```
+
+**Check the download before running it.** The file is around 100 MB. If it is a few KB, the
+download failed and saved an error page instead — running that gives *"not a valid
+application for this OS platform"*, which looks like an architecture problem but is not.
+
+```powershell
+(Get-Item C:\minio\minio.exe).Length / 1MB    # expect ~100, not ~0.01
+```
+
+If you prefer `curl.exe`, it **must** have `-L` or it will not follow redirects:
+```powershell
+curl.exe -L -o C:\minio\minio.exe https://dl.min.io/server/minio/release/windows-amd64/minio.exe
 ```
 
 **macOS:**
@@ -78,15 +92,16 @@ brew install minio/stable/minio
 ```
 or, without Homebrew:
 ```bash
-curl -O https://dl.min.io/server/minio/release/darwin-arm64/minio   # Apple Silicon
-# curl -O https://dl.min.io/server/minio/release/darwin-amd64/minio # Intel Mac
+curl -LO https://dl.min.io/server/minio/release/darwin-arm64/minio   # Apple Silicon
+# curl -LO https://dl.min.io/server/minio/release/darwin-amd64/minio # Intel Mac
 chmod +x minio
 ```
 
 **Linux:**
 ```bash
-curl -O https://dl.min.io/server/minio/release/linux-amd64/minio
+curl -LO https://dl.min.io/server/minio/release/linux-amd64/minio
 chmod +x minio
+ls -lh minio     # expect ~100M — a tiny file means the download failed
 ```
 
 **Docker (any OS, if you already have Docker running):**
@@ -129,32 +144,57 @@ Two addresses matter:
 - **`http://localhost:9000`** — the S3 API. This is what you give Knowledge Vault.
 - **`http://localhost:9001`** — a web console for you to look around in.
 
-### Step 4 · Create the bucket
+### Step 4 · Create the bucket and an access key
 
-A **bucket** is a named top-level container — it becomes a sub-folder inside
-`kv-storage`.
+A **bucket** is a named top-level container — it becomes a sub-folder inside `kv-storage`.
+You also want an **access key**, so Knowledge Vault never holds the root password.
 
-1. Open **http://localhost:9001** in your browser.
-2. Log in with `kvadmin` / `kvadmin12345`.
-3. **Buckets → Create Bucket**. Name it `knowledge-vault`. Create.
+> **Use the command line for this, not the web console.** MinIO removed most management
+> features from the open-source console during 2025 and moved them to the `mc` command.
+> Depending on which build you downloaded, `localhost:9001` may have no *Create Bucket* or
+> *Access Keys* buttons at all. Nothing is broken — the commands below work on every
+> version, so they are the reliable path.
 
-Leave every toggle alone. A new MinIO bucket is **private** by default, which is what
-Knowledge Vault requires — it refuses to connect a bucket the whole internet can read.
+Open a **second** terminal (leave MinIO running in the first).
+
+**Windows:**
+```powershell
+Invoke-WebRequest -Uri "https://dl.min.io/client/mc/release/windows-amd64/mc.exe" `
+                  -OutFile "C:\minio\mc.exe"
+
+C:\minio\mc.exe alias set local http://localhost:9000 kvadmin kvadmin12345
+C:\minio\mc.exe mb local/knowledge-vault
+C:\minio\mc.exe admin user svcacct add local kvadmin
+```
+
+**macOS / Linux:**
+```bash
+brew install minio/stable/mc        # or: curl -LO https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x mc
+
+mc alias set local http://localhost:9000 kvadmin kvadmin12345
+mc mb local/knowledge-vault
+mc admin user svcacct add local kvadmin
+```
+
+The last command prints the two values you need. **Copy them now** — the secret is shown
+only once:
+
+```
+Access Key: J8N2K4P6R8T0V2X4
+Secret Key: aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7d
+```
+
+Check it worked:
+
+```powershell
+C:\minio\mc.exe ls local          # should list: knowledge-vault
+```
 
 Look in `C:\kv-storage` (or `~/kv-storage`) — there is now a `knowledge-vault` folder.
-That is your bucket, on your disk.
+That is your bucket, sitting on your own disk.
 
-### Step 5 · Create an access key
-
-Never hand out the root password. Make a separate key instead.
-
-1. In the console: **Access Keys → Create access key**.
-2. Leave the policy blank (it inherits full access — fine for a laptop test).
-3. Press **Create**, then **copy both values immediately**:
-   - **Access Key** — like a username
-   - **Secret Key** — like a password, **shown only once**
-
-Paste them into a scratch file for the next step.
+A new MinIO bucket is **private** by default, which is what Knowledge Vault requires — it
+refuses to connect a bucket the whole internet can read.
 
 **You now have a working NAS on your laptop.** Everything from here is about connecting to
 it.
@@ -214,8 +254,8 @@ Open **http://localhost:3000** and sign in.
 |-------|-------|
 | Storage address | `http://localhost:9000` |
 | Bucket | `knowledge-vault` |
-| Access key ID | the Access Key from Step 5 |
-| Secret access key | the Secret Key from Step 5 |
+| Access key ID | the Access Key from Step 4 |
+| Secret access key | the Secret Key from Step 4 |
 | Encryption | **Encrypted** (recommended) |
 
 4. Press **Test connection**.
@@ -419,6 +459,18 @@ what you just did on your laptop.
 ## Troubleshooting
 
 The connection test names the stage that failed. Match it here.
+
+**PowerShell: "The specified executable is not a valid application for this OS platform"**
+The downloaded file is not a real program — almost always a failed download that saved an
+error page under the name `minio.exe`. Check its size:
+```powershell
+(Get-Item C:\minio\minio.exe).Length / 1MB     # ~100 = good, ~0.01 = failed download
+```
+Re-download with `Invoke-WebRequest` (Step 2), or with `curl.exe -L` — plain `curl.exe -o`
+does **not** follow redirects and silently saves the redirect page instead of the binary.
+If the file really is ~100 MB and you still get this, check whether you are on an ARM
+Windows laptop: `$env:PROCESSOR_ARCHITECTURE`. `AMD64` is fine; `ARM64` needs Windows 11's
+x64 emulation, and Docker is the easier route there.
 
 **"Could not reach your storage at … "**
 Nothing answered. Check MinIO is still running; check the address has no trailing slash;
