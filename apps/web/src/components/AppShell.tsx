@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth-client";
 import { Mailbox } from "./Mailbox";
 import { ThemeMenu } from "./ThemeMenu";
 import { IconLogout } from "./icons";
+import { Breadcrumbs } from "./Breadcrumbs";
 
 export interface ShellNavItem {
   href: string;
@@ -133,6 +134,9 @@ export function AppShell({
 
       <main className="kv-main">
         <div className="container-xxl">
+          {/* The trail sits directly under the bar, above the page title — derived from
+              the URL, so it is never out of step with where you actually are. */}
+          <Breadcrumbs />
           <header className="kv-page-head">
             <div>
               <h1>{title}</h1>

@@ -22,3 +22,12 @@ export function useOrg(): OrgContextValue {
   if (!ctx) throw new Error("useOrg must be used inside /orgs/[id] pages");
   return ctx;
 }
+
+/**
+ * The organization when one is in scope, or null. Used by chrome that renders both
+ * inside and outside an organization — breadcrumbs, for one — where the strict `useOrg`
+ * would throw on every public page.
+ */
+export function useOrgOptional(): OrgContextValue | null {
+  return useContext(OrgContext);
+}

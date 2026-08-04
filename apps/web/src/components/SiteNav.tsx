@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Mailbox } from "./Mailbox";
 import { ThemeMenu } from "./ThemeMenu";
+import { Breadcrumbs } from "./Breadcrumbs";
 
 // Public-page navigation. The same icon-first rail the app shell uses, so moving from the
 // marketing pages into the product doesn't change how navigation behaves: an icon that
@@ -19,6 +20,7 @@ const LINKS = [
 export function SiteNav({ right }: { right?: React.ReactNode }) {
   const pathname = usePathname();
   return (
+    <>
     <nav className="navbar fixed-top kv-navbar" aria-label="Site">
       <div className="container-xxl kv-navbar-inner">
         <Link href="/" className="navbar-brand kv-brand">
@@ -53,5 +55,11 @@ export function SiteNav({ right }: { right?: React.ReactNode }) {
         </div>
       </div>
     </nav>
+    {/* Same trail as the app shell, so moving between the marketing pages and the
+        product does not change how you get back. */}
+    <div className="container-xxl breadcrumbs-public">
+      <Breadcrumbs />
+    </div>
+    </>
   );
 }

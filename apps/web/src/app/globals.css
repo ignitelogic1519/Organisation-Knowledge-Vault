@@ -8576,3 +8576,86 @@ body.is-dragging-block * {
   width: 148px;
   height: 1px;
 }
+
+/* ── Breadcrumbs ─────────────────────────────────────────────────────────────
+   The trail under the navigation bar. Quiet by design: it is a way back, not a
+   headline, so it never competes with the page title beneath it. */
+
+.breadcrumbs {
+  margin: 0 0 0.9rem;
+  font-size: 0.82rem;
+}
+
+.breadcrumbs ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.1rem 0.35rem;
+}
+
+.breadcrumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.breadcrumbs a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 0.15rem 0.4rem;
+  border-radius: 7px;
+  transition: background 0.14s ease, color 0.14s ease;
+  /* Long organization names truncate rather than wrapping the whole trail. */
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumbs a:hover,
+.breadcrumbs a:focus-visible {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.breadcrumbs [aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  max-width: 30ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-sep {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  font-size: 0.9em;
+}
+
+/* On the public pages the bar is fixed, so the trail needs to clear it — but only
+   when there IS a trail. The wrapper still renders on the landing page, where the
+   component returns nothing, and unconditional padding there would push the hero
+   down for no reason. */
+.breadcrumbs-public:has(.breadcrumbs) {
+  padding-top: 5.2rem;
+  padding-bottom: 0.2rem;
+}
+
+.breadcrumbs-public .breadcrumbs {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .breadcrumbs {
+    font-size: 0.78rem;
+  }
+  .breadcrumbs a {
+    max-width: 14ch;
+  }
+}
