@@ -77,6 +77,12 @@ docs/             The project contract — read these first
 | [docs/future.md](docs/future.md) | Deferred features register — including the planned AI library assistant |
 | [docs/confidence-report.md](docs/confidence-report.md) | Pre-coding design review & scores |
 
+## Design in progress
+
+| Folder | Purpose |
+|--------|---------|
+| [Data Storage Architecture](Data%20Storage%20Architecture/README.md) | Moving document bytes off our infrastructure and onto storage the organization provides — backend requirements, the `Knowledge_vault_map` manifest, the encryption model, and the open questions |
+
 ## Guide books
 
 Two books, two audiences. Both are Markdown chapters with a single-file PDF built from them.
