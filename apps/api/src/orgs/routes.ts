@@ -1,5 +1,6 @@
 import { hash, verify as argonVerify } from "@node-rs/argon2";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 import {
   addOwnerSchema,
   createOrgSchema,
@@ -56,6 +57,22 @@ async function requireMembership(req: OrgReq): Promise<boolean> {
 }
 
 export async function orgRoutes(app: FastifyInstance) {
+  // Check a super-admin username and password without doing anything else. The KVEP
+  // fields use it to confirm the credentials on the spot, so a failure at creation is
+  // never ambiguous between "wrong password" and "wrong kind of access code".
+  app.post("/orgs/kvep/verify", { preHandler: app.authenticate }, async (req, reply) => {
+    const body = z
+      .object({ username: z.string().trim().min(1), password: z.string().min(1) })
+      .parse(req.body);
+    try {
+      const admin = await verifyPlatformAdminCredentials(body.username, body.password);
+      return { ok: true, username: admin.username };
+    } catch {
+      // Generic on purpose: it must not reveal whether a username exists.
+      return reply.status(401).send({ error: "Wrong super-admin username or password" });
+    }
+  });
+
   // Create an organization: Supreme object + Owner role + creator as first occupant
   // (docs/structure.md §4.1). The unrecoverability acknowledgement is enforced server-side.
   app.post("/orgs", { preHandler: app.authenticate }, async (req, reply): Promise<OrgSummary> => {
@@ -97,7 +114,7 @@ export async function orgRoutes(app: FastifyInstance) {
       if (!body.kvepAdmin) {
         return reply.status(400).send({
           error:
-            "This is an employee-perk (KVEP) code. Enter a super-admin username and password to create the organization.",
+            "This is an employee-perk (KVEP) code, so it needs a super-admin username and password. Choose KVEP under \u201cWhere your documents will live\u201d and enter them.",
         }) as never;
       }
       const admin = await verifyPlatformAdminCredentials(
@@ -113,7 +130,10 @@ export async function orgRoutes(app: FastifyInstance) {
       }
     } else if (body.kvepAdmin) {
       return reply.status(400).send({
-        error: "Super-admin credentials are only used with an employee-perk (KVEP) code.",
+        error:
+          "Your access code is an ordinary one, so it cannot create an employee-perk organization. " +
+          "Either switch back to NAS, or select KVEP first and request a new code \u2014 the code has to be " +
+          "issued as an employee-perk code, and this one was not.",
       }) as never;
     }
     const profile = await db.profile.findUniqueOrThrow({ where: { id: req.profileId } });

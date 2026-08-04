@@ -35,6 +35,7 @@ export default function NewOrgPage() {
   const [mode, setMode] = useState<"NAS" | "KVEP">("NAS");
   const [kvepUser, setKvepUser] = useState("");
   const [kvepPass, setKvepPass] = useState("");
+  const [kvepCheck, setKvepCheck] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   const [logo, setLogo] = useState<string | null>(null);
   const [orgName, setOrgName] = useState("");
 
@@ -241,10 +242,39 @@ export default function NewOrgPage() {
                   autoComplete="new-password"
                 />
                 <small>
-                  Checked against the super-admin portal. It is never stored with the
-                  organization — it only proves the perk is going to one of our own.
+                  <strong>The same username and password you sign in to the super-admin
+                  portal with</strong> — checked against exactly that account. It is never
+                  stored with the organization; it only proves the perk is going to one of
+                  our own.
                 </small>
               </label>
+              <div className="storage-test-row">
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={kvepCheck === "checking" || !kvepUser.trim() || !kvepPass}
+                  onClick={async () => {
+                    setKvepCheck("checking");
+                    try {
+                      await orgs.verifyKvep(kvepUser.trim(), kvepPass);
+                      setKvepCheck("ok");
+                    } catch {
+                      setKvepCheck("bad");
+                    }
+                  }}
+                >
+                  {kvepCheck === "checking" ? "Checking…" : "Check credentials"}
+                </button>
+                {kvepCheck === "ok" && (
+                  <span className="ok-text">✓ Recognised — these are valid super-admin credentials.</span>
+                )}
+              </div>
+              {kvepCheck === "bad" && (
+                <p className="form-error">
+                  Not recognised. Use the same username and password you sign in to the
+                  super-admin portal with, at <code>/kbase</code>.
+                </p>
+              )}
             </div>
           )}
 
@@ -267,6 +297,16 @@ export default function NewOrgPage() {
             <Link href="/pricing">Pricing page</Link>.
           </p>
 
+          {mode === "KVEP" && (
+            <div className="info-box">
+              <strong>Requesting an employee-perk code.</strong>
+              <p>
+                With KVEP selected, the plan request below asks for an <em>employee-perk</em>
+                code. An ordinary code will not create a KVEP organization, and a KVEP code
+                will not create an ordinary one — so pick the mode before you request.
+              </p>
+            </div>
+          )}
           {plans.map((p) => {
             const req = mine.find((m) => m.planKey === p.key && (m.status === "PENDING" || m.status === "APPROVED"));
             return (

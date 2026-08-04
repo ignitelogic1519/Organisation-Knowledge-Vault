@@ -13,6 +13,13 @@ import type {
 import { api } from "./auth-client";
 
 export const orgs = {
+  /** Confirm a super-admin username and password before relying on them (KVEP). */
+  verifyKvep: (username: string, password: string) =>
+    api<{ ok: boolean; username: string }>("/orgs/kvep/verify", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+
   list: () => api<OrgSummary[]>("/orgs"),
   listDeleted: () =>
     api<{ id: string; name: string; orgNumber: number; deletedAt: string; purgeAt: string }[]>(
