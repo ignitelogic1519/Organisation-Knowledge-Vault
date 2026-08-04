@@ -14,6 +14,7 @@ import {
   type AdminOrgRow,
   type AdminRequestRow,
   type AdminTreeNode,
+  type StorageView,
 } from "@vault/shared";
 import { db } from "../db.js";
 import { orgStorageUsedMb } from "../orgs/plan.js";
@@ -83,6 +84,8 @@ async function listOrgRows(onlyOrgNumber?: number): Promise<AdminOrgRow[]> {
       id: o.id,
       name: o.name,
       orgNumber: o.orgNumber,
+      logo: o.logo,
+      isKvep: o.isKvep,
       ownerUsernames: owners,
       planKey: o.planKey,
       planStatus: o.planStatus,
@@ -106,6 +109,36 @@ async function listOrgRows(onlyOrgNumber?: number): Promise<AdminOrgRow[]> {
     });
   }
   return rows;
+}
+
+/**
+ * The organization's storage, as the console shows it. Never includes credentials — the
+ * secret is not returned to any browser once saved, admin or not (docs/structure.md §9.3).
+ */
+async function adminStorageView(orgId: string): Promise<StorageView | null> {
+  const row = await db.orgStorage.findUnique({ where: { orgId } });
+  if (!row) return null;
+  const [objects, pending] = await Promise.all([
+    db.storageObject.aggregate({ where: { orgId }, _sum: { bytes: true }, _count: true }),
+    db.course.count({ where: { orgId, storageRef: { path: ["adapter"], equals: "inline" } } }),
+  ]);
+  return {
+    configured: true,
+    adapter: "s3",
+    status: row.status,
+    encryption: row.encryption,
+    endpoint: row.endpoint,
+    bucket: row.bucket,
+    prefix: row.prefix,
+    region: row.region,
+    accessKeyIdMasked: "••••••••",
+    lastCheckAt: row.lastCheckAt?.toISOString() ?? null,
+    lastError: row.lastError,
+    degradedAt: row.degradedAt?.toISOString() ?? null,
+    objectCount: objects._count,
+    bytesUsed: objects._sum.bytes ?? 0,
+    pendingMigration: pending,
+  };
 }
 
 export async function platformRoutes(app: FastifyInstance) {
@@ -475,7 +508,15 @@ export async function platformRoutes(app: FastifyInstance) {
       const ownerRows = root
         ? await db.placement.findMany({
             where: { roleNodeId: root.id, kind: "OWNER" },
-            select: { membership: { select: { profile: { select: { username: true, displayName: true, coins: true } } } } },
+            select: {
+              membership: {
+                select: {
+                  profile: {
+                    select: { id: true, username: true, displayName: true, coins: true },
+                  },
+                },
+              },
+            },
           })
         : [];
       const audits = await db.auditLog.findMany({
@@ -522,12 +563,34 @@ export async function platformRoutes(app: FastifyInstance) {
         org: row,
         properties,
         owners: ownerRows.map((o) => ({
+          // The profile id is what support tickets and audit trails key on, so the
+          // console shows it rather than making an admin go looking for it.
+          profileId: o.membership.profile.id,
           username: o.membership.profile.username,
           displayName: o.membership.profile.displayName,
           coins: o.membership.profile.coins,
         })),
+        storage: await adminStorageView(org.id),
         recentActivity: audits.map((a) => ({ action: a.action, at: a.createdAt.toISOString() })),
       };
+    },
+  );
+
+  // Re-run an organization's storage health check from the console. Read-only in
+  // effect — it probes their storage and records the result; it changes no settings.
+  app.post<{ Params: { orgNumber: string } }>(
+    "/admin/orgs/:orgNumber/storage/check",
+    { preHandler: app.authenticateAdmin },
+    async (req, reply) => {
+      const org = await db.organization.findUnique({
+        where: { orgNumber: Number(req.params.orgNumber) },
+      });
+      if (!org) return reply.status(404).send({ error: "No such organization" });
+      const row = await db.orgStorage.findUnique({ where: { orgId: org.id } });
+      if (!row) return reply.status(404).send({ error: "This organization has no storage connected" });
+      const { checkHealth } = await import("../storage/org-storage.js");
+      const result = await checkHealth(row);
+      return { status: result.status, error: result.error ?? null };
     },
   );
 

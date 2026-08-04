@@ -69,6 +69,13 @@ export const admin = {
     }),
   orgs: () => call<{ orgs: AdminOrgRow[] }>("/admin/orgs"),
   orgDetail: (orgNumber: number) => call<AdminOrgDetail>(`/admin/orgs/${orgNumber}/detail`),
+  /** Re-run an organization's storage health check from the console (§9.8). */
+  checkOrgStorage: (orgNumber: number) =>
+    call<{ status: string; error: string | null }>(`/admin/orgs/${orgNumber}/storage/check`, {
+      method: "POST",
+      body: "{}",
+    }),
+
   setOrg: (input: AdminSetOrgInput) =>
     call<{ ok: boolean; orgNumber: number }>("/admin/orgs", {
       method: "PATCH",

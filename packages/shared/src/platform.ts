@@ -32,6 +32,10 @@ export interface AdminOrgRow {
   id: string;
   name: string;
   orgNumber: number;
+  /** Data-URL logo, or null — the console falls back to the generated badge. */
+  logo: string | null;
+  /** Knowledge Vault Employee Perk: internal, hosted on our storage (§9.13). */
+  isKvep: boolean;
   ownerUsernames: string[];
   planKey: string | null;
   planStatus: PlanStatus;
@@ -67,7 +71,15 @@ export interface AdminOrgProperty {
 export interface AdminOrgDetail {
   org: AdminOrgRow;
   properties: AdminOrgProperty[];
-  owners: { username: string; displayName: string; coins: number }[];
+  owners: {
+    /** The platform-wide profile id — what support and audit trails key on. */
+    profileId: string;
+    username: string;
+    displayName: string;
+    coins: number;
+  }[];
+  /** The organization's storage configuration, or null when it has none (KVEP/legacy). */
+  storage: import("./storage.js").StorageView | null;
   recentActivity: { action: string; at: string }[];
 }
 

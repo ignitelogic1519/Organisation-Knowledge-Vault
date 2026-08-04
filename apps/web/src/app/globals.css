@@ -8182,3 +8182,164 @@ body.is-dragging-block * {
   font-size: 0.82rem;
   color: var(--text-secondary);
 }
+
+/* ── Super-admin console: card grid + right-hand drawer ──────────────────────
+   The grid answers "which organization?" and nothing more. Everything about one
+   organization lives in the drawer, so scanning a hundred cards stays fast. */
+
+.admin-org-card header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.admin-org-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-org-title h3 {
+  margin: 0;
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-org-open {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.admin-org-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.admin-org-foot {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.admin-org-cta {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.admin-org-pick {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+}
+
+.admin-org-card {
+  position: relative;
+}
+
+.chip-kvep {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.kbase-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 20, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+}
+
+.kbase-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 100vw);
+  z-index: 61;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1.4rem 1.5rem 2.5rem;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  animation: kbase-drawer-in 0.18s ease-out;
+}
+
+@keyframes kbase-drawer-in {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kbase-drawer {
+    animation: none;
+  }
+}
+
+.kbase-drawer-id {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.kbase-drawer-id h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.kbase-drawer-section {
+  border-top: 1px solid var(--border);
+  padding-top: 0.95rem;
+  margin-top: 0.95rem;
+}
+
+.kbase-drawer-section h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.kbase-owner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.8rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.kbase-owner:last-child {
+  border-bottom: 0;
+}
+
+/* The profile id is long and gets copied — let it wrap rather than push the drawer wide. */
+.kbase-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.12rem 0.4rem;
+  word-break: break-all;
+  user-select: all;
+}
+
+.kbase-wrap {
+  word-break: break-all;
+}

@@ -10,6 +10,7 @@ import {
   type AdminSession,
 } from "@vault/shared";
 import { admin, AdminApiError, clearAdminSession, hasAdminSession } from "@/lib/admin-client";
+import { OrgBadge } from "@/components/OrgLogoField";
 
 type Tab = "orgs" | "requests" | "coins" | "admins";
 
@@ -309,16 +310,16 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
               />
             </label>
             <button className="admin-org-open" onClick={() => openDetail(o.orgNumber)}>
+              {/* The card carries only what you scan a grid for: who it is, whether it is
+                  healthy, and how busy. Everything else lives in the side panel. */}
               <header>
-                <h3>{o.name}</h3>
-                <span className="chip">#{o.orgNumber}</span>
-                {o.deletedAt && <span className="badge badge-danger">deleted</span>}
+                <OrgBadge name={o.name} logo={o.logo} orgNumber={o.orgNumber} size={38} />
+                <span className="admin-org-title">
+                  <h3>{o.name}</h3>
+                  <span className="auth-sub">#{o.orgNumber}</span>
+                </span>
               </header>
-              <p className="auth-sub">
-                {o.ownerUsernames.map((u) => `@${u}`).join(", ") || "no owners"}
-              </p>
               <div className="admin-org-tags">
-                <span className="chip">{o.planKey ?? "no plan"}</span>
                 <span
                   className={`badge ${
                     o.planStatus === "ACTIVE"
@@ -330,41 +331,14 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
                 >
                   {o.planStatus.toLowerCase()}
                 </span>
-                {o.planExpiresAt && (
-                  <span className="auth-sub">until {o.planExpiresAt.slice(0, 10)}</span>
-                )}
+                {o.isKvep && <span className="chip chip-kvep">KVEP</span>}
+                {o.deletedAt && <span className="badge badge-danger">deleted</span>}
               </div>
-              <dl className="admin-org-stats">
-                <div>
-                  <dt>People</dt>
-                  <dd>{fmtLimit(o.memberCount, o.memberLimit)}</dd>
-                </div>
-                <div>
-                  <dt>Documents</dt>
-                  <dd>{fmtLimit(o.documentCount, o.documentLimit)}</dd>
-                </div>
-                <div>
-                  <dt>Uploads</dt>
-                  <dd>{fmtLimit(o.uploadCount, o.uploadLimit)}</dd>
-                </div>
-                <div>
-                  <dt>Storage</dt>
-                  <dd>
-                    {o.storageUsedMb} MB{o.storageLimitMb != null ? ` / ${o.storageLimitMb}` : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Roles</dt>
-                  <dd>
-                    {o.roleCount} · depth {o.treeDepth}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Active</dt>
-                  <dd>{timeAgo(o.lastActivityAt)}</dd>
-                </div>
-              </dl>
-              <span className="admin-org-cta">Open properties →</span>
+              <p className="auth-sub admin-org-foot">
+                {o.memberCount} {o.memberCount === 1 ? "person" : "people"} ·{" "}
+                {timeAgo(o.lastActivityAt)}
+              </p>
+              <span className="admin-org-cta">Open →</span>
             </button>
           </article>
         ))}
@@ -409,6 +383,7 @@ function OrgDetailPanel({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [messaging, setMessaging] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const valueOf = (key: string, fallback: string | number | null) =>
     edits[key] !== undefined ? edits[key] : fallback == null ? "" : String(fallback);
@@ -442,22 +417,134 @@ function OrgDetailPanel({
     }
   };
 
+  const st = detail.storage;
+
   return (
-    <div className="kbase-detail glass">
+    // A right-hand drawer over a scrim, so the grid stays visible behind it and one
+    // organization is inspected at a time. Everything about the organization lives in
+    // here; the card behind it stays deliberately sparse.
+    <>
+      <div className="kbase-scrim" onClick={onClose} aria-hidden />
+      <aside className="kbase-drawer glass" role="dialog" aria-label={`${detail.org.name} properties`}>
       <header className="kbase-detail-head">
-        <div>
-          <h3>
-            {detail.org.name} <span className="chip">#{detail.org.orgNumber}</span>
-          </h3>
-          <p className="auth-sub">
-            Owners: {detail.owners.map((o) => `@${o.username}`).join(", ") || "none"} · created{" "}
-            {detail.org.createdAt.slice(0, 10)}
-          </p>
+        <div className="kbase-drawer-id">
+          <OrgBadge
+            name={detail.org.name}
+            logo={detail.org.logo}
+            orgNumber={detail.org.orgNumber}
+            size={46}
+          />
+          <div>
+            <h3>
+              {detail.org.name} <span className="chip">#{detail.org.orgNumber}</span>
+            </h3>
+            <p className="auth-sub">
+              Created {detail.org.createdAt.slice(0, 10)} · last active{" "}
+              {timeAgo(detail.org.lastActivityAt)}
+              {detail.org.isKvep && <span className="chip chip-kvep">KVEP</span>}
+            </p>
+          </div>
         </div>
         <button className="icon-btn" aria-label="Close" onClick={onClose}>
           ✕
         </button>
       </header>
+
+      {/* Owners — with the profile id, which is what a support ticket or an audit trail
+          actually keys on. */}
+      <section className="kbase-drawer-section">
+        <h4>Owners</h4>
+        {detail.owners.length === 0 && <p className="auth-sub">No owners.</p>}
+        {detail.owners.map((o) => (
+          <div key={o.profileId} className="kbase-owner">
+            <div>
+              <strong>{o.displayName}</strong>{" "}
+              <span className="auth-sub">@{o.username}</span>
+            </div>
+            <code className="kbase-id" title="Profile ID">
+              {o.profileId}
+            </code>
+            <span className="auth-sub">{o.coins} coins</span>
+          </div>
+        ))}
+      </section>
+
+      {/* Storage — where this organization's documents actually live, and whether we can
+          still reach it (docs/structure.md §9). */}
+      <section className="kbase-drawer-section">
+        <h4>Storage</h4>
+        {detail.org.isKvep ? (
+          <p className="auth-sub">
+            Employee perk (KVEP) — documents are held on Knowledge Vault&rsquo;s own storage.
+            The plan&rsquo;s storage allowance applies.
+          </p>
+        ) : !st ? (
+          <p className="auth-sub">
+            No storage connected. Uploads fall back to our database at the 10 MB inline cap.
+          </p>
+        ) : (
+          <>
+            <dl className="kv-list">
+              <dt>Status</dt>
+              <dd>
+                {st.status === "ACTIVE" ? "✓ Connected" : "⚠ Unreachable"}
+                {st.lastCheckAt && (
+                  <span className="auth-sub"> · checked {st.lastCheckAt.slice(0, 16).replace("T", " ")}</span>
+                )}
+              </dd>
+              <dt>Address</dt>
+              <dd className="kbase-wrap">{st.endpoint}</dd>
+              <dt>Bucket</dt>
+              <dd>
+                {st.bucket}
+                {st.prefix ? ` / ${st.prefix}` : ""}
+              </dd>
+              <dt>Region</dt>
+              <dd>{st.region ?? "—"}</dd>
+              <dt>Access key</dt>
+              <dd>{st.accessKeyIdMasked}</dd>
+              <dt>Encryption</dt>
+              <dd>{st.encryption === "ENCRYPTED" ? "Encrypted (.kvblob)" : "Readable files"}</dd>
+              <dt>Objects</dt>
+              <dd>
+                {st.objectCount} · {Math.max(1, Math.round(st.bytesUsed / (1024 * 1024)))} MB
+              </dd>
+              {st.pendingMigration > 0 && (
+                <>
+                  <dt>Not migrated</dt>
+                  <dd>{st.pendingMigration} still in our database</dd>
+                </>
+              )}
+            </dl>
+            {st.lastError && <p className="form-error">{st.lastError}</p>}
+            <div className="row-actions">
+              <button
+                className="btn btn-small"
+                disabled={checking}
+                onClick={async () => {
+                  setChecking(true);
+                  try {
+                    const r = await admin.checkOrgStorage(detail.org.orgNumber);
+                    onSaved(
+                      r.status === "ACTIVE"
+                        ? "Storage is reachable."
+                        : `Still unreachable — ${r.error ?? "no detail given"}`,
+                    );
+                  } catch (e) {
+                    setError(e instanceof AdminApiError ? e.message : "Check failed");
+                  } finally {
+                    setChecking(false);
+                  }
+                }}
+              >
+                {checking ? "Checking…" : "Test connection"}
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+
+      <h4 className="kbase-drawer-section">All properties</h4>
 
       <div className="table-scroll">
         <table className="kbase-table kbase-props">
@@ -563,7 +650,8 @@ function OrgDetailPanel({
           </ul>
         </div>
       )}
-    </div>
+      </aside>
+    </>
   );
 }
 
