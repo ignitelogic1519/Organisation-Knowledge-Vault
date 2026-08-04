@@ -74,6 +74,9 @@ model Profile {
   passwordHash String?
   displayName  String
   avatar       String? // small data-URL profile picture (optional)
+  /// Signed out everywhere and refused at login. Reversible, and deliberately not a
+  /// delete: a banned person's completion records and audit trail stay intact.
+  bannedAt     DateTime?
   // Knowledge Coins — the platform's virtual currency for buying plans. Every new
   // profile starts with 150. Only visible on the pricing/payment page (docs/pricing.md).
   coins        Int          @default(150)

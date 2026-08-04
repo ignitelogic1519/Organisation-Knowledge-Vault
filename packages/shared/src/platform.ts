@@ -202,3 +202,36 @@ export interface AdminTreeNode {
   ownerCount: number;
   memberCount: number;
 }
+
+
+// ── Users tab (super-admin console) ─────────────────────────────────────────
+
+/** One person, as the console lists them. */
+export interface AdminUserRow {
+  profileId: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  coins: number;
+  createdAt: string;
+  /** Organizations this person belongs to, and whether they own each. */
+  orgs: { orgNumber: number; name: string; isOwner: boolean }[];
+  /** True while they own at least one organization — deletion is blocked until they do not. */
+  ownsAny: boolean;
+  /** Signed out everywhere and unable to sign back in. Reversible. */
+  banned: boolean;
+  lastActivityAt: string | null;
+}
+
+export const adminUserCoinsSchema = z.object({
+  profileId: z.string().uuid(),
+  /** Positive grants, negative revokes. Zero is refused — it would only add noise. */
+  delta: z.number().int().refine((n) => n !== 0, "Enter an amount to grant or revoke"),
+  note: z.string().trim().max(200).optional(),
+});
+export type AdminUserCoinsInput = z.infer<typeof adminUserCoinsSchema>;
+
+export const adminUserBanSchema = z.object({
+  profileId: z.string().uuid(),
+  banned: z.boolean(),
+});

@@ -6,6 +6,7 @@ import { LandingShowcase } from "@/components/LandingShowcase";
 import { PricingPreview } from "@/components/PricingPreview";
 import { Reveal } from "@/components/Reveal";
 import { SiteNav } from "@/components/SiteNav";
+import { SessionNavLinks } from "@/components/SessionNavLinks";
 
 const STEPS = [
   {
@@ -66,12 +67,9 @@ export default function Home() {
       <SiteNav
         right={
           <>
-            <Link href="/login" className="nav-link">
-              Sign in
-            </Link>
-            <Link href="/register" className="btn btn-primary btn-small">
-              Get started
-            </Link>
+            {/* Decided in the browser: this page is server-rendered and the session is
+                not, so hard-coding "Sign in" showed it to signed-in visitors too. */}
+            <SessionNavLinks />
           </>
         }
       />

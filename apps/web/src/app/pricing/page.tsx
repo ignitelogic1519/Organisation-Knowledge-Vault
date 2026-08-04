@@ -16,6 +16,7 @@ import {
 import { hasSession } from "@/lib/auth-client";
 import { pricing } from "@/lib/pricing-client";
 import { SiteNav } from "@/components/SiteNav";
+import { SessionNavLinks } from "@/components/SessionNavLinks";
 import { useDialogs } from "@/components/dialogs";
 
 // Pricing. Two jobs on one page:
@@ -321,9 +322,7 @@ export default function PricingPage() {
                 Buy coins
               </Link>
             )}
-            <Link href={authed ? "/orgs" : "/login"} className="nav-link">
-              {authed ? "My organizations" : "Sign in"}
-            </Link>
+            <SessionNavLinks />
           </span>
         }
       />

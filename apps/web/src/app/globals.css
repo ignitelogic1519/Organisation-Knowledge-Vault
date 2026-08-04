@@ -8560,3 +8560,19 @@ body.is-dragging-block * {
 .kbase-body .org-card-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
 }
+
+/* Wallet on the account page, and the placeholder that stops the public nav from
+   flashing "Sign in" before the session is known. */
+.account-wallet {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 0;
+}
+
+.nav-session-placeholder {
+  display: inline-block;
+  width: 148px;
+  height: 1px;
+}

@@ -76,6 +76,24 @@ export const admin = {
       body: "{}",
     }),
 
+  // ── Users ──
+  users: (q?: string) =>
+    call<{ users: import("@vault/shared").AdminUserRow[] }>(
+      `/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    ),
+  userCoins: (profileId: string, delta: number, note?: string) =>
+    call<{ ok: boolean; coins: number; applied: number }>("/admin/users/coins", {
+      method: "POST",
+      body: JSON.stringify({ profileId, delta, ...(note ? { note } : {}) }),
+    }),
+  userBan: (profileId: string, banned: boolean) =>
+    call<{ ok: boolean; banned: boolean }>("/admin/users/ban", {
+      method: "POST",
+      body: JSON.stringify({ profileId, banned }),
+    }),
+  userDelete: (profileId: string) =>
+    call<{ ok: boolean }>(`/admin/users/${profileId}`, { method: "DELETE" }),
+
   setOrg: (input: AdminSetOrgInput) =>
     call<{ ok: boolean; orgNumber: number }>("/admin/orgs", {
       method: "PATCH",

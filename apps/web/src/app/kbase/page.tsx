@@ -6,13 +6,14 @@ import {
   PLATFORM_REQUEST_LABELS,
   type AdminOrgDetail,
   type AdminOrgRow,
+  type AdminUserRow,
   type AdminRequestRow,
   type AdminSession,
 } from "@vault/shared";
 import { admin, AdminApiError, clearAdminSession, hasAdminSession } from "@/lib/admin-client";
 import { OrgBadge } from "@/components/OrgLogoField";
 
-type Tab = "orgs" | "requests" | "coins" | "admins";
+type Tab = "orgs" | "users" | "requests" | "coins" | "admins";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -56,9 +57,17 @@ export default function AdminDashboard() {
       </header>
 
       <nav className="kbase-tabs">
-        {(["orgs", "requests", "coins", "admins"] as Tab[]).map((t) => (
+        {(["orgs", "users", "requests", "coins", "admins"] as Tab[]).map((t) => (
           <button key={t} className={`btn btn-small ${tab === t ? "btn-primary" : "btn-quiet"}`} onClick={() => setTab(t)}>
-            {t === "orgs" ? "Organizations" : t === "requests" ? "Requests" : t === "coins" ? "Coins" : "Admins"}
+            {t === "orgs"
+              ? "Organizations"
+              : t === "users"
+                ? "Users"
+                : t === "requests"
+                  ? "Requests"
+                  : t === "coins"
+                    ? "Coins"
+                    : "Admins"}
           </button>
         ))}
       </nav>
@@ -67,6 +76,7 @@ export default function AdminDashboard() {
 
       <section className="kbase-body">
         {tab === "orgs" && <OrgsTab flash={flash} />}
+        {tab === "users" && <UsersTab flash={flash} />}
         {tab === "requests" && <RequestsTab flash={flash} />}
         {tab === "coins" && <CoinsTab flash={flash} />}
         {tab === "admins" && <AdminsTab flash={flash} />}
@@ -1075,6 +1085,309 @@ function AdminsTab({ flash }: { flash: (m: string) => void }) {
         {error && <p className="form-error">{error}</p>}
         <button className="btn btn-primary btn-small">Add admin</button>
       </form>
+    </div>
+  );
+}
+
+/* ── Users ──────────────────────────────────────────────────────────────────
+   People rather than organizations. Two levers: their coins, and their access.
+   Deleting a profile is refused while they still own an organization — removing
+   the last owner would leave it with nobody able to govern it (invariant I2), so
+   the console names the organizations to deal with first. */
+
+function UsersTab({ flash }: { flash: (m: string) => void }) {
+  const [users, setUsers] = useState<AdminUserRow[] | null>(null);
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [coinDelta, setCoinDelta] = useState("");
+
+  const load = useCallback(() => {
+    admin
+      .users(q.trim() || undefined)
+      .then((r) => setUsers(r.users))
+      .catch((e) => setError(e instanceof AdminApiError ? e.message : "Could not load users"));
+  }, [q]);
+  useEffect(() => {
+    const t = setTimeout(load, 200); // debounce the search box
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const selected = users?.find((u) => u.profileId === open) ?? null;
+
+  async function act(fn: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      flash(done);
+      load();
+    } catch (e) {
+      setError(e instanceof AdminApiError ? e.message : "That did not work");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="kbase-panel glass">
+      <h2>Users</h2>
+      <p className="auth-sub">
+        Everyone with a profile. Click a row to see where they belong, move their coins, or
+        suspend them.
+      </p>
+
+      <div className="kbase-controls">
+        <input
+          className="kbase-search"
+          placeholder="Search username or name…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <button className="btn btn-quiet btn-small" onClick={load}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      {!users && <div className="skeleton" style={{ height: 120 }} />}
+
+      {users && (
+        <div className="table-scroll">
+          <table className="kbase-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Organizations</th>
+                <th>Coins</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.profileId} data-muted={u.banned}>
+                  <td>
+                    <strong>{u.displayName}</strong>
+                    <br />
+                    <span className="auth-sub">@{u.username}</span>
+                  </td>
+                  <td>
+                    {u.orgs.length === 0 ? (
+                      <span className="auth-sub">none</span>
+                    ) : (
+                      <span className="kbd-dim">
+                        {u.orgs.length} · {u.ownsAny ? "owns one or more" : "member only"}
+                      </span>
+                    )}
+                  </td>
+                  <td>{u.coins}</td>
+                  <td>
+                    {u.banned ? (
+                      <span className="badge badge-danger">suspended</span>
+                    ) : (
+                      <span className="badge badge-ok">active</span>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-quiet btn-small"
+                      onClick={() => {
+                        setOpen(u.profileId === open ? null : u.profileId);
+                        setCoinDelta("");
+                        setError(null);
+                      }}
+                    >
+                      {u.profileId === open ? "Close" : "Open"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="auth-sub">
+                    {q ? "No matches." : "No users yet."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selected && (
+        <>
+          <div className="kbd-scrim" onClick={() => setOpen(null)} aria-hidden />
+          <aside className="kbd" role="dialog" aria-label={`${selected.displayName} details`}>
+            <header className="kbd-head">
+              <OrgBadge name={selected.displayName} logo={selected.avatar} size={44} />
+              <div className="kbd-head-text">
+                <h3>{selected.displayName}</h3>
+                <p>
+                  <span className="chip">@{selected.username}</span>
+                  {selected.banned ? (
+                    <span className="badge badge-danger">suspended</span>
+                  ) : (
+                    <span className="badge badge-ok">active</span>
+                  )}
+                </p>
+              </div>
+              <button className="kbd-close" aria-label="Close" onClick={() => setOpen(null)}>
+                ✕
+              </button>
+            </header>
+
+            <div className="kbd-body">
+              <section className="kbd-section">
+                <h4>Profile</h4>
+                <div className="kbd-rows">
+                  <div>
+                    <dt>Profile ID</dt>
+                    <dd>
+                      <code className="kbd-id">{selected.profileId}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Joined</dt>
+                    <dd>{selected.createdAt.slice(0, 10)}</dd>
+                  </div>
+                  <div>
+                    <dt>Coins</dt>
+                    <dd>{selected.coins}</dd>
+                  </div>
+                </div>
+              </section>
+
+              <section className="kbd-section">
+                <h4>Organizations ({selected.orgs.length})</h4>
+                {selected.orgs.length === 0 && (
+                  <p className="kbd-dim">Not a member of any organization.</p>
+                )}
+                {selected.orgs.map((o) => (
+                  <div key={o.orgNumber} className="kbd-owner">
+                    <div className="kbd-owner-top">
+                      <strong>{o.name}</strong>
+                      <span className="kbd-dim">#{o.orgNumber}</span>
+                      {o.isOwner ? (
+                        <span className="chip chip-kvep">owner</span>
+                      ) : (
+                        <span className="kbd-dim">member</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </section>
+
+              <section className="kbd-section">
+                <h4>Coins</h4>
+                <p className="kbd-dim">
+                  A positive number grants coins; a negative number takes them back. The
+                  balance never goes below zero, and either way it lands in their wallet
+                  history and their mailbox.
+                </p>
+                <div className="storage-test-row">
+                  <input
+                    type="number"
+                    className="kbase-search"
+                    style={{ maxWidth: 160 }}
+                    placeholder="e.g. 50 or -20"
+                    value={coinDelta}
+                    onChange={(e) => setCoinDelta(e.target.value)}
+                  />
+                  <button
+                    className="btn btn-small"
+                    disabled={busy || !coinDelta.trim() || Number(coinDelta) === 0}
+                    onClick={() =>
+                      act(
+                        () => admin.userCoins(selected.profileId, Number(coinDelta)),
+                        Number(coinDelta) > 0
+                          ? `Granted ${coinDelta} coins to @${selected.username}`
+                          : `Revoked ${-Number(coinDelta)} coins from @${selected.username}`,
+                      ).then(() => setCoinDelta(""))
+                    }
+                  >
+                    {Number(coinDelta) < 0 ? "Revoke" : "Grant"}
+                  </button>
+                </div>
+              </section>
+
+              <section className="kbd-section">
+                <h4>Access</h4>
+                <p className="kbd-dim">
+                  Suspending signs them out everywhere and refuses their next sign-in. It is
+                  reversible, and it keeps their completion records and audit trail intact.
+                </p>
+                <div className="row-actions">
+                  <button
+                    className={`btn btn-small ${selected.banned ? "" : "btn-danger"}`}
+                    disabled={busy}
+                    onClick={() =>
+                      act(
+                        () => admin.userBan(selected.profileId, !selected.banned),
+                        selected.banned
+                          ? `@${selected.username} can sign in again`
+                          : `@${selected.username} is suspended`,
+                      )
+                    }
+                  >
+                    {selected.banned ? "Lift suspension" : "Suspend"}
+                  </button>
+                </div>
+              </section>
+
+              <section className="kbd-section">
+                <h4>Delete</h4>
+                {selected.ownsAny ? (
+                  <div className="warn-box" style={{ marginTop: 0 }}>
+                    <strong>This user still owns an organization.</strong>
+                    <p>
+                      Deleting them would leave it with nobody able to govern it. Delete
+                      {selected.orgs.filter((o) => o.isOwner).length === 1
+                        ? " the organization"
+                        : " these organizations"}{" "}
+                      first, from the Organizations tab:
+                    </p>
+                    <ul className="owner-list">
+                      {selected.orgs
+                        .filter((o) => o.isOwner)
+                        .map((o) => (
+                          <li key={o.orgNumber}>
+                            {o.name} <span className="kbd-dim">#{o.orgNumber}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <>
+                    <p className="kbd-dim">
+                      Removes the profile, its memberships and its wallet history.
+                      Completion records and audit entries stay, because they record what
+                      happened in an organization rather than who is welcome in it.
+                    </p>
+                    <div className="row-actions">
+                      <button
+                        className="btn btn-danger btn-small"
+                        disabled={busy}
+                        onClick={() =>
+                          act(async () => {
+                            await admin.userDelete(selected.profileId);
+                            setOpen(null);
+                          }, `Deleted @${selected.username}`)
+                        }
+                      >
+                        Delete this user
+                      </button>
+                    </div>
+                  </>
+                )}
+              </section>
+
+              {error && <p className="form-error">{error}</p>}
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   );
 }

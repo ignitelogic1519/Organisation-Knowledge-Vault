@@ -51,6 +51,15 @@ export async function authRoutes(app: FastifyInstance) {
     if (!profile?.passwordHash || !(await argonVerify(profile.passwordHash, body.password))) {
       return reply.status(401).send({ error: "Invalid username or password" });
     }
+    // A banned profile is told plainly rather than given the generic failure — they know
+    // their password is right, and pretending otherwise only produces a support ticket.
+    if (profile.bannedAt) {
+      return reply.status(403).send({
+        error:
+          "This account has been suspended by the Knowledge Base team. Contact them if you " +
+          "believe this is a mistake.",
+      });
+    }
     return { profile: toPublicProfile(profile), tokens: await issueTokens(profile) };
   });
 

@@ -14,6 +14,9 @@ import {
   type AdminOrgRow,
   type AdminRequestRow,
   type AdminTreeNode,
+  adminUserBanSchema,
+  adminUserCoinsSchema,
+  type AdminUserRow,
   type StorageView,
 } from "@vault/shared";
 import { db } from "../db.js";
@@ -591,6 +594,178 @@ export async function platformRoutes(app: FastifyInstance) {
       const { checkHealth } = await import("../storage/org-storage.js");
       const result = await checkHealth(row);
       return { status: result.status, error: result.error ?? null };
+    },
+  );
+
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+  // People, not organizations: who they are, where they belong, and the two levers
+  // the console has over them — coins and access.
+
+  app.get<{ Querystring: { q?: string } }>(
+    "/admin/users",
+    { preHandler: app.authenticateAdmin },
+    async (req): Promise<{ users: AdminUserRow[] }> => {
+      const q = (req.query.q ?? "").trim().toLowerCase();
+      const profiles = await db.profile.findMany({
+        where: q
+          ? {
+              OR: [
+                { username: { contains: q, mode: "insensitive" } },
+                { displayName: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {},
+        orderBy: { createdAt: "desc" },
+        take: 300,
+        include: {
+          memberships: {
+            include: {
+              org: { select: { orgNumber: true, name: true, deletedAt: true } },
+            },
+          },
+        },
+      });
+
+      // Ownership is a placement on an org's ROOT role, so resolve those once rather
+      // than per profile.
+      const roots = await db.roleNode.findMany({
+        where: { parentId: null },
+        select: { id: true, orgId: true },
+      });
+      const rootIds = new Set(roots.map((r) => r.id));
+      const ownerPlacements = await db.placement.findMany({
+        where: { kind: "OWNER", roleNodeId: { in: [...rootIds] } },
+        select: { roleNodeId: true, membership: { select: { profileId: true, orgId: true } } },
+      });
+      const ownedByProfile = new Map<string, Set<string>>();
+      for (const pl of ownerPlacements) {
+        const set = ownedByProfile.get(pl.membership.profileId) ?? new Set<string>();
+        set.add(pl.membership.orgId);
+        ownedByProfile.set(pl.membership.profileId, set);
+      }
+
+      const users: AdminUserRow[] = profiles.map((pr) => {
+        const owned = ownedByProfile.get(pr.id) ?? new Set<string>();
+        const orgs = pr.memberships
+          .filter((m) => !m.org.deletedAt)
+          .map((m) => ({
+            orgNumber: m.org.orgNumber,
+            name: m.org.name,
+            isOwner: owned.has(m.orgId),
+          }));
+        return {
+          profileId: pr.id,
+          username: pr.username,
+          displayName: pr.displayName,
+          avatar: pr.avatar,
+          coins: pr.coins,
+          createdAt: pr.createdAt.toISOString(),
+          orgs,
+          ownsAny: orgs.some((o) => o.isOwner),
+          banned: pr.bannedAt !== null,
+          lastActivityAt: null,
+        };
+      });
+      return { users };
+    },
+  );
+
+  // Grant or revoke coins. A negative delta revokes; the balance never goes below zero,
+  // and every movement is written to the same ledger the user sees.
+  app.post("/admin/users/coins", { preHandler: app.authenticateAdmin }, async (req, reply) => {
+    const body = adminUserCoinsSchema.parse(req.body);
+    const profile = await db.profile.findUnique({ where: { id: body.profileId } });
+    if (!profile) return reply.status(404).send({ error: "No such user" });
+
+    const next = Math.max(0, profile.coins + body.delta);
+    const applied = next - profile.coins; // what actually moved, after the floor
+    const updated = await db.profile.update({
+      where: { id: profile.id },
+      data: { coins: next },
+    });
+    await db.coinTransaction.create({
+      data: {
+        profileId: profile.id,
+        delta: applied,
+        balance: updated.coins,
+        reason: applied >= 0 ? "ADMIN_GIFT" : "ADMIN_DEDUCT",
+        note: body.note ?? (applied >= 0 ? "Granted by the Knowledge Base team" : "Revoked by the Knowledge Base team"),
+        byAdminId: req.adminId,
+      },
+    });
+    await notifyFromAdmin(profile.id, applied >= 0 ? "coins_gift" : "admin_message", {
+      title: applied >= 0 ? `You received ${applied} coins` : `${-applied} coins were removed`,
+      message:
+        body.note ??
+        (applied >= 0
+          ? `The Knowledge Base team added ${applied} coins to your wallet.`
+          : `The Knowledge Base team removed ${-applied} coins from your wallet.`),
+    }).catch(() => {});
+    return { ok: true, coins: updated.coins, applied };
+  });
+
+  // Ban or unban. Refused at login and every refresh token revoked, so the block takes
+  // effect on the next request rather than whenever their session happens to expire.
+  app.post("/admin/users/ban", { preHandler: app.authenticateAdmin }, async (req, reply) => {
+    const body = adminUserBanSchema.parse(req.body);
+    const profile = await db.profile.findUnique({ where: { id: body.profileId } });
+    if (!profile) return reply.status(404).send({ error: "No such user" });
+
+    await db.$transaction([
+      db.profile.update({
+        where: { id: profile.id },
+        data: { bannedAt: body.banned ? new Date() : null },
+      }),
+      ...(body.banned
+        ? [db.refreshToken.updateMany({ where: { profileId: profile.id, revokedAt: null }, data: { revokedAt: new Date() } })]
+        : []),
+    ]);
+    return { ok: true, banned: body.banned };
+  });
+
+  // Delete a profile outright. Refused while they own any organization: deleting them
+  // would leave an organization with no owner, which invariant I2 forbids. The console
+  // says which organizations, so the admin can deal with those first.
+  app.delete<{ Params: { profileId: string } }>(
+    "/admin/users/:profileId",
+    { preHandler: app.authenticateAdmin },
+    async (req, reply) => {
+      const profile = await db.profile.findUnique({ where: { id: req.params.profileId } });
+      if (!profile) return reply.status(404).send({ error: "No such user" });
+
+      const roots = await db.roleNode.findMany({ where: { parentId: null }, select: { id: true } });
+      const owned = await db.placement.findMany({
+        where: {
+          kind: "OWNER",
+          roleNodeId: { in: roots.map((r) => r.id) },
+          membership: { profileId: profile.id },
+        },
+        select: { membership: { select: { org: { select: { orgNumber: true, name: true } } } } },
+      });
+      if (owned.length > 0) {
+        const names = owned.map((o) => `${o.membership.org.name} (#${o.membership.org.orgNumber})`);
+        return reply.status(409).send({
+          error:
+            `@${profile.username} still owns ${names.length} organization${names.length === 1 ? "" : "s"}: ` +
+            `${names.join(", ")}. Delete ${names.length === 1 ? "it" : "them"} first — removing the ` +
+            "last owner would leave the organization with nobody able to govern it.",
+          ownedOrgs: names,
+        });
+      }
+
+      // Their placements and memberships go; completion records and audit entries stay,
+      // because they record what happened in an organization rather than who is welcome.
+      await db.$transaction([
+        db.placement.deleteMany({ where: { membership: { profileId: profile.id } } }),
+        db.membership.deleteMany({ where: { profileId: profile.id } }),
+        db.refreshToken.deleteMany({ where: { profileId: profile.id } }),
+        db.coinTransaction.deleteMany({ where: { profileId: profile.id } }),
+        db.platformRequest.deleteMany({ where: { requesterId: profile.id } }),
+        db.notification.deleteMany({ where: { profileId: profile.id } }),
+        db.profile.delete({ where: { id: profile.id } }),
+      ]);
+      return { ok: true };
     },
   );
 

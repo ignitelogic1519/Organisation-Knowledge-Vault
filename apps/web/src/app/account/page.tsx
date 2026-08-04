@@ -9,6 +9,7 @@ import { useMail } from "@/components/mail-events";
 import { AppShell } from "@/components/AppShell";
 import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconLogout, IconUser } from "@/components/icons";
+import { pricing } from "@/lib/pricing-client";
 
 const NAV = [
   { href: "/orgs", label: "Organizations", icon: <IconGrid /> },
@@ -49,7 +50,17 @@ export default function AccountPage() {
   const router = useRouter();
   const dialogs = useDialogs();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
+  // The coin balance, so it can be read where the account is, not only where it is spent.
+  const [coins, setCoins] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hasSession()) return;
+    pricing
+      .wallet()
+      .then((w) => setCoins(w.coins))
+      .catch(() => setCoins(null));
+  }, []);
+
 
   useEffect(() => {
     if (!hasSession()) {
@@ -112,6 +123,14 @@ export default function AccountPage() {
                 <h2>{profile.displayName}</h2>
                 <p className="auth-sub">
                   @{profile.username} · joined {profile.createdAt.slice(0, 10)}
+                </p>
+                {/* The wallet was only ever visible on the pricing page, which meant
+                    checking your own balance required going somewhere to spend it. */}
+                <p className="account-wallet">
+                  <span className="coins-chip">🪙 {coins === null ? "…" : coins} coins</span>
+                  <Link href="/payment" className="btn btn-quiet btn-small">
+                    Buy coins
+                  </Link>
                 </p>
                 <div className="tree-actions" style={{ marginTop: "0.4rem" }}>
                   <label className="btn btn-quiet btn-small" style={{ cursor: "pointer" }}>
