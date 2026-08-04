@@ -17,8 +17,15 @@ export async function purgeOrganization(orgId: string): Promise<void> {
     db.completionRecord.deleteMany({ where: { orgId } }),
     db.courseAdminAccess.deleteMany({ where: { course: { orgId } } }),
     db.courseReview.deleteMany({ where: { course: { orgId } } }),
-    db.coursePrerequisite.deleteMany({ where: { course: { orgId } } }),
+    // Both sides of the prerequisite link: a course in this org may be REQUIRED BY a
+    // course elsewhere, and that row points at it too.
+    db.coursePrerequisite.deleteMany({
+      where: { OR: [{ course: { orgId } }, { requires: { orgId } }] },
+    }),
     db.coursePlacement.deleteMany({ where: { course: { orgId } } }),
+    // Sittings reference their course under a RESTRICT constraint, so they must go
+    // before it or the whole purge fails on the foreign key.
+    db.examAttempt.deleteMany({ where: { orgId } }),
     db.course.deleteMany({ where: { orgId } }),
     db.storedFile.deleteMany({ where: { orgId } }),
     db.storageObject.deleteMany({ where: { orgId } }),

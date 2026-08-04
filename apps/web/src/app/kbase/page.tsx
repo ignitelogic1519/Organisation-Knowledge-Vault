@@ -368,6 +368,14 @@ function OrgsTab({ flash }: { flash: (m: string) => void }) {
 }
 
 /** The expanded card: a property/value table where everything is editable in place. */
+/** Human byte sizes — "0 MB" for a 200 KB file is not a useful answer. */
+function fmtBytes(bytes: number): string {
+  if (bytes <= 0) return "0 KB";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+}
+
 function OrgDetailPanel({
   detail,
   onClose,
@@ -584,7 +592,8 @@ function OrgDetailPanel({
                   <div>
                     <dt>Objects</dt>
                     <dd>
-                      {st.objectCount} · {Math.round(st.bytesUsed / (1024 * 1024))} MB
+                      {st.objectCount} object{st.objectCount === 1 ? "" : "s"} ·{" "}
+                      {fmtBytes(st.bytesUsed)}
                     </dd>
                   </div>
                   {st.pendingMigration > 0 && (

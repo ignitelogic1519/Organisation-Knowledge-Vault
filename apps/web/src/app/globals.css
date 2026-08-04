@@ -5430,10 +5430,13 @@ button {
 .footer-employee:hover {
   opacity: 1;
 }
+/* The console is a working tool, not a reading page: it uses the whole window so a
+   wide monitor shows more organizations per row instead of empty margins. */
 .kbase-shell {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.2rem;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 1.2rem clamp(1rem, 2.5vw, 2rem);
   min-height: 100vh;
 }
 .kbase-header {
@@ -8550,4 +8553,10 @@ body.is-dragging-block * {
   .kbd-rows > div {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* The console's organization grid: more per row as the window grows. */
+.kbase-body .org-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
 }
