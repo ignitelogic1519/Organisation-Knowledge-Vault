@@ -720,9 +720,12 @@ Both are required. Creation refuses:
 Credential failure is **deliberately generic** — it never reveals whether a username exists,
 and it is checked before any coins are charged or any row is created.
 
-The organization carries `isKvep` so every later surface can tell the two apart: it never
-shows the storage panel, never enters the degraded state of §9.8, and never appears in the
-migration of §9.12 because it has nowhere to migrate to.
+The organization carries `isKvep` so every later surface can tell the two apart. In the
+owner's Group configuration it shows a statement of fact in place of the storage panel —
+offering a connection form to an organization that cannot use one would only produce a form
+that refuses everything typed into it. It never enters the degraded state of §9.8, and never
+appears in the migration of §9.12 because it has nowhere to migrate to. Uploads fall through
+to the `inline` adapter exactly as they did before §9 existed.
 
 ### 9.14 Organization logo ✅ DECIDED (2026-08-04)
 

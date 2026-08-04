@@ -14,8 +14,8 @@ import { storageApi } from "@/lib/storage-client";
 // and the storage settings screen, so both ask the same questions in the same words and
 // run the same connection test.
 //
-// The dropdown currently offers one backend — NAS — and more appear here as adapters
-// ship, without the surrounding flow changing.
+// The backend is chosen by the surrounding form (NAS or KVEP); these are the fields for
+// a NAS connection. `adapter: "s3"` rides along in the config value.
 
 export interface StorageSetupValue extends StorageConfigInput {}
 
@@ -73,22 +73,12 @@ export function StorageSetupFields({
 
   return (
     <div className="storage-setup">
-      <label className="field">
-        <span>Storage</span>
-        <select
-          value="s3"
-          onChange={() => undefined}
-          // One backend today. More join this list as their adapters ship.
-          disabled={STORAGE_ADAPTERS.length === 1}
-        >
-          {STORAGE_ADAPTERS.map((a) => (
-            <option key={a.key} value={a.key}>
-              {a.label}
-            </option>
-          ))}
-        </select>
-        <small>{STORAGE_ADAPTERS[0].blurb}</small>
-      </label>
+      {/* No backend picker here. The surrounding form has already asked where documents
+          go, and with one backend available a second dropdown that cannot be changed is
+          just noise. The adapter still travels in the config value (`adapter: "s3"`),
+          so nothing about what gets saved has changed — only what is shown. When a
+          second backend ships, the picker belongs in the surrounding choice, not here. */}
+      <p className="muted">{STORAGE_ADAPTERS[0].blurb}</p>
 
       <div className="warn-box" style={{ marginTop: 0 }}>
         <strong>Your NAS needs to be reachable from the internet.</strong>

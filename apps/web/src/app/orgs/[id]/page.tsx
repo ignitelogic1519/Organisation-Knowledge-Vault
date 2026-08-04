@@ -234,12 +234,30 @@ function ConfigPanel({
       {isRoot && isSupremeOwner && (
         <>
           {/* Where the organization's documents live. Governance, so it sits behind the
-              same Supreme gate as owner management (docs/structure.md §9.3). */}
-          <StoragePanel
-            orgId={org.id}
-            supremeToken={supremeToken}
-            onNeedSupreme={() => unlockSupreme("Connecting storage decides where this organization's documents live, so it needs the Supreme password.")}
-          />
+              same Supreme gate as owner management (docs/structure.md §9.3).
+              A KVEP organization has no storage to connect by design — its content stays
+              on Knowledge Vault's own storage — so it gets a statement of fact instead of
+              a form that would refuse everything entered into it. */}
+          {org.isKvep ? (
+            <section className="panel storage-panel">
+              <h3>Storage</h3>
+              <p className="muted">
+                This is an employee-perk (KVEP) organization, so its documents are held on
+                Knowledge Vault&rsquo;s own storage and the plan&rsquo;s allowance applies.
+                There is nothing to connect or configure here.
+              </p>
+            </section>
+          ) : (
+            <StoragePanel
+              orgId={org.id}
+              supremeToken={supremeToken}
+              onNeedSupreme={() =>
+                unlockSupreme(
+                  "Connecting storage decides where this organization's documents live, so it needs the Supreme password.",
+                )
+              }
+            />
+          )}
 
           <h3 className="learning-h">Supreme zone</h3>
           <p className="auth-sub">
