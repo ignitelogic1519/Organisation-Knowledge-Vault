@@ -59,7 +59,7 @@ it"**, and **Tips** at the end.
 | 13 | Compliance tracking | Who's done what, why they haven't, and how to nudge |
 | 14 | The Mailbox | Folders, labels, priority, expiry and the chime |
 | 15 | Plans, pricing & Knowledge Coins | Coins, the plan ladder, the free plan, access codes, upgrades |
-| 16 | The Supreme zone — custody & recovery | Backups, `.main`, `.bkp`, the Recycle Bin |
+| 16 | The Supreme zone — custody & recovery | Backups, `.main`, `.bkp`, the Recovery |
 | 17 | Appearance & navigation | Themes, accents, and the icon-first nav bar |
 | 18 | Flow diagrams — every setting at a glance | A diagram + screenshot for each owner action, member capability & request flow |
 | 19 | Help & support | Where to find answers in-app |
@@ -81,7 +81,7 @@ it"**, and **Tips** at the end.
 | Do your training | **My Learning** |
 | See who's behind | **Compliance** |
 | Read what the platform told you | The **bell** — your Mailbox |
-| Get your organization back | **Organizations** → **Recycle Bin** at the foot of the page |
+| Get your organization back | **Organizations** → **Recovery**, bottom-left |
 | Change how it looks | The **palette** button, top right |
 
 ---
@@ -2224,7 +2224,7 @@ protects.
 ### The `.main` existence backup
 Your organization's `.main` file is its **existence backup** — a single encrypted file, keyed
 to your Supreme password, that can **revive the entire organization** even after it's been
-deleted and the 30-day retention period in the Recycle Bin has passed.
+deleted and the 30-day retention period in the Recovery has passed.
 
 Select **⬇ Download** to export it. **Keep it somewhere safe and offline.**
 
@@ -2254,22 +2254,36 @@ of what was **applied** and what was **skipped**.
 
 ---
 
-## The Recycle Bin — the easy way back
+## Recovery — both ways back
 
-Deleting an organization does not destroy it. For **30 days** it sits in the **Recycle Bin at
-the foot of your Organizations page**, showing exactly how many days it has left before it is
-purged.
+Deleting an organization does not destroy it, and there are two routes back. Both live behind
+one button: **Recovery**, in the **bottom-left corner of your Organizations page**. It sits out
+of the way until you need it, and carries a count when something is waiting.
 
-Bringing it back is one button — **↩ Restore** — plus the Supreme password. There is no file
-to find and nothing to upload.
+![The Organizations page](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/organizations-list.png)
+
+### 1. Deleted — waiting out the 30 days
+
+For **30 days** after you delete it, an organization sits in Recovery's **Deleted** tab, fully
+intact, showing exactly how many days it has left before it is purged. Restoring is one button
+— **↩ Restore** — plus the Supreme password. There is no file to find and nothing to upload.
 
 Two things to know:
 
 - **The countdown is real.** After 30 days the organization is purged from the platform, and
-  the only way back is the `.main` file below.
-- **A lapsed plan still blocks a restore.** If the organization's plan expired while it sat in
-  the bin, the restore asks for a **restore code** from the Knowledge Base team — the same
-  code the revival path uses.
+  the only way back is the `.main` file.
+- **A lapsed plan still blocks a restore.** If the plan expired while the organization sat
+  there, the restore asks for a **restore code** from the Knowledge Base team.
+
+### 2. From a `.main` file — after the purge
+
+Recovery's second tab takes the encrypted `.main` file and the Supreme password, and rebuilds
+the organization from scratch. This is the path for anything already purged, or for an
+organization being moved to a different deployment. It is covered in full below.
+
+> **Why "Recovery" and not "Recovery"?** A deleted organization here is not refuse waiting
+> to be emptied — it is whole, and one password away from coming back. And the `.main` route
+> recovers things a bin never held. The button is named for what it does.
 
 ---
 
@@ -2834,7 +2848,8 @@ flowchart LR
 | Configure placement (mandatory/inherit/archive) | Owner | 7 | `courses-panel.png` |
 | Back up / restore a branch (`.bkp`) | Owner | 16 | `backup-panel.png` |
 | Supreme zone (owners, `.main`, delete) | Top owner | 16 | `group-configuration.png` |
-| Restore from the Recycle Bin | Founder | 16 | `organizations-list.png` |
+| Restore a deleted organization (Recovery) | Founder | 16 | `organizations-list.png` |
+| Revive from a `.main` file (Recovery) | Founder | 16 | `organizations-list.png` |
 | Complete assigned courses | Member | 11 | `my-learning.png` |
 | Read in the in-app viewer (PDF zoom) | Member | 11 | `course-viewer.png` |
 | Propose content | Member | 8 | `studio.png` |
@@ -2975,11 +2990,14 @@ The Pricing page now shows a signed-in owner **what their organization runs toda
 Base team applies an approved upgrade immediately — there is no code to redeem for an
 organization that already exists.
 
-### The Recycle Bin
+### Recovery
 
-Deleted organizations now sit in a **Recycle Bin at the foot of your organizations page**,
-restorable in one click for 30 days before they are purged. It used to be a panel at the top
-of the page; a recovery tool does not belong above the thing you actually came for.
+Both ways back from a deletion now live behind one **Recovery** button in the **bottom-left
+corner** of your Organizations page: the organizations waiting out their 30 days, and a
+`.main` revival for anything already purged. It used to be a panel at the top of the page plus
+a separate collapsed box below it; a recovery tool belongs neither above the thing you came
+for nor split in two. It is a recovery arrow rather than a wastebasket, because a deleted
+organization here is intact and one password away from coming back.
 
 ### Icon-first navigation
 

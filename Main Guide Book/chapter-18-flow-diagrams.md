@@ -400,7 +400,8 @@ flowchart LR
 | Configure placement (mandatory/inherit/archive) | Owner | 7 | `courses-panel.png` |
 | Back up / restore a branch (`.bkp`) | Owner | 16 | `backup-panel.png` |
 | Supreme zone (owners, `.main`, delete) | Top owner | 16 | `group-configuration.png` |
-| Restore from the Recycle Bin | Founder | 16 | `organizations-list.png` |
+| Restore a deleted organization (Recovery) | Founder | 16 | `organizations-list.png` |
+| Revive from a `.main` file (Recovery) | Founder | 16 | `organizations-list.png` |
 | Complete assigned courses | Member | 11 | `my-learning.png` |
 | Read in the in-app viewer (PDF zoom) | Member | 11 | `course-viewer.png` |
 | Propose content | Member | 8 | `studio.png` |

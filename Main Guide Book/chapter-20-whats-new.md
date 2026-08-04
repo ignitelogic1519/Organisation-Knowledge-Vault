@@ -51,11 +51,14 @@ The Pricing page now shows a signed-in owner **what their organization runs toda
 Base team applies an approved upgrade immediately — there is no code to redeem for an
 organization that already exists.
 
-### The Recycle Bin
+### Recovery
 
-Deleted organizations now sit in a **Recycle Bin at the foot of your organizations page**,
-restorable in one click for 30 days before they are purged. It used to be a panel at the top
-of the page; a recovery tool does not belong above the thing you actually came for.
+Both ways back from a deletion now live behind one **Recovery** button in the **bottom-left
+corner** of your Organizations page: the organizations waiting out their 30 days, and a
+`.main` revival for anything already purged. It used to be a panel at the top of the page plus
+a separate collapsed box below it; a recovery tool belongs neither above the thing you came
+for nor split in two. It is a recovery arrow rather than a wastebasket, because a deleted
+organization here is intact and one password away from coming back.
 
 ### Icon-first navigation
 

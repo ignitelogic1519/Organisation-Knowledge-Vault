@@ -1115,7 +1115,6 @@ button {
 
 /* The sidebar footer sits at the bottom of the viewport — its popovers must open
    upward and to the right, or they get clipped off-screen. */
-.side-foot .bell-panel,
 .side-foot .theme-pop {
   top: auto;
   bottom: 3rem;
@@ -1444,46 +1443,9 @@ button {
   min-width: min(240px, 100%);
 }
 
-.revive-box {
-  margin: 0.5rem 0 1rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.revive-box summary {
-  cursor: pointer;
-}
-
-/* ── Notifications bell ────────────────────────────────────────────────── */
-
-.bell-wrap {
-  position: relative;
-}
-
-.bell-dot {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--danger);
-  box-shadow: 0 0 6px var(--danger);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
-.bell-panel {
-  position: absolute;
-  right: 0;
-  top: 2.9rem;
-  width: min(320px, 86vw);
-  max-height: 380px;
-  overflow-y: auto;
-  border-radius: var(--radius);
-  padding: 0.9rem;
-  z-index: 60;
-  animation: pop-in 220ms var(--spring) both;
-}
+/* The old bell's styles: the Account page still reuses .bell-item for the mirror of
+   Knowledge Base messages, so those stay. The bell itself is now .mail-* (see the
+   Mailbox block further down). */
 
 .bell-item {
   display: flex;
@@ -1493,29 +1455,6 @@ button {
   padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.88rem;
-}
-
-.bell-item-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.bell-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.45rem;
-}
-
-.bell-dismiss {
-  flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  font-size: 0.68rem;
-  background: transparent;
-  box-shadow: none;
 }
 
 /* ── Constellation graph page ──────────────────────────────────────────── */
@@ -3029,20 +2968,6 @@ button {
   border-radius: var(--radius-sm);
   padding-left: 0.4rem;
   padding-right: 0.4rem;
-}
-
-.bell-item-main {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
-  min-width: 0;
-  text-align: left;
-  flex: 1;
-}
-
-.bell-item-main[data-clickable="true"]:hover strong {
-  color: var(--accent);
 }
 
 .bell-item-top {
@@ -7598,75 +7523,139 @@ body.is-dragging-block * {
   }
 }
 
-/* ── Recycle Bin (organizations) ─────────────────────────────────────────────
-   A deleted organization isn't gone, it's in the bin — restorable until the purge
-   date, exactly like a desktop recycle bin. It sits at the foot of the page. */
+/* ── Recovery dock (organizations page) ─────────────────────────────────────
+   A pill in the bottom-left corner. Deleting an organization here is a
+   recoverable act, not a disposal, so the button is a recovery arrow rather
+   than a wastebasket — and it holds BOTH ways back: the organizations waiting
+   out their 30 days, and a `.main` revival for anything already purged. */
 
-.recycle-bin {
-  margin-top: 2rem;
-  padding: 0.9rem 1rem 1rem;
-  border-radius: var(--radius);
-  border: 1px dashed var(--border);
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-}
-
-.recycle-bin[data-empty="true"] {
-  opacity: 0.75;
-}
-
-.recycle-head {
+.recovery-dock {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 70; /* above content, below the navbar (80) and every overlay */
   display: flex;
+  flex-direction: column-reverse; /* the panel opens upward, off the button */
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.recovery-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
-}
-
-.recycle-head h2 {
-  font-size: 1rem;
-  margin: 0;
-}
-
-.recycle-icon {
-  display: grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  flex: none;
-  font-size: 1.2rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  gap: 0.5rem;
+  padding: 0.55rem 1rem 0.55rem 0.75rem;
+  border-radius: 980px;
   border: 1px solid var(--border);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  transition:
+    transform var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
 }
 
-.recycle-bin[data-empty="false"] .recycle-icon {
+.recovery-btn:hover,
+.recovery-btn[data-open="true"] {
+  transform: translateY(-2px);
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
 
-.recycle-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+.recovery-btn-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.recovery-btn-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.32rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent-contrast);
+  background: var(--grad-accent);
+  border-radius: 980px;
+}
+
+.recovery-panel {
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: min(30rem, calc(100svh - 8rem));
+  display: flex;
+  flex-direction: column;
   gap: 0.6rem;
-  margin: 0.8rem 0 0;
-  padding: 0;
-  list-style: none;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.28);
+  animation: kv-fade-up 200ms var(--ease) both;
 }
 
-.recycle-card {
+.recovery-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.recovery-panel-head p {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.recovery-tabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.recovery-body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.recovery-empty,
+.recovery-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.recovery-note {
+  margin-bottom: 0.6rem;
+}
+
+.recovery-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.recovery-item {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  padding: 0.65rem 0.8rem;
+  gap: 0.6rem;
+  padding: 0.55rem 0.65rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
 }
 
-.recycle-card-icon {
-  font-size: 1.4rem;
-  filter: grayscale(1);
-  opacity: 0.7;
-}
-
-.recycle-card-body {
+.recovery-item-body {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -7675,382 +7664,43 @@ body.is-dragging-block * {
   min-width: 0;
 }
 
-.recycle-card-body p {
+.recovery-item-body p {
   flex-basis: 100%;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 
-.recycle-card-body p[data-soon="true"] {
+.recovery-item-body p[data-soon="true"] {
   color: var(--danger);
   font-weight: 600;
 }
 
-/* The Studio's "this browser's copy" card in the drafts tray */
-.studio-local-copy {
+.recovery-form {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  margin-bottom: 0.7rem;
-  padding: 0.6rem 0.7rem;
-  border-radius: var(--radius-sm);
-  border: 1px dashed var(--border);
-  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  gap: 0.5rem;
 }
-.studio-local-copy strong {
-  font-size: 0.82rem;
-}
-.studio-local-copy p {
-  margin: 0.15rem 0 0;
-  font-size: 0.7rem;
-  line-height: 1.45;
-}
-.studio-local-copy .btn {
+
+.recovery-form .btn {
   align-self: flex-start;
 }
 
-/* Compliance: the reason line under each non-compliant person */
-.compliance-person[data-blocked="true"] {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
-  background: color-mix(in srgb, var(--danger) 7%, transparent);
-}
-.compliance-reason {
-  display: block;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-.compliance-person[data-blocked="true"] .compliance-reason {
-  color: var(--danger);
-}
-
-/* ── Pricing: plan facts, the upgrade comparison, and the custom-plan form ─── */
-
-.pricing-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.pricing-card[data-current="true"] {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 22%, transparent);
-}
-
-.pricing-badge-current {
-  background: var(--grad-accent);
-  color: var(--accent-contrast);
-}
-
-.pricing-facts {
-  display: grid;
-  gap: 0.2rem;
-  margin: 0.6rem 0;
-  padding: 0.55rem 0.7rem;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-  font-size: 0.78rem;
-}
-.pricing-facts > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-.pricing-facts dt {
-  color: var(--text-secondary);
-}
-.pricing-facts dd {
-  margin: 0;
-  font-weight: 700;
-  text-align: right;
-}
-
-.pricing-afford {
-  margin-top: 0.4rem;
-  font-size: 0.72rem;
-  color: var(--danger);
-}
-
-.pricing-custom {
-  padding: 0.8rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* The current-vs-next comparison, streaming-service style */
-.upgrade-panel {
-  max-width: 62rem;
-  margin: 0 auto 2rem;
-  padding: 1.1rem 1.2rem 1.3rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.upgrade-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.upgrade-head h3 {
-  margin: 0.2rem 0 0;
-  font-size: 1.3rem;
-}
-.upgrade-picker {
-  min-width: 15rem;
-  margin: 0;
-}
-
-.upgrade-current {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  padding: 0.55rem 0.8rem;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
-  font-size: 0.82rem;
-}
-.upgrade-current-plan {
-  font-weight: 800;
-  font-size: 1rem;
-}
-
-.upgrade-tabs {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.upgrade-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.86rem;
-}
-.upgrade-table th,
-.upgrade-table td {
-  padding: 0.55rem 0.7rem;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-.upgrade-table thead th {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-}
-.upgrade-table tbody th {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.upgrade-col-next {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  font-weight: 700;
-}
-.upgrade-table td[data-better="true"] {
-  color: var(--success);
-}
-
-/* ── Knowledge Base portal: organization cards, property table, selection bar ── */
-
-.org-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr));
-  gap: 0.8rem;
-  margin-top: 0.9rem;
-}
-
-.admin-org-card {
-  position: relative;
-  display: flex;
-  padding: 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-  transition: transform var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease);
-}
-
-.admin-org-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
-}
-
-.admin-org-card[data-selected="true"] {
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-.admin-org-card[data-deleted="true"] {
-  opacity: 0.65;
-}
-
-.admin-org-pick {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 2;
-}
-
-.admin-org-open {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  width: 100%;
-  padding: 0.85rem 0.9rem;
-  border: 0;
-  background: none;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.admin-org-open header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  padding-right: 1.6rem;
-}
-
-.admin-org-open h3 {
-  margin: 0;
-  font-size: 1.02rem;
-}
-
-.admin-org-tags {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.admin-org-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.15rem 0.7rem;
-  margin: 0.2rem 0 0;
-  font-size: 0.76rem;
-}
-
-.admin-org-stats > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.4rem;
-  border-bottom: 1px dotted var(--border);
-  padding: 0.12rem 0;
-}
-
-.admin-org-stats dt {
-  color: var(--text-secondary);
-}
-
-.admin-org-stats dd {
-  margin: 0;
-  font-weight: 700;
-}
-
-.admin-org-cta {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.kbase-selectbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.8rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: var(--accent-soft);
-}
-
-.kbase-detail {
-  margin-top: 1rem;
-  padding: 0.9rem 1rem 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-
-.kbase-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.8rem;
-}
-
-.kbase-detail-head h3 {
-  margin: 0;
-  font-size: 1.15rem;
-}
-
-.kbase-props th {
-  width: 40%;
-  font-weight: 600;
-  vertical-align: top;
-}
-
-.kbase-props input,
-.kbase-props select {
-  width: 100%;
-  max-width: 18rem;
-}
-
-.kbase-prop-hint {
-  display: block;
-  font-size: 0.68rem;
-  font-weight: 400;
-}
-
-.kbase-detail-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  margin-top: 0.8rem;
-}
-
-.kbase-detail-activity {
-  margin-top: 0.9rem;
-  font-size: 0.78rem;
-}
-
-.kbase-terms {
-  margin: 0.25rem 0 0;
-  padding: 0.3rem 0.55rem;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
-  font-size: 0.74rem;
-}
-
-.kbase-served {
-  margin-top: 1.2rem;
-  font-size: 0.85rem;
-}
-
-.kbase-served summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.link-btn {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--accent);
-  font: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
+/* On a phone the panel spans the screen and the button loses its word, so it
+   never crowds the content it floats over. */
+@media (max-width: 600px) {
+  .recovery-dock {
+    left: 0.7rem;
+    bottom: 0.7rem;
+  }
+  .recovery-btn-label {
+    display: none;
+  }
+  .recovery-btn {
+    padding: 0.6rem;
+  }
+  .recovery-panel {
+    width: calc(100vw - 1.4rem);
+  }
 }
 
 /* ── Feature catalogue (front page + /features) ─────────────────────────────── */

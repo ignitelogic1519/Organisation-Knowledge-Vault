@@ -32,7 +32,7 @@ protects.
 ### The `.main` existence backup
 Your organization's `.main` file is its **existence backup** — a single encrypted file, keyed
 to your Supreme password, that can **revive the entire organization** even after it's been
-deleted and the 30-day retention period in the Recycle Bin has passed.
+deleted and the 30-day retention period in the Recovery has passed.
 
 Select **⬇ Download** to export it. **Keep it somewhere safe and offline.**
 
@@ -62,22 +62,36 @@ of what was **applied** and what was **skipped**.
 
 ---
 
-## The Recycle Bin — the easy way back
+## Recovery — both ways back
 
-Deleting an organization does not destroy it. For **30 days** it sits in the **Recycle Bin at
-the foot of your Organizations page**, showing exactly how many days it has left before it is
-purged.
+Deleting an organization does not destroy it, and there are two routes back. Both live behind
+one button: **Recovery**, in the **bottom-left corner of your Organizations page**. It sits out
+of the way until you need it, and carries a count when something is waiting.
 
-Bringing it back is one button — **↩ Restore** — plus the Supreme password. There is no file
-to find and nothing to upload.
+![The Organizations page](images/organizations-list.png)
+
+### 1. Deleted — waiting out the 30 days
+
+For **30 days** after you delete it, an organization sits in Recovery's **Deleted** tab, fully
+intact, showing exactly how many days it has left before it is purged. Restoring is one button
+— **↩ Restore** — plus the Supreme password. There is no file to find and nothing to upload.
 
 Two things to know:
 
 - **The countdown is real.** After 30 days the organization is purged from the platform, and
-  the only way back is the `.main` file below.
-- **A lapsed plan still blocks a restore.** If the organization's plan expired while it sat in
-  the bin, the restore asks for a **restore code** from the Knowledge Base team — the same
-  code the revival path uses.
+  the only way back is the `.main` file.
+- **A lapsed plan still blocks a restore.** If the plan expired while the organization sat
+  there, the restore asks for a **restore code** from the Knowledge Base team.
+
+### 2. From a `.main` file — after the purge
+
+Recovery's second tab takes the encrypted `.main` file and the Supreme password, and rebuilds
+the organization from scratch. This is the path for anything already purged, or for an
+organization being moved to a different deployment. It is covered in full below.
+
+> **Why "Recovery" and not "Recovery"?** A deleted organization here is not refuse waiting
+> to be emptied — it is whole, and one password away from coming back. And the `.main` route
+> recovers things a bin never held. The button is named for what it does.
 
 ---
 

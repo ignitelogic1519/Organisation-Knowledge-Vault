@@ -59,7 +59,7 @@ it"**, and **Tips** at the end.
 | 13 | [Compliance tracking](chapter-13-compliance.md) | Who's done what, why they haven't, and how to nudge |
 | 14 | [The Mailbox](chapter-14-the-mailbox.md) | Folders, labels, priority, expiry and the chime |
 | 15 | [Plans, pricing & Knowledge Coins](chapter-15-plans-and-access.md) | Coins, the plan ladder, the free plan, access codes, upgrades |
-| 16 | [The Supreme zone — custody & recovery](chapter-16-supreme-and-custody.md) | Backups, `.main`, `.bkp`, the Recycle Bin |
+| 16 | [The Supreme zone — custody & recovery](chapter-16-supreme-and-custody.md) | Backups, `.main`, `.bkp`, the Recovery |
 | 17 | [Appearance & navigation](chapter-17-appearance-and-navigation.md) | Themes, accents, and the icon-first nav bar |
 | 18 | [Flow diagrams — every setting at a glance](chapter-18-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
 | 19 | [Help & support](chapter-19-help-and-support.md) | Where to find answers in-app |
@@ -81,7 +81,7 @@ it"**, and **Tips** at the end.
 | Do your training | **My Learning** |
 | See who's behind | **Compliance** |
 | Read what the platform told you | The **bell** — your Mailbox |
-| Get your organization back | **Organizations** → **Recycle Bin** at the foot of the page |
+| Get your organization back | **Organizations** → **Recovery**, bottom-left |
 | Change how it looks | The **palette** button, top right |
 
 ---

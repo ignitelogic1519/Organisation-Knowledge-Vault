@@ -147,3 +147,13 @@ export const IconLogout = (p: IconProps) => (
     <path d="M17 8.5 20.5 12 17 15.5M9.5 12h11" />
   </Svg>
 );
+
+// Recovery — a counter-clockwise arrow around a shield. Deleting an organization is a
+// recoverable act here, not a disposal, so this deliberately isn't a wastebasket.
+export const IconRecovery = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3.5 9.5A8.5 8.5 0 1 1 3 13.4" />
+    <path d="M3 4.5v5h5" />
+    <path d="M12 8.8l3.4 1.3v3.1c0 2-1.4 3.5-3.4 4.3-2-.8-3.4-2.3-3.4-4.3v-3.1z" />
+  </Svg>
+);
