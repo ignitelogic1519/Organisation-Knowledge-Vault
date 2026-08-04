@@ -18,7 +18,13 @@ import {
 import { db } from "../db.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
-import { coursesReaching, recordCompletion, toLearningItem } from "../courses/helpers.js";
+import {
+  coursesReaching,
+  escalationTargets,
+  notify,
+  recordCompletion,
+  toLearningItem,
+} from "../courses/helpers.js";
 import type { Course } from "@prisma/client";
 
 // Exam delivery & marking. The stored paper (with its answer key) never leaves the server:
@@ -64,8 +70,10 @@ async function openPaperFor(profileId: string, course: Course) {
 }
 
 async function attemptStats(courseId: string, profileId: string, maxAttempts: number | null) {
+  // Voided sittings stay on record but stop counting — that is what a manager's reset
+  // does, so the allowance below reads exactly as if the candidate had never sat it.
   const attempts = await db.examAttempt.findMany({
-    where: { courseId, profileId },
+    where: { courseId, profileId, voided: false },
     orderBy: { submittedAt: "desc" },
   });
   const best = attempts.reduce<(typeof attempts)[number] | null>(
@@ -258,6 +266,45 @@ export async function examRoutes(app: FastifyInstance) {
       }
 
       const after = await attemptStats(course.id, req.profileId, exam.settings.maxAttempts);
+
+      // Out of attempts and still not through: tell the candidate what happens next, and
+      // tell the people who can do something about it. This is the moment the compliance
+      // window starts reading "attempts exhausted".
+      if (!opened.preview && after.attemptsLeft === 0 && !after.passed) {
+        await notify(
+          req.profileId,
+          course.orgId,
+          "exam_attempts_exhausted",
+          { code: course.code, title: course.title, attemptsUsed: after.attemptsUsed },
+          {
+            subject: `No attempts left on “${course.title}”`,
+            body:
+              `You have used all ${after.attemptsUsed} attempts this exam allows and have not ` +
+              "passed it yet. Your manager can reset your attempts from the compliance view — " +
+              "ask them when you are ready to sit it again.",
+          },
+        );
+        for (const target of await escalationTargets(req.profileId, course.orgId)) {
+          await notify(
+            target,
+            course.orgId,
+            "exam_attempts_exhausted",
+            {
+              code: course.code,
+              title: course.title,
+              memberProfileId: req.profileId,
+              attemptsUsed: after.attemptsUsed,
+            },
+            {
+              subject: `Someone has run out of attempts on “${course.title}”`,
+              body:
+                `A member you look after has used every attempt on “${course.title}” without ` +
+                "passing. Open Compliance for their branch to see the reason and reset their attempts.",
+            },
+          );
+        }
+      }
+
       const reveal = exam.settings.reveal !== "never";
       return {
         percent: result.percent,

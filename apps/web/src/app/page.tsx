@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ApiStatus } from "@/components/ApiStatus";
 import { Constellation } from "@/components/Constellation";
+import { FeatureCatalogue } from "@/components/FeatureCatalogue";
 import { LandingShowcase } from "@/components/LandingShowcase";
+import { PricingPreview } from "@/components/PricingPreview";
 import { Reveal } from "@/components/Reveal";
 import { SiteNav } from "@/components/SiteNav";
 
@@ -61,7 +63,18 @@ const PILLARS = [
 export default function Home() {
   return (
     <main className="landing">
-      <SiteNav right={<Link href="/login" className="nav-link">Sign in</Link>} />
+      <SiteNav
+        right={
+          <>
+            <Link href="/login" className="nav-link">
+              Sign in
+            </Link>
+            <Link href="/register" className="btn btn-primary btn-small">
+              Get started
+            </Link>
+          </>
+        }
+      />
 
       <section className="hero">
         <Constellation />
@@ -82,8 +95,8 @@ export default function Home() {
             <Link className="btn btn-primary btn-lg" href="/register">
               Get started free
             </Link>
-            <Link className="btn btn-quiet btn-lg" href="#showcase">
-              See it in action
+            <Link className="btn btn-quiet btn-lg" href="#features">
+              See every feature
             </Link>
           </div>
           <ApiStatus />
@@ -118,6 +131,38 @@ export default function Home() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      <section className="section" id="features">
+        <Reveal className="section-head" variant="up">
+          <span className="eyebrow">Features</span>
+          <h2>
+            What you get, <span className="gradient-text">area by area</span>
+          </h2>
+          <p>
+            Pick the part of the product you care about. Everything here is built and
+            working — nothing on this page is a promise.
+          </p>
+        </Reveal>
+        <Reveal variant="up" delay={60}>
+          <FeatureCatalogue />
+        </Reveal>
+      </section>
+
+      <section className="section" id="pricing">
+        <Reveal className="section-head" variant="up">
+          <span className="eyebrow">Pricing</span>
+          <h2>
+            Plans in <span className="gradient-text">Knowledge Coins</span>
+          </h2>
+          <p>
+            Only the free plan is metered. Every paid plan carries unlimited documents and
+            uploads, for as many people as you need.
+          </p>
+        </Reveal>
+        <Reveal variant="up" delay={60}>
+          <PricingPreview />
+        </Reveal>
       </section>
 
       <section className="section">
@@ -177,8 +222,9 @@ export default function Home() {
       <footer className="footer">
         <span>Knowledge Vault — your structure, your knowledge, your custody.</span>
         <span className="footer-links">
+          <Link href="/features">Features</Link>
           <Link href="/pricing">Pricing</Link>
-          <Link href="/help">Help</Link>
+          <Link href="/help">Help &amp; guide book</Link>
           <Link href="/login">Sign in</Link>
           <Link href="/register">Register</Link>
           <Link href="/kbase/login" className="footer-employee">Knowledge base employee login</Link>

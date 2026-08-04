@@ -2,6 +2,7 @@ import { formatCourseCode, isSelfOrAncestor, type LearningItem } from "@vault/sh
 import type { Course, CoursePlacement, RoleNode } from "@prisma/client";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { deliver, type NotifyOptions } from "../notifications/mailbox.js";
 
 export async function nextCourseCode(node: RoleNode & { org: { orgNumber: number } }) {
   const updated = await db.roleNode.update({
@@ -200,16 +201,18 @@ export async function courseHandlerNodeId(orgId: string, nodePath: string): Prom
   return null;
 }
 
+/**
+ * Put a message in someone's mailbox. Folder, flag, subject and expiry all come from the
+ * shared catalog (see notifications/mailbox.ts) — callers only supply the facts.
+ */
 export async function notify(
   profileId: string,
   orgId: string | null,
   kind: string,
   payload: Record<string, unknown>,
+  options?: NotifyOptions,
 ): Promise<void> {
-  await db.notification.create({
-    data: { profileId, orgId, kind, payload: payload as object },
-  });
-  broadcast(orgId, "notifications", profileId); // live bell update, only for the target
+  await deliver(profileId, orgId, kind, payload, options);
 }
 
 /**

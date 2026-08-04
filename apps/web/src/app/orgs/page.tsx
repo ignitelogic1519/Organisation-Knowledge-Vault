@@ -63,6 +63,58 @@ export default function OrgsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
+  /** Take an organization back out of the bin: Supreme password, then — if its plan
+   *  lapsed while it sat there — a restore code from the Knowledge Base team. */
+  const restore = async (d: DeletedOrg) => {
+    const pw = await dialogs.promptPassword({
+      title: `Restore "${d.name}"`,
+      message: "Enter the organization's Supreme password to take it out of the Recycle Bin.",
+      label: "Supreme password",
+      minLength: 1,
+      submitLabel: "Restore",
+    });
+    if (!pw) return;
+    try {
+      await orgs.undelete(d.id, pw);
+      dialogs.toast(`${d.name} is back.`, "success");
+      load();
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Restore failed";
+      if (!/expired/i.test(msg)) {
+        dialogs.toast(msg, "danger");
+        return;
+      }
+      await dialogs.alert({ title: "Plan expired", message: msg, tone: "danger" });
+      const hasCode = await dialogs.confirm({
+        title: "Have a restore code?",
+        message:
+          "If the Knowledge Base team sent you a restore code (check your mailbox), enter it next. Otherwise, choose a plan on the Pricing page first.",
+        confirmLabel: "Enter restore code",
+        cancelLabel: "Go to Pricing",
+      });
+      if (!hasCode) {
+        router.push("/pricing");
+        return;
+      }
+      const code = await dialogs.promptPassword({
+        title: "Restore code",
+        message: "Paste the one-time restore code from your mailbox.",
+        label: "Restore code",
+        minLength: 8,
+        submitLabel: "Restore",
+      });
+      if (!code) return;
+      try {
+        await orgs.undelete(d.id, pw, code);
+        dialogs.toast(`${d.name} is back.`, "success");
+        load();
+      } catch (e2) {
+        dialogs.toast(e2 instanceof Error ? e2.message : "Restore failed", "danger");
+      }
+    }
+  };
+
   return (
     <AppShell
       nav={NAV}
@@ -78,75 +130,6 @@ export default function OrgsPage() {
         <div className="org-grid">
           <div className="org-card glass skeleton" style={{ minHeight: "7rem" }} />
           <div className="org-card glass skeleton" style={{ minHeight: "7rem" }} />
-        </div>
-      )}
-
-      {deleted.length > 0 && (
-        <div className="panel glass danger-zone" style={{ marginBottom: "1.1rem" }}>
-          <h2>Deleted — restorable until purge</h2>
-          <ul className="owner-list">
-            {deleted.map((d) => (
-              <li key={d.id} className="account-row">
-                <span>
-                  {d.name} <span className="chip">#{d.orgNumber}</span>{" "}
-                  <span className="auth-sub">purges {d.purgeAt.slice(0, 10)}</span>
-                </span>
-                <button
-                  className="btn btn-quiet btn-small"
-                  onClick={async () => {
-                    const pw = await dialogs.promptPassword({
-                      title: `Undelete "${d.name}"`,
-                      message: "Enter the organization's Supreme password to restore it.",
-                      label: "Supreme password",
-                      minLength: 1,
-                      submitLabel: "Undelete",
-                    });
-                    if (!pw) return;
-                    try {
-                      await orgs.undelete(d.id, pw);
-                      load();
-                    } catch (err) {
-                      const msg = err instanceof Error ? err.message : "Undelete failed";
-                      // Expired plan: explain clearly and let them enter a restore code.
-                      if (/expired/i.test(msg)) {
-                        await dialogs.alert({ title: "Plan expired", message: msg, tone: "danger" });
-                        if (
-                          await dialogs.confirm({
-                            title: "Have a restore code?",
-                            message:
-                              "If the super-admin sent you a restore code (check your Account notifications), enter it next. Otherwise, choose a plan on the Pricing page first.",
-                            confirmLabel: "Enter restore code",
-                            cancelLabel: "Go to Pricing",
-                          })
-                        ) {
-                          const code = await dialogs.promptPassword({
-                            title: "Restore code",
-                            message: "Paste the one-time restore code from your notifications.",
-                            label: "Restore code",
-                            minLength: 8,
-                            submitLabel: "Restore",
-                          });
-                          if (!code) return;
-                          try {
-                            await orgs.undelete(d.id, pw, code);
-                            load();
-                          } catch (e2) {
-                            dialogs.toast(e2 instanceof Error ? e2.message : "Restore failed", "danger");
-                          }
-                        } else {
-                          router.push("/pricing");
-                        }
-                      } else {
-                        dialogs.toast(msg, "danger");
-                      }
-                    }
-                  }}
-                >
-                  Undelete
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
@@ -181,6 +164,60 @@ export default function OrgsPage() {
           </Link>
         ))}
       </div>
+
+      {/* ── Recycle Bin ──────────────────────────────────────────────────────
+          Deleting an organization doesn't destroy it: it goes here, and stays until
+          the purge date. Restoring is one click plus the Supreme password, exactly
+          the way a desktop recycle bin works. It lives at the FOOT of the page —
+          it is a recovery tool, not something you should have to scroll past every
+          time you sign in. */}
+      <section className="recycle-bin" data-empty={deleted.length === 0}>
+        <header className="recycle-head">
+          <span className="recycle-icon" aria-hidden>
+            🗑
+          </span>
+          <div>
+            <h2>Recycle Bin</h2>
+            <p className="auth-sub">
+              {deleted.length === 0
+                ? "Empty. Deleted organizations wait here for 30 days before they are purged."
+                : `${deleted.length} organization${deleted.length === 1 ? "" : "s"} waiting to be restored or purged.`}
+            </p>
+          </div>
+        </header>
+
+        {deleted.length > 0 && (
+          <ul className="recycle-grid">
+            {deleted.map((d) => {
+              const daysLeft = Math.max(
+                0,
+                Math.ceil((new Date(d.purgeAt).getTime() - Date.now()) / 86400_000),
+              );
+              return (
+                <li key={d.id} className="recycle-card glass">
+                  <span className="recycle-card-icon" aria-hidden>
+                    🏛
+                  </span>
+                  <div className="recycle-card-body">
+                    <strong>{d.name}</strong>
+                    <span className="chip">#{d.orgNumber}</span>
+                    <p className="auth-sub" data-soon={daysLeft <= 5}>
+                      Purges in {daysLeft} day{daysLeft === 1 ? "" : "s"} ·{" "}
+                      {d.purgeAt.slice(0, 10)}
+                    </p>
+                  </div>
+                  <button
+                    className="btn btn-primary btn-small"
+                    onClick={() => restore(d)}
+                  >
+                    ↩ Restore
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <details className="revive-box" style={{ marginTop: "1.4rem" }}>
         <summary>Revive a deleted organization from a .main file</summary>

@@ -1,35 +1,37 @@
-import { db } from "../db.js";
+import { NOTIFICATION_KINDS, RETENTION_DAYS } from "@vault/shared";
+import { deliver, type NotifyOptions } from "../notifications/mailbox.js";
 
-// Notifications that come "from the Super Admin". These are durable receipts (they carry
-// OTPs and plan decisions), so they get a 30-DAY retention instead of the usual 7 —
-// the cleanup sweep in compliance/routes.ts checks this set. They are profile-scoped and
-// org-less, so they show up on the user's global surfaces (the bell + the Account page)
-// even before the user belongs to any organization.
+// Messages that come "from the Knowledge Base team" (the super-admin). They are durable
+// receipts — they carry access codes, coin adjustments and plan decisions — so the shared
+// catalog files them under the ADMIN folder at HIGH priority with a 30-day life. They are
+// profile-scoped and org-less, so they reach the user's mailbox on every page, even before
+// that user belongs to any organization.
 
-export const ADMIN_NOTIFICATION_KINDS = new Set([
-  "admin_otp", // an approved OTP to create/restore an org
-  "admin_denied", // a denied request, with the admin's message
-  "admin_message", // a general message from the super-admin
-  "coins_gift", // coins gifted / adjusted
-  "plan_upgraded", // an org's plan was changed by the admin
-  "plan_expiring", // reminder that a plan is close to expiry
-  "plan_expired", // a plan has lapsed
-]);
+/** Kinds the catalog files under ADMIN — used by the legacy retention sweep. */
+export const ADMIN_NOTIFICATION_KINDS = new Set(
+  Object.entries(NOTIFICATION_KINDS)
+    .filter(([, meta]) => meta.category === "ADMIN")
+    .map(([kind]) => kind),
+);
 
-export const ADMIN_NOTIFICATION_RETENTION_MS = 30 * 86400_000;
+export const ADMIN_NOTIFICATION_RETENTION_MS = RETENTION_DAYS.ADMIN * 86400_000;
 
-/** Create a super-admin notification for a user. `payload.category` drives the chip label. */
+/** Create a super-admin message for a user. */
 export async function notifyFromAdmin(
   profileId: string,
   kind: string,
   payload: Record<string, unknown>,
+  options: NotifyOptions = {},
 ) {
-  await db.notification.create({
-    data: {
-      profileId,
-      orgId: null,
-      kind,
-      payload: { from: "Knowledge Base (Super Admin)", category: "Admin", ...payload },
+  await deliver(
+    profileId,
+    null,
+    kind,
+    { from: "Knowledge Base (Super Admin)", category: "Admin", ...payload },
+    {
+      subject: typeof payload.title === "string" ? payload.title : undefined,
+      body: typeof payload.message === "string" ? payload.message : undefined,
+      ...options,
     },
-  });
+  );
 }

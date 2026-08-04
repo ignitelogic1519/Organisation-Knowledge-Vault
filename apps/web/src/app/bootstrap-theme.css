@@ -64,36 +64,118 @@
   color: var(--text);
 }
 
-/* Nav links — pill style, gradient when active. The `.nav-link` combinator gives
-   us the specificity to win over Bootstrap's and globals' base `.nav-link`. */
-.kv-nav .nav-link {
+/* ── The icon rail ───────────────────────────────────────────────────────────
+   Navigation is icons at rest and words on contact. Each link holds its real
+   label in the markup; hovering, focusing, or landing on the page it points to
+   opens the label out with a width transition. No tooltip attributes, no
+   placeholder text — assistive technology and in-page search both see the words
+   at all times, sighted users see them the moment they reach for one.
+   ------------------------------------------------------------------------- */
+
+.kv-navbar-inner {
+  position: relative; /* anchors the mobile rail sheet */
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.kv-brand-word {
+  white-space: nowrap;
+}
+
+.kv-rail {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0 auto 0 0.4rem;
+  padding: 0.2rem;
+  list-style: none;
+  border-radius: 980px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--border);
+}
+
+.kv-rail-item {
+  display: flex;
+}
+
+.kv-rail-link,
+.kv-rail-link:hover,
+.kv-rail-link:focus {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
+  gap: 0;
+  max-width: 2.55rem;
+  padding: 0.5rem;
   border-radius: 980px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.92rem;
-  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
   transition:
+    max-width var(--dur-standard) var(--spring),
+    gap var(--dur-standard) var(--spring),
+    padding var(--dur-standard) var(--ease),
     color var(--dur-micro) var(--ease),
     background var(--dur-micro) var(--ease),
     box-shadow var(--dur-micro) var(--ease);
 }
 
-.kv-nav .nav-link:hover {
+.kv-rail-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  flex: none;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.kv-rail-icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* The label is always in the DOM; only its box collapses. */
+.kv-rail-label {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    max-width var(--dur-standard) var(--spring),
+    opacity var(--dur-micro) var(--ease),
+    transform var(--dur-standard) var(--spring);
+}
+
+.kv-rail-link:hover,
+.kv-rail-link:focus-visible {
   color: var(--text);
   background: var(--accent-soft);
 }
 
-.kv-nav .nav-link[data-active="true"] {
-  color: var(--accent-contrast);
-  background: var(--grad-accent);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 38%, transparent);
+.kv-rail-link:hover,
+.kv-rail-link:focus-within,
+.kv-rail-link[data-active="true"] {
+  max-width: 15rem;
+  gap: 0.45rem;
+  padding-right: 0.95rem;
 }
 
-.kv-nav .nav-link svg {
-  flex: none;
+.kv-rail-link:hover .kv-rail-label,
+.kv-rail-link:focus-within .kv-rail-label,
+.kv-rail-link[data-active="true"] .kv-rail-label {
+  max-width: 12rem;
+  opacity: 1;
+  transform: none;
+}
+
+.kv-rail-link[data-active="true"] {
+  color: var(--accent-contrast);
+  background: var(--grad-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 /* Count bubble on a nav link (e.g. pending requests) */
@@ -110,16 +192,17 @@
   color: #fff;
   background: var(--danger);
   border-radius: 980px;
+  flex: none;
 }
 
-.kv-nav .nav-link[data-active="true"] .kv-nav-badge {
+.kv-rail-link[data-active="true"] .kv-nav-badge {
   background: rgba(255, 255, 255, 0.9);
   color: var(--accent);
 }
 
 /* Hamburger / close toggler — theme-agnostic (uses currentColor) */
 .kv-toggler {
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   color: var(--text);
@@ -134,22 +217,65 @@
   box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
 }
 
-/* Right-hand controls cluster (bell · theme · sign out) */
+/* Right-hand controls cluster (mailbox · theme · sign out) */
 .kv-navbar-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  margin-left: auto;
 }
 
-/* On mobile the collapse opens below the bar; give the links room to breathe. */
+/* Narrow screens: the rail slides out from the toggler as a vertical sheet, and
+   every label is open — on a touch screen there is no hover to reveal them. */
 @media (max-width: 991.98px) {
-  .kv-nav {
-    padding-top: 0.6rem;
-    padding-bottom: 0.2rem;
-    gap: 0.15rem;
+  .kv-brand-word {
+    display: none;
   }
-  .kv-nav .nav-link {
-    padding: 0.55rem 0.85rem;
+  .kv-toggler {
+    display: inline-flex;
+  }
+  .kv-rail {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0.6rem;
+    left: 0.6rem;
+    z-index: 3;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  }
+  .kv-rail[data-open="true"] {
+    display: flex;
+    animation: kv-fade-up 220ms var(--ease) both;
+  }
+  .kv-rail-link,
+  .kv-rail-link:hover,
+  .kv-rail-link:focus {
+    max-width: none;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-sm);
+  }
+  .kv-rail-label {
+    max-width: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Someone who prefers less motion gets the same rail, just without the slide. */
+@media (prefers-reduced-motion: reduce) {
+  .kv-rail-link,
+  .kv-rail-label {
+    transition: none;
   }
 }
 

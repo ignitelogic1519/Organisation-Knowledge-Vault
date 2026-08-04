@@ -12,6 +12,7 @@ export function DraftsTray({
   currentDraftId,
   onOpenDraft,
   onDeleteDraft,
+  onDiscardLocal,
   onNew,
   noun,
   countLabel,
@@ -21,6 +22,8 @@ export function DraftsTray({
   currentDraftId: string | null;
   onOpenDraft: (id: string) => void;
   onDeleteDraft: (id: string) => void;
+  /** Throw away the working copy this browser keeps while you write. */
+  onDiscardLocal: () => void;
   onNew: () => void;
   /** "document" / "exam" — the wording of the notes and the new-work button. */
   noun: string;
@@ -32,10 +35,27 @@ export function DraftsTray({
       {!draftsEnabled && (
         <p className="studio-premium-note">
           <strong>Premium capability.</strong> Work in progress can be parked on the server and
-          reopened from any device on a premium plan. On the free demo structure your work is
-          still kept in this browser while you write.
+          reopened from any device on a premium plan. On the free plan your work is still kept
+          in this browser while you write.
         </p>
       )}
+
+      {/* The browser's own working copy. It is saved continuously while you type and it
+          is NOT a server draft, so it needs its own way out — otherwise reopening the
+          Studio silently brings back work you meant to abandon. */}
+      <div className="studio-local-copy">
+        <div>
+          <strong>This browser&apos;s copy</strong>
+          <p className="auth-sub">
+            Autosaved here as you write, on every plan. Discarding it clears the {noun} this
+            browser would restore next time — parked drafts and published work are untouched.
+          </p>
+        </div>
+        <button type="button" className="btn btn-quiet btn-small" onClick={onDiscardLocal}>
+          ✕ Discard browser copy
+        </button>
+      </div>
+
       {draftsEnabled && drafts.length === 0 && (
         <p className="studio-rail-hint">
           No drafts yet. Use <strong>Save draft</strong> to park this {noun} and come back to it

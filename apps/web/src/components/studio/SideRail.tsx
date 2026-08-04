@@ -54,6 +54,7 @@ export function SideRail({
   currentDraftId,
   onOpenDraft,
   onDeleteDraft,
+  onDiscardLocalDraft,
   onNewDocument,
 }: {
   tab: "insert" | "pages" | "drafts";
@@ -71,6 +72,7 @@ export function SideRail({
   currentDraftId: string | null;
   onOpenDraft: (id: string) => void;
   onDeleteDraft: (id: string) => void;
+  onDiscardLocalDraft: () => void;
   onNewDocument: () => void;
 }) {
   const dnd = useDnd();
@@ -200,6 +202,7 @@ export function SideRail({
           currentDraftId={currentDraftId}
           onOpenDraft={onOpenDraft}
           onDeleteDraft={onDeleteDraft}
+          onDiscardLocal={onDiscardLocalDraft}
           onNew={onNewDocument}
           noun="document"
           countLabel="block"

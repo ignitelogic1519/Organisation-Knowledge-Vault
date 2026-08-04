@@ -46,7 +46,7 @@ with the reason:
 > *This organization's plan allows up to 250 members. Upgrade the plan to add more.*
 
 Nobody is removed and nothing breaks — you either free a seat or move to a bigger plan. See
-[Chapter 17](chapter-17-plans-and-access.md) for the limits each plan carries.
+[Chapter 15](chapter-15-plans-and-access.md) for the limits each plan carries.
 
 ---
 

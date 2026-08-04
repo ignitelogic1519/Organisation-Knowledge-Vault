@@ -109,7 +109,15 @@ export interface PlanContentTerms {
   documentLimit: number | null;
   uploadLimit: number | null;
   memberLimit: number | null;
+  /** Total stored bytes allowed, in MB; null = unmetered. */
+  storageLimitMb: number | null;
   allowDrafts: boolean;
+}
+
+/** Bytes this organization currently holds in the inline store, in MB (rounded up). */
+export async function orgStorageUsedMb(orgId: string): Promise<number> {
+  const agg = await db.storedFile.aggregate({ where: { orgId }, _sum: { size: true } });
+  return Math.ceil((agg._sum.size ?? 0) / (1024 * 1024));
 }
 
 /** Resolve an org's effective content terms: per-org override → plan row → unlimited. */
@@ -123,6 +131,7 @@ export async function orgPlanTerms(orgId: string): Promise<PlanContentTerms> {
       memberLimit: true,
       documentLimit: true,
       uploadLimit: true,
+      storageLimitMb: true,
     },
   });
   if (!org) throw Object.assign(new Error("Organization not found"), { statusCode: 404 });
@@ -143,6 +152,7 @@ export async function orgPlanTerms(orgId: string): Promise<PlanContentTerms> {
     documentLimit: org.documentLimit ?? plan?.documentLimit ?? null,
     uploadLimit: org.uploadLimit ?? plan?.uploadLimit ?? null,
     memberLimit: org.memberLimit ?? plan?.memberLimit ?? null,
+    storageLimitMb: org.storageLimitMb ?? plan?.storageLimitMb ?? null,
     // Parking work on the server is a paid capability (docs/pricing.md §2b). A free plan
     // never has it, and a plan that has LAPSED loses it — otherwise an expired paid org
     // would keep a premium capability indefinitely. A grandfathered NONE org (one created
@@ -160,10 +170,11 @@ const allowance = (used: number, limit: number | null): PlanAllowance => ({
 /** The Studio / upload form's read of the plan: what is allowed and what is left. */
 export async function orgPlanLimitsView(orgId: string): Promise<OrgPlanLimitsView> {
   const terms = await orgPlanTerms(orgId);
-  const [documents, uploads, members] = await Promise.all([
+  const [documents, uploads, members, storageMb] = await Promise.all([
     db.course.count({ where: { orgId, source: "STUDIO" } }),
     db.course.count({ where: { orgId, source: "UPLOAD" } }),
     db.membership.count({ where: { orgId } }),
+    orgStorageUsedMb(orgId),
   ]);
   return {
     planKey: terms.planKey,
@@ -173,33 +184,55 @@ export async function orgPlanLimitsView(orgId: string): Promise<OrgPlanLimitsVie
     documents: allowance(documents, terms.documentLimit),
     uploads: allowance(uploads, terms.uploadLimit),
     members: allowance(members, terms.memberLimit),
+    storageMb: allowance(storageMb, terms.storageLimitMb),
     draftsEnabled: terms.allowDrafts,
     upgradeNotice: upgradeNotice("Saving a document as a draft"),
   };
 }
 
-/** Throws a 403 when publishing one more document of `source` would break the plan. */
+/**
+ * Throws a 403 when publishing one more document of `source` would break the plan. Paid
+ * plans do not meter documents at all (limit = null); the free plan stops at whichever
+ * ceiling arrives first — the document count or the storage ceiling.
+ */
 export async function assertContentQuota(
   orgId: string,
   source: "STUDIO" | "UPLOAD",
+  addingBytes = 0,
 ): Promise<void> {
   const terms = await orgPlanTerms(orgId);
   const limit = source === "STUDIO" ? terms.documentLimit : terms.uploadLimit;
-  if (limit == null) return;
-  const used = await db.course.count({ where: { orgId, source } });
-  if (used < limit) return;
-  const what =
-    source === "STUDIO"
-      ? `custom documents created in the Studio (${limit} of ${limit} used)`
-      : `uploaded documents (${limit} of ${limit} used)`;
-  throw Object.assign(
-    new Error(
-      `This organization has reached the plan's allowance of ${what}. Please ask your main ` +
-        "administrator to upgrade to a premium plan, or archive and delete documents that " +
-        "are no longer required, to free up capacity.",
-    ),
-    { statusCode: 403 },
-  );
+  if (limit != null) {
+    const used = await db.course.count({ where: { orgId, source } });
+    if (used >= limit) {
+      const what =
+        source === "STUDIO"
+          ? `custom documents created in the Studio (${limit} of ${limit} used)`
+          : `uploaded documents (${limit} of ${limit} used)`;
+      throw Object.assign(
+        new Error(
+          `This organization has reached the plan's allowance of ${what}. Please ask your main ` +
+            "administrator to upgrade to a premium plan, or archive and delete documents that " +
+            "are no longer required, to free up capacity.",
+        ),
+        { statusCode: 403 },
+      );
+    }
+  }
+  if (terms.storageLimitMb != null) {
+    const usedMb = await orgStorageUsedMb(orgId);
+    const addingMb = Math.ceil(addingBytes / (1024 * 1024));
+    if (usedMb + addingMb > terms.storageLimitMb) {
+      throw Object.assign(
+        new Error(
+          `This organization has used ${usedMb} MB of the ${terms.storageLimitMb} MB its plan ` +
+            "includes. Please ask your main administrator to upgrade to a premium plan, or " +
+            "delete material that is no longer required, to free up space.",
+        ),
+        { statusCode: 403 },
+      );
+    }
+  }
 }
 
 /** Throws a 403 when the org's plan doesn't include server-side Studio drafts. */

@@ -479,20 +479,53 @@ export interface CourseReviewView {
 }
 
 /** Per-course compliance for a branch: who completed, who is pending/overdue. */
+/** Why someone is not compliant — the sentence the compliance window shows a manager. */
+export type ComplianceReason =
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "OVERDUE"
+  | "EXPIRED"
+  | "PREREQUISITES"
+  | "EXAM_FAILED"
+  | "EXAM_ATTEMPTS_EXHAUSTED";
+
+export const COMPLIANCE_REASON_TEXT: Record<ComplianceReason, string> = {
+  NOT_STARTED: "Has not opened this yet",
+  IN_PROGRESS: "Started, not finished",
+  OVERDUE: "Past the deadline",
+  EXPIRED: "Completed earlier — the record has since expired and must be redone",
+  PREREQUISITES: "Blocked: a prerequisite course is still outstanding",
+  EXAM_FAILED: "Sat the exam without reaching the pass mark",
+  EXAM_ATTEMPTS_EXHAUSTED:
+    "Has used every attempt the exam allows and cannot sit it again until a manager resets it",
+};
+
+export interface CompliancePerson {
+  profileId: string;
+  displayName: string;
+  username: string;
+  status: CompletionStatus | "AVAILABLE";
+  overdue: boolean;
+  /** Why they are not compliant, in one machine-readable token. */
+  reason: ComplianceReason;
+  /** Exams only: how the candidate stands against the attempt allowance. */
+  attemptsUsed?: number;
+  attemptsAllowed?: number | null;
+  bestPercent?: number | null;
+  /** True when only a manager's reset can let them try again. */
+  resettable?: boolean;
+}
+
 export interface ComplianceCourse {
   code: string;
   title: string;
   mandatory: boolean;
   viaRoleName: string;
+  /** EXAM courses expose the attempt allowance and the reset action. */
+  isExam: boolean;
   total: number;
   compliant: number;
-  pending: {
-    profileId: string;
-    displayName: string;
-    username: string;
-    status: CompletionStatus | "AVAILABLE";
-    overdue: boolean;
-  }[];
+  pending: CompliancePerson[];
 }
 
 export interface ComplianceReport {

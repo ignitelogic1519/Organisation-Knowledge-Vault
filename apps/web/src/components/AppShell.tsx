@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { auth } from "@/lib/auth-client";
-import { NotificationsBell } from "./NotificationsBell";
+import { Mailbox } from "./Mailbox";
 import { ThemeMenu } from "./ThemeMenu";
 import { IconLogout } from "./icons";
 
@@ -52,9 +52,11 @@ function MenuIcon({ open }: { open: boolean }) {
   );
 }
 
-// Authenticated app chrome, rebuilt on Bootstrap: a responsive top navbar that
-// collapses into a hamburger menu on mobile (no bottom tab bar, no sidebar),
-// with the brand identity layered on via bootstrap-theme.css.
+// Authenticated app chrome: a compact, icon-first navigation bar. Each destination is an
+// icon that widens on hover/focus to reveal its real label — the label is part of the
+// link's markup (so it is read by assistive technology and found by in-page search), not
+// a tooltip attribute the browser draws on its own schedule. The active page always keeps
+// its label open, so you can see where you are without touching anything.
 export function AppShell({
   nav,
   title,
@@ -81,54 +83,50 @@ export function AppShell({
 
   return (
     <div className="kv-app">
-      <nav className="navbar navbar-expand-lg sticky-top kv-navbar" aria-label="Main">
-        <div className="container-xxl">
+      <nav className="navbar sticky-top kv-navbar" aria-label="Main">
+        <div className="container-xxl kv-navbar-inner">
           <Link href="/orgs" className="navbar-brand kv-brand">
             <span className="brand-mark" aria-hidden>
               ✦
             </span>
-            Knowledge Vault
+            <span className="kv-brand-word">Knowledge Vault</span>
           </Link>
 
-          {/* Controls + toggler stay to the right and visible at every size.
-              Page-level actions live in the page header, not here, so the navbar
-              keeps a stable single-row height. */}
-          <div className="d-flex align-items-center order-lg-last kv-navbar-controls">
-            <NotificationsBell />
+          {/* Desktop: the icon rail sits in the middle of the bar and expands on hover. */}
+          <ul className="kv-rail" data-open={open}>
+            {nav.map((item) => (
+              <li key={item.href} className="kv-rail-item">
+                <Link
+                  href={item.href}
+                  className="kv-rail-link"
+                  data-active={isActive(item)}
+                  aria-current={isActive(item) ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="kv-rail-icon" aria-hidden>
+                    {item.icon}
+                  </span>
+                  <span className="kv-rail-label">{item.label}</span>
+                  {item.badge ? <span className="kv-nav-badge">{item.badge}</span> : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <div className="kv-navbar-controls">
+            <Mailbox />
             <ThemeMenu />
             <SignOutButton />
             <button
-              className="navbar-toggler kv-toggler d-lg-none p-0 border-0"
+              className="kv-toggler"
               type="button"
               aria-controls="kv-navbar-nav"
               aria-expanded={open}
-              aria-label="Toggle navigation"
+              aria-label={open ? "Close navigation" : "Open navigation"}
               onClick={() => setOpen((v) => !v)}
             >
               <MenuIcon open={open} />
             </button>
-          </div>
-
-          <div
-            id="kv-navbar-nav"
-            className={`collapse navbar-collapse${open ? " show" : ""}`}
-          >
-            <ul className="navbar-nav me-auto kv-nav">
-              {nav.map((item) => (
-                <li key={item.href} className="nav-item">
-                  <Link
-                    href={item.href}
-                    className="nav-link"
-                    data-active={isActive(item)}
-                    onClick={() => setOpen(false)}
-                  >
-                    {item.icon}
-                    {item.label}
-                    {item.badge ? <span className="kv-nav-badge">{item.badge}</span> : null}
-                  </Link>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </nav>

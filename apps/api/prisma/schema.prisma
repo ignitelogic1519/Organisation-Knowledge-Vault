@@ -137,6 +137,7 @@ model Organization {
   memberLimit     Int? // per-org cap (customisable by the admin); null = use the plan's limit
   documentLimit   Int? // per-org cap on Studio documents; null = use the plan's limit
   uploadLimit     Int? // per-org cap on uploads/links; null = use the plan's limit
+  storageLimitMb  Int? // per-org storage ceiling in MB; null = use the plan's limit
   roles          RoleNode[]
   memberships    Membership[]
   courses        Course[]
@@ -271,6 +272,12 @@ model ExamAttempt {
   violations    Int      @default(0)
   /// True when the invigilator handed the paper in (third interruption, or time up).
   autoSubmitted Boolean  @default(false)
+  /// Set when a manager resets a candidate's attempts: the sitting stays on record but
+  /// stops counting against the allowance, so "attempts used" returns to zero without
+  /// erasing what happened.
+  voided        Boolean  @default(false)
+  voidedAt      DateTime?
+  voidedByProfileId String?
   submittedAt   DateTime @default(now())
 
   @@index([courseId, profileId])
@@ -422,16 +429,34 @@ model VaultRequest {
   @@index([requesterProfileId])
 }
 
+// One message in a profile's mailbox. Written through notify()/notifyFromAdmin(), which
+// stamp the folder (category), the flag (priority) and the deletion date (expiresAt) from
+// the shared catalog in @vault/shared/notifications — so retention is a property of the
+// row, not a rule scattered across sweeps. Reads are always
+// (profileId → category/priority → createdAt), which is exactly what the indexes serve.
 model Notification {
   id        String    @id @default(uuid())
   profileId String
   orgId     String?
   kind      String
+  /** Mailbox folder: ADMIN | PLAN | REQUESTS | CONTENT | LEARNING | PEOPLE | SYSTEM. */
+  category  String    @default("SYSTEM")
+  /** HIGH | NORMAL | LOW — admin mail is always HIGH and sorts to the top. */
+  priority  String    @default("NORMAL")
+  /** Subject line, stored so the list renders without re-deriving it per row. */
+  subject   String    @default("")
+  /** Body text shown in the reading pane. */
+  body      String    @default("")
   payload   Json
   readAt    DateTime?
+  /** The sweeper deletes the row after this instant; the mailbox counts it down. */
+  expiresAt DateTime?
   createdAt DateTime  @default(now())
 
   @@index([profileId, readAt])
+  @@index([profileId, createdAt])
+  @@index([profileId, category, createdAt])
+  @@index([expiresAt])
 }
 
 // ── Pricing, plans, coins & the platform (super-super-admin) realm ───────────
@@ -450,6 +475,7 @@ enum PlatformRequestKind {
   CREATE_ORG // permission (OTP) to create a new organization on a chosen plan
   CUSTOM_PLAN // user proposes their own days + coin offer; admin negotiates
   RESTORE_ORG // key to restore an expired/purged org from its .main
+  UPGRADE_PLAN // move an existing organization onto a higher plan
 }
 
 enum PlatformRequestStatus {
@@ -483,6 +509,9 @@ model PricingPlan {
   memberLimit  Int? // max people in an org on this plan; null = unlimited / admin-set
   documentLimit Int? // max Studio-authored documents; null = unlimited / admin-set
   uploadLimit   Int? // max uploaded or linked documents; null = unlimited / admin-set
+  storageLimitMb Int? // total stored bytes allowed, in MB; null = unlimited
+  /** Rank in the upgrade ladder — the Pricing page uses it to say what is "above" a plan. */
+  tier          Int      @default(0)
   allowDrafts   Boolean  @default(true) // may authors park work-in-progress Studio drafts?
   isCustom     Boolean   @default(false) // user proposes days + coins; admin decides
   imageUrl     String? // data-URL or external image for the card
@@ -525,9 +554,17 @@ model PlatformRequest {
   planKey         String? // chosen plan (null for a pure custom proposal)
   requestedDays   Int? // custom: days the user wants
   offeredCoins    Int? // custom: coins the user offers
+  // Custom/organisational proposals also carry the shape of the org they need, so the
+  // admin approves numbers the user already stated instead of inventing them.
+  requestedMembers   Int?
+  requestedDocuments Int? // custom documents built in the Studio
+  requestedUploads   Int? // uploaded/linked documents
   message         String? // the user's note
   // ── decision (filled by the admin) ──
   grantedDays     Int?
+  grantedMembers  Int?
+  grantedDocuments Int?
+  grantedUploads  Int?
   priceCoins      Int?
   otpHash         String? // hashed 8-char alphanumeric code
   otpExpiresAt    DateTime?

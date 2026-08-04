@@ -1,12 +1,12 @@
 "use client";
 
 import type {
-  AppNotification,
   ComplianceReport,
   CourseAdminView,
   CourseReviewView,
   CreateCourseInput,
   LibraryCourse,
+  MailboxView,
   MyLearningView,
   PlaceCourseInput,
   ReviewCourseInput,
@@ -153,13 +153,46 @@ export const compliance = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  /** Manager-only: give candidates their exam attempts back. */
+  resetExam: (roleId: string, input: { courseCode: string; profileIds: string[]; note?: string }) =>
+    api<{ ok: boolean; reset: number; attemptsVoided: number }>(
+      `/roles/${roleId}/compliance/reset-exam`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
 };
 
-export const notifications = {
-  list: () => api<{ notifications: AppNotification[]; unread: number }>("/notifications"),
-  markAllRead: () => api<{ ok: boolean }>("/notifications/read", { method: "POST", body: "{}" }),
+/** Live username suggestions for the add-person forms. */
+export const people = {
+  search: (q: string, orgId?: string) =>
+    api<{ profiles: { username: string; displayName: string; avatar: string | null; alreadyMember: boolean }[] }>(
+      `/profiles/search?q=${encodeURIComponent(q)}${orgId ? `&orgId=${orgId}` : ""}`,
+    ),
+};
+
+/** The mailbox — one read returns folders, labels, counts and expiry in a single trip. */
+export const mailbox = {
+  load: () => api<MailboxView>("/notifications"),
+  markRead: (scope: { category?: string; orgId?: string } = {}) =>
+    api<{ ok: boolean; marked: number }>("/notifications/read", {
+      method: "POST",
+      body: JSON.stringify(scope),
+    }),
+  mark: (ids: string[], read: boolean) =>
+    api<{ ok: boolean; updated: number }>("/notifications/mark", {
+      method: "POST",
+      body: JSON.stringify({ ids, read }),
+    }),
   remove: (id: string) => api<{ ok: boolean }>(`/notifications/${id}`, { method: "DELETE" }),
-  clearAll: () => api<{ ok: boolean }>("/notifications/clear", { method: "POST", body: "{}" }),
+  removeMany: (ids: string[]) =>
+    api<{ ok: boolean; deleted: number }>("/notifications/delete", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+  clear: (scope: { category?: string; orgId?: string; readOnly?: boolean } = {}) =>
+    api<{ ok: boolean; deleted: number }>("/notifications/clear", {
+      method: "POST",
+      body: JSON.stringify(scope),
+    }),
 };
 
 export const vaultFiles = {

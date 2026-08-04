@@ -17,6 +17,7 @@ import { examRoutes } from "./exams/routes.js";
 import { studioRoutes } from "./studio/routes.js";
 import { requestRoutes } from "./requests/routes.js";
 import { complianceRoutes } from "./compliance/routes.js";
+import { notificationRoutes } from "./notifications/routes.js";
 import { vaultFileRoutes } from "./vault-files/routes.js";
 import { eventRoutes } from "./events.js";
 
@@ -71,6 +72,7 @@ await app.register(examRoutes);
 await app.register(studioRoutes);
 await app.register(requestRoutes);
 await app.register(complianceRoutes);
+await app.register(notificationRoutes);
 await app.register(vaultFileRoutes);
 await app.register(eventRoutes);
 

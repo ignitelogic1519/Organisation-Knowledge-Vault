@@ -530,6 +530,31 @@ function StudioInner() {
     }
   };
 
+  /** Throw away the copy this browser autosaves while you write. */
+  const discardLocalDraft = async () => {
+    const ok = await dialogs.confirm({
+      title: "Discard this browser's copy?",
+      message:
+        "The working copy kept in this browser is deleted, and the editor goes back to a blank document. Drafts parked on the server and anything already published are not affected.",
+      confirmLabel: "Discard copy",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      /* nothing stored — the reset below is still the right outcome */
+    }
+    const next: Doc = { blocks: starterBlocks(), meta: EMPTY_META };
+    past.current = [];
+    future.current = [];
+    docRef.current = next;
+    setDoc(next);
+    setDraftId(null);
+    setSelectedId(null);
+    dialogs.toast("Browser copy discarded.", "success");
+  };
+
   const newDocument = async () => {
     const ok = await dialogs.confirm({
       title: "Start a new document?",
@@ -845,6 +870,7 @@ function StudioInner() {
               currentDraftId={draftId}
               onOpenDraft={openDraft}
               onDeleteDraft={deleteDraft}
+              onDiscardLocalDraft={discardLocalDraft}
               onNewDocument={newDocument}
             />
 

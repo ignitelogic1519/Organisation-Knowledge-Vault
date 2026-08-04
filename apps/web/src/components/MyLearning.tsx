@@ -58,7 +58,7 @@ function Row({
       </div>
       <div className="tree-actions">
         <button className="btn btn-quiet btn-small" onClick={() => onOpen(item)}>
-          {item.kind === "EXAM" ? "Sit the exam" : "Open"}
+          {item.kind === "EXAM" ? "Complete the exam" : "Open"}
         </button>
         {/* An exam completes by being passed, so it is never marked complete by hand. */}
         {item.status !== "COMPLETED" && item.kind !== "EXAM" && (

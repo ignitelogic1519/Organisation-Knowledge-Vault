@@ -1,0 +1,19 @@
+{
+  "name": "kv-guide-books",
+  "private": true,
+  "type": "module",
+  "description": "Builds the single-file PDF exports of the Knowledge Vault guide books from their Markdown chapters.",
+  "scripts": {
+    "build": "node build-pdf.mjs",
+    "build:main": "node build-pdf.mjs main",
+    "build:admin": "node build-pdf.mjs admin",
+    "publish": "node publish-to-web.mjs",
+    "build:publish": "node build-pdf.mjs main && node publish-to-web.mjs"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "mermaid": "^11.4.1",
+    "playwright": "^1.49.1",
+    "sharp": "^0.33.5"
+  }
+}

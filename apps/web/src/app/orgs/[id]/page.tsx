@@ -12,6 +12,7 @@ import { GraphLegend, OrgGraph } from "@/components/OrgGraph";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
+import { UsernameField } from "@/components/UsernameField";
 import {
   IconArchive,
   IconBook,
@@ -305,10 +306,11 @@ function ConfigPanel({
               }
             }}
           >
-            <label className="field">
-              <span>Add supreme co-owner by username</span>
-              <input name="username" placeholder="their-username" required />
-            </label>
+            <UsernameField
+              orgId={org.id}
+              label="Add supreme co-owner by username"
+              required
+            />
             <button className="btn btn-primary btn-small">Add owner</button>
           </form>
 
@@ -395,9 +397,11 @@ function ConfigPanel({
 
 function PeoplePanel({
   node,
+  orgId,
   act,
 }: {
   node: TreeNode;
+  orgId: string;
   act: (fn: () => Promise<unknown>) => Promise<boolean>;
 }) {
   const dialogs = useDialogs();
@@ -484,11 +488,12 @@ function PeoplePanel({
             </button>
             <strong>{addStep === "OWNER" ? "New co-owner" : "New member"}</strong>
           </div>
-          <label className="field">
-            <span>Username</span>
-            <input name="username" required placeholder="their-username" autoFocus />
-            <small>Unknown usernames are reserved and attach when they register</small>
-          </label>
+          <UsernameField
+            orgId={orgId}
+            required
+            autoFocus
+            hint="Start typing to see who exists — unknown usernames are reserved and attach when they register"
+          />
           {addStep === "MEMBER" && (
             <label className="ack-row">
               <input type="checkbox" name="createContent" />
@@ -757,27 +762,6 @@ function CoursesPanel({
           ✍ Create in Studio
         </button>
       </div>
-
-      {/* What the plan still allows — shown before the author starts, not after. */}
-      {limits && (limits.uploads.limit != null || limits.documents.limit != null) && (
-        <p className="plan-allowance" data-full={uploadsFull || documentsFull}>
-          {limits.documents.limit != null && (
-            <span>
-              Custom documents: <strong>{limits.documents.used}</strong> of{" "}
-              {limits.documents.limit}
-            </span>
-          )}
-          {limits.uploads.limit != null && (
-            <span>
-              Uploads: <strong>{limits.uploads.used}</strong> of {limits.uploads.limit}
-            </span>
-          )}
-          <span className="auth-sub">
-            {limits.planName ? `${limits.planName} plan` : "Free structure"} — your main
-            administrator can raise these limits with a premium plan.
-          </span>
-        </p>
-      )}
 
       {showNew && (
         <form
@@ -1064,6 +1048,37 @@ function CoursesPanel({
           </li>
         ))}
       </ul>
+
+      {/* Where the plan stands. It sits at the FOOT of the panel — reference, not a
+          banner — and only says anything when the plan actually meters something. An
+          organization already on a paid plan is never told to go and buy one. */}
+      {limits && (limits.uploads.limit != null || limits.documents.limit != null) && (
+        <div className="plan-allowance" data-full={uploadsFull || documentsFull}>
+          <div className="plan-allowance-meters">
+            {limits.documents.limit != null && (
+              <span className="plan-allowance-meter">
+                Custom documents <strong>{limits.documents.used}</strong> / {limits.documents.limit}
+              </span>
+            )}
+            {limits.uploads.limit != null && (
+              <span className="plan-allowance-meter">
+                Uploads <strong>{limits.uploads.used}</strong> / {limits.uploads.limit}
+              </span>
+            )}
+            {limits.storageMb.limit != null && (
+              <span className="plan-allowance-meter">
+                Storage <strong>{limits.storageMb.used}</strong> / {limits.storageMb.limit} MB
+              </span>
+            )}
+          </div>
+          <p className="plan-allowance-note">
+            {limits.planName ? `${limits.planName} plan.` : "No active plan."}{" "}
+            {limits.isFreePlan
+              ? "A paid plan lifts the document and upload counts entirely — ask your main administrator to arrange one."
+              : "These are the ceilings set for this organization."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1298,7 +1313,7 @@ function NodeDrawer({
       )}
 
       {section === "config" && <ConfigPanel node={node} act={act} onClose={onClose} />}
-      {section === "people" && <PeoplePanel node={node} act={act} />}
+      {section === "people" && <PeoplePanel node={node} orgId={orgId} act={act} />}
       {section === "courses" && (
         <CoursesPanel node={node} orgId={orgId} act={act} onError={setError} />
       )}

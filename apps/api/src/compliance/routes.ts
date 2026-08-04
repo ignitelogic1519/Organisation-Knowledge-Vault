@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   can,
   isSelfOrAncestor,
-  type AppNotification,
   type ComplianceCourse,
   type ComplianceReport,
 } from "@vault/shared";
@@ -12,98 +11,35 @@ import { env } from "../env.js";
 import { coursesReaching, escalationTargets, notify, toLearningItem } from "../courses/helpers.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { purgeOrganization } from "../orgs/purge.js";
-import { ADMIN_NOTIFICATION_KINDS, ADMIN_NOTIFICATION_RETENTION_MS } from "../platform/notify.js";
+import { orgOwnerProfileIds } from "../orgs/owners.js";
+import { sweepExpired } from "../notifications/mailbox.js";
+import { storage, type StorageRef } from "../storage/adapter.js";
+import { audit } from "../security.js";
+import { broadcast } from "../events.js";
 
-/** Messages self-clean after 7 days — the database never accumulates stale noise. */
-const NOTIFICATION_RETENTION_MS = 7 * 86400_000;
+/** Decided requests are removed as they are decided; this is the belt-and-braces sweep. */
+const DECIDED_REQUEST_RETENTION_MS = 2 * 86400_000;
 /** Transient operational data (verification audits, spent tokens) clears after 15 days. */
 const TRANSIENT_RETENTION_MS = 15 * 86400_000;
-/** Above this many messages the user gets nudged to clear their inbox. */
-const CLUTTER_THRESHOLD = 10;
+/** Served platform requests (codes already used, denials read) clear after 30 days. */
+const PLATFORM_REQUEST_RETENTION_MS = 30 * 86400_000;
+
+/** The attempt allowance a stored exam paper declares (null = unlimited). */
+async function examMaxAttempts(course: { kind: string; storageRef: unknown }): Promise<number | null> {
+  if (course.kind !== "EXAM") return null;
+  try {
+    const content = await storage.resolve(course.storageRef as unknown as StorageRef);
+    const settings = (content.exam as { settings?: { maxAttempts?: number | null } } | undefined)
+      ?.settings;
+    return settings?.maxAttempts ?? null;
+  } catch {
+    return null; // an unreadable paper simply doesn't meter attempts
+  }
+}
 
 export async function complianceRoutes(app: FastifyInstance) {
-  // In-app notification center (v1 channel — docs/structure.md §7)
-  app.get(
-    "/notifications",
-    { preHandler: app.authenticate },
-    async (req): Promise<{ notifications: AppNotification[]; unread: number }> => {
-      // Auto-cleanup, applied on every read: normal messages self-clear after 7 days,
-      // but messages from the super-admin (OTPs, plan decisions) are durable receipts and
-      // are kept 30 days so the user can see the code any time.
-      await db.notification.deleteMany({
-        where: {
-          profileId: req.profileId,
-          kind: { notIn: [...ADMIN_NOTIFICATION_KINDS] },
-          createdAt: { lt: new Date(Date.now() - NOTIFICATION_RETENTION_MS) },
-        },
-      });
-      await db.notification.deleteMany({
-        where: {
-          profileId: req.profileId,
-          kind: { in: [...ADMIN_NOTIFICATION_KINDS] },
-          createdAt: { lt: new Date(Date.now() - ADMIN_NOTIFICATION_RETENTION_MS) },
-        },
-      });
-
-      let rows = await db.notification.findMany({
-        where: { profileId: req.profileId },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-      });
-
-      // Clutter nudge: more than 10 messages → one reminder to clean up (re-armed
-      // weekly by the retention window above)
-      if (rows.length > CLUTTER_THRESHOLD && !rows.some((n) => n.kind === "inbox_cleanup")) {
-        const reminder = await db.notification.create({
-          data: {
-            profileId: req.profileId,
-            orgId: null,
-            kind: "inbox_cleanup",
-            payload: { count: rows.length },
-          },
-        });
-        rows = [reminder, ...rows];
-      }
-
-      return {
-        notifications: rows.map((n) => ({
-          id: n.id,
-          kind: n.kind,
-          orgId: n.orgId,
-          payload: n.payload as Record<string, unknown>,
-          readAt: n.readAt?.toISOString() ?? null,
-          createdAt: n.createdAt.toISOString(),
-        })),
-        unread: rows.filter((n) => !n.readAt).length,
-      };
-    },
-  );
-
-  app.post("/notifications/read", { preHandler: app.authenticate }, async (req) => {
-    await db.notification.updateMany({
-      where: { profileId: req.profileId, readAt: null },
-      data: { readAt: new Date() },
-    });
-    return { ok: true };
-  });
-
-  // Dismiss one message
-  app.delete<{ Params: { id: string } }>(
-    "/notifications/:id",
-    { preHandler: app.authenticate },
-    async (req) => {
-      await db.notification.deleteMany({
-        where: { id: req.params.id, profileId: req.profileId },
-      });
-      return { ok: true };
-    },
-  );
-
-  // Clear the whole inbox
-  app.post("/notifications/clear", { preHandler: app.authenticate }, async (req) => {
-    await db.notification.deleteMany({ where: { profileId: req.profileId } });
-    return { ok: true };
-  });
+  // The mailbox itself lives in notifications/routes.ts — this file keeps the compliance
+  // views and the nightly housekeeping job.
 
   // Branch compliance report — for the node's managers: per course, who is compliant
   // and who is not, across the whole subtree the course reaches. Works for every node
@@ -176,10 +112,39 @@ export async function complianceRoutes(app: FastifyInstance) {
         occupants.map((o) => [o.membership.profileId, o.membership.profile]),
       );
 
+      // Exam attempts, fetched once for every exam in the report and bucketed by
+      // course+candidate — the per-person lookup below is then a single map probe.
+      const examCourseIds = [...byCourse.values()]
+        .filter(({ cp }) => cp.course.kind === "EXAM")
+        .map(({ cp }) => cp.courseId);
+      const attempts = examCourseIds.length
+        ? await db.examAttempt.findMany({
+            where: { courseId: { in: examCourseIds }, voided: false },
+            select: { courseId: true, profileId: true, scorePercent: true, passed: true },
+          })
+        : [];
+      const attemptsBy = new Map<string, { count: number; best: number; passed: boolean }>();
+      for (const a of attempts) {
+        const key = `${a.courseId}:${a.profileId}`;
+        const entry = attemptsBy.get(key) ?? { count: 0, best: 0, passed: false };
+        entry.count++;
+        entry.best = Math.max(entry.best, a.scorePercent);
+        entry.passed ||= a.passed;
+        attemptsBy.set(key, entry);
+      }
+      // The paper's own attempt allowance lives in its stored settings.
+      const examLimits = new Map<string, number | null>();
+      for (const courseId of examCourseIds) {
+        const { cp } = [...byCourse.values()].find((c) => c.cp.courseId === courseId)!;
+        examLimits.set(courseId, await examMaxAttempts(cp.course));
+      }
+
       const courses: ComplianceCourse[] = [...byCourse.values()].map(({ cp, audience }) => {
         const pending: ComplianceCourse["pending"] = [];
         let compliant = 0;
         const deadlineDays = cp.deadlineDays ?? cp.course.deadlineDays;
+        const isExam = cp.course.kind === "EXAM";
+        const maxAttempts = isExam ? examLimits.get(cp.courseId) ?? null : null;
         for (const profileId of audience) {
           const rec = records.find(
             (r) => r.courseId === cp.courseId && r.profileId === profileId,
@@ -192,15 +157,43 @@ export async function complianceRoutes(app: FastifyInstance) {
             continue;
           }
           const profile = profileOf.get(profileId);
+          const overdue =
+            cp.mandatory &&
+            deadlineDays !== null &&
+            new Date(cp.createdAt.getTime() + deadlineDays * 86400_000) < new Date();
+          const stat = isExam ? attemptsBy.get(`${cp.courseId}:${profileId}`) : undefined;
+          const exhausted =
+            isExam && maxAttempts != null && (stat?.count ?? 0) >= maxAttempts && !stat?.passed;
+
+          // The most specific true statement wins: an exhausted exam explains itself
+          // better than "overdue" ever could.
+          const reason = exhausted
+            ? "EXAM_ATTEMPTS_EXHAUSTED"
+            : isExam && (stat?.count ?? 0) > 0
+              ? "EXAM_FAILED"
+              : rec?.status === "EXPIRED"
+                ? "EXPIRED"
+                : overdue
+                  ? "OVERDUE"
+                  : rec?.status === "IN_PROGRESS"
+                    ? "IN_PROGRESS"
+                    : "NOT_STARTED";
+
           pending.push({
             profileId,
             displayName: profile?.displayName ?? "Unknown",
             username: profile?.username ?? "unknown",
             status: rec?.status ?? (cp.mandatory ? "ASSIGNED" : "AVAILABLE"),
-            overdue:
-              cp.mandatory &&
-              deadlineDays !== null &&
-              new Date(cp.createdAt.getTime() + deadlineDays * 86400_000) < new Date(),
+            overdue,
+            reason,
+            ...(isExam
+              ? {
+                  attemptsUsed: stat?.count ?? 0,
+                  attemptsAllowed: maxAttempts,
+                  bestPercent: stat?.best ?? null,
+                  resettable: (stat?.count ?? 0) > 0,
+                }
+              : {}),
           });
         }
         const viaNode = allNodes.find((n) => n.id === cp.roleNodeId);
@@ -209,6 +202,7 @@ export async function complianceRoutes(app: FastifyInstance) {
           title: cp.course.title,
           mandatory: cp.mandatory,
           viaRoleName: viaNode?.name ?? "—",
+          isExam,
           total: audience.size,
           compliant,
           pending,
@@ -262,6 +256,79 @@ export async function complianceRoutes(app: FastifyInstance) {
     },
   );
 
+  // Reset a candidate's exam allowance. A member who has used every attempt cannot sit
+  // the paper again on their own — this is the manager's release valve. The sittings stay
+  // on record (voided, not deleted), so the history of what happened survives the reset.
+  app.post<{ Params: { roleId: string } }>(
+    "/roles/:roleId/compliance/reset-exam",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const body = z
+        .object({
+          courseCode: z.string(),
+          profileIds: z.array(z.string().uuid()).min(1).max(200),
+          note: z.string().trim().max(500).optional(),
+        })
+        .parse(req.body);
+      const node = await db.roleNode.findUnique({
+        where: { id: req.params.roleId },
+        include: { org: true },
+      });
+      if (!node || node.org.deletedAt) return reply.status(404).send({ error: "Role not found" });
+      const placements = await actorPlacements(req.profileId, node.orgId);
+      // Same gate as the rest of the compliance view: this branch's managers, and the
+      // levels above them — never a peer.
+      if (!can(placements, "add_people", toRoleRef(node))) {
+        return reply
+          .status(403)
+          .send({ error: "Only this branch's managers can reset an exam" });
+      }
+      const course = await db.course.findUnique({ where: { code: body.courseCode } });
+      if (!course || course.orgId !== node.orgId) {
+        return reply.status(404).send({ error: "Course not found" });
+      }
+      if (course.kind !== "EXAM") {
+        return reply.status(409).send({ error: "Only an exam has attempts to reset" });
+      }
+
+      const targets = [...new Set(body.profileIds)];
+      const { count } = await db.examAttempt.updateMany({
+        where: { courseId: course.id, profileId: { in: targets }, voided: false },
+        data: { voided: true, voidedAt: new Date(), voidedByProfileId: req.profileId },
+      });
+      // A failed sitting may have left an EXPIRED/IN_PROGRESS record behind; put the
+      // candidate back to "assigned" so the exam shows as sittable again.
+      await db.completionRecord.updateMany({
+        where: { courseId: course.id, profileId: { in: targets }, status: { not: "COMPLETED" } },
+        data: { status: "ASSIGNED" },
+      });
+
+      const manager = await db.profile.findUnique({ where: { id: req.profileId } });
+      for (const profileId of targets) {
+        await notify(
+          profileId,
+          node.orgId,
+          "exam_reset",
+          { code: course.code, title: course.title, roleName: node.name, by: manager?.displayName },
+          {
+            subject: `You can sit “${course.title}” again`,
+            body:
+              `${manager?.displayName ?? "A manager"} reset your attempts on “${course.title}”. ` +
+              "Your allowance starts over — open it from My Learning when you are ready." +
+              (body.note ? ` Note: ${body.note}` : ""),
+          },
+        );
+      }
+      await audit(node.orgId, "exam.reset", {
+        actorProfileId: req.profileId,
+        ip: req.ip,
+        detail: { code: course.code, people: targets.length, voided: count },
+      });
+      broadcast(node.orgId, "courses");
+      return { ok: true, reset: targets.length, attemptsVoided: count };
+    },
+  );
+
   // The nightly job — triggered by an external scheduler (GitHub Actions) because Render's
   // free tier sleeps. Protected by JOB_SECRET. Idempotent: safe to run repeatedly.
   app.post("/jobs/run", async (req, reply) => {
@@ -280,26 +347,27 @@ export async function complianceRoutes(app: FastifyInstance) {
       prunedTokens: 0,
     };
 
-    // 0a. 7-day retention: messages and decided requests. Super-admin messages (OTPs,
-    //     plan decisions) are durable receipts kept 30 days instead.
-    const retentionCutoff = new Date(Date.now() - NOTIFICATION_RETENTION_MS);
-    const adminCutoff = new Date(Date.now() - ADMIN_NOTIFICATION_RETENTION_MS);
-    report.prunedNotifications =
+    // 0a. Mail expires on its own schedule — every message carries the instant it dies,
+    //     so this is one indexed sweep rather than a rule per kind. Decided requests are
+    //     deleted as they are decided; anything older that slipped through goes here too.
+    report.prunedNotifications = await sweepExpired();
+    report.prunedRequests =
       (
-        await db.notification.deleteMany({
-          where: { kind: { notIn: [...ADMIN_NOTIFICATION_KINDS] }, createdAt: { lt: retentionCutoff } },
+        await db.vaultRequest.deleteMany({
+          where: {
+            status: { not: "PENDING" },
+            decidedAt: { lt: new Date(Date.now() - DECIDED_REQUEST_RETENTION_MS) },
+          },
         })
       ).count +
       (
-        await db.notification.deleteMany({
-          where: { kind: { in: [...ADMIN_NOTIFICATION_KINDS] }, createdAt: { lt: adminCutoff } },
+        await db.platformRequest.deleteMany({
+          where: {
+            status: { in: ["USED", "DENIED", "EXPIRED", "WITHDRAWN"] },
+            createdAt: { lt: new Date(Date.now() - PLATFORM_REQUEST_RETENTION_MS) },
+          },
         })
       ).count;
-    report.prunedRequests = (
-      await db.vaultRequest.deleteMany({
-        where: { status: { not: "PENDING" }, decidedAt: { lt: retentionCutoff } },
-      })
-    ).count;
 
     // 0b. 15-day retention: transient operational data not worth keeping forever —
     //     Supreme verification audits (structural owner/deletion events are kept) and
@@ -367,6 +435,51 @@ export async function complianceRoutes(app: FastifyInstance) {
           }
           report.overdueNotices++;
         }
+      }
+    }
+
+    // 2b. Plan expiry: one warning a week out, one notice the day it lapses. Both are
+    //     sent once — the same-day guard keeps a nightly run from repeating itself.
+    const timed = await db.organization.findMany({
+      where: {
+        deletedAt: null,
+        planStatus: { in: ["DEMO", "ACTIVE"] },
+        planExpiresAt: { not: null, lt: new Date(Date.now() + 7 * 86400_000) },
+      },
+      select: { id: true, name: true, orgNumber: true, planKey: true, planExpiresAt: true },
+    });
+    for (const org of timed) {
+      const expiresAt = org.planExpiresAt as Date;
+      const lapsed = expiresAt < new Date();
+      const kind = lapsed ? "plan_expired" : "plan_expiring";
+      const today = new Date().toISOString().slice(0, 10);
+      const already = await db.notification.findFirst({
+        where: { orgId: org.id, kind, createdAt: { gte: new Date(`${today}T00:00:00Z`) } },
+      });
+      if (already) continue;
+      const days = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86400_000));
+      for (const pid of await orgOwnerProfileIds(org.id)) {
+        await notify(
+          pid,
+          org.id,
+          kind,
+          { orgNumber: org.orgNumber, planKey: org.planKey, expiresAt: expiresAt.toISOString() },
+          {
+            subject: lapsed
+              ? `${org.name}: the plan has lapsed`
+              : `${org.name}: the plan expires in ${days} day${days === 1 ? "" : "s"}`,
+            body: lapsed
+              ? `The ${org.planKey ?? "current"} plan on ${org.name} (#${org.orgNumber}) expired on ${expiresAt
+                  .toISOString()
+                  .slice(0, 10)}. Renew or upgrade from the Pricing page to unlock it again.`
+              : `The ${org.planKey ?? "current"} plan on ${org.name} (#${org.orgNumber}) runs out on ${expiresAt
+                  .toISOString()
+                  .slice(0, 10)}. Upgrade from the Pricing page to keep everything running.`,
+          },
+        );
+      }
+      if (lapsed) {
+        await db.organization.update({ where: { id: org.id }, data: { planStatus: "EXPIRED" } });
       }
     }
 

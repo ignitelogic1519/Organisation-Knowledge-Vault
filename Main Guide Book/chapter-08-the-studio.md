@@ -326,4 +326,4 @@ button right there to take it out of deployment. You can also take a course out 
 - **Highlight sparingly.** A single highlight colour through a document reads as emphasis;
   five read as decoration.
 
-**Next:** [Chapter 9 — The Library →](chapter-09-the-library.md)
+**Next:** [Chapter 9 — The Library →](chapter-10-the-library.md)

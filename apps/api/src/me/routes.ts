@@ -8,6 +8,50 @@ import { toPublicProfile } from "../auth/tokens.js";
 const AVATAR_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
 export async function meRoutes(app: FastifyInstance) {
+  // Username suggestions while typing (the add-person forms). Prefix-first, then
+  // contains, capped at 8 — enough to confirm "this person exists" without turning the
+  // profile table into a directory anyone can page through. Only the public identity
+  // fields are returned, and a query shorter than two characters returns nothing.
+  app.get<{ Querystring: { q?: string; orgId?: string } }>(
+    "/profiles/search",
+    { preHandler: app.authenticate },
+    async (req) => {
+      const q = (req.query.q ?? "").trim().toLowerCase();
+      if (q.length < 2) return { profiles: [] };
+      const rows = await db.profile.findMany({
+        where: {
+          OR: [{ username: { contains: q } }, { displayName: { contains: q, mode: "insensitive" } }],
+        },
+        select: { id: true, username: true, displayName: true, avatar: true },
+        take: 24,
+      });
+      // Members of the named organization are marked so the form can say "already here".
+      const memberIds = req.query.orgId
+        ? new Set(
+            (
+              await db.membership.findMany({
+                where: { orgId: req.query.orgId, profileId: { in: rows.map((r) => r.id) } },
+                select: { profileId: true },
+              })
+            ).map((m) => m.profileId),
+          )
+        : new Set<string>();
+      const scored = rows
+        .map((r) => ({
+          username: r.username,
+          displayName: r.displayName,
+          avatar: r.avatar,
+          alreadyMember: memberIds.has(r.id),
+          // Prefix matches first, then shorter usernames — the familiar autocomplete feel.
+          rank: (r.username.startsWith(q) ? 0 : 1) * 1000 + r.username.length,
+        }))
+        .sort((a, b) => a.rank - b.rank)
+        .slice(0, 8)
+        .map(({ rank: _rank, ...rest }) => rest);
+      return { profiles: scored };
+    },
+  );
+
   app.get("/me", { preHandler: app.authenticate }, async (req, reply) => {
     const profile = await db.profile.findUnique({ where: { id: req.profileId } });
     if (!profile) return reply.status(404).send({ error: "Profile not found" });

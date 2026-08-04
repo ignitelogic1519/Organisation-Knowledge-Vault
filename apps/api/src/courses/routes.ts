@@ -133,7 +133,9 @@ export async function courseRoutes(app: FastifyInstance) {
       // built in the Studio, so it draws on the same custom-document allowance. Check the
       // allowance BEFORE any bytes are stored, so a refusal leaves nothing behind.
       const source: "STUDIO" | "UPLOAD" = body.blocks || body.exam ? "STUDIO" : "UPLOAD";
-      await assertContentQuota(node.orgId, source);
+      // Base64 inflates by ~4/3, so the decoded size is what the storage ceiling sees.
+      const incomingBytes = body.fileBase64 ? Math.floor(body.fileBase64.length * 0.75) : 0;
+      await assertContentQuota(node.orgId, source, incomingBytes);
 
       let ref: StorageRef;
       if (body.exam) {

@@ -5,14 +5,27 @@ import { useTheme } from "next-themes";
 import { IconPalette } from "./icons";
 
 // Multi-theme control: a skeuomorphic day/night switch plus accent-palette swatches.
-// Accent persists in localStorage and is applied pre-paint by the layout init script.
+// Both choices are written to a COOKIE (and mirrored into localStorage), so the next
+// visit — on this browser or after a fresh sign-in — paints in the same colours before
+// the first frame. The default is Peach, the warm day theme.
 
 const ACCENTS = [
+  { id: "peach", label: "Peach", from: "#ff9472", to: "#f2709c" },
   { id: "aurora", label: "Aurora", from: "#7c7cff", to: "#c06bff" },
   { id: "ocean", label: "Ocean", from: "#0ea5e9", to: "#22d3ee" },
   { id: "sunset", label: "Sunset", from: "#f97316", to: "#ec4899" },
   { id: "forest", label: "Forest", from: "#10b981", to: "#a3e635" },
 ];
+
+/** One year, path-wide, lax — an appearance preference, not a tracking cookie. */
+function remember(key: string, value: string) {
+  try {
+    document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; samesite=lax`;
+    localStorage.setItem(key, value);
+  } catch {
+    /* private mode — the choice still applies for this session */
+  }
+}
 
 export function ThemeSwitch() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -26,7 +39,11 @@ export function ThemeSwitch() {
       role="switch"
       aria-checked={mounted ? dark : undefined}
       aria-label={mounted ? `Switch to ${dark ? "light" : "dark"} theme` : "Toggle theme"}
-      onClick={() => setTheme(dark ? "light" : "dark")}
+      onClick={() => {
+        const next = dark ? "light" : "dark";
+        setTheme(next);
+        remember("kv.theme", next);
+      }}
     >
       <span className="theme-knob" aria-hidden>
         {mounted ? (dark ? "🌙" : "☀️") : ""}
@@ -37,11 +54,11 @@ export function ThemeSwitch() {
 
 export function ThemeMenu() {
   const [open, setOpen] = useState(false);
-  const [accent, setAccent] = useState("aurora");
+  const [accent, setAccent] = useState("peach");
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setAccent(localStorage.getItem("kv.accent") ?? "aurora");
+    setAccent(document.documentElement.getAttribute("data-accent") ?? "peach");
   }, []);
 
   useEffect(() => {
@@ -56,7 +73,7 @@ export function ThemeMenu() {
   function pick(id: string) {
     setAccent(id);
     document.documentElement.setAttribute("data-accent", id);
-    localStorage.setItem("kv.accent", id);
+    remember("kv.accent", id);
   }
 
   return (
@@ -90,6 +107,9 @@ export function ThemeMenu() {
               />
             ))}
           </div>
+          <p className="auth-sub theme-pop-note">
+            Your choice is remembered on this device and restored the next time you sign in.
+          </p>
         </div>
       )}
     </div>

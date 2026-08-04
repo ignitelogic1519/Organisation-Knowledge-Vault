@@ -9,7 +9,7 @@ This is how a company, team or department comes into existence on the platform.
 > **You need a plan and an access code first.** Every organization runs on a plan, and
 > creating one needs a one-time 8-character code from the Knowledge Base team. Pick a plan on
 > the **Pricing** page (the free **Demo** plan costs nothing), and your code arrives in your
-> notifications. [Chapter 17](chapter-17-plans-and-access.md) walks through it end to end.
+> notifications. [Chapter 15](chapter-15-plans-and-access.md) walks through it end to end.
 
 ---
 
@@ -79,6 +79,6 @@ organization's card.
   courses whenever you're ready — the next chapters show how.
 - **Trying the platform out?** Found a **Demo** organization — free, full-featured, 2 months,
   up to 10 people — and rehearse there before you build the real one
-  ([Chapter 17](chapter-17-plans-and-access.md)).
+  ([Chapter 15](chapter-15-plans-and-access.md)).
 
 **Next:** [Chapter 4 — The Constellation: your org map →](chapter-04-the-constellation.md)

@@ -2,9 +2,13 @@
 
 import type {
   AddAdminInput,
+  AdminBroadcastInput,
+  AdminBulkDeleteInput,
+  AdminOrgDetail,
   AdminOrgRow,
   AdminRequestRow,
   AdminSession,
+  AdminSetOrgInput,
   AdminTreeNode,
   DecidePlatformRequestInput,
   GiftCoinsInput,
@@ -64,15 +68,34 @@ export const admin = {
       body: JSON.stringify({ currentPassword, newPassword, confirm }),
     }),
   orgs: () => call<{ orgs: AdminOrgRow[] }>("/admin/orgs"),
+  orgDetail: (orgNumber: number) => call<AdminOrgDetail>(`/admin/orgs/${orgNumber}/detail`),
+  setOrg: (input: AdminSetOrgInput) =>
+    call<{ ok: boolean; orgNumber: number }>("/admin/orgs", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  messageOrgs: (input: AdminBroadcastInput) =>
+    call<{ ok: boolean; organizations: number; delivered: number }>("/admin/orgs/message", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  bulkDelete: (input: AdminBulkDeleteInput) =>
+    call<{ ok: boolean; deleted: number }>("/admin/orgs/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   orgTree: (orgNumber: number) =>
     call<{ name: string; nodes: AdminTreeNode[] }>(`/admin/orgs/${orgNumber}/tree`),
   requests: (status?: string) =>
     call<{ requests: AdminRequestRow[] }>(`/admin/requests${status ? `?status=${status}` : ""}`),
   decide: (id: string, input: DecidePlatformRequestInput) =>
-    call<{ ok: boolean; status: string; otp?: string; expiresAt?: string }>(
-      `/admin/requests/${id}/decide`,
-      { method: "POST", body: JSON.stringify(input) },
-    ),
+    call<{
+      ok: boolean;
+      status: string;
+      otp?: string | null;
+      appliedOrgNumber?: number | null;
+      expiresAt?: string;
+    }>(`/admin/requests/${id}/decide`, { method: "POST", body: JSON.stringify(input) }),
   giftCoins: (input: GiftCoinsInput) =>
     call<{ ok: boolean; balance: number }>("/admin/coins/gift", {
       method: "POST",

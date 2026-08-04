@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ComplianceCourse, ComplianceReport, TreeNode } from "@vault/shared";
+import {
+  COMPLIANCE_REASON_TEXT,
+  type ComplianceCourse,
+  type ComplianceReport,
+  type TreeNode,
+} from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { roles } from "@/lib/orgs-client";
 import { compliance } from "@/lib/courses-client";
@@ -86,9 +91,17 @@ function CourseBlock({
                   <span>Select all non-compliant ({course.pending.length})</span>
                 </label>
               </div>
+              {/* Every non-compliant person carries the REASON, in plain words. An exam
+                  also shows how the candidate stands against its attempt allowance —
+                  "used every attempt" is a very different problem from "hasn't started",
+                  and only one of them a reminder can fix. */}
               <ul className="people-list">
                 {course.pending.map((p) => (
-                  <li key={p.profileId} className="person-card">
+                  <li
+                    key={p.profileId}
+                    className="person-card compliance-person"
+                    data-blocked={p.reason === "EXAM_ATTEMPTS_EXHAUSTED"}
+                  >
                     <label className="ack-row" style={{ flex: 1 }}>
                       <input
                         type="checkbox"
@@ -98,9 +111,24 @@ function CourseBlock({
                       <span className="person-main">
                         <span className="person-name">{p.displayName}</span>
                         <span className="person-sub">@{p.username}</span>
+                        <span className="compliance-reason">
+                          {COMPLIANCE_REASON_TEXT[p.reason]}
+                          {course.isExam && p.attemptsUsed !== undefined && (
+                            <>
+                              {" · "}
+                              {p.attemptsUsed} attempt{p.attemptsUsed === 1 ? "" : "s"} used
+                              {p.attemptsAllowed != null ? ` of ${p.attemptsAllowed}` : ""}
+                              {p.bestPercent != null && p.attemptsUsed > 0
+                                ? ` · best ${p.bestPercent}%`
+                                : ""}
+                            </>
+                          )}
+                        </span>
                       </span>
                     </label>
-                    {p.overdue ? (
+                    {p.reason === "EXAM_ATTEMPTS_EXHAUSTED" ? (
+                      <span className="badge badge-danger">no attempts left</span>
+                    ) : p.overdue ? (
                       <span className="badge badge-danger">overdue</span>
                     ) : (
                       <span className="badge">{p.status.toLowerCase()}</span>
@@ -149,6 +177,53 @@ function CourseBlock({
                 >
                   🔔 Send reminder ({selected.size})
                 </button>
+
+                {/* Reset is the manager's release valve: a candidate who has spent every
+                    attempt cannot sit the paper again on their own. The sittings stay on
+                    record — only the allowance goes back to zero. */}
+                {course.isExam && (
+                  <button
+                    className="btn btn-quiet btn-small"
+                    disabled={selected.size === 0 || busy}
+                    title="Give these candidates their attempts back so they can sit the exam again"
+                    onClick={async () => {
+                      const names = course.pending
+                        .filter((p) => selected.has(p.profileId))
+                        .map((p) => p.displayName)
+                        .join(", ");
+                      const ok = await dialogs.confirm({
+                        title: "Reset exam attempts?",
+                        message: `${names} will be able to sit “${course.title}” again from a clean allowance. Their previous sittings stay on record but stop counting.`,
+                        confirmLabel: "Reset attempts",
+                      });
+                      if (!ok) return;
+                      setBusy(true);
+                      try {
+                        const res = await compliance.resetExam(roleId, {
+                          courseCode: course.code,
+                          profileIds: [...selected],
+                          note: message.trim() || undefined,
+                        });
+                        dialogs.toast(
+                          `Attempts reset for ${res.reset} candidate${res.reset === 1 ? "" : "s"}.`,
+                          "success",
+                        );
+                        setSelected(new Set());
+                        setMessage("");
+                        onSent();
+                      } catch (e) {
+                        dialogs.toast(
+                          e instanceof ApiError ? e.message : "Could not reset attempts",
+                          "danger",
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    ♻ Reset attempts ({selected.size})
+                  </button>
+                )}
               </div>
             </>
           )}

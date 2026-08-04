@@ -377,6 +377,31 @@ export function ExamStudio({
     }
   };
 
+  /** Throw away the copy this browser autosaves while you write. */
+  const discardLocalDraft = async () => {
+    const ok = await dialogs.confirm({
+      title: "Discard this browser's copy?",
+      message:
+        "The working copy kept in this browser is deleted, and the editor goes back to a blank paper. Drafts parked on the server and anything already published are not affected.",
+      confirmLabel: "Discard copy",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      /* nothing stored — the reset below is still the right outcome */
+    }
+    const next: ExamDoc = { meta: { ...EMPTY_META, kind: "EXAM" }, exam: blankExam() };
+    past.current = [];
+    future.current = [];
+    docRef.current = next;
+    setDoc(next);
+    setDraftId(null);
+    setSelectedId(null);
+    dialogs.toast("Browser copy discarded.", "success");
+  };
+
   const newExam = async () => {
     const ok = await dialogs.confirm({
       title: "Start a new exam?",
@@ -732,6 +757,7 @@ export function ExamStudio({
                   currentDraftId={draftId}
                   onOpenDraft={openDraft}
                   onDeleteDraft={deleteDraft}
+                  onDiscardLocal={discardLocalDraft}
                   onNew={newExam}
                   noun="exam"
                   countLabel="question"

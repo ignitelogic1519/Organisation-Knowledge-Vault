@@ -77,6 +77,25 @@ docs/             The project contract — read these first
 | [docs/future.md](docs/future.md) | Deferred features register — including the planned AI library assistant |
 | [docs/confidence-report.md](docs/confidence-report.md) | Pre-coding design review & scores |
 
+## Guide books
+
+Two books, two audiences. Both are Markdown chapters with a single-file PDF built from them.
+
+| Book | For | PDF |
+|------|-----|-----|
+| [Main Guide Book](Main%20Guide%20Book/README.md) | End users, owners and managers. Published with the product — the Help page serves it for download. | `Main Guide Book/Knowledge-Vault-Main-Guide-Book.pdf` |
+| [Super Admin Guide Book](Super%20Admin%20Guide%20Book/README.md) | **The Knowledge Base team only.** The administration console. Never published with the product. | `Super Admin Guide Book/Knowledge-Vault-Super-Admin-Guide-Book.pdf` |
+
+The main book contains **no** super-admin material by design: what a customer can download
+should not double as a map of the staff console.
+
+```bash
+cd guide-book-tools
+npm install                  # one-off: markdown-it, mermaid, sharp, playwright
+npm run build                # rebuild both PDFs
+npm run build:publish        # rebuild the main book and copy it into apps/web/public/guide
+```
+
 ## Quick start
 
 ```bash

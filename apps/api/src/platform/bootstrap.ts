@@ -3,7 +3,7 @@ import { db } from "../db.js";
 import { ensureDefaultCoinsSetting } from "./settings.js";
 
 // Self-healing platform bootstrap — runs on every server start (idempotent). Guarantees the
-// first super-admin and the starter pricing plans exist, so a fresh deploy (e.g. Render +
+// first super-admin and the current pricing ladder exist, so a fresh deploy (e.g. Render +
 // Neon) is usable immediately without a separate `prisma db seed` step. Safe to run
 // repeatedly; it only creates what's missing and never clobbers admin-edited data.
 
@@ -13,13 +13,161 @@ const FIRST_ADMIN = {
   displayName: "Knowledge Base Admin",
 };
 
+// The plan ladder (owner decision 2026-08-03). Only the Free plan is metered — 30 custom
+// documents, 30 uploads, 150 GB, whichever arrives first. Paid plans carry unlimited
+// documents and uploads; an admin can still pin a per-org ceiling by hand.
+//
 // documentLimit = documents built in the Studio; uploadLimit = files/links brought in;
-// allowDrafts = may authors park an unfinished Studio document on the server (premium).
-const STARTER_PLANS = [
-  { key: "demo", name: "Demo", tagline: "Try Knowledge Vault free", category: "Plans", priceCoins: 0, durationDays: 60, memberLimit: 10 as number | null, documentLimit: 20 as number | null, uploadLimit: 30 as number | null, allowDrafts: false, isCustom: false, criteria: "One demo organization per profile. Expires after 2 months.", badge: "Free", highlights: ["Full features for evaluation", "Up to 10 members", "20 Studio documents · 30 uploads", "2-month time limit", "No Knowledge Coins required"], sortOrder: 10 },
-  { key: "monthly", name: "Monthly", tagline: "Keep your organization running month to month", category: "Plans", priceCoins: 50, durationDays: 30, memberLimit: 1000 as number | null, documentLimit: null as number | null, uploadLimit: null as number | null, allowDrafts: true, isCustom: false, criteria: "Renew every 30 days.", badge: null as string | null, highlights: ["30 days of full access", "Up to 1000 members", "Unlimited documents & drafts", "Renewable"], sortOrder: 20 },
-  { key: "organisation", name: "Organisation", tagline: "For established teams — duration set with the admin", category: "Plans", priceCoins: 150, durationDays: null as number | null, memberLimit: null as number | null, documentLimit: null as number | null, uploadLimit: null as number | null, allowDrafts: true, isCustom: true, criteria: "Duration agreed with the Knowledge Base team.", badge: "Best value", highlights: ["Admin-set duration", "Custom member limit", "Unlimited documents & drafts", "Custom terms"], sortOrder: 30 },
+// storageLimitMb = total stored bytes; allowDrafts = may authors park an unfinished
+// Studio document on the server (premium); tier = rung on the upgrade ladder.
+const FREE_STORAGE_MB = 150 * 1024;
+
+interface StarterPlan {
+  key: string;
+  name: string;
+  tagline: string;
+  category: string;
+  priceCoins: number;
+  durationDays: number | null;
+  memberLimit: number | null;
+  documentLimit: number | null;
+  uploadLimit: number | null;
+  storageLimitMb: number | null;
+  tier: number;
+  allowDrafts: boolean;
+  isCustom: boolean;
+  criteria: string;
+  badge: string | null;
+  highlights: string[];
+  sortOrder: number;
+}
+
+const STARTER_PLANS: StarterPlan[] = [
+  {
+    key: "demo",
+    name: "Free",
+    tagline: "Try Knowledge Vault for a month",
+    category: "Plans",
+    priceCoins: 50,
+    durationDays: 30,
+    memberLimit: 10,
+    documentLimit: 30,
+    uploadLimit: 30,
+    storageLimitMb: FREE_STORAGE_MB,
+    tier: 1,
+    allowDrafts: false,
+    isCustom: false,
+    criteria: "One free organization per profile. 30 days, then upgrade to continue.",
+    badge: "Start here",
+    highlights: [
+      "30 days of full access",
+      "Up to 30 custom documents and 30 uploads",
+      "150 GB of storage — whichever limit comes first",
+      "Up to 10 people",
+    ],
+    sortOrder: 10,
+  },
+  {
+    key: "bimonthly",
+    name: "Bi-monthly",
+    tagline: "Two months of everything, renewable",
+    category: "Plans",
+    priceCoins: 100,
+    durationDays: 60,
+    memberLimit: null,
+    documentLimit: null,
+    uploadLimit: null,
+    storageLimitMb: null,
+    tier: 2,
+    allowDrafts: true,
+    isCustom: false,
+    criteria: "Renew every 2 months.",
+    badge: null,
+    highlights: [
+      "2 months (60 days) of full access",
+      "Unlimited documents and uploads",
+      "Unlimited people",
+      "Server-side drafts on every device",
+    ],
+    sortOrder: 20,
+  },
+  {
+    key: "quarterly",
+    name: "Quarterly",
+    tagline: "Four months and ten days — a full working quarter with room to spare",
+    category: "Plans",
+    priceCoins: 150,
+    durationDays: 130,
+    memberLimit: null,
+    documentLimit: null,
+    uploadLimit: null,
+    storageLimitMb: null,
+    tier: 3,
+    allowDrafts: true,
+    isCustom: false,
+    criteria: "Renew every 130 days.",
+    badge: "Popular",
+    highlights: [
+      "4 months + 10 days of full access",
+      "Unlimited documents and uploads",
+      "Unlimited people",
+      "Expiry reminders in your mailbox",
+    ],
+    sortOrder: 30,
+  },
+  {
+    key: "yearly",
+    name: "Yearly",
+    tagline: "A year — plus two months on the house",
+    category: "Plans",
+    priceCoins: 500,
+    durationDays: 425,
+    memberLimit: null,
+    documentLimit: null,
+    uploadLimit: null,
+    storageLimitMb: null,
+    tier: 4,
+    allowDrafts: true,
+    isCustom: false,
+    criteria: "365 days + 2 months included.",
+    badge: "Best value",
+    highlights: [
+      "365 days + 2 free months (425 days)",
+      "Unlimited documents and uploads",
+      "Unlimited people",
+      "Priority support from the Knowledge Base team",
+    ],
+    sortOrder: 40,
+  },
+  {
+    key: "organisation",
+    name: "Custom / Organizational",
+    tagline: "Tell us your shape — days, people and documents — and we price it",
+    category: "Plans",
+    priceCoins: 0,
+    durationDays: null,
+    memberLimit: null,
+    documentLimit: null,
+    uploadLimit: null,
+    storageLimitMb: null,
+    tier: 5,
+    allowDrafts: true,
+    isCustom: true,
+    criteria: "Terms agreed with the Knowledge Base team.",
+    badge: "Tailored",
+    highlights: [
+      "You state the days, people and document counts",
+      "Unlimited documents and uploads",
+      "Invoiced in Knowledge Coins at an agreed rate",
+      "Dedicated onboarding",
+    ],
+    sortOrder: 50,
+  },
 ];
+
+/** Bump this when the ladder above changes — it is what makes the rollout land once. */
+const PLAN_LADDER_VERSION = "2026-08-03";
+const PLAN_LADDER_KEY = "plan_ladder_version";
 
 // Locked out of the console? Render's free plan has no shell, so `db:admin` isn't reachable
 // there. Set ADMIN_PASSWORD_RESET=1 in the dashboard and redeploy: the password goes back to
@@ -48,6 +196,30 @@ async function applyAdminPasswordReset(): Promise<void> {
   );
 }
 
+/** Write the current ladder exactly once per version (never on every boot). */
+async function applyPlanLadder(): Promise<void> {
+  const marker = await db.platformSetting.findUnique({ where: { key: PLAN_LADDER_KEY } });
+  if (marker?.value === PLAN_LADDER_VERSION) return;
+
+  for (const p of STARTER_PLANS) {
+    const { key, ...shape } = p;
+    await db.pricingPlan.upsert({
+      where: { key },
+      update: { ...shape, active: true },
+      create: { key, ...shape, active: true },
+    });
+  }
+  // Superseded card: organizations already on "monthly" keep resolving their plan row,
+  // but it stops being offered.
+  await db.pricingPlan.updateMany({ where: { key: "monthly" }, data: { active: false } });
+  await db.platformSetting.upsert({
+    where: { key: PLAN_LADDER_KEY },
+    update: { value: PLAN_LADDER_VERSION },
+    create: { key: PLAN_LADDER_KEY, value: PLAN_LADDER_VERSION },
+  });
+  console.log(`[bootstrap] applied pricing ladder ${PLAN_LADDER_VERSION} (${STARTER_PLANS.length} plans)`);
+}
+
 export async function ensurePlatformBootstrap(): Promise<void> {
   try {
     await applyAdminPasswordReset();
@@ -64,32 +236,8 @@ export async function ensurePlatformBootstrap(): Promise<void> {
       console.log(`[bootstrap] created super-admin @${FIRST_ADMIN.username} (must change password on first login)`);
     }
 
-    // Seed plans only when the table is empty, so we never overwrite admin edits.
-    if ((await db.pricingPlan.count()) === 0) {
-      await db.pricingPlan.createMany({ data: STARTER_PLANS });
-      console.log(`[bootstrap] seeded ${STARTER_PLANS.length} starter pricing plans`);
-    }
+    await applyPlanLadder();
     await ensureDefaultCoinsSetting();
-
-    // Backfill member limits on the starter plans for existing deployments — only where
-    // still unset, so an admin's own limit is never overwritten.
-    for (const p of STARTER_PLANS) {
-      if (p.memberLimit != null) {
-        await db.pricingPlan.updateMany({
-          where: { key: p.key, memberLimit: null },
-          data: { memberLimit: p.memberLimit },
-        });
-      }
-    }
-
-    // Same for the free plan's content allowances: an org evaluating the product may
-    // publish 20 Studio documents and bring in 30 uploads, and cannot park drafts on the
-    // server. Keyed on documentLimit still being unset, so this lands exactly once on a
-    // deployment that predates the allowances and never re-writes an admin's own numbers.
-    await db.pricingPlan.updateMany({
-      where: { key: "demo", documentLimit: null },
-      data: { documentLimit: 20, uploadLimit: 30, allowDrafts: false },
-    });
   } catch (err) {
     // Never let bootstrap crash the server — log and continue (e.g. if migrations haven't
     // applied yet). The admin can be created later with `db:admin`.

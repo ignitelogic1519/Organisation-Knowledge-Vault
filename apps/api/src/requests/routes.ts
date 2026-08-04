@@ -241,6 +241,9 @@ export async function requestRoutes(app: FastifyInstance) {
             }),
           ),
         );
+        // Nothing is left to decide, so nothing is left to store — the placement is the
+        // record, and the adoption note is the receipt.
+        await db.vaultRequest.delete({ where: { id: request.id } });
         broadcast(orgId, "requests");
         broadcast(orgId, "courses");
         return { ok: true, id: request.id, autoApproved: true };
@@ -266,16 +269,31 @@ export async function requestRoutes(app: FastifyInstance) {
             : node;
         deciders = await ownersAbove(orgId, deciderAnchor.path, body.kind !== "DELETE_BRANCH");
       }
+      const requesterProfile = await db.profile.findUnique({ where: { id: req.profileId } });
+      const who = requesterProfile?.displayName ?? "A member";
       await Promise.all(
         deciders
           .filter((id) => id !== req.profileId)
           .map((profileId) =>
-            notify(profileId, orgId, "request_created", {
-              requestId: request.id,
-              kind: request.kind,
-              label: REQUEST_KIND_LABELS[request.kind],
-              roleName: node.name,
-            }),
+            notify(
+              profileId,
+              orgId,
+              "request_created",
+              {
+                requestId: request.id,
+                kind: request.kind,
+                label: REQUEST_KIND_LABELS[request.kind],
+                roleName: node.name,
+                from: who,
+              },
+              {
+                subject: `${REQUEST_KIND_LABELS[request.kind]} — ${node.name}`,
+                body:
+                  `${who} filed a ${REQUEST_KIND_LABELS[request.kind].toLowerCase()} for “${node.name}”.` +
+                  (body.message?.trim() ? ` They wrote: “${body.message.trim()}”` : "") +
+                  " Open it to approve or decline.",
+              },
+            ),
           ),
       );
       broadcast(orgId, "requests");
@@ -509,23 +527,39 @@ export async function requestRoutes(app: FastifyInstance) {
         }
       }
 
-      const decided = await db.vaultRequest.update({
-        where: { id: request.id },
-        data: {
-          status: body.approve ? "APPROVED" : "REJECTED",
-          decidedByProfileId: req.profileId,
-          decidedAt: new Date(),
-          decisionNote: body.decisionNote ?? null,
+      // A decided request has done its job: the outcome now lives in the requester's
+      // mailbox (with its own expiry) and in the audit log, so the row itself is deleted
+      // instead of lingering as clutter. CONTENT_REVIEW keeps its published/rejected
+      // wording so the author reads a real sentence rather than a status code.
+      const decider = await db.profile.findUnique({ where: { id: req.profileId } });
+      const label = REQUEST_KIND_LABELS[request.kind];
+      const verdict = body.approve ? "approved" : "declined";
+      const isReview = request.kind === "CONTENT_REVIEW";
+      await notify(
+        request.requesterProfileId,
+        request.orgId,
+        isReview ? (body.approve ? "content_published" : "content_rejected") : "request_decided",
+        {
+          requestId: request.id,
+          kind: request.kind,
+          label,
+          roleName: node.name,
+          approved: body.approve,
+          note: body.decisionNote ?? null,
+          by: decider?.displayName ?? "A manager",
         },
-      });
-      await notify(request.requesterProfileId, request.orgId, "request_decided", {
-        requestId: request.id,
-        kind: request.kind,
-        label: REQUEST_KIND_LABELS[request.kind],
-        roleName: node.name,
-        approved: body.approve,
-        note: body.decisionNote ?? null,
-      });
+        {
+          subject: isReview
+            ? body.approve
+              ? `Published — your document for ${node.name}`
+              : `Not published — your document for ${node.name}`
+            : `${label} ${verdict} — ${node.name}`,
+          body:
+            `${decider?.displayName ?? "A manager"} ${verdict} your ${label.toLowerCase()} for “${node.name}”.` +
+            (body.decisionNote?.trim() ? ` They wrote: “${body.decisionNote.trim()}”` : ""),
+        },
+      );
+      await db.vaultRequest.delete({ where: { id: request.id } });
       await audit(request.orgId, "request.decide", {
         actorProfileId: req.profileId,
         ip: req.ip,
@@ -538,7 +572,7 @@ export async function requestRoutes(app: FastifyInstance) {
           ? "courses"
           : "structure",
       );
-      return { ok: true, status: decided.status };
+      return { ok: true, status: body.approve ? "APPROVED" : "REJECTED" };
     },
   );
 

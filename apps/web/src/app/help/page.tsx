@@ -2,8 +2,15 @@ import Link from "next/link";
 import { SiteNav } from "@/components/SiteNav";
 
 export const metadata = {
-  title: "Help — Knowledge Vault",
+  title: "Help & guide book — Knowledge Vault",
+  description:
+    "A plain-language guide to every part of Knowledge Vault, plus the complete Main Guide Book to download.",
 };
+
+/** The published guide book, served from the app's own public folder. */
+const GUIDE_PDF = "/guide/Knowledge-Vault-Main-Guide-Book.pdf";
+const GUIDE_MD = "/guide/Knowledge-Vault-Main-Guide-Book.md";
+const GUIDE_CHAPTERS = 20;
 
 // Help — a plain-language guide to every component of the platform, public so both
 // prospective and signed-in users can read it (linked from the app sidebar too).
@@ -197,10 +204,17 @@ const TOPICS = [
       <>
         <p>
           The palette button opens appearance settings: a <strong>day/night switch</strong>{" "}
-          and four <strong>accent palettes</strong> (Aurora, Ocean, Sunset, Forest).
+          and five <strong>accent palettes</strong> (Peach, Aurora, Ocean, Sunset, Forest).
         </p>
         <ul>
-          <li>Your choice persists on this device; the default follows your system.</li>
+          <li>
+            The warm <strong>peach-white day theme</strong> is the default. Night mode and
+            every accent are one click away.
+          </li>
+          <li>
+            Your choice is stored in a cookie on this device, so signing in again brings
+            back exactly the look you left.
+          </li>
           <li>
             All motion respects your <em>reduced motion</em> preference.
           </li>
@@ -209,16 +223,73 @@ const TOPICS = [
     ),
   },
   {
-    icon: "🔔",
-    title: "Notifications",
+    icon: "📥",
+    title: "The Mailbox",
     body: (
       <>
-        <p>The bell shows what needs attention:</p>
+        <p>
+          Everything the platform has to tell you arrives in one <strong>mailbox</strong>,
+          reachable from the bell on every page. It works like a mail client: folders down
+          the side, a message list in the middle, and a reading pane.
+        </p>
         <ul>
-          <li>a mandatory course became overdue,</li>
-          <li>a completion expired and the course was re-assigned,</li>
-          <li>someone you added has an overdue course,</li>
-          <li>a course was updated and your completion was reset.</li>
+          <li>
+            <strong>Folders by category</strong> — Knowledge Base, Requests, Publishing,
+            Learning, Plans &amp; Coins, People, System — plus a{" "}
+            <strong>label per organization</strong>, so you can read one organization at a
+            time.
+          </li>
+          <li>
+            <strong>Sub-labels</strong> tell request kinds apart at a glance: document
+            publishing, a course for your path, a join request, a branch deletion, a
+            visibility request.
+          </li>
+          <li>
+            Messages from the <strong>Knowledge Base team</strong> — access codes, plan
+            decisions, coin adjustments — arrive flagged <strong>high priority</strong> and
+            pinned to the top.
+          </li>
+          <li>
+            <strong>Everything expires.</strong> Each message shows how long it has left,
+            and deletes itself when it gets there. Knowledge Base mail lives 30 days;
+            routine notices go sooner.
+          </li>
+          <li>
+            Select several messages to mark or delete them together, search the lot, and
+            turn the arrival <strong>chime</strong> on or off.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "🧪",
+    title: "Exams, attempts & resets",
+    body: (
+      <>
+        <p>
+          An exam is built in the same Studio as a document, and is marked on the server —
+          the answer key never reaches the browser.
+        </p>
+        <ul>
+          <li>
+            In My Learning an exam reads <strong>&ldquo;Complete the exam&rdquo;</strong>;
+            passing it completes the course, exactly as finishing a document does.
+          </li>
+          <li>
+            The author can cap the <strong>number of attempts</strong>. Spend them all
+            without passing and the exam locks.
+          </li>
+          <li>
+            The branch&apos;s <strong>Compliance</strong> view then says so in plain words —
+            &ldquo;has used every attempt&rdquo; rather than a bare &ldquo;not
+            completed&rdquo; — beside the attempts used and the best score.
+          </li>
+          <li>
+            A <strong>manager or higher can reset</strong> the allowance in one click. The
+            sittings stay on record; only the count goes back to zero, and the candidate is
+            told they can try again.
+          </li>
         </ul>
       </>
     ),
@@ -240,6 +311,40 @@ export default function HelpPage() {
             files that keep your organization yours.
           </p>
         </div>
+        {/* The full manual, downloadable. The PDF is the same book as the chapters in
+            the repository, rebuilt whenever the product changes. */}
+        <section className="guidebook-panel glass">
+          <div className="guidebook-cover" aria-hidden>
+            📘
+          </div>
+          <div className="guidebook-body">
+            <span className="eyebrow">The Main Guide Book</span>
+            <h3>The complete manual, {GUIDE_CHAPTERS} chapters, yours to keep</h3>
+            <p>
+              Every screen in the product, explained in plain language and in the order you
+              actually meet it — founding an organization, building the structure, placing
+              people, authoring in the Studio, running exams, tracking compliance, reading
+              the mailbox, and keeping custody of it all. Written for the people who use
+              Knowledge Vault, not for the people who build it.
+            </p>
+            <div className="guidebook-actions">
+              <a className="btn btn-primary" href={GUIDE_PDF} download>
+                ⬇ Download the PDF
+              </a>
+              <a className="btn btn-quiet" href={GUIDE_MD} download>
+                ⬇ Download as Markdown
+              </a>
+              <a className="btn btn-quiet" href={GUIDE_PDF} target="_blank" rel="noreferrer">
+                Read it in the browser ↗
+              </a>
+            </div>
+            <p className="auth-sub guidebook-note">
+              Updated with every release. If a screenshot here looks different from what you
+              see, you are on a newer build than the book — the chapters are dated inside.
+            </p>
+          </div>
+        </section>
+
         <div className="help-grid stagger">
           {TOPICS.map((t) => (
             <div key={t.title} className="help-card glass">

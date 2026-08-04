@@ -1,22 +1,28 @@
 import type { FastifyInstance } from "fastify";
 import { hash, verify as argonVerify } from "@node-rs/argon2";
 import {
+  addAdminSchema,
+  adminBroadcastSchema,
+  adminBulkDeleteSchema,
   adminLoginSchema,
+  adminSetOrgSchema,
   changeAdminPasswordSchema,
   decidePlatformRequestSchema,
   giftCoinsSchema,
   upgradePlanSchema,
-  addAdminSchema,
+  type AdminOrgDetail,
   type AdminOrgRow,
   type AdminRequestRow,
   type AdminTreeNode,
 } from "@vault/shared";
 import { db } from "../db.js";
+import { orgStorageUsedMb } from "../orgs/plan.js";
 import { issueAdminToken } from "./tokens.js";
 import { generateOtp, hashOtp } from "./otp.js";
 import { notifyFromAdmin } from "./notify.js";
 import { getDefaultCoins, setDefaultCoins } from "./settings.js";
 import { purgeOrganization } from "../orgs/purge.js";
+import { orgOwnerProfileIds, orgOwnerUsernames } from "../orgs/owners.js";
 
 const OTP_TTL_MS = 24 * 3600_000;
 
@@ -26,31 +32,80 @@ async function audit(adminId: string, action: string, detail?: unknown) {
   });
 }
 
-/** Owner usernames of an org = OWNER placements on the root role. */
-async function ownerUsernames(orgId: string): Promise<string[]> {
-  const root = await db.roleNode.findFirst({ where: { orgId, parentId: null }, select: { id: true } });
-  if (!root) return [];
-  const owners = await db.placement.findMany({
-    where: { roleNodeId: root.id, kind: "OWNER" },
-    select: { membership: { select: { profile: { select: { username: true } } } } },
-  });
-  return owners.map((o) => o.membership.profile.username);
-}
-
-/** Profile ids of an org's root-role owners — the people we notify about plan changes. */
-async function ownerProfileIds(orgId: string): Promise<string[]> {
-  const root = await db.roleNode.findFirst({ where: { orgId, parentId: null }, select: { id: true } });
-  if (!root) return [];
-  const owners = await db.placement.findMany({
-    where: { roleNodeId: root.id, kind: "OWNER" },
-    select: { membership: { select: { profileId: true } } },
-  });
-  return [...new Set(owners.map((o) => o.membership.profileId))];
-}
+const ownerProfileIds = orgOwnerProfileIds;
 
 /** Tree depth from materialized paths ("100.101.102" → depth 3). */
 function treeDepth(paths: string[]): number {
   return paths.reduce((max, p) => Math.max(max, p.split(".").length), 0);
+}
+
+/**
+ * The admin's organization rows. One place builds them, so the table, the card grid and
+ * a single card's detail view can never disagree. `onlyOrgNumber` narrows it to one org.
+ */
+async function listOrgRows(onlyOrgNumber?: number): Promise<AdminOrgRow[]> {
+  const orgs = await db.organization.findMany({
+    where: onlyOrgNumber != null ? { orgNumber: onlyOrgNumber } : {},
+    orderBy: { orgNumber: "asc" },
+  });
+  const plans = await db.pricingPlan.findMany({
+    select: { key: true, memberLimit: true, documentLimit: true, uploadLimit: true, storageLimitMb: true },
+  });
+  const planLimits = new Map(plans.map((p) => [p.key, p]));
+  const rows: AdminOrgRow[] = [];
+  for (const o of orgs) {
+    const [roles, memberCount, owners, lastAudit, lastCompletion, lastCourse, lastMembership, documentCount, uploadCount, storageMb] =
+      await Promise.all([
+        db.roleNode.findMany({ where: { orgId: o.id }, select: { path: true } }),
+        db.membership.count({ where: { orgId: o.id } }),
+        orgOwnerUsernames(o.id),
+        db.auditLog.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+        db.completionRecord.findFirst({ where: { orgId: o.id, completedAt: { not: null } }, orderBy: { completedAt: "desc" }, select: { completedAt: true } }),
+        db.course.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+        db.membership.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+        db.course.count({ where: { orgId: o.id, source: "STUDIO" } }),
+        db.course.count({ where: { orgId: o.id, source: "UPLOAD" } }),
+        orgStorageUsedMb(o.id),
+      ]);
+    // "Last activity" = the most recent user action we can see (governance, learning,
+    // publishing, joining), falling back to when the org was created.
+    const lastActivity = [
+      o.createdAt,
+      lastAudit?.createdAt,
+      lastCompletion?.completedAt,
+      lastCourse?.createdAt,
+      lastMembership?.createdAt,
+    ]
+      .filter(Boolean)
+      .map((d) => (d as Date).getTime())
+      .reduce((a, b) => Math.max(a, b), 0);
+    rows.push({
+      id: o.id,
+      name: o.name,
+      orgNumber: o.orgNumber,
+      ownerUsernames: owners,
+      planKey: o.planKey,
+      planStatus: o.planStatus,
+      planExpiresAt: o.planExpiresAt?.toISOString() ?? null,
+      planIsCustom: o.planIsCustom,
+      memberCount,
+      memberLimit: o.memberLimit ?? (o.planKey ? planLimits.get(o.planKey)?.memberLimit ?? null : null),
+      documentCount,
+      documentLimit:
+        o.documentLimit ?? (o.planKey ? planLimits.get(o.planKey)?.documentLimit ?? null : null),
+      uploadCount,
+      uploadLimit: o.uploadLimit ?? (o.planKey ? planLimits.get(o.planKey)?.uploadLimit ?? null : null),
+      storageUsedMb: storageMb,
+      storageLimitMb:
+        o.storageLimitMb ?? (o.planKey ? planLimits.get(o.planKey)?.storageLimitMb ?? null : null),
+      roleCount: roles.length,
+      treeDepth: treeDepth(roles.map((r) => r.path)),
+      createdAt: o.createdAt.toISOString(),
+      lastActivityAt: lastActivity ? new Date(lastActivity).toISOString() : null,
+      deletedAt: o.deletedAt?.toISOString() ?? null,
+    });
+  }
+  return rows;
 }
 
 export async function platformRoutes(app: FastifyInstance) {
@@ -101,61 +156,7 @@ export async function platformRoutes(app: FastifyInstance) {
 
   // ── Organizations (god view) ────────────────────────────────────────────────
   app.get("/admin/orgs", { preHandler: app.authenticateAdmin }, async (): Promise<{ orgs: AdminOrgRow[] }> => {
-    const orgs = await db.organization.findMany({ orderBy: { orgNumber: "asc" } });
-    const plans = await db.pricingPlan.findMany({
-      select: { key: true, memberLimit: true, documentLimit: true, uploadLimit: true },
-    });
-    const planLimits = new Map(plans.map((p) => [p.key, p]));
-    const rows: AdminOrgRow[] = [];
-    for (const o of orgs) {
-      const [roles, memberCount, owners, lastAudit, lastCompletion, lastCourse, lastMembership, documentCount, uploadCount] =
-        await Promise.all([
-          db.roleNode.findMany({ where: { orgId: o.id }, select: { path: true } }),
-          db.membership.count({ where: { orgId: o.id } }),
-          ownerUsernames(o.id),
-          db.auditLog.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
-          db.completionRecord.findFirst({ where: { orgId: o.id, completedAt: { not: null } }, orderBy: { completedAt: "desc" }, select: { completedAt: true } }),
-          db.course.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
-          db.membership.findFirst({ where: { orgId: o.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
-          db.course.count({ where: { orgId: o.id, source: "STUDIO" } }),
-          db.course.count({ where: { orgId: o.id, source: "UPLOAD" } }),
-        ]);
-      // "Last activity" = the most recent user action we can see (governance, learning,
-      // publishing, joining), falling back to when the org was created.
-      const lastActivity = [
-        o.createdAt,
-        lastAudit?.createdAt,
-        lastCompletion?.completedAt,
-        lastCourse?.createdAt,
-        lastMembership?.createdAt,
-      ]
-        .filter(Boolean)
-        .map((d) => (d as Date).getTime())
-        .reduce((a, b) => Math.max(a, b), 0);
-      rows.push({
-        id: o.id,
-        name: o.name,
-        orgNumber: o.orgNumber,
-        ownerUsernames: owners,
-        planKey: o.planKey,
-        planStatus: o.planStatus,
-        planExpiresAt: o.planExpiresAt?.toISOString() ?? null,
-        planIsCustom: o.planIsCustom,
-        memberCount,
-        memberLimit: o.memberLimit ?? (o.planKey ? planLimits.get(o.planKey)?.memberLimit ?? null : null),
-        documentCount,
-        documentLimit:
-          o.documentLimit ?? (o.planKey ? planLimits.get(o.planKey)?.documentLimit ?? null : null),
-        uploadCount,
-        uploadLimit: o.uploadLimit ?? (o.planKey ? planLimits.get(o.planKey)?.uploadLimit ?? null : null),
-        roleCount: roles.length,
-        treeDepth: treeDepth(roles.map((r) => r.path)),
-        createdAt: o.createdAt.toISOString(),
-        lastActivityAt: lastActivity ? new Date(lastActivity).toISOString() : null,
-        deletedAt: o.deletedAt?.toISOString() ?? null,
-      });
-    }
-    return { orgs: rows };
+    return { orgs: await listOrgRows() };
   });
 
   app.get<{ Params: { orgNumber: string } }>(
@@ -186,6 +187,8 @@ export async function platformRoutes(app: FastifyInstance) {
   );
 
   // ── Requests inbox (approve / deny → OTP + notification) ─────────────────────
+  // Every row carries the requested plan's own terms, so approving is one click: the
+  // admin never re-enters a structure the plan already describes.
   app.get("/admin/requests", { preHandler: app.authenticateAdmin }, async (req): Promise<{ requests: AdminRequestRow[] }> => {
     const status = (req.query as { status?: string })?.status;
     const reqs = await db.platformRequest.findMany({
@@ -194,25 +197,45 @@ export async function platformRoutes(app: FastifyInstance) {
       take: 200,
       include: { requester: { select: { username: true, displayName: true, coins: true } } },
     });
+    const planKeys = [...new Set(reqs.map((r) => r.planKey).filter((k): k is string => !!k))];
+    const plans = planKeys.length
+      ? await db.pricingPlan.findMany({ where: { key: { in: planKeys } } })
+      : [];
+    const planByKey = new Map(plans.map((p) => [p.key, p]));
     return {
-      requests: reqs.map((r) => ({
-        id: r.id,
-        kind: r.kind,
-        status: r.status,
-        requesterUsername: r.requester.username,
-        requesterDisplayName: r.requester.displayName,
-        requesterCoins: r.requester.coins,
-        planKey: r.planKey,
-        requestedDays: r.requestedDays,
-        offeredCoins: r.offeredCoins,
-        message: r.message,
-        grantedDays: r.grantedDays,
-        priceCoins: r.priceCoins,
-        adminMessage: r.adminMessage,
-        targetOrgNumber: r.targetOrgNumber,
-        createdAt: r.createdAt.toISOString(),
-        decidedAt: r.decidedAt?.toISOString() ?? null,
-      })),
+      requests: reqs.map((r) => {
+        const plan = r.planKey ? planByKey.get(r.planKey) ?? null : null;
+        return {
+          id: r.id,
+          kind: r.kind,
+          status: r.status,
+          requesterUsername: r.requester.username,
+          requesterDisplayName: r.requester.displayName,
+          requesterCoins: r.requester.coins,
+          planKey: r.planKey,
+          planName: plan?.name ?? null,
+          planDurationDays: plan?.durationDays ?? null,
+          planPriceCoins: plan?.priceCoins ?? null,
+          planMemberLimit: plan?.memberLimit ?? null,
+          planDocumentLimit: plan?.documentLimit ?? null,
+          planUploadLimit: plan?.uploadLimit ?? null,
+          requestedDays: r.requestedDays,
+          offeredCoins: r.offeredCoins,
+          requestedMembers: r.requestedMembers,
+          requestedDocuments: r.requestedDocuments,
+          requestedUploads: r.requestedUploads,
+          message: r.message,
+          grantedDays: r.grantedDays,
+          grantedMembers: r.grantedMembers,
+          grantedDocuments: r.grantedDocuments,
+          grantedUploads: r.grantedUploads,
+          priceCoins: r.priceCoins,
+          adminMessage: r.adminMessage,
+          targetOrgNumber: r.targetOrgNumber,
+          createdAt: r.createdAt.toISOString(),
+          decidedAt: r.decidedAt?.toISOString() ?? null,
+        };
+      }),
     };
   });
 
@@ -232,23 +255,48 @@ export async function platformRoutes(app: FastifyInstance) {
         });
         await notifyFromAdmin(request.requesterId, "admin_denied", {
           title: "Your request was declined",
-          message: body.adminMessage || "The super-admin declined this request.",
+          message: body.adminMessage || "The Knowledge Base team declined this request.",
           requestKind: request.kind,
         });
         await audit(req.adminId, "deny_request", { requestId: request.id });
         return { ok: true, status: "DENIED" };
       }
 
-      // APPROVE → mint an OTP, record terms, notify the user.
+      // APPROVE → mint an OTP and record the terms. Everything defaults to the plan the
+      // user chose (or to what they proposed on a custom plan) — the admin only supplies
+      // a value when they mean to override it.
+      const plan = request.planKey
+        ? await db.pricingPlan.findUnique({ where: { key: request.planKey } })
+        : null;
       const otp = generateOtp();
-      const grantedDays = body.grantedDays ?? request.requestedDays ?? null;
+      const grantedDays =
+        body.grantedDays !== undefined
+          ? body.grantedDays
+          : (request.requestedDays ?? plan?.durationDays ?? null);
+      const priceCoins =
+        body.priceCoins ?? request.offeredCoins ?? plan?.priceCoins ?? 0;
+      const grantedMembers =
+        body.grantedMembers !== undefined
+          ? body.grantedMembers
+          : (request.requestedMembers ?? plan?.memberLimit ?? null);
+      const grantedDocuments =
+        body.grantedDocuments !== undefined
+          ? body.grantedDocuments
+          : (request.requestedDocuments ?? plan?.documentLimit ?? null);
+      const grantedUploads =
+        body.grantedUploads !== undefined
+          ? body.grantedUploads
+          : (request.requestedUploads ?? plan?.uploadLimit ?? null);
       const expiresAt = new Date(Date.now() + OTP_TTL_MS);
       await db.platformRequest.update({
         where: { id: request.id },
         data: {
           status: "APPROVED",
           grantedDays,
-          priceCoins: body.priceCoins ?? request.offeredCoins ?? 0,
+          grantedMembers,
+          grantedDocuments,
+          grantedUploads,
+          priceCoins,
           otpHash: hashOtp(otp),
           otpExpiresAt: expiresAt,
           adminMessage: body.adminMessage ?? null,
@@ -256,21 +304,76 @@ export async function platformRoutes(app: FastifyInstance) {
           decidedAt: new Date(),
         },
       });
-      await notifyFromAdmin(request.requesterId, "admin_otp", {
-        title: "Your access code is ready",
-        message:
-          body.adminMessage ||
-          "Your request was approved. Use the code below within 24 hours to continue.",
-        otp,
-        expiresAt: expiresAt.toISOString(),
-        priceCoins: body.priceCoins ?? request.offeredCoins ?? 0,
-        grantedDays,
-        requestKind: request.kind,
-        planKey: request.planKey,
-      });
-      await audit(req.adminId, "grant_otp", { requestId: request.id, grantedDays });
+
+      // An upgrade is applied immediately — there is no organization to create, so the
+      // code would have nothing to unlock. The owners simply find the new plan in place.
+      let appliedOrgNumber: number | null = null;
+      if (request.kind === "UPGRADE_PLAN" && request.targetOrgNumber != null && plan) {
+        const org = await db.organization.findUnique({
+          where: { orgNumber: request.targetOrgNumber },
+        });
+        if (org) {
+          const days = grantedDays ?? plan.durationDays ?? null;
+          const planExpiresAt = days ? new Date(Date.now() + days * 86400_000) : null;
+          await db.organization.update({
+            where: { id: org.id },
+            data: {
+              planKey: plan.key,
+              planStatus: "ACTIVE",
+              planActivatedAt: new Date(),
+              planExpiresAt,
+              planIsCustom: body.grantedDays != null,
+              planGrantedById: req.adminId,
+              memberLimit: grantedMembers,
+              documentLimit: grantedDocuments,
+              uploadLimit: grantedUploads,
+            },
+          });
+          await db.platformRequest.update({
+            where: { id: request.id },
+            data: { status: "USED", usedAt: new Date() },
+          });
+          appliedOrgNumber = org.orgNumber;
+          for (const pid of await ownerProfileIds(org.id)) {
+            await notifyFromAdmin(pid, "plan_upgraded", {
+              title: `${org.name} is now on the ${plan.name} plan`,
+              message:
+                `The upgrade you asked for has been applied.` +
+                (planExpiresAt ? ` It runs until ${planExpiresAt.toISOString().slice(0, 10)}.` : " It has no expiry.") +
+                (body.adminMessage ? ` ${body.adminMessage}` : ""),
+              orgNumber: org.orgNumber,
+              planKey: plan.key,
+              expiresAt: planExpiresAt?.toISOString() ?? null,
+            });
+          }
+        }
+      }
+
+      if (!appliedOrgNumber) {
+        await notifyFromAdmin(request.requesterId, "admin_otp", {
+          title: "Your access code is ready",
+          message:
+            (body.adminMessage ||
+              "Your request was approved. Use the code below within 24 hours to continue.") +
+            (grantedDays ? ` Plan length: ${grantedDays} days.` : "") +
+            (priceCoins ? ` Cost: ${priceCoins} coins.` : ""),
+          otp,
+          expiresAt: expiresAt.toISOString(),
+          priceCoins,
+          grantedDays,
+          requestKind: request.kind,
+          planKey: request.planKey,
+        });
+      }
+      await audit(req.adminId, "grant_otp", { requestId: request.id, grantedDays, priceCoins });
       // The OTP is returned to the admin ONCE so they can also relay it out of band.
-      return { ok: true, status: "APPROVED", otp, expiresAt: expiresAt.toISOString() };
+      return {
+        ok: true,
+        status: appliedOrgNumber ? "USED" : "APPROVED",
+        otp: appliedOrgNumber ? null : otp,
+        appliedOrgNumber,
+        expiresAt: expiresAt.toISOString(),
+      };
     },
   );
 
@@ -294,11 +397,18 @@ export async function platformRoutes(app: FastifyInstance) {
         },
       }),
     ]);
+    // The user is told every time their balance moves — this is the receipt, and it
+    // reaches their mailbox live wherever they happen to be.
     await notifyFromAdmin(profile.id, "coins_gift", {
-      title: body.delta > 0 ? "You received Knowledge Coins" : "Your Knowledge Coins were adjusted",
+      title:
+        body.delta > 0
+          ? `You received ${body.delta} Knowledge Coins`
+          : `${Math.abs(body.delta)} Knowledge Coins were deducted`,
       message:
-        (body.delta > 0 ? `+${body.delta}` : `${body.delta}`) +
-        ` coins. New balance: ${newBalance}.` +
+        (body.delta > 0
+          ? `The Knowledge Base team added ${body.delta} coins to your wallet.`
+          : `The Knowledge Base team deducted ${Math.abs(body.delta)} coins from your wallet.`) +
+        ` Your balance is now ${newBalance} coins.` +
         (body.note ? ` Note: ${body.note}` : ""),
       delta: body.delta,
       balance: newBalance,
@@ -329,6 +439,7 @@ export async function platformRoutes(app: FastifyInstance) {
         memberLimit: body.memberLimit,
         documentLimit: body.documentLimit,
         uploadLimit: body.uploadLimit,
+        storageLimitMb: body.storageLimitMb,
       },
     });
     for (const pid of await ownerProfileIds(org.id)) {
@@ -345,6 +456,143 @@ export async function platformRoutes(app: FastifyInstance) {
     }
     await audit(req.adminId, "upgrade_plan", { orgNumber: org.orgNumber, planKey: plan.key, days });
     return { ok: true, planKey: plan.key, expiresAt: expiresAt?.toISOString() ?? null };
+  });
+
+  // ── One organization, expanded: the property/value table behind its card ──────
+  app.get<{ Params: { orgNumber: string } }>(
+    "/admin/orgs/:orgNumber/detail",
+    { preHandler: app.authenticateAdmin },
+    async (req, reply): Promise<AdminOrgDetail> => {
+      const orgNumber = Number(req.params.orgNumber);
+      const org = await db.organization.findUnique({ where: { orgNumber } });
+      if (!org) return reply.status(404).send({ error: "No such organization" }) as never;
+      const all = await listOrgRows(orgNumber);
+      const row = all[0];
+      if (!row) return reply.status(404).send({ error: "No such organization" }) as never;
+
+      const plans = await db.pricingPlan.findMany({ orderBy: { sortOrder: "asc" }, select: { key: true } });
+      const root = await db.roleNode.findFirst({ where: { orgId: org.id, parentId: null }, select: { id: true } });
+      const ownerRows = root
+        ? await db.placement.findMany({
+            where: { roleNodeId: root.id, kind: "OWNER" },
+            select: { membership: { select: { profile: { select: { username: true, displayName: true, coins: true } } } } },
+          })
+        : [];
+      const audits = await db.auditLog.findMany({
+        where: { orgId: org.id },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        select: { action: true, createdAt: true },
+      });
+
+      // Every metered property is editable here — this is the admin's manual control,
+      // independent of whatever the plan says.
+      const properties: AdminOrgDetail["properties"] = [
+        { key: "name", label: "Name", value: org.name, type: "text" },
+        { key: "orgNumber", label: "Organization number", value: org.orgNumber, type: "readonly" },
+        { key: "planKey", label: "Plan", value: org.planKey, type: "select", options: plans.map((p) => p.key) },
+        {
+          key: "planStatus",
+          label: "Plan status",
+          value: org.planStatus,
+          type: "select",
+          options: ["NONE", "DEMO", "ACTIVE", "EXPIRED"],
+        },
+        {
+          key: "planExpiresAt",
+          label: "Expires on",
+          value: org.planExpiresAt?.toISOString().slice(0, 10) ?? null,
+          type: "date",
+          hint: "Blank = no expiry",
+        },
+        { key: "memberLimit", label: "People limit", value: org.memberLimit, type: "number", hint: "Blank = the plan's limit" },
+        { key: "documentLimit", label: "Custom-document limit", value: org.documentLimit, type: "number", hint: "Blank = the plan's limit (unlimited on paid plans)" },
+        { key: "uploadLimit", label: "Upload limit", value: org.uploadLimit, type: "number", hint: "Blank = the plan's limit (unlimited on paid plans)" },
+        { key: "storageLimitMb", label: "Storage limit (MB)", value: org.storageLimitMb, type: "number", hint: "Blank = the plan's limit" },
+        { key: "memberCount", label: "People", value: row.memberCount, type: "readonly" },
+        { key: "documentCount", label: "Custom documents", value: row.documentCount, type: "readonly" },
+        { key: "uploadCount", label: "Uploads", value: row.uploadCount, type: "readonly" },
+        { key: "storageUsedMb", label: "Storage used (MB)", value: row.storageUsedMb, type: "readonly" },
+        { key: "roleCount", label: "Roles", value: row.roleCount, type: "readonly" },
+        { key: "treeDepth", label: "Tree depth", value: row.treeDepth, type: "readonly" },
+        { key: "createdAt", label: "Created", value: row.createdAt.slice(0, 10), type: "readonly" },
+      ];
+
+      return {
+        org: row,
+        properties,
+        owners: ownerRows.map((o) => ({
+          username: o.membership.profile.username,
+          displayName: o.membership.profile.displayName,
+          coins: o.membership.profile.coins,
+        })),
+        recentActivity: audits.map((a) => ({ action: a.action, at: a.createdAt.toISOString() })),
+      };
+    },
+  );
+
+  // Set any property by hand — the admin's override for every count and date.
+  app.patch("/admin/orgs", { preHandler: app.authenticateAdmin }, async (req, reply) => {
+    const body = adminSetOrgSchema.parse(req.body);
+    const org = await db.organization.findUnique({ where: { orgNumber: body.orgNumber } });
+    if (!org) return reply.status(404).send({ error: "No such organization" });
+    const data: Record<string, unknown> = {};
+    if (body.name !== undefined) data.name = body.name;
+    if (body.planKey !== undefined) data.planKey = body.planKey;
+    if (body.planStatus !== undefined) data.planStatus = body.planStatus;
+    if (body.planExpiresAt !== undefined) {
+      data.planExpiresAt = body.planExpiresAt ? new Date(body.planExpiresAt) : null;
+    }
+    for (const k of ["memberLimit", "documentLimit", "uploadLimit", "storageLimitMb"] as const) {
+      if (body[k] !== undefined) data[k] = body[k];
+    }
+    const updated = await db.organization.update({ where: { id: org.id }, data });
+    await audit(req.adminId, "set_org_properties", { orgNumber: org.orgNumber, changed: Object.keys(data) });
+    return { ok: true, orgNumber: updated.orgNumber };
+  });
+
+  // Message the owners of one or many organizations — announcements and offers.
+  app.post("/admin/orgs/message", { preHandler: app.authenticateAdmin }, async (req) => {
+    const body = adminBroadcastSchema.parse(req.body);
+    const orgs = await db.organization.findMany({
+      where: { orgNumber: { in: body.orgNumbers } },
+      select: { id: true, name: true, orgNumber: true },
+    });
+    let delivered = 0;
+    for (const org of orgs) {
+      for (const pid of await ownerProfileIds(org.id)) {
+        await notifyFromAdmin(
+          pid,
+          "admin_message",
+          {
+            title: body.subject,
+            message: body.message,
+            orgNumber: org.orgNumber,
+            orgName: org.name,
+          },
+          { priority: body.priority },
+        );
+        delivered++;
+      }
+    }
+    await audit(req.adminId, "broadcast_message", {
+      orgNumbers: body.orgNumbers,
+      subject: body.subject,
+      delivered,
+    });
+    return { ok: true, organizations: orgs.length, delivered };
+  });
+
+  // Delete a selection of organizations from the card grid, permanently.
+  app.post("/admin/orgs/bulk-delete", { preHandler: app.authenticateAdmin }, async (req) => {
+    const body = adminBulkDeleteSchema.parse(req.body);
+    const orgs = await db.organization.findMany({
+      where: { orgNumber: { in: body.orgNumbers } },
+      select: { id: true, name: true, orgNumber: true },
+    });
+    for (const org of orgs) await purgeOrganization(org.id);
+    await audit(req.adminId, "bulk_purge_orgs", { orgNumbers: orgs.map((o) => o.orgNumber) });
+    return { ok: true, deleted: orgs.length };
   });
 
   // ── Pricing plan management (so cards can be edited without raw SQL) ──────────
