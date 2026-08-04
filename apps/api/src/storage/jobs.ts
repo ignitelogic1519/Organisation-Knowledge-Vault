@@ -79,10 +79,20 @@ export function drainSoon(): void {
 
 // ── Orphan collection (§9.10) ────────────────────────────────────────────────
 
+/** An upload ticket that was never committed is abandoned after this long. */
+const ABANDONED_UPLOAD_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Objects whose course has gone. Unlike the old StoredFile table, StorageObject carries
- * a real course link, so this is an indexed query rather than a scan of every course's
- * storageRef JSON.
+ * Objects nothing points at. Unlike the old StoredFile table, StorageObject carries a real
+ * course link, so this is an indexed query rather than a scan of every course's storageRef
+ * JSON.
+ *
+ * Two kinds of orphan, and both cost the organization money if left:
+ *
+ *  · **Deleted course.** The object outlived whatever referenced it.
+ *  · **Abandoned upload.** A ticket was issued and the browser then failed, or the person
+ *    closed the tab, or the course form was never submitted. The row still holds a key,
+ *    and their storage may well hold the bytes.
  */
 export async function collectOrphans(limit = 200): Promise<number> {
   const candidates = await db.storageObject.findMany({
@@ -98,13 +108,25 @@ export async function collectOrphans(limit = 200): Promise<number> {
   );
 
   const orphans = candidates.filter((c) => !alive.has(c.courseId!));
-  for (const orphan of orphans) {
+
+  // Uncommitted tickets past the grace period. The window has to be generous: someone
+  // uploading 200 MB over a slow connection is mid-flight, not abandoned.
+  const abandoned = await db.storageObject.findMany({
+    where: {
+      courseId: null,
+      createdAt: { lt: new Date(Date.now() - ABANDONED_UPLOAD_MS) },
+    },
+    select: { id: true, orgId: true, objectKey: true },
+    take: limit,
+  });
+
+  for (const orphan of [...orphans, ...abandoned]) {
     await db.$transaction([
       db.storageDeletion.create({ data: { orgId: orphan.orgId, objectKey: orphan.objectKey } }),
       db.storageObject.delete({ where: { id: orphan.id } }),
     ]);
   }
-  return orphans.length;
+  return orphans.length + abandoned.length;
 }
 
 // ── Scheduled health check (§9.8) ────────────────────────────────────────────

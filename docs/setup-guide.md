@@ -150,15 +150,33 @@ Deploys with the normal git push. Two one-time setups:
    02:30 UTC (recurrence expiry, overdue escalation, 30-day purge). Trigger it manually any
    time: repo → Actions → nightly-compliance-job → Run workflow.
 
-### 5.2 Storage in v1 (no Google account needed)
-The storage adapter port ships with two live backends:
-- **Inline** — files up to 10 MB stored in Neon (documents, small PDFs).
+### 5.2 Storage
+The storage adapter port ships with three live backends:
+- **Organization-provided (`s3`)** — the organization connects its own S3-compatible
+  storage, offered as **NAS** and documented with MinIO. Files go browser → their storage,
+  encrypted in the browser by default, and never pass through our API. This is the path all
+  new uploads should take. See **`docs/storage-setup-guide.md`** for the walkthrough,
+  including how to test it against a folder on your own laptop before any NAS exists.
+- **Inline** — files up to 10 MB stored in Neon. Now the fallback for organizations that
+  have not connected storage yet; existing files migrate across on request.
 - **Link** — external URLs for anything big (YouTube videos, Drive share links, podcasts…).
-The **Google Drive adapter** (org connects its own Drive, `drive.file` scope) plugs into the
-same port later — its Google Cloud walkthrough activates together with Google sign-in
-(`future.md` §9). After a `.main` revival, media shows as *unreachable* until storage is
-reconnected — inline files do not survive a purge; links resume working immediately after
-re-adding them.
+
+**Required for the `s3` backend: `STORAGE_KEK`.** 32 bytes of hex, set in
+**Render → Environment**. It encrypts organizations' storage credentials and wraps their
+per-org data keys, and it deliberately lives outside the database so a database dump alone
+cannot reach a customer's storage. `render.yaml` generates one on first deploy —
+**back it up somewhere outside Render before going live.** Generate one by hand with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Google Drive and OneDrive/SharePoint plug into the same port later (`future.md` §9); both
+proxy bytes through us, which is why the S3-compatible adapter came first.
+
+After a `.main` revival, media shows as *unreachable* until storage is reconnected — inline
+files do not survive a purge; links resume working immediately after re-adding them, and
+objects on the organization's own storage come back as soon as it is reconnected.
 
 ---
 
