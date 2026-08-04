@@ -134,6 +134,15 @@ model Organization {
   planExpiresAt   DateTime? // null = unlimited / none
   planIsCustom    Boolean    @default(false)
   planGrantedById String? // PlatformAdmin.id that last set the plan
+  /// Knowledge Vault Employee Perk: an internal organization, created by one of our own
+  /// super-admins for staff use. It keeps its content in OUR database via the inline
+  /// adapter instead of bringing its own storage, so the storage step is skipped
+  /// entirely. Both requesting and creating one require a super-admin username and
+  /// password, which is what keeps the perk internal.
+  isKvep          Boolean    @default(false)
+  /// Optional organization logo — a client-downscaled data URL, same shape as
+  /// Profile.avatar. Absent means the UI falls back to the first letter of the name.
+  logo            String?
   memberLimit     Int? // per-org cap (customisable by the admin); null = use the plan's limit
   documentLimit   Int? // per-org cap on Studio documents; null = use the plan's limit
   uploadLimit     Int? // per-org cap on uploads/links; null = use the plan's limit
@@ -477,6 +486,7 @@ enum PlatformRequestKind {
   CUSTOM_PLAN // user proposes their own days + coin offer; admin negotiates
   RESTORE_ORG // key to restore an expired/purged org from its .main
   UPGRADE_PLAN // move an existing organization onto a higher plan
+  KVEP_ORG // Knowledge Vault Employee Perk — an internal organization on OUR storage
 }
 
 enum PlatformRequestStatus {

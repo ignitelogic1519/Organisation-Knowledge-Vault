@@ -9,12 +9,14 @@ export type PlanStatus = "NONE" | "DEMO" | "ACTIVE" | "EXPIRED";
 /** The kinds of ask a user can send the super-admin. */
 export type PlatformRequestKind =
   | "CREATE_ORG"
+  | "KVEP_ORG"
   | "CUSTOM_PLAN"
   | "RESTORE_ORG"
   | "UPGRADE_PLAN";
 
 export const PLATFORM_REQUEST_LABELS: Record<PlatformRequestKind, string> = {
   CREATE_ORG: "Create an organization",
+  KVEP_ORG: "Employee perk organization (KVEP)",
   CUSTOM_PLAN: "Custom / organizational plan",
   RESTORE_ORG: "Restore an organization",
   UPGRADE_PLAN: "Upgrade a plan",
@@ -194,7 +196,7 @@ export interface OrgPlanLimitsView {
 /** A user filing a request (create / upgrade / propose a custom plan / restore an org). */
 export const createPlatformRequestSchema = z
   .object({
-    kind: z.enum(["CREATE_ORG", "CUSTOM_PLAN", "RESTORE_ORG", "UPGRADE_PLAN"]),
+    kind: z.enum(["CREATE_ORG", "KVEP_ORG", "CUSTOM_PLAN", "RESTORE_ORG", "UPGRADE_PLAN"]),
     planKey: z.string().max(60).optional(),
     requestedDays: z.number().int().positive().max(3650).optional(),
     offeredCoins: z.number().int().nonnegative().max(1_000_000).optional(),

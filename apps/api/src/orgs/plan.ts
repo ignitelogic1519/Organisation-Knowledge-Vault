@@ -11,13 +11,19 @@ export interface RedeemedPlan {
   priceCoins: number;
   days: number | null; // duration granted (null = unlimited)
   isCustom: boolean;
+  /** The code came from a KVEP request: an internal org, hosted on our storage. */
+  isKvep: boolean;
 }
 
 /** Validate an access code for a user; return the granted plan terms or throw a 4xx. */
 export async function redeemAccessCode(
   profileId: string,
   code: string,
-  kinds: ("CREATE_ORG" | "CUSTOM_PLAN" | "RESTORE_ORG")[] = ["CREATE_ORG", "CUSTOM_PLAN"],
+  kinds: ("CREATE_ORG" | "CUSTOM_PLAN" | "RESTORE_ORG" | "KVEP_ORG")[] = [
+    "CREATE_ORG",
+    "CUSTOM_PLAN",
+    "KVEP_ORG",
+  ],
 ): Promise<RedeemedPlan> {
   const request = await db.platformRequest.findFirst({
     where: { requesterId: profileId, otpHash: hashOtp(code), status: "APPROVED", kind: { in: kinds } },
@@ -36,6 +42,7 @@ export async function redeemAccessCode(
     priceCoins: request.priceCoins ?? 0,
     days: request.grantedDays ?? plan?.durationDays ?? null,
     isCustom: request.kind === "CUSTOM_PLAN" || (plan?.isCustom ?? false),
+    isKvep: request.kind === "KVEP_ORG",
   };
 }
 
@@ -140,6 +147,28 @@ export async function orgStorageUsedMb(orgId: string): Promise<number> {
 export async function orgUsesOwnStorage(orgId: string): Promise<boolean> {
   const row = await db.orgStorage.findUnique({ where: { orgId }, select: { status: true } });
   return row != null && row.status !== "UNCONFIGURED";
+}
+
+/**
+ * Verify a super-admin's own username and password. This is the KVEP gate: the perk is
+ * for our staff, so proving you hold staff credentials is what makes it internal.
+ *
+ * Deliberately generic on failure — it must not reveal whether a username exists.
+ */
+export async function verifyPlatformAdminCredentials(
+  username: string,
+  password: string,
+): Promise<{ id: string; username: string }> {
+  const { verify: argonVerify } = await import("@node-rs/argon2");
+  const admin = await db.platformAdmin.findUnique({
+    where: { username: username.trim().toLowerCase() },
+  });
+  const ok =
+    admin && admin.active && (await argonVerify(admin.passwordHash, password).catch(() => false));
+  if (!admin || !ok) {
+    throw Object.assign(new Error("Wrong super-admin username or password"), { statusCode: 401 });
+  }
+  return { id: admin.id, username: admin.username };
 }
 
 /** Resolve an org's effective content terms: per-org override → plan row → unlimited. */

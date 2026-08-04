@@ -13,7 +13,13 @@ import { db } from "../db.js";
 import { broadcast } from "../events.js";
 import { audit } from "../security.js";
 import { connectStorage, testConnection } from "../storage/org-storage.js";
-import { redeemAccessCode, planStatusFor, expiryFrom, effectivePlanStatus } from "./plan.js";
+import {
+  redeemAccessCode,
+  planStatusFor,
+  expiryFrom,
+  effectivePlanStatus,
+  verifyPlatformAdminCredentials,
+} from "./plan.js";
 import {
   auditSupreme,
   checkSupremeRateLimit,
@@ -80,8 +86,36 @@ export async function orgRoutes(app: FastifyInstance) {
     }
 
     // Paywall gate: a valid super-admin access code (OTP) is required to create ANY org.
-    // The code carries the plan the admin approved (plan key, coin price, granted days).
+    // The code carries the plan the admin approved, and whether it is a KVEP creation.
     const plan = await redeemAccessCode(req.profileId, body.accessCode);
+
+    // KVEP is our staff perk: it skips organization-provided storage and keeps content
+    // in our database, so it must be provably internal. The code says it is a KVEP
+    // request; these credentials say the person redeeming it is one of us.
+    let kvepAdminId: string | null = null;
+    if (plan.isKvep) {
+      if (!body.kvepAdmin) {
+        return reply.status(400).send({
+          error:
+            "This is an employee-perk (KVEP) code. Enter a super-admin username and password to create the organization.",
+        }) as never;
+      }
+      const admin = await verifyPlatformAdminCredentials(
+        body.kvepAdmin.username,
+        body.kvepAdmin.password,
+      );
+      kvepAdminId = admin.id;
+      if (body.storage) {
+        return reply.status(400).send({
+          error:
+            "An employee-perk organization uses Knowledge Vault's own storage — leave the storage fields empty.",
+        }) as never;
+      }
+    } else if (body.kvepAdmin) {
+      return reply.status(400).send({
+        error: "Super-admin credentials are only used with an employee-perk (KVEP) code.",
+      }) as never;
+    }
     const profile = await db.profile.findUniqueOrThrow({ where: { id: req.profileId } });
     if (profile.coins < plan.priceCoins) {
       return reply
@@ -126,6 +160,11 @@ export async function orgRoutes(app: FastifyInstance) {
           planActivatedAt: new Date(),
           planExpiresAt: expiresAt,
           planIsCustom: plan.isCustom,
+          // KVEP organizations never connect their own storage: the inline adapter and
+          // the plan's storage ceiling apply to them exactly as they did before
+          // organization-provided storage existed.
+          isKvep: plan.isKvep,
+          logo: body.logo ?? null,
         },
       });
       const ownerRole = await tx.roleNode.create({
@@ -171,6 +210,8 @@ export async function orgRoutes(app: FastifyInstance) {
       id: org.id,
       name: org.name,
       orgNumber: org.orgNumber,
+      logo: org.logo,
+      isKvep: org.isKvep,
       myPlacements: await myPlacements(req.profileId, org.id),
       planStatus: org.planStatus,
       planKey: org.planKey,
@@ -190,6 +231,8 @@ export async function orgRoutes(app: FastifyInstance) {
         id: m.org.id,
         name: m.org.name,
         orgNumber: m.org.orgNumber,
+        logo: m.org.logo,
+        isKvep: m.org.isKvep,
         myPlacements: await myPlacements(req.profileId, m.orgId),
         planStatus: effectivePlanStatus(m.org.planStatus, m.org.planExpiresAt),
         planKey: m.org.planKey,
@@ -246,6 +289,8 @@ export async function orgRoutes(app: FastifyInstance) {
         id: org.id,
         name: org.name,
         orgNumber: org.orgNumber,
+        logo: org.logo,
+        isKvep: org.isKvep,
         createdAt: org.createdAt.toISOString(),
         ownerRole: { id: ownerRole.id, name: ownerRole.name, roleNumber: ownerRole.roleNumber },
         owners: ownerPlacements.map((p) => ({
