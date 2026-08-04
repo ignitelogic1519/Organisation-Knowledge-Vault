@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ApiError } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
 import { fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { useDialogs } from "./dialogs";
@@ -54,14 +55,37 @@ export function RecoveryDock({
   /** Take an organization back out of the bin: Supreme password, then — if its plan
    *  lapsed while it sat there — a restore code from the Knowledge Base team. */
   const restore = async (d: DeletedOrg) => {
-    const pw = await dialogs.promptPassword({
-      title: `Restore "${d.name}"`,
-      message: "Enter the organization's Supreme password to bring it back.",
-      label: "Supreme password",
-      minLength: 1,
-      submitLabel: "Restore",
-    });
-    if (!pw) return;
+    // Ask, and keep asking with the reason shown in the sheet. A rejected password that
+    // just closes the dialog is indistinguishable from the button not working.
+    let pw: string | null = null;
+    let pwError: string | undefined;
+    for (let attempt = 0; attempt < 5 && pw === null; attempt += 1) {
+      pw = await dialogs.promptPassword({
+        title: `Restore "${d.name}"`,
+        message: "Enter the organization's Supreme password to bring it back.",
+        label: "Supreme password",
+        minLength: 1,
+        submitLabel: "Restore",
+        error: pwError,
+      });
+      if (pw === null) return; // cancelled
+      try {
+        await orgs.undelete(d.id, pw);
+        dialogs.toast(`${d.name} is back.`, "success");
+        onChanged();
+        return;
+      } catch (e) {
+        // A wrong password is retryable and stays in the loop; anything else (a lapsed
+        // plan needing a restore code) falls through to the handling below.
+        if (e instanceof ApiError && e.status === 401) {
+          pwError = `${e.message}. Check for caps lock and try again.`;
+          pw = null;
+          continue;
+        }
+        break;
+      }
+    }
+    if (pw === null) return;
     try {
       await orgs.undelete(d.id, pw);
       dialogs.toast(`${d.name} is back.`, "success");

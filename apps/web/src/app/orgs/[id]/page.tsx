@@ -10,6 +10,7 @@ import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-c
 import { studio } from "@/lib/studio-client";
 import { storageApi, uploadFile } from "@/lib/storage-client";
 import { StoragePanel } from "@/components/StoragePanel";
+import { useSupremeGate } from "@/components/supreme-gate";
 import { GraphLegend, OrgGraph } from "@/components/OrgGraph";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
@@ -58,32 +59,13 @@ function ConfigPanel({
   const dialogs = useDialogs();
   const router = useRouter();
   const [subRoleOpen, setSubRoleOpen] = useState(false);
-  const [supremeToken, setSupremeToken] = useState<string | null>(null);
-  const [supremePassword, setSupremePassword] = useState<string | null>(null);
   const isRoot = node.parentId === null;
-
-  const unlockSupreme = async (): Promise<string | null> => {
-    if (supremeToken) return supremeToken;
-    const pw = await dialogs.promptPassword({
-      title: "Supreme access",
-      message:
-        "Owner-level changes need the organization's Supreme password. Access lasts 10 minutes.",
-      label: "Supreme password",
-      submitLabel: "Unlock",
-      minLength: 1,
-    });
-    if (!pw) return null;
-    try {
-      const session = await orgs.supremeVerify(org.id, pw);
-      setSupremeToken(session.supremeToken);
-      setSupremePassword(pw);
-      dialogs.toast("Supreme access granted for 10 minutes.", "success");
-      return session.supremeToken;
-    } catch (e) {
-      dialogs.toast(e instanceof ApiError ? e.message : "Verification failed", "danger");
-      return null;
-    }
-  };
+  // One shared gate: it keeps the sheet open and names the reason when a password is
+  // rejected, instead of closing silently behind a four-second toast.
+  const supreme = useSupremeGate(org.id);
+  const supremeToken = supreme.token;
+  const supremePassword = supreme.password;
+  const unlockSupreme = supreme.unlock;
 
   return (
     <div className="drawer-section">
@@ -256,7 +238,7 @@ function ConfigPanel({
           <StoragePanel
             orgId={org.id}
             supremeToken={supremeToken}
-            onNeedSupreme={() => void unlockSupreme()}
+            onNeedSupreme={() => unlockSupreme("Connecting storage decides where this organization's documents live, so it needs the Supreme password.")}
           />
 
           <h3 className="learning-h">Supreme zone</h3>

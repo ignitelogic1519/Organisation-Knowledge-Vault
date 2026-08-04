@@ -28,8 +28,8 @@ export function StoragePanel({
   orgId: string;
   /** A live Supreme token, when the owner has already unlocked the gate. */
   supremeToken: string | null;
-  /** Ask the surrounding page to prompt for the Supreme password. */
-  onNeedSupreme: () => void;
+  /** Prompt for the Supreme password and resolve with a token, or null if refused. */
+  onNeedSupreme: () => Promise<string | null>;
 }) {
   const dialogs = useDialogs();
   const [view, setView] = useState<StorageView | null>(null);
@@ -47,14 +47,15 @@ export function StoragePanel({
   useEffect(() => load(), [load]);
 
   async function save() {
-    if (!supremeToken) {
-      onNeedSupreme();
-      return;
-    }
+    // Unlock first if needed, then carry straight on. Returning here and making the
+    // owner press Save a second time reads like the button did nothing.
+    const token = supremeToken ?? (await onNeedSupreme());
+    if (!token) return; // cancelled or refused — the gate has already explained why
+
     setBusy(true);
     setError(null);
     try {
-      await storageApi.connect(orgId, config, supremeToken);
+      await storageApi.connect(orgId, config, token);
       dialogs.toast("Storage connected.", "success");
       setEditing(false);
       load();

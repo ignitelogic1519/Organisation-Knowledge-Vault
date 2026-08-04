@@ -37,6 +37,12 @@ interface PasswordOptions {
   /** Require re-typing the password — used whenever a NEW password is being set. */
   confirmEntry?: boolean;
   minLength?: number;
+  /**
+   * Shown inside the sheet when it reopens after the server rejected the last
+   * attempt. A transient toast is not enough for a rejected password: the dialog
+   * closing with nothing visible reads as "nothing happened".
+   */
+  error?: string;
 }
 
 interface DialogApi {
@@ -72,7 +78,7 @@ function PasswordSheet({
   opts: PasswordOptions;
   onDone: (value: string | null) => void;
 }) {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(opts.error ?? null);
   const min = opts.minLength ?? 8;
 
   return (
@@ -96,7 +102,14 @@ function PasswordSheet({
       {opts.message && <div className="sheet-msg">{opts.message}</div>}
       <label className="field">
         <span>{opts.label ?? "Password"}</span>
-        <input name="password" type="password" autoFocus required autoComplete="off" />
+        <input
+          name="password"
+          type="password"
+          autoFocus
+          required
+          autoComplete="off"
+          onChange={() => setError(null)}
+        />
         {opts.confirmEntry && <small>At least {min} characters</small>}
       </label>
       {opts.confirmEntry && (
