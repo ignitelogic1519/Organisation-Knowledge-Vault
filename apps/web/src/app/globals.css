@@ -8975,8 +8975,6 @@ html.kv-pointer-on * {
 }
 
 .kv-pointer {
-  display: grid;
-  place-items: center;
   width: 0;
   height: 0;
   transition: opacity 160ms var(--ease);
@@ -8987,9 +8985,17 @@ html.kv-pointer-on * {
   opacity: 0;
 }
 
-/* Every glyph shares one cell; `data-state` reveals exactly one of them. */
+/* Every glyph is stacked on the same point; `data-state` reveals exactly one.
+   The hotspot (--hx/--hy) is subtracted from the position AND used as the transform
+   origin, so the tip of the arrow is the click point and stays the click point through
+   every scale transition. The previous version centred each glyph on the mouse and then
+   nudged it back with a percentage translate, which put the real hotspot somewhere
+   inside the trailing ring — close enough to look right, far enough to click wrong. */
 .kv-pointer > * {
-  grid-area: 1 / 1;
+  position: absolute;
+  left: calc(-1 * var(--hx, 0px));
+  top: calc(-1 * var(--hy, 0px));
+  transform-origin: var(--hx, 0px) var(--hy, 0px);
   opacity: 0;
   transform: scale(0.6);
   transition:
@@ -8997,29 +9003,17 @@ html.kv-pointer-on * {
     transform 220ms var(--spring);
 }
 
-.kv-pointer[data-state="default"] .kv-pointer-dot,
-.kv-pointer[data-state="select"] .kv-pointer-arrow,
-.kv-pointer[data-state="reading"] .kv-pointer-book,
-.kv-pointer[data-state="text"] .kv-pointer-nib,
-.kv-pointer[data-state="grab"] .kv-pointer-hand,
-.kv-pointer[data-state="grabbing"] .kv-pointer-hand,
-.kv-pointer[data-state="blocked"] .kv-pointer-block {
+.kv-pointer[data-idle="false"][data-state="default"] .kv-pointer-dot,
+.kv-pointer[data-idle="false"][data-state="select"] .kv-pointer-arrow,
+.kv-pointer[data-idle="false"][data-state="reading"] .kv-pointer-book,
+.kv-pointer[data-idle="false"][data-state="text"] .kv-pointer-nib,
+.kv-pointer[data-idle="false"][data-state="grab"] .kv-pointer-hand,
+.kv-pointer[data-idle="false"][data-state="grabbing"] .kv-pointer-hand,
+.kv-pointer[data-idle="false"][data-state="blocked"] .kv-pointer-block,
+.kv-pointer[data-idle="false"][data-state="scroll"] .kv-pointer-scroll,
+.kv-pointer[data-idle="false"][data-state="zoom"] .kv-pointer-zoom {
   opacity: 1;
   transform: scale(1);
-}
-
-/* Glyphs that have a natural tip point it at the pointer, rather than centring on it. */
-.kv-pointer .kv-pointer-arrow,
-.kv-pointer .kv-pointer-nib {
-  transform-origin: 12% 8%;
-  translate: 38% 42%;
-}
-.kv-pointer .kv-pointer-book {
-  translate: 4% 30%;
-}
-.kv-pointer .kv-pointer-hand,
-.kv-pointer .kv-pointer-block {
-  translate: 10% 18%;
 }
 
 /* — default: a drop of ink — */
@@ -9143,6 +9137,8 @@ html.kv-pointer-on * {
   background: color-mix(in srgb, var(--accent) 7%, transparent);
   -webkit-backdrop-filter: blur(1px);
   backdrop-filter: blur(1px);
+  /* `transform` is owned by the rAF loop (position + velocity stretch) and must NOT be
+     transitioned, or the stretch would lag a frame behind the movement causing it. */
   transition:
     width 260ms var(--spring),
     height 260ms var(--spring),
@@ -10266,4 +10262,754 @@ html.kv-pointer-on * {
 /* A publish button that cannot yet publish should look like it. */
 .btn[data-pending="true"] {
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--warning) 70%, transparent);
+}
+
+/* ── Pointer: scroll & zoom reactions ──────────────────────────────────── */
+
+.kv-scroll-shell {
+  fill: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+
+.kv-scroll-bead {
+  fill: var(--accent);
+  animation: kv-scroll-bead 1.1s var(--ease) infinite;
+}
+
+@keyframes kv-scroll-bead {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(6px);
+    opacity: 0.45;
+  }
+}
+
+.kv-scroll-chev {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  animation: kv-chev 900ms var(--ease) infinite;
+}
+
+.kv-scroll-chev-2 {
+  animation-delay: 150ms;
+}
+
+/* Scrolling up flips the chevrons so they always travel with the page. */
+.kv-pointer[data-dir="up"] .kv-pointer-scroll {
+  transform: scale(1) rotate(180deg);
+}
+
+@keyframes kv-chev {
+  0% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.kv-zoom-lens {
+  fill: color-mix(in srgb, var(--surface-solid) 70%, transparent);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.kv-zoom-handle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.kv-zoom-sign {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: opacity 160ms var(--ease);
+}
+
+/* The vertical stroke is what turns − into +, so zooming out simply drops it. */
+.kv-pointer[data-dir="out"] .kv-zoom-v {
+  opacity: 0;
+}
+
+.kv-pointer[data-state="zoom"] .kv-pointer-zoom {
+  animation: kv-zoom-pulse 700ms var(--ease);
+}
+
+@keyframes kv-zoom-pulse {
+  0% {
+    transform: scale(0.82);
+  }
+  55% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── Pointer: the click burst ──────────────────────────────────────────── */
+
+.kv-burst {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.kv-burst::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: kv-burst-ring 560ms var(--ease) forwards;
+}
+
+@keyframes kv-burst-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+.kv-burst i {
+  position: absolute;
+  left: -1.5px;
+  top: -1.5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  transform: rotate(var(--a)) translateX(0);
+  animation: kv-burst-spark 560ms var(--ease) forwards;
+}
+
+@keyframes kv-burst-spark {
+  from {
+    transform: rotate(var(--a)) translateX(2px) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(var(--a)) translateX(20px) scale(0.2);
+    opacity: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Pointer: the idle repertoire
+
+   After ten seconds of stillness the cursor stops being a cursor and becomes a
+   small scene; a different one every ten seconds. The moment the mouse moves,
+   it is a cursor again. Every scene is pure CSS on inline SVG — an idle pointer
+   costs no JavaScript at all — and the whole feature is off under
+   `prefers-reduced-motion`, where an unprompted animation is exactly the thing
+   the setting exists to prevent.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kv-idle {
+  position: absolute;
+  left: calc(-1 * var(--hx));
+  top: calc(-1 * var(--hy));
+  width: 44px;
+  height: 44px;
+  opacity: 0;
+  transform: scale(0.5);
+  transform-origin: var(--hx) var(--hy);
+  transition:
+    opacity 260ms var(--ease),
+    transform 420ms var(--spring);
+  pointer-events: none;
+}
+
+.kv-pointer[data-idle="true"] .kv-idle {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Idle wins over every pointing glyph. */
+.kv-pointer[data-idle="true"] > *:not(.kv-idle) {
+  opacity: 0 !important;
+}
+
+/* The trailing ring gets out of the way and becomes the scene's halo. */
+.kv-pointer-ring[data-idle="true"] {
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  animation: kv-idle-halo 3.6s var(--ease) infinite;
+}
+
+@keyframes kv-idle-halo {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.kv-scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(0.7) rotate(-8deg);
+  transition:
+    opacity 300ms var(--ease),
+    transform 460ms var(--spring);
+}
+
+/* Only the chosen scene is visible; the swap is a cross-fade, not a cut. */
+.kv-pointer[data-scene="stars"] .kv-scene[data-for="stars"],
+.kv-pointer[data-scene="shooting"] .kv-scene[data-for="shooting"],
+.kv-pointer[data-scene="planet"] .kv-scene[data-for="planet"],
+.kv-pointer[data-scene="brain"] .kv-scene[data-for="brain"],
+.kv-pointer[data-scene="rain"] .kv-scene[data-for="rain"],
+.kv-pointer[data-scene="sun"] .kv-scene[data-for="sun"],
+.kv-pointer[data-scene="cat"] .kv-scene[data-for="cat"],
+.kv-pointer[data-scene="clock"] .kv-scene[data-for="clock"],
+.kv-pointer[data-scene="signal"] .kv-scene[data-for="signal"],
+.kv-pointer[data-scene="rocket"] .kv-scene[data-for="rocket"],
+.kv-pointer[data-scene="coffee"] .kv-scene[data-for="coffee"],
+.kv-pointer[data-scene="plant"] .kv-scene[data-for="plant"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Shared ink for the scenes, so they read as one family. */
+.kv-scene {
+  --ink: var(--accent);
+  --ink2: var(--accent-2);
+  --paper: color-mix(in srgb, var(--surface-solid) 88%, transparent);
+}
+
+/* — twinkling stars — */
+.kv-twinkle {
+  fill: var(--ink);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kv-twinkle 2.4s var(--ease) infinite;
+}
+.kv-t1 { animation-delay: 0ms; }
+.kv-t2 { animation-delay: 500ms; fill: var(--ink2); }
+.kv-t3 { animation-delay: 1000ms; }
+.kv-t4 { animation-delay: 1500ms; fill: var(--ink2); }
+
+@keyframes kv-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.72);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+/* — shooting star — */
+.kv-sky-dot {
+  fill: var(--ink);
+  opacity: 0.5;
+  animation: kv-twinkle 3s var(--ease) infinite;
+}
+.kv-shoot {
+  animation: kv-shoot 2.6s var(--ease) infinite;
+}
+.kv-shoot-head {
+  fill: var(--ink2);
+}
+.kv-shoot-tail {
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+@keyframes kv-shoot {
+  0% {
+    transform: translate(36px, 4px);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: translate(8px, 34px);
+    opacity: 0;
+  }
+}
+
+/* — planet with an orbiting moon — */
+.kv-orbit {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  opacity: 0.45;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kv-orbit-tilt 8s var(--ease) infinite;
+}
+.kv-planet {
+  fill: var(--ink);
+  opacity: 0.9;
+}
+.kv-planet-band {
+  fill: none;
+  stroke: var(--paper);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+.kv-moon-g {
+  transform-origin: 22px 22px;
+  animation: kv-spin 3.4s linear infinite;
+}
+.kv-moon {
+  fill: var(--ink2);
+}
+
+@keyframes kv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes kv-orbit-tilt {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+/* — a brain, braining — */
+.kv-brain {
+  fill: var(--ink);
+  opacity: 0.85;
+}
+.kv-brain-fold {
+  fill: none;
+  stroke: var(--paper);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+.kv-brain-g {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kv-brain-pulse 1.8s var(--ease) infinite;
+}
+.kv-spark {
+  fill: var(--ink2);
+  animation: kv-spark 1.8s var(--ease) infinite;
+}
+.kv-spark-2 { animation-delay: 300ms; }
+.kv-spark-3 { animation-delay: 620ms; }
+
+@keyframes kv-brain-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+@keyframes kv-spark {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+/* — a cloud, raining — */
+.kv-cloud {
+  fill: var(--ink);
+  opacity: 0.85;
+  animation: kv-cloud-drift 4.5s var(--ease) infinite;
+}
+.kv-drop {
+  stroke: var(--ink2);
+  stroke-width: 2;
+  stroke-linecap: round;
+  animation: kv-drop 1.25s linear infinite;
+}
+.kv-d2 { animation-delay: 400ms; }
+.kv-d3 { animation-delay: 800ms; }
+
+@keyframes kv-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+}
+@keyframes kv-cloud-drift {
+  0%,
+  100% {
+    transform: translateX(-1.5px);
+  }
+  50% {
+    transform: translateX(1.5px);
+  }
+}
+
+/* — the sun — */
+.kv-sun {
+  fill: var(--ink2);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kv-brain-pulse 3s var(--ease) infinite;
+}
+.kv-rays {
+  transform-origin: 22px 22px;
+  animation: kv-spin 14s linear infinite;
+}
+.kv-ray {
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* — a cat, licking its paw — */
+.kv-cat-fill {
+  fill: var(--ink);
+  opacity: 0.9;
+}
+.kv-cat-eye {
+  fill: var(--paper);
+  animation: kv-blink 4s var(--ease) infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.kv-cat-nose {
+  fill: var(--ink2);
+}
+.kv-cat-whisk {
+  stroke: var(--paper);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+.kv-cat-body {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: kv-cat-lean 2.8s var(--ease) infinite;
+}
+.kv-paw-g {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: kv-paw 2.8s var(--ease) infinite;
+}
+.kv-paw {
+  fill: var(--ink);
+  /* An outline is what stops the paw dissolving into the face when it reaches it. */
+  stroke: var(--paper);
+  stroke-width: 1.1;
+}
+.kv-paw-bean {
+  fill: var(--ink2);
+}
+.kv-tongue {
+  fill: var(--ink2);
+  opacity: 0;
+  animation: kv-tongue 2.8s var(--ease) infinite;
+}
+
+@keyframes kv-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+/* The head dips to the paw, the paw lifts to meet it — that is what makes it a lick. */
+@keyframes kv-cat-lean {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  45%,
+  70% {
+    transform: translateY(2px) rotate(7deg);
+  }
+}
+/* Up and inward, so it arrives at the mouth rather than at the chin. */
+@keyframes kv-paw {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  45%,
+  70% {
+    transform: translate(-5px, -9px) rotate(-14deg);
+  }
+}
+@keyframes kv-tongue {
+  0%,
+  42%,
+  74%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  50%,
+  66% {
+    opacity: 1;
+    transform: translateY(2px);
+  }
+}
+
+/* — a clock, showing the actual time — */
+.kv-clock-face {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.kv-clock-tick {
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+.kv-clock-hand {
+  stroke: var(--ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  transform-origin: 22px 22px;
+}
+.kv-clock-hour {
+  transform: rotate(var(--kv-hour, 0deg));
+}
+.kv-clock-min {
+  stroke-width: 1.8;
+  transform: rotate(var(--kv-min, 0deg));
+}
+/* Wound to the real second: a 60s rotation started `--kv-sec` seconds ago. */
+.kv-clock-sec {
+  stroke: var(--ink2);
+  stroke-width: 1.2;
+  animation: kv-spin 60s linear infinite;
+  animation-delay: calc(var(--kv-sec, 0) * -1s);
+}
+.kv-clock-pin {
+  fill: var(--ink2);
+}
+
+/* — an internet signal — */
+.kv-bar {
+  fill: var(--ink);
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: kv-bar 2s var(--ease) infinite;
+}
+.kv-bar-2 { animation-delay: 220ms; }
+.kv-bar-3 { animation-delay: 440ms; }
+.kv-bar-4 { animation-delay: 660ms; fill: var(--ink2); }
+
+@keyframes kv-bar {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: scaleY(0.55);
+  }
+  35%,
+  70% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* — a rocket — */
+.kv-rocket-g {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kv-rocket 2.2s var(--ease) infinite;
+}
+.kv-rocket-body {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.kv-rocket-fin {
+  fill: var(--ink);
+}
+.kv-rocket-port {
+  fill: var(--ink2);
+}
+.kv-flame {
+  fill: var(--ink2);
+  transform-box: fill-box;
+  transform-origin: center top;
+  animation: kv-flame 260ms var(--ease) infinite alternate;
+}
+.kv-flame-b {
+  fill: var(--paper);
+  opacity: 0.85;
+  animation-duration: 190ms;
+}
+
+@keyframes kv-rocket {
+  0%,
+  100% {
+    transform: translateY(2px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes kv-flame {
+  from {
+    transform: scaleY(0.75) scaleX(0.9);
+  }
+  to {
+    transform: scaleY(1.15) scaleX(1.05);
+  }
+}
+
+/* — a coffee, steaming — */
+.kv-cup {
+  fill: var(--ink);
+  opacity: 0.9;
+}
+.kv-cup-handle,
+.kv-saucer {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.kv-steam {
+  fill: none;
+  stroke: var(--ink2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0;
+  animation: kv-steam 2.6s var(--ease) infinite;
+}
+.kv-steam-2 {
+  animation-delay: 700ms;
+}
+
+@keyframes kv-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scaleY(0.7);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scaleY(1.15);
+  }
+}
+
+/* — a seedling — */
+.kv-pot {
+  fill: var(--ink);
+  opacity: 0.9;
+}
+.kv-stem {
+  stroke: var(--ink2);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.kv-leaf {
+  fill: var(--ink2);
+}
+.kv-sprout {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: kv-sway 3.2s var(--ease) infinite;
+}
+.kv-leaf-l {
+  transform-box: fill-box;
+  transform-origin: right bottom;
+  animation: kv-leaf 3.2s var(--ease) infinite;
+}
+.kv-leaf-r {
+  transform-box: fill-box;
+  transform-origin: left bottom;
+  animation: kv-leaf 3.2s var(--ease) infinite reverse;
+}
+
+@keyframes kv-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes kv-leaf {
+  0%,
+  100% {
+    transform: rotate(-6deg) scale(0.96);
+  }
+  50% {
+    transform: rotate(6deg) scale(1.04);
+  }
+}
+
+/* An unprompted animation is precisely what this setting exists to prevent. */
+@media (prefers-reduced-motion: reduce) {
+  .kv-idle,
+  .kv-burst {
+    display: none;
+  }
+  .kv-scroll-bead,
+  .kv-scroll-chev,
+  .kv-pointer[data-state="zoom"] .kv-pointer-zoom {
+    animation: none;
+  }
 }
