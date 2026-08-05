@@ -261,6 +261,32 @@ export interface AuthoredDocument {
   theme?: DocumentTheme;
 }
 
+// ── Version control between documents ────────────────────────────────────────
+// `version` counts editions of ONE document. This is the other axis: what a brand-new
+// document does to the one that already covers the subject. COEXIST leaves both live;
+// SUPERSEDE retires the old one, moves its placements onto the new one, and leaves a
+// forwarding link so an old code still lands the reader on the current word.
+
+export const replacementModes = ["COEXIST", "SUPERSEDE"] as const;
+export const replacementModeSchema = z.enum(replacementModes);
+export type ReplacementMode = z.infer<typeof replacementModeSchema>;
+
+export const REPLACEMENT_MODE_TEXT: Record<
+  ReplacementMode,
+  { label: string; blurb: string }
+> = {
+  COEXIST: {
+    label: "Publish alongside it",
+    blurb:
+      "Both documents stay live. Use this when the existing one still applies to somebody — a regional variant, an older product line, a different audience.",
+  },
+  SUPERSEDE: {
+    label: "Replace it",
+    blurb:
+      "The existing document is retired: it leaves the library and every branch it was placed on receives this one instead. Its completion history is kept, and anyone opening the old reference is pointed here.",
+  },
+};
+
 export const createCourseSchema = z.object({
   roleNodeId: z.string().uuid(), // uploading role — its number goes into the code
   kind: z.enum(["DOCUMENT", "BOOK", "LINK", "AUDIO", "VIDEO", "EXAM"]),
@@ -301,8 +327,19 @@ export const createCourseSchema = z.object({
   resetsCompletionOnUpdate: z.boolean().default(false),
   /** Course codes that must be completed first (hard prerequisites). */
   prerequisiteCodes: z.array(z.string()).max(20).default([]),
+  /**
+   * Version control against what is already on the shelves. When `replacesCourseCode` is
+   * given, `replacementMode` decides whether the two coexist or the old one is retired
+   * onto this one.
+   */
+  replacesCourseCode: z.string().trim().max(40).optional(),
+  replacementMode: replacementModeSchema.default("COEXIST"),
+  /** What this first edition is, in the author's words — opens the edition history. */
+  versionNote: z.string().trim().max(500).optional(),
 });
-export type CreateCourseInput = z.infer<typeof createCourseSchema>;
+// z.input, not z.infer: fields with defaults stay optional for the caller, which is what
+// makes adding a new defaulted property a non-breaking change for every publish form.
+export type CreateCourseInput = z.input<typeof createCourseSchema>;
 
 export const placeCourseSchema = z.object({
   roleNodeId: z.string().uuid(),
@@ -339,12 +376,157 @@ export const studioDocumentSchema = z.object({
   mandatory: z.boolean().default(false),
   inherit: z.boolean().default(true),
   resets: z.boolean().default(true),
+  // ── Parity with an uploaded document ──────────────────────────────────────
+  // Everything below used to be askable only on the upload form, which meant a document
+  // written in the Studio could not be given a deadline, a recurrence, a prerequisite or
+  // a download permission at all. The two creation routes describe the SAME kind of
+  // object, so they carry the same properties (docs/structure.md §3.6).
+  /** May readers download it from the viewer? */
+  allowDownload: z.boolean().default(false),
+  /** Days from placement within which it must be completed. */
+  deadlineDays: z.number().int().positive().max(3650).nullable().default(null),
+  /** Recurrence: completion expires this many days after it is granted. */
+  retakeEveryNDays: z.number().int().positive().max(3650).nullable().default(null),
+  /** Course codes that must be completed before this one unlocks. */
+  prerequisiteCodes: z.array(z.string().trim().max(40)).max(20).default([]),
+  /** Version control: what this replaces on the shelves, and how. */
+  replacesCourseCode: z.string().trim().max(40).default(""),
+  replacementMode: replacementModeSchema.default("COEXIST"),
+  /** What changed in the edition about to be published. */
+  versionNote: z.string().trim().max(500).default(""),
   theme: documentThemeSchema.default({}),
   blocks: z.array(authoredBlockSchema).max(400).default([]),
   /** kind = EXAM: the paper being written. Absent on document drafts. */
   exam: examBodySchema.optional(),
 });
 export type StudioDocument = z.infer<typeof studioDocumentSchema>;
+
+// ── Publish readiness ────────────────────────────────────────────────────────
+// One source of truth for "what must be filled in before this can be published, and WHY
+// it is compulsory". The Studio's checklist, the upload composer and the properties
+// editor all read this, so the rules — and the sentences explaining them — can never
+// drift between the three places a document can be created or edited.
+
+export type PublishCheckId =
+  | "title"
+  | "description"
+  | "classification"
+  | "content"
+  | "shelf"
+  | "scope"
+  | "marking";
+
+export interface PublishCheck {
+  id: PublishCheckId;
+  /** The field's name as the author sees it. */
+  label: string;
+  /** Compulsory checks block publishing; advisory ones are shown as warnings. */
+  required: boolean;
+  /** Satisfied right now? */
+  ok: boolean;
+  /** What to do about it — shown next to the highlighted field. */
+  fix: string;
+  /** WHY the platform insists on it — the tooltip body. */
+  why: string;
+}
+
+/** The publish-time state a check runs against — both editors and the upload form fill it. */
+export interface PublishSubject {
+  title: string;
+  description: string;
+  scope: string;
+  category: string;
+  classification: Classification | null;
+  /** Documents: blocks that survived the empty-block filter. Uploads: 1 when a file or
+   *  link is attached. Exams: the question count. */
+  contentCount: number;
+  /** Exams only — questions whose marking is incomplete (no correct answer, etc.). */
+  markingProblems?: string[];
+  /** What the content is, for the wording of the "add some content" check. */
+  noun?: "document" | "exam" | "upload";
+}
+
+const CONTENT_FIX: Record<NonNullable<PublishSubject["noun"]>, string> = {
+  document: "Add at least one block with something in it — a heading, a paragraph, a table.",
+  exam: "Add at least one question.",
+  upload: "Attach a file or paste the address of the material.",
+};
+
+/**
+ * Every publish rule, evaluated. Callers filter: `.filter(c => c.required && !c.ok)` is
+ * what blocks publishing, the rest is advice.
+ */
+export function publishChecks(subject: PublishSubject): PublishCheck[] {
+  const noun = subject.noun ?? "document";
+  const checks: PublishCheck[] = [
+    {
+      id: "title",
+      label: "Title",
+      required: true,
+      ok: subject.title.trim().length >= 2,
+      fix: "Give it a title of at least two characters.",
+      why: "The title is printed on the standard cover page, listed in the library and quoted in every compliance reminder. An untitled document cannot be found again by the people who have to read it.",
+    },
+    {
+      id: "classification",
+      label: "Classification",
+      required: true,
+      ok: !!subject.classification,
+      fix: "Choose Public, Confidential, Private or Secret.",
+      why: "Classification is the organization's handling instruction. It prints on the cover, the header strip and the footer of every page, and it decides how the document may be shared or downloaded. Nothing publishes without one — an unclassified document in a compliance vault is a liability.",
+    },
+    {
+      id: "description",
+      label: "Description",
+      required: true,
+      ok: subject.description.trim().length >= 8,
+      fix: "Write a sentence or two — at least 8 characters.",
+      why: "The description becomes page two of the standard format and the summary line in the library. It is how a member decides whether this is the thing they were looking for before they open it.",
+    },
+    {
+      id: "content",
+      label: noun === "upload" ? "File or link" : "Content",
+      required: true,
+      ok: subject.contentCount > 0,
+      fix: CONTENT_FIX[noun],
+      why: "A published document reaches real people and may be made mandatory for them. Publishing an empty one puts an unfinishable item on somebody's compliance list.",
+    },
+    {
+      id: "shelf",
+      label: "Library shelf",
+      required: false,
+      ok: subject.category.trim().length > 0,
+      fix: "Tag it with a shelf, or pick one of the suggestions.",
+      why: "The shelf tag is what groups this with related material in the library. Without one it lands under “Uncategorised”, where nobody browses.",
+    },
+    {
+      id: "scope",
+      label: "Scope",
+      required: false,
+      ok: subject.scope.trim().length > 0,
+      fix: "Say who it applies to and what it covers.",
+      why: "Scope prints under the description on page two. It is the difference between a reader knowing this applies to them and a reader guessing.",
+    },
+  ];
+
+  if (noun === "exam") {
+    const problems = subject.markingProblems ?? [];
+    checks.push({
+      id: "marking",
+      label: "Marking",
+      required: true,
+      ok: problems.length === 0,
+      fix: problems[0] ?? "Every question needs a correct answer and a mark.",
+      why: "The server marks the paper and writes the completion record from it. A question with no correct answer cannot be marked, so the candidate could never pass.",
+    });
+  }
+  return checks;
+}
+
+/** The blocking problems, in the order the author should fix them. */
+export function publishBlockers(subject: PublishSubject): PublishCheck[] {
+  return publishChecks(subject).filter((c) => c.required && !c.ok);
+}
 
 export const saveStudioDraftSchema = z.object({
   /** Present when overwriting a draft the author already saved. */
@@ -388,6 +570,11 @@ export const updateCourseSchema = z.object({
   inLibrary: z.boolean().optional(),
   resetsCompletionOnUpdate: z.boolean().optional(),
   allowDownload: z.boolean().optional(),
+  /** Course-wide defaults a branch placement may still override. */
+  deadlineDays: z.number().int().positive().max(3650).nullable().optional(),
+  retakeEveryNDays: z.number().int().positive().max(3650).nullable().optional(),
+  /** The full prerequisite set, by code — an empty array clears them. */
+  prerequisiteCodes: z.array(z.string().trim().max(40)).max(20).optional(),
   url: z.string().url().optional(),
   fileBase64: z.string().optional(),
   filename: z.string().max(200).optional(),
@@ -397,8 +584,39 @@ export const updateCourseSchema = z.object({
   blocks: authoredBlocksSchema.optional(),
   exam: examBodySchema.optional(),
   theme: documentThemeSchema.optional(),
+  /** What changed — recorded against the edition this publish creates. */
+  versionNote: z.string().trim().max(500).optional(),
 });
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
+
+/** One publication in a course's history — GET /courses/:code/editions. */
+export interface CourseEditionView {
+  version: number;
+  /** How the edition is written wherever people see it (v1.0, v2.0 …). */
+  label: string;
+  note: string | null;
+  source: "STUDIO" | "UPLOAD";
+  resetCompletions: boolean;
+  publishedBy: string;
+  publishedAt: string;
+  /** True for the edition currently in deployment. */
+  current: boolean;
+}
+
+/** A course's whole version story: its editions and how it stands against its neighbours. */
+export interface CourseHistoryView {
+  code: string;
+  title: string;
+  version: number;
+  withdrawn: boolean;
+  archived: boolean;
+  editions: CourseEditionView[];
+  /** Set when this document replaced another one when it was published. */
+  supersedes: { code: string; title: string } | null;
+  /** Set once a newer document replaced this one — the forwarding pointer. */
+  supersededBy: { code: string; title: string } | null;
+  supersededAt: string | null;
+}
 
 export interface CourseInfo {
   code: string;
@@ -442,6 +660,21 @@ export interface LibraryCourse {
   /** Average rating (1–5) across reviews, null when unrated. */
   avgRating: number | null;
   ratingCount: number;
+  // ── Where the viewer stands with it ───────────────────────────────────────
+  // The library used to offer everyone the same "request this for my branch" form, even
+  // when the course was already sitting in the reader's own My Learning. These three say
+  // whether it already reaches them, so the card can open it instead of asking for it.
+  /** Already reaches the signed-in member (placed on one of their branches, or inherited). */
+  inMySpace: boolean;
+  /** Which of their branches it arrives through. */
+  reachesViaRoleNames: string[];
+  /** Their completion state, when it reaches them. */
+  myStatus: CompletionStatus | "AVAILABLE" | null;
+  /** Branches the viewer holds that this course does NOT yet reach — the only ones worth
+   *  requesting it for. Empty means there is nothing left to ask for. */
+  requestableRoles: { roleNodeId: string; roleName: string; kind: "OWNER" | "MEMBER" }[];
+  /** Retired by a newer document — the forwarding pointer shown on the card. */
+  supersededByCode: string | null;
 }
 
 /** Compliance for ONE course across every branch it reaches — for its managers only. */

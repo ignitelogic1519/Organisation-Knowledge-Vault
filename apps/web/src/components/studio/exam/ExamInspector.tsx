@@ -6,6 +6,7 @@ import type {
   ExamRevealMode,
   ExamSettings,
   OrgPlanLimitsView,
+  PublishCheck,
 } from "@vault/shared";
 import { DocumentProperties } from "../DocumentProperties";
 import { Row, Toggle } from "../fields";
@@ -43,6 +44,12 @@ export function ExamInspector({
   categories,
   needsReview,
   showPlacement = true,
+  showVersionControl = true,
+  checks,
+  onGoToCheck,
+  orgId,
+  selfCode,
+  pendingCount = 0,
   passMark,
   totalPoints,
 }: {
@@ -59,6 +66,14 @@ export function ExamInspector({
   needsReview: boolean;
   /** false while revising a published exam — placements belong to the branch. */
   showPlacement?: boolean;
+  showVersionControl?: boolean;
+  /** Live publish checks — drives the checklist and the field highlights. */
+  checks?: PublishCheck[];
+  onGoToCheck?: (id: PublishCheck["id"]) => void;
+  orgId?: string;
+  selfCode?: string;
+  /** How many compulsory items are outstanding — badged on the Document tab. */
+  pendingCount?: number;
   /** Marks needed to pass, given the current weights — the pass mark made concrete. */
   passMark: number;
   totalPoints: number;
@@ -75,8 +90,24 @@ export function ExamInspector({
         <button type="button" data-active={tab === "exam"} onClick={() => onTab("exam")}>
           Exam
         </button>
-        <button type="button" data-active={tab === "document"} onClick={() => onTab("document")}>
+        <button
+          type="button"
+          data-active={tab === "document"}
+          onClick={() => onTab("document")}
+          data-hint={
+            pendingCount > 0
+              ? `${pendingCount} compulsory ${pendingCount === 1 ? "property is" : "properties are"} still missing here.`
+              : "Everything the exam carries as a document — cover data, reading rules, version control and placement."
+          }
+          data-hint-title="Document properties"
+          data-hint-tone={pendingCount > 0 ? "required" : "info"}
+        >
           Document
+          {pendingCount > 0 && (
+            <span className="insp-tab-count" aria-label={`${pendingCount} outstanding`}>
+              {pendingCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -273,6 +304,11 @@ export function ExamInspector({
             noun="exam"
             showKind={false}
             showPlacement={showPlacement}
+            showVersionControl={showVersionControl}
+            checks={checks}
+            onGoToCheck={onGoToCheck}
+            orgId={orgId}
+            selfCode={selfCode}
           />
         </div>
       )}

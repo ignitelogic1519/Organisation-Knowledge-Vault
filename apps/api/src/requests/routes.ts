@@ -4,6 +4,7 @@ import {
   createRequestSchema,
   decideRequestSchema,
   isStrictAncestor,
+  requestMessageSchema,
   REQUEST_KIND_LABELS,
   type PlacementRef,
   type RequestsOverview,
@@ -18,6 +19,7 @@ import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { ownersAbove } from "../roles/routes.js";
 import { isSelfOrAncestor } from "@vault/shared";
 import { courseHandlerNodeId, notify } from "../courses/helpers.js";
+import { retireSuperseded } from "../courses/routes.js";
 import { deletionOpsFor } from "../storage/adapter.js";
 import { drainSoon } from "../storage/jobs.js";
 
@@ -49,12 +51,32 @@ function canDecideVisibility(placements: PlacementRef[], chain: RoleNode[], node
   return can(placements, "add_people", toRoleRef(gate));
 }
 
-async function toView(r: VaultRequest): Promise<RequestView> {
-  const [node, course, requester] = await Promise.all([
+/**
+ * A request as one side sees it. `viewerId` is who is looking: it decides whose turn the
+ * request is on, whether they may write on the thread, and which messages read as theirs.
+ * `viewerDecides` is true when the viewer is the reviewer rather than the author.
+ */
+async function toView(
+  r: VaultRequest,
+  viewerId?: string,
+  viewerDecides = false,
+): Promise<RequestView> {
+  const [node, course, requester, messages] = await Promise.all([
     db.roleNode.findUnique({ where: { id: r.targetRoleNodeId } }),
     r.courseId ? db.course.findUnique({ where: { id: r.courseId } }) : null,
     db.profile.findUnique({ where: { id: r.requesterProfileId } }),
+    r.kind === "CONTENT_REVIEW"
+      ? db.requestMessage.findMany({ where: { requestId: r.id }, orderBy: { createdAt: "asc" } })
+      : Promise.resolve([]),
   ]);
+  const authors = messages.length
+    ? await db.profile.findMany({
+        where: { id: { in: [...new Set(messages.map((m) => m.authorProfileId))] } },
+      })
+    : [];
+
+  const isAuthor = viewerId === r.requesterProfileId;
+  const awaitingAuthor = r.status === "CHANGES_REQUESTED";
   return {
     id: r.id,
     kind: r.kind,
@@ -72,6 +94,29 @@ async function toView(r: VaultRequest): Promise<RequestView> {
     decisionNote: r.decisionNote,
     decidedAt: r.decidedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
+    messages: messages.map((m) => {
+      const a = authors.find((x) => x.id === m.authorProfileId);
+      return {
+        id: m.id,
+        kind: m.kind as RequestView["messages"][number]["kind"],
+        body: m.body,
+        author: {
+          username: a?.username ?? "unknown",
+          displayName: a?.displayName ?? "Former member",
+        },
+        mine: !!viewerId && m.authorProfileId === viewerId,
+        createdAt: m.createdAt.toISOString(),
+      };
+    }),
+    revisionRound: r.revisionRound,
+    awaitingAuthor,
+    // Either side may write while the review is open — that is the whole point of the
+    // channel. Once it is approved or declined the thread is history.
+    canMessage:
+      r.kind === "CONTENT_REVIEW" &&
+      (r.status === "PENDING" || r.status === "CHANGES_REQUESTED") &&
+      (isAuthor || viewerDecides),
+    isMyTurn: awaitingAuthor ? isAuthor : viewerDecides,
   };
 }
 
@@ -316,11 +361,14 @@ export async function requestRoutes(app: FastifyInstance) {
 
       const placements = await actorPlacements(req.profileId, orgId);
 
-      // Decided requests self-clean after 7 days — no clutter left in the database
+      // Decided requests self-clean after 7 days — no clutter left in the database.
+      // CHANGES_REQUESTED is deliberately excluded: it is an OPEN conversation waiting on
+      // its author, not a decision, and sweeping it would delete their draft's only route
+      // back to the reviewer.
       await db.vaultRequest.deleteMany({
         where: {
           orgId,
-          status: { not: "PENDING" },
+          status: { notIn: ["PENDING", "CHANGES_REQUESTED"] },
           decidedAt: { lt: new Date(Date.now() - DECIDED_RETENTION_MS) },
         },
       });
@@ -331,8 +379,15 @@ export async function requestRoutes(app: FastifyInstance) {
         take: 50,
       });
 
+      // A Document review sent back for changes stays in the reviewer's list — flagged
+      // `awaitingAuthor` so the UI can show it as "with the author" rather than as work
+      // waiting on them — and returns to the top the moment the author resubmits.
       const pending = await db.vaultRequest.findMany({
-        where: { orgId, status: "PENDING", requesterProfileId: { not: req.profileId } },
+        where: {
+          orgId,
+          status: { in: ["PENDING", "CHANGES_REQUESTED"] },
+          requesterProfileId: { not: req.profileId },
+        },
         orderBy: { createdAt: "asc" },
       });
       const allNodes = await db.roleNode.findMany({ where: { orgId } });
@@ -370,9 +425,117 @@ export async function requestRoutes(app: FastifyInstance) {
 
       return {
         orgId,
-        mine: await Promise.all(mineRows.map(toView)),
-        inbox: await Promise.all(decidable.map(toView)),
+        mine: await Promise.all(mineRows.map((r) => toView(r, req.profileId, false))),
+        inbox: await Promise.all(decidable.map((r) => toView(r, req.profileId, true))),
       };
+    },
+  );
+
+  // Write on a request's thread — the suggestion channel. A reviewer uses it to explain
+  // what needs changing beyond the one-line note; the author uses it to answer and, with
+  // kind = RESUBMIT, to put the document back in the reviewer's inbox once they have made
+  // the changes. Only the two parties to the review may post.
+  app.post<{ Params: { requestId: string } }>(
+    "/requests/:requestId/messages",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const body = requestMessageSchema.parse(req.body);
+      const request = await db.vaultRequest.findUnique({ where: { id: req.params.requestId } });
+      if (!request) return reply.status(404).send({ error: "Request not found" });
+      if (request.kind !== "CONTENT_REVIEW") {
+        return reply
+          .status(409)
+          .send({ error: "Only a Document review carries a conversation" });
+      }
+      if (request.status !== "PENDING" && request.status !== "CHANGES_REQUESTED") {
+        return reply.status(409).send({ error: "This review is already decided" });
+      }
+
+      const node = await db.roleNode.findUnique({ where: { id: request.targetRoleNodeId } });
+      if (!node) return reply.status(404).send({ error: "The branch no longer exists" });
+      const isAuthor = request.requesterProfileId === req.profileId;
+      const placements = await actorPlacements(req.profileId, request.orgId);
+      const handler = await courseHandlerNodeId(request.orgId, node.path);
+      const isReviewer =
+        handler !== null &&
+        placements.some((p) => p.kind === "OWNER" && p.roleNodeId === handler);
+      if (!isAuthor && !isReviewer) {
+        return reply.status(403).send({ error: "You are not part of this review" });
+      }
+      if (body.kind === "RESUBMIT" && !isAuthor) {
+        return reply
+          .status(403)
+          .send({ error: "Only the author resubmits a document for review" });
+      }
+
+      await db.requestMessage.create({
+        data: {
+          requestId: request.id,
+          authorProfileId: req.profileId,
+          kind: body.kind,
+          body: body.body,
+        },
+      });
+
+      // Resubmitting is the author's half of the send-back: it moves the review back into
+      // the reviewer's court, where it waits as a normal pending item again.
+      if (body.kind === "RESUBMIT") {
+        await db.vaultRequest.update({
+          where: { id: request.id },
+          data: { status: "PENDING", returnedAt: null },
+        });
+      }
+
+      const me = await db.profile.findUnique({ where: { id: req.profileId } });
+      const course = request.courseId
+        ? await db.course.findUnique({ where: { id: request.courseId } })
+        : null;
+      // Tell the other side. For the reviewer that is whoever owns the handler level; for
+      // the author it is simply them.
+      const recipients = isAuthor
+        ? handler
+          ? [
+              ...new Set(
+                (
+                  await db.placement.findMany({
+                    where: { roleNodeId: handler, kind: "OWNER" },
+                    include: { membership: true },
+                  })
+                ).map((o) => o.membership.profileId),
+              ),
+            ]
+          : []
+        : [request.requesterProfileId];
+      await Promise.all(
+        recipients
+          .filter((id) => id !== req.profileId)
+          .map((profileId) =>
+            notify(
+              profileId,
+              request.orgId,
+              body.kind === "RESUBMIT" ? "content_resubmitted" : "request_message",
+              {
+                requestId: request.id,
+                kind: request.kind,
+                label: REQUEST_KIND_LABELS[request.kind],
+                roleName: node.name,
+                from: me?.displayName ?? "Someone",
+                title: course?.title ?? null,
+                excerpt: body.body.slice(0, 140),
+              },
+              {
+                subject:
+                  body.kind === "RESUBMIT"
+                    ? `Revised — “${course?.title ?? "a document"}” is back for review`
+                    : `New message on the review of “${course?.title ?? "a document"}”`,
+                body: `${me?.displayName ?? "Someone"} wrote: “${body.body.slice(0, 400)}”`,
+              },
+            ),
+          ),
+      );
+
+      broadcast(request.orgId, "requests");
+      return { ok: true };
     },
   );
 
@@ -384,7 +547,9 @@ export async function requestRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const body = decideRequestSchema.parse(req.body);
       const request = await db.vaultRequest.findUnique({ where: { id: req.params.requestId } });
-      if (!request || request.status !== "PENDING") {
+      // A review sitting with its author is still decidable: a reviewer who has seen
+      // enough may publish or decline it without waiting for another round.
+      if (!request || (request.status !== "PENDING" && request.status !== "CHANGES_REQUESTED")) {
         return reply.status(404).send({ error: "No pending request found" });
       }
       const node = await db.roleNode.findUnique({ where: { id: request.targetRoleNodeId } });
@@ -409,6 +574,71 @@ export async function requestRoutes(app: FastifyInstance) {
                 placements.some((p) => p.kind === "OWNER" && p.roleNodeId === courseHandler);
       if (!allowed) {
         return reply.status(403).send({ error: "You don't have authority over this request" });
+      }
+
+      // ── Send back for changes ────────────────────────────────────────────────
+      // The third outcome, and the reason a manager no longer has to choose between
+      // publishing something that isn't ready and deleting somebody's work. The draft
+      // stays exactly where it is, the note becomes the first message of the thread, and
+      // the review waits on its author.
+      if (request.kind === "CONTENT_REVIEW" && body.outcome === "CHANGES") {
+        const note = body.decisionNote?.trim();
+        if (!note) {
+          return reply.status(400).send({
+            error: "Say what needs changing — sending a document back without a reason helps nobody",
+          });
+        }
+        const updated = await db.vaultRequest.update({
+          where: { id: request.id },
+          data: {
+            status: "CHANGES_REQUESTED",
+            returnedAt: new Date(),
+            revisionRound: { increment: 1 },
+            decisionNote: note,
+            decidedByProfileId: req.profileId,
+          },
+        });
+        await db.requestMessage.create({
+          data: {
+            requestId: request.id,
+            authorProfileId: req.profileId,
+            kind: "SUGGESTION",
+            body: note,
+          },
+        });
+        const reviewer = await db.profile.findUnique({ where: { id: req.profileId } });
+        const course = request.courseId
+          ? await db.course.findUnique({ where: { id: request.courseId } })
+          : null;
+        await notify(
+          request.requesterProfileId,
+          request.orgId,
+          "content_changes_requested",
+          {
+            requestId: request.id,
+            kind: request.kind,
+            label: REQUEST_KIND_LABELS[request.kind],
+            roleName: node.name,
+            by: reviewer?.displayName ?? "A manager",
+            note,
+            round: updated.revisionRound,
+            courseCode: course?.code ?? null,
+            title: course?.title ?? null,
+          },
+          {
+            subject: `Changes requested — your document for ${node.name}`,
+            body:
+              `${reviewer?.displayName ?? "A manager"} read “${course?.title ?? "your document"}” and asked for changes ` +
+              `before it publishes. They wrote: “${note}”. Open it in the Studio, make the changes, and send it back.`,
+          },
+        );
+        await audit(request.orgId, "request.changes_requested", {
+          actorProfileId: req.profileId,
+          ip: req.ip,
+          detail: { kind: request.kind, roleName: node.name, round: updated.revisionRound },
+        });
+        broadcast(request.orgId, "requests");
+        return { ok: true, status: "CHANGES_REQUESTED" };
       }
 
       if (body.approve) {
@@ -488,6 +718,11 @@ export async function requestRoutes(app: FastifyInstance) {
               where: { id: course.id },
               data: { draft: false, inLibrary: body.config.inLibrary ?? course.inLibrary },
             });
+            // The author asked for this to REPLACE something. That retirement was held
+            // back until a manager agreed to it — this is that moment.
+            if (course.supersedesCourseId) {
+              await retireSuperseded(course.id, course.supersedesCourseId, req.profileId);
+            }
           }
           await db.coursePlacement.upsert({
             where: { courseId_roleNodeId: { courseId: course.id, roleNodeId: node.id } },

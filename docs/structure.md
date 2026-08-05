@@ -208,6 +208,83 @@ The order is deliberate, because readers are on the current edition:
   a new edition inherits it untouched.
 - The version is written as an **edition label** — `v1.0`, `v2.0` — wherever people see the
   course: library, My Learning, the viewer's header, and the branch's course list.
+- **An uploaded document has editions too** ✅ REVISED (2026-08-05). The deployment switch
+  and the new-edition step were originally offered only on Studio-built material, which
+  left a policy PDF with no way to be updated at all — the only route was delete-and-
+  re-upload, which loses the code, the placements, the ratings and the completion history.
+  An upload now takes the same three steps; step 2 is *replace the file or the address*
+  instead of *open the Studio*.
+
+### 3.8a The edition log ✅ DECIDED (2026-08-05)
+Every publication writes a `CourseEdition` row: the version, the author's note on what
+changed, who published it, and whether it expired existing completions. A version number
+that moves with nothing recorded against it is not version control, it is a counter.
+
+- Written on creation (edition 1) and on every content republish. A **metadata-only** edit
+  is deliberately NOT an edition — nothing reached the reader differently.
+- Readable by any member at `GET /courses/:code/editions`, and shown as a timeline in the
+  properties editor. Knowing that what reaches you today is the third edition is not
+  privileged information.
+- Content bytes are not snapshotted. The storage adapter holds one edition at a time by
+  design (§9.10), so this is the history of the act of publishing, not a rollback store.
+
+### 3.9 Version control BETWEEN documents — replace or coexist ✅ DECIDED (2026-08-05)
+`version` counts editions of one document. This is the other axis: what a **new** document
+does to the one that already covers the subject. Without it, two documents on the same
+subject sit side by side in the library and nothing says which is current.
+
+At publish time the author may name an existing document and choose:
+
+| Mode | What happens |
+|------|--------------|
+| **Coexist** (default) | Both stay live. For a regional variant, an older product line, a different audience. |
+| **Supersede** | The older document is retired: **every branch it reached receives the new one on the same terms** (mandatory, inheritance, deadline, recurrence), it leaves the library, and it is archived and taken out of deployment. |
+
+- A replacement that quietly narrowed its own audience would drop people out of compliance
+  without anyone deciding to, which is why the placements are carried across rather than
+  re-entered.
+- The retired document keeps its completion history and its code **resolves forever**;
+  `supersededByCourseId` is the forwarding pointer, so an old reference lands the reader on
+  the current word on the subject instead of a dead end.
+- Everyone who had completed the retired document is told where the subject now lives.
+- Superseding needs authority over the document being retired. A **member's** replacement
+  is held until the reviewer approves it — the retirement happens on approval, not on
+  submission.
+
+### 3.10 Publish readiness — one definition, three doors ✅ DECIDED (2026-08-05)
+A document can be created three ways (Studio, exam builder, upload) and edited a fourth
+(properties editor). `publishChecks()` in `@vault/shared` is the single source of truth for
+what is compulsory and **why**, so the rules cannot drift between them:
+
+- Compulsory: title, classification, description, content. Advisory: shelf, scope. An exam
+  adds a marking check.
+- Every check carries its own `why` — the sentence explaining what the platform does with
+  the field and what breaks without it. That sentence is the tooltip on the field, the
+  tooltip on the checklist line, and the body of the blocking dialog.
+- The editor shows all outstanding items **at once**, highlights the fields, and jumps to
+  them. Publishing used to fail behind a four-second toast naming one problem at a time,
+  from a button on the far side of the screen from the field at fault.
+
+### 3.11 A document's properties are the same wherever it was made ✅ DECIDED (2026-08-05)
+Bringing a document IN and building one in the Studio produce the same kind of object, so
+they carry the same properties. Previously they did not: the upload form asked for
+deadline, recurrence, prerequisites and download permission that the Studio could not set
+at all, and the Studio had themes and version notes the upload form lacked — so a
+document's capabilities depended on which door it came through.
+
+One panel (`DocumentProperties`) now defines the set, and all four surfaces render it:
+classification, type, shelf, description, scope · deadline, recurrence, reset-on-update,
+download permission, prerequisites · replacement mode and version note · library and
+placement.
+
+### 3.12 Editing what is already published ✅ DECIDED (2026-08-05)
+Metadata is editable at any time by anyone who may manage the course, through a properties
+editor reachable from the branch's course list. It changes what the organization **says**
+about the document, never the document:
+
+- No version bump, no deployment pause, no expired completions. Fixing a shelf tag should
+  not cost the organization a re-read.
+- Content changes remain a revision (§3.8), which is exactly the thing that does all three.
 
 ---
 
@@ -338,14 +415,36 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   file upload — the content is created as a **draft** (never in the library, reaching
   nobody) and a **Document-review** request (`CONTENT_REVIEW`) is filed to the branch's
   handler.
-- The handler **previews** the draft in a read-only viewer, then **approves** (configures
-  mandatory / inheritance / deadline / recurrence + library, un-drafts and places it) or
-  **rejects** (the draft is discarded). Owners still publish directly, no review.
+- The handler **previews** the draft in a read-only viewer, then decides between **three**
+  outcomes ✅ REVISED (2026-08-05). There used to be two, and the missing one was the one
+  reviews are actually for:
+
+  | Outcome | What happens |
+  |---------|--------------|
+  | **Approve & publish** | Configures mandatory / inheritance / deadline / recurrence + library, un-drafts and places it. Any replacement the author asked for (§3.9) is carried out now. |
+  | **Send back with changes** | `CHANGES_REQUESTED`. The **draft survives**, the reviewer's note opens a thread, and the review sits with its author until they revise and resubmit. A reason is compulsory — sending a document back without one helps nobody. |
+  | **Decline** | The proposal is discarded and the draft deleted. For "this should not exist", never for "this needs work". |
+
+- Every Document review carries a **conversation** (`RequestMessage`): the reviewer explains
+  what needs changing, the author answers, and `RESUBMIT` puts it back in the reviewer's
+  inbox. Both sides see the same thread, and it is kept on the request so the whole exchange
+  is in one place when the document is finally decided.
+- A returned review leaves the reviewer's *waiting on you* list but stays visible to them,
+  flagged **with the author**. It is exempt from the 7-day decided-request sweep — an open
+  conversation is not a decision, and sweeping it would delete the draft's only route back.
+- Owners still publish directly, no review.
 
 ### 8.3 Library, documents & the Studio
 - **Library** groups courses into shelves by a dynamic **category** tag (similarity-suggested
   at upload, always overridable), filterable by type / shelf / **classification** / rating,
   with member **ratings & comments** (post-completion) shown on the detail view.
+- **Already in your space** ✅ REVISED (2026-08-05). Each entry says where the reader stands
+  with it. If the course already reaches them — placed on one of their branches, or
+  inherited — the card is flagged and the detail view **opens the document** instead of
+  offering a request form. Requesting something you already have is not a step, it is an
+  obstacle. The request form still appears for the branches the course does *not* reach,
+  and only those branches are listed in it; when there are none, it does not appear at all.
+  A `Scope` filter splits the shelves into *already in my space* and *not yet mine*.
 - **Document standard.** Every course carries a compulsory **classification**
   (Public / Confidential / Private / Secret), an optional **scope**, and an owner-controlled
   **allowDownload** flag. The in-app viewer wraps all content in the standard frame: an
@@ -440,6 +539,31 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
   cleared on publish) on every plan; server-side drafts on premium plans.
 - **Profiles**: optional profile picture — a client-downscaled 256px JPEG data URL,
   size-capped and type-checked server-side.
+
+---
+
+### 8.7 Pointer, hints and prompt surfaces ✅ DECIDED (2026-08-05)
+- **The pointer is part of the product.** A branded cursor replaces the system arrow on
+  fine-pointer devices: an ink dot at rest, an arrow with a **star at its tip** over
+  anything clickable, an **open book turning its pages** while the app is fetching (it
+  watches for the `.skeleton` the app already draws), a nib over anything typeable, a hand
+  over a drag handle, a struck ring over a disabled control. A softer ring trails the glyph
+  with a spring, which is what gives it weight. It is disabled on coarse pointers, drops
+  its motion under `prefers-reduced-motion`, hides the native cursor only *after* mounting
+  (so a script failure leaves the ordinary arrow), and intercepts no clicks.
+- **Hints replace the browser tooltip.** A glass card opens beside the pointer and travels
+  with it: a short delay to open, but instant when chaining from one hint to the next, and
+  it flips across the pointer near a screen edge. It reads `data-hint` (with optional
+  `data-hint-title` and a `required`/`danger` rail), and — importantly — **adopts plain
+  `title` attributes** on hover, moving the text to `data-hint` and removing the attribute
+  so the native tooltip never double-renders. Keyboard focus opens it too, anchored to the
+  element. This is what makes "why is this compulsory" (§3.10) reachable everywhere without
+  a wrapper component around every field.
+- **Prompt surfaces are centred** ✅ REVISED (2026-08-05). Dialog sheets, document previews
+  and the properties editor open in the **middle** of the screen on a pointer device and
+  stay bottom-anchored below 640px, where the thumb is at the bottom and the sheet is
+  nearly full width. A preview pinned to the foot of a large display reads as an overflow
+  tray rather than the thing you asked to look at.
 
 ---
 

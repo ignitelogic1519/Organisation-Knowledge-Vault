@@ -344,6 +344,13 @@ export const EMPTY_META: StudioMeta = {
   mandatory: false,
   inherit: true,
   resets: true,
+  allowDownload: false,
+  deadlineDays: null,
+  retakeEveryNDays: null,
+  prerequisiteCodes: [],
+  replacesCourseCode: "",
+  replacementMode: "COEXIST",
+  versionNote: "",
   theme: {},
 };
 

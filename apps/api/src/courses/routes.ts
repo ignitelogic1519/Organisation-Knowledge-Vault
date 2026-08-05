@@ -10,8 +10,10 @@ import {
   placeCourseSchema,
   reviewCourseSchema,
   updateCourseSchema,
+  versionLabel,
   type CourseAdminView,
   type CourseComplianceView,
+  type CourseHistoryView,
   type DownloadTicket,
   type MyLearningView,
 } from "@vault/shared";
@@ -36,6 +38,43 @@ import {
 
 /** Download tickets are bearer tokens: minted per view, one object, short-lived. */
 const DOWNLOAD_TICKET_TTL = 300;
+
+/**
+ * Record one publication in the course's edition log. Called on creation and on every
+ * content republish, so `version` is never just a number that moved — there is always a
+ * row saying what the edition was, who published it and whether it expired completions.
+ */
+async function recordEdition(
+  courseId: string,
+  version: number,
+  input: {
+    note?: string | null;
+    source: "STUDIO" | "UPLOAD";
+    resetCompletions: boolean;
+    publishedByProfileId: string;
+  },
+) {
+  await db.courseEdition.upsert({
+    where: { courseId_version: { courseId, version } },
+    create: {
+      courseId,
+      version,
+      note: input.note?.trim() ? input.note.trim() : null,
+      source: input.source,
+      resetCompletions: input.resetCompletions,
+      publishedByProfileId: input.publishedByProfileId,
+    },
+    // A republish that lands on an existing version number (only possible if a previous
+    // attempt half-wrote) refreshes the row rather than exploding on the unique key.
+    update: {
+      note: input.note?.trim() ? input.note.trim() : null,
+      source: input.source,
+      resetCompletions: input.resetCompletions,
+      publishedByProfileId: input.publishedByProfileId,
+      publishedAt: new Date(),
+    },
+  });
+}
 
 async function courseByCode(code: string) {
   return db.course.findUnique({ where: { code }, include: { org: true } });
@@ -85,6 +124,94 @@ async function adminLevel(profileId: string, courseId: string, createdBy: string
     where: { courseId_profileId: { courseId, profileId } },
   });
   return row ? { level: row.level, canGrant: row.canGrant } : null;
+}
+
+/**
+ * Retire `oldId` in favour of `newId` — what "Replace it" actually means.
+ *
+ * Every branch the old document reached now receives the new one on exactly the same
+ * terms (mandatory, inheritance, deadline, recurrence), because a replacement that
+ * quietly narrowed its own audience would drop people out of compliance without anyone
+ * deciding to. The old document is then archived and taken out of deployment: it keeps
+ * its completion history and its code resolves forever, but it reaches nobody new and
+ * anyone arriving at it is forwarded to the replacement.
+ *
+ * Exported so the review flow can call it when a member's replacement is approved.
+ */
+export async function retireSuperseded(
+  newId: string,
+  oldId: string,
+  actorProfileId: string,
+): Promise<void> {
+  const [next, previous] = await Promise.all([
+    db.course.findUnique({ where: { id: newId } }),
+    db.course.findUnique({ where: { id: oldId } }),
+  ]);
+  if (!next || !previous || next.id === previous.id) return;
+
+  const inherited = await db.coursePlacement.findMany({ where: { courseId: previous.id } });
+  for (const p of inherited) {
+    await db.coursePlacement.upsert({
+      where: { courseId_roleNodeId: { courseId: next.id, roleNodeId: p.roleNodeId } },
+      create: {
+        courseId: next.id,
+        roleNodeId: p.roleNodeId,
+        mandatory: p.mandatory,
+        inheritToDescendants: p.inheritToDescendants,
+        deadlineDays: p.deadlineDays,
+        retakeEveryNDays: p.retakeEveryNDays,
+        placedByProfileId: actorProfileId,
+      },
+      // Already placed there by the author — their settings win, this only fills gaps.
+      update: {},
+    });
+  }
+
+  await db.course.update({
+    where: { id: previous.id },
+    data: {
+      supersededByCourseId: next.id,
+      supersededAt: new Date(),
+      archived: true,
+      withdrawn: true,
+      withdrawnAt: new Date(),
+      inLibrary: false,
+    },
+  });
+  await db.course.update({
+    where: { id: next.id },
+    data: { supersedesCourseId: previous.id },
+  });
+
+  await audit(next.orgId, "course.supersede", {
+    actorProfileId,
+    detail: {
+      replaced: previous.code,
+      replacedTitle: previous.title,
+      by: next.code,
+      placementsCarried: inherited.length,
+    },
+  });
+
+  // Everybody who had completed the old one is told where the subject now lives — an
+  // unannounced replacement is how a mandatory document quietly goes unread.
+  const audience = await db.completionRecord.findMany({
+    where: { courseId: previous.id },
+    select: { profileId: true },
+    distinct: ["profileId"],
+  });
+  await Promise.all(
+    audience
+      .filter((a) => a.profileId !== actorProfileId)
+      .map((a) =>
+        notify(a.profileId, next.orgId, "course_superseded", {
+          code: next.code,
+          title: next.title,
+          replacedCode: previous.code,
+          replacedTitle: previous.title,
+        }),
+      ),
+  );
 }
 
 /**
@@ -188,6 +315,34 @@ export async function courseRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "Unknown prerequisite course code" });
       }
 
+      // ── Version control against what is already on the shelves ──────────────
+      // Resolved BEFORE the course is created so a bad reference costs nothing. A member
+      // proposing a draft may name a replacement, but the retirement itself only happens
+      // when the reviewer approves — see the CONTENT_REVIEW branch in requests/routes.ts.
+      let replaced: { id: string; code: string; title: string } | null = null;
+      if (body.replacesCourseCode?.trim()) {
+        const target = await db.course.findUnique({
+          where: { code: body.replacesCourseCode.trim() },
+        });
+        if (!target || target.orgId !== node.orgId) {
+          return reply
+            .status(404)
+            .send({ error: "The document this replaces was not found in this organization" });
+        }
+        if (target.supersededByCourseId) {
+          return reply.status(409).send({
+            error: "That document has already been replaced — point at the current edition instead",
+          });
+        }
+        if (body.replacementMode === "SUPERSEDE" && !(await canManageCourse(req.profileId, target))) {
+          return reply.status(403).send({
+            error:
+              "Replacing a document needs authority over it — ask its branch owners, or publish alongside it instead",
+          });
+        }
+        replaced = { id: target.id, code: target.code, title: target.title };
+      }
+
       const code = await nextCourseCode(node);
       const course = await db.course.create({
         data: {
@@ -210,10 +365,22 @@ export async function courseRoutes(app: FastifyInstance) {
           deadlineDays: body.deadlineDays,
           retakeEveryNDays: body.retakeEveryNDays,
           resetsCompletionOnUpdate: body.resetsCompletionOnUpdate,
+          // Remembered even on a draft: the reviewer needs to know what the author
+          // intended this to replace before they decide.
+          supersedesCourseId:
+            replaced && body.replacementMode === "SUPERSEDE" ? replaced.id : null,
           prerequisites: {
             create: prereqs.map((p) => ({ requiresCourseId: p.id })),
           },
         },
+      });
+
+      // Edition 1 of this document — the first row of its history.
+      await recordEdition(course.id, course.version, {
+        note: body.versionNote,
+        source,
+        resetCompletions: false,
+        publishedByProfileId: req.profileId,
       });
 
       // Claim the object for this course, so orphan collection can tell a live object
@@ -223,6 +390,12 @@ export async function courseRoutes(app: FastifyInstance) {
           where: { id: attachObjectId },
           data: { courseId: course.id },
         });
+      }
+
+      // A published replacement retires its predecessor straight away; a draft's
+      // replacement waits for the reviewer (retireSuperseded runs on approval).
+      if (!asDraft && replaced && body.replacementMode === "SUPERSEDE") {
+        await retireSuperseded(course.id, replaced.id, req.profileId);
       }
 
       if (asDraft) {
@@ -310,7 +483,74 @@ export async function courseRoutes(app: FastifyInstance) {
         resetsCompletionOnUpdate: course.resetsCompletionOnUpdate,
         source: course.source,
         withdrawn: course.withdrawn,
+        archived: course.archived,
+        // Where this sits in the replacement chain — the viewer forwards an old
+        // reference to the current word on the subject instead of dead-ending on it.
+        supersededByCode: course.supersededByCourseId
+          ? ((await db.course.findUnique({ where: { id: course.supersededByCourseId } }))?.code ??
+            null)
+          : null,
+        supersedesCode: course.supersedesCourseId
+          ? ((await db.course.findUnique({ where: { id: course.supersedesCourseId } }))?.code ??
+            null)
+          : null,
         canManage: await canManageCourse(req.profileId, course),
+      };
+    },
+  );
+
+  // The course's version story: every edition published, and how it stands against the
+  // documents it replaced or was replaced by. Readable by any member of the org — knowing
+  // that what reaches you today is the third edition is not privileged information.
+  app.get<{ Params: { code: string } }>(
+    "/courses/:code/editions",
+    { preHandler: app.authenticate },
+    async (req, reply): Promise<CourseHistoryView> => {
+      const course = await courseByCode(req.params.code);
+      if (!course) return reply.status(404).send({ error: "Course not found" });
+      const member = await db.membership.findUnique({
+        where: { profileId_orgId: { profileId: req.profileId, orgId: course.orgId } },
+      });
+      if (!member) return reply.status(404).send({ error: "Course not found" });
+
+      const rows = await db.courseEdition.findMany({
+        where: { courseId: course.id },
+        orderBy: { version: "desc" },
+      });
+      const authors = await db.profile.findMany({
+        where: { id: { in: [...new Set(rows.map((r) => r.publishedByProfileId))] } },
+      });
+      const [supersedes, supersededBy] = await Promise.all([
+        course.supersedesCourseId
+          ? db.course.findUnique({ where: { id: course.supersedesCourseId } })
+          : null,
+        course.supersededByCourseId
+          ? db.course.findUnique({ where: { id: course.supersededByCourseId } })
+          : null,
+      ]);
+
+      return {
+        code: course.code,
+        title: course.title,
+        version: course.version,
+        withdrawn: course.withdrawn,
+        archived: course.archived,
+        editions: rows.map((r) => ({
+          version: r.version,
+          label: versionLabel(r.version),
+          note: r.note,
+          source: r.source,
+          resetCompletions: r.resetCompletions,
+          publishedBy:
+            authors.find((a) => a.id === r.publishedByProfileId)?.displayName ?? "Former member",
+          publishedAt: r.publishedAt.toISOString(),
+          current: r.version === course.version,
+        })),
+        supersedes: supersedes ? { code: supersedes.code, title: supersedes.title } : null,
+        supersededBy: supersededBy
+          ? { code: supersededBy.code, title: supersededBy.title }
+          : null,
+        supersededAt: course.supersededAt?.toISOString() ?? null,
       };
     },
   );
@@ -635,6 +875,30 @@ export async function courseRoutes(app: FastifyInstance) {
         });
       }
 
+      // Prerequisites are replaced wholesale when the caller sends the set. Sending [] is
+      // how they are cleared, so `undefined` (absent) has to mean "leave them alone".
+      let prereqIds: string[] | null = null;
+      if (body.prerequisiteCodes) {
+        const wanted = body.prerequisiteCodes.filter((c) => c.trim() && c.trim() !== course.code);
+        const found = await db.course.findMany({
+          where: { code: { in: wanted }, orgId: course.orgId },
+        });
+        if (found.length !== wanted.length) {
+          return reply.status(400).send({ error: "Unknown prerequisite course code" });
+        }
+        // A document cannot require itself, directly or through another document that
+        // requires it — that would lock every reader out of both.
+        const circular = await db.coursePrerequisite.findMany({
+          where: { courseId: { in: found.map((f) => f.id) }, requiresCourseId: course.id },
+        });
+        if (circular.length > 0) {
+          return reply.status(409).send({
+            error: "That prerequisite already depends on this document — the two would block each other",
+          });
+        }
+        prereqIds = found.map((f) => f.id);
+      }
+
       const updated = await db.course.update({
         where: { id: course.id },
         data: {
@@ -650,6 +914,10 @@ export async function courseRoutes(app: FastifyInstance) {
             ? { resetsCompletionOnUpdate: body.resetsCompletionOnUpdate }
             : {}),
           ...(body.allowDownload !== undefined ? { allowDownload: body.allowDownload } : {}),
+          ...(body.deadlineDays !== undefined ? { deadlineDays: body.deadlineDays } : {}),
+          ...(body.retakeEveryNDays !== undefined
+            ? { retakeEveryNDays: body.retakeEveryNDays }
+            : {}),
           storageRef: ref as object,
           source,
           // A new edition goes straight back into deployment on the placements it kept.
@@ -658,6 +926,15 @@ export async function courseRoutes(app: FastifyInstance) {
             : {}),
         },
       });
+
+      if (prereqIds) {
+        await db.$transaction([
+          db.coursePrerequisite.deleteMany({ where: { courseId: course.id } }),
+          ...prereqIds.map((requiresCourseId) =>
+            db.coursePrerequisite.create({ data: { courseId: course.id, requiresCourseId } }),
+          ),
+        ]);
+      }
 
       // A new edition orphans whatever the old one pointed at. Release it through the
       // port so an inline row is dropped and a remote object is queued for deletion —
@@ -676,6 +953,18 @@ export async function courseRoutes(app: FastifyInstance) {
         });
       }
 
+      // The edition log gains a row for every content republish — including the note the
+      // author wrote about what changed. A metadata-only edit is NOT an edition: nothing
+      // reached the reader differently, so nothing is recorded against a version.
+      if (contentChanged) {
+        await recordEdition(course.id, updated.version, {
+          note: body.versionNote,
+          source,
+          resetCompletions: updated.resetsCompletionOnUpdate,
+          publishedByProfileId: req.profileId,
+        });
+      }
+
       if (contentChanged && updated.resetsCompletionOnUpdate) {
         const outdated = await db.completionRecord.findMany({
           where: { courseId: course.id, status: "COMPLETED", courseVersion: { lt: updated.version } },
@@ -688,6 +977,7 @@ export async function courseRoutes(app: FastifyInstance) {
           await notify(rec.profileId, course.orgId, "course_updated_redo", {
             code: course.code,
             title: updated.title,
+            note: body.versionNote?.trim() || null,
           });
         }
       }
@@ -817,6 +1107,14 @@ export async function courseRoutes(app: FastifyInstance) {
               inheritToDescendants: r.inheritToDescendants,
               deadlineDays: r.deadlineDays ?? r.course.deadlineDays,
               retakeEveryNDays: r.retakeEveryNDays ?? r.course.retakeEveryNDays,
+              // The properties editor opens on these, so it never has to guess what it
+              // is editing: the course's OWN defaults, not the placement's overrides.
+              courseDeadlineDays: r.course.deadlineDays,
+              courseRetakeEveryNDays: r.course.retakeEveryNDays,
+              scope: r.course.scope,
+              category: r.course.category,
+              resetsCompletionOnUpdate: r.course.resetsCompletionOnUpdate,
+              supersededByCourseId: r.course.supersededByCourseId,
               canManage: manage,
               canDelete: manage,
             };
@@ -929,6 +1227,50 @@ export async function courseRoutes(app: FastifyInstance) {
 
       const nodeIds = [...new Set(filtered.flatMap((c) => [c.uploaderRoleNodeId, ...c.placements.map((p) => p.roleNodeId)]))];
       const nodes = await db.roleNode.findMany({ where: { id: { in: nodeIds } } });
+
+      // ── Where the reader already stands ────────────────────────────────────
+      // The library used to hand everyone the same "request this for my branch" form,
+      // including for courses already sitting in their own My Learning. Working that out
+      // here — once, over the placements we already loaded — is what lets a card open the
+      // document instead of asking permission for something the reader already has.
+      const myPlacements = await db.placement.findMany({
+        where: { membership: { profileId: req.profileId, orgId: req.params.id } },
+        include: { roleNode: true },
+      });
+      const allOrgNodes = await db.roleNode.findMany({ where: { orgId: req.params.id } });
+      const nodeById = new Map(allOrgNodes.map((n) => [n.id, n]));
+      /** Which of my branches does this course reach, and through which placement? */
+      const reachFor = (course: (typeof filtered)[number]) => {
+        const via = new Set<string>();
+        const mineReached = new Set<string>();
+        for (const cp of course.placements) {
+          const cpNode = nodeById.get(cp.roleNodeId);
+          if (!cpNode) continue;
+          for (const mine of myPlacements) {
+            const reaches =
+              cpNode.path === mine.roleNode.path ||
+              (cp.inheritToDescendants && isSelfOrAncestor(cpNode.path, mine.roleNode.path));
+            if (!reaches) continue;
+            via.add(cpNode.name);
+            mineReached.add(mine.roleNodeId);
+          }
+        }
+        return { via: [...via], mineReached };
+      };
+      const myRecords = await db.completionRecord.findMany({
+        where: { profileId: req.profileId, courseId: { in: filtered.map((c) => c.id) } },
+      });
+      const supersessors = await db.course.findMany({
+        where: {
+          id: {
+            in: filtered
+              .map((c) => c.supersededByCourseId)
+              .filter((id): id is string => Boolean(id)),
+          },
+        },
+        select: { id: true, code: true },
+      });
+
       const completions = await db.completionRecord.groupBy({
         by: ["courseId"],
         where: { courseId: { in: filtered.map((c) => c.id) }, status: "COMPLETED" },
@@ -944,6 +1286,8 @@ export async function courseRoutes(app: FastifyInstance) {
       return {
         courses: filtered.map((c) => {
           const rating = ratings.find((r) => r.courseId === c.id);
+          const { via, mineReached } = reachFor(c);
+          const record = myRecords.find((r) => r.courseId === c.id);
           return {
             code: c.code,
             title: c.title,
@@ -962,6 +1306,21 @@ export async function courseRoutes(app: FastifyInstance) {
             usedInNodeIds: c.placements.map((p) => p.roleNodeId),
             avgRating: rating?._avg.rating ? Math.round(rating._avg.rating * 10) / 10 : null,
             ratingCount: rating?._count.rating ?? 0,
+            inMySpace: via.length > 0,
+            reachesViaRoleNames: via,
+            myStatus: via.length > 0 ? (record?.status ?? "AVAILABLE") : null,
+            // Only the branches it does NOT already reach are worth requesting it for —
+            // asking for something a branch already has is exactly the pointless step the
+            // reader was complaining about.
+            requestableRoles: myPlacements
+              .filter((p) => !mineReached.has(p.roleNodeId))
+              .map((p) => ({
+                roleNodeId: p.roleNodeId,
+                roleName: p.roleNode.name,
+                kind: p.kind as "OWNER" | "MEMBER",
+              })),
+            supersededByCode:
+              supersessors.find((s) => s.id === c.supersededByCourseId)?.code ?? null,
           };
         }),
       };

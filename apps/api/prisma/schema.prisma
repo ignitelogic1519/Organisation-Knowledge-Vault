@@ -62,7 +62,16 @@ enum RequestStatus {
   PENDING
   APPROVED
   REJECTED
+  // A Document review the manager sent BACK to its author with suggestions. The draft
+  // survives, the thread stays open, and the author revises and resubmits — the middle
+  // outcome between "publish it" and "throw it away" (docs/structure.md §3.10).
+  CHANGES_REQUESTED
 }
+
+// Note: how a new document relates to one already on the shelves (coexist / supersede) is
+// a choice made at publish time, not stored state — what SURVIVES the choice is whether
+// `Course.supersedesCourseId` ends up set. The vocabulary lives in @vault/shared
+// (`replacementModeSchema`), so there is deliberately no enum for it here.
 
 // ── Identity ────────────────────────────────────────────────────────────────
 
@@ -254,6 +263,14 @@ model Course {
   retakeEveryNDays         Int? // recurrence, applies to all kinds
   resetsCompletionOnUpdate Boolean            @default(false)
   version                  Int                @default(1)
+  // ── Version control across documents (docs/structure.md §3.9) ──────────────
+  // `version` counts editions of THIS document. These two say how the document itself
+  // stands against its neighbours: a replacement names what it retired, and the retired
+  // one names what replaced it, so a reader who follows an old code always arrives at
+  // the current word on the subject instead of a dead end.
+  supersedesCourseId       String? // the course this one replaced when it was published
+  supersededByCourseId     String? // set on the older course once a replacement lands
+  supersededAt             DateTime?
   createdAt                DateTime           @default(now())
   placements               CoursePlacement[]
   prerequisites            CoursePrerequisite[] @relation("course")
@@ -261,6 +278,32 @@ model Course {
   adminAccess              CourseAdminAccess[]
   reviews                  CourseReview[]
   examAttempts             ExamAttempt[]
+  editions                 CourseEdition[]
+
+  @@index([supersedesCourseId])
+  @@index([supersededByCourseId])
+}
+
+// One publication of a course — the edition log behind `Course.version`. Written on
+// creation and on every content republish, so "what changed, when, by whom" is a record
+// rather than a number that quietly moved. Content bytes are NOT snapshotted here: the
+// storage adapter holds one edition at a time by design (§9.10), so this is the history
+// of the act of publishing, not a rollback store.
+model CourseEdition {
+  id                   String        @id @default(uuid())
+  courseId             String
+  course               Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  version              Int
+  /// What the author said changed in this edition — free text, shown in the history.
+  note                 String?
+  source               ContentSource
+  /// Whether this edition expired existing completions when it landed.
+  resetCompletions     Boolean       @default(false)
+  publishedByProfileId String
+  publishedAt          DateTime      @default(now())
+
+  @@unique([courseId, version])
+  @@index([courseId, publishedAt])
 }
 
 // One sitting of an MCQ exam. Marking happens on the server (the answer key never leaves
@@ -431,15 +474,40 @@ model VaultRequest {
   requesterProfileId String
   targetRoleNodeId   String // branch to join / branch to delete / branch receiving the course
   joinAs             PlacementKind @default(MEMBER) // JOIN_BRANCH only: member or sub-owner
-  courseId           String? // COURSE_ASSIGN only
+  courseId           String? // COURSE_ASSIGN & CONTENT_REVIEW
   message            String?
   decidedByProfileId String?
   decidedAt          DateTime?
   decisionNote       String?
+  /// CONTENT_REVIEW: when the reviewer last sent it back to the author for changes.
+  /// While set, the request sits in the AUTHOR's court, not the reviewer's inbox.
+  returnedAt         DateTime?
+  /// CONTENT_REVIEW: how many times it has come back — visible to both sides so a
+  /// third round reads as a third round.
+  revisionRound      Int           @default(0)
   createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @default(now()) @updatedAt
+  messages           RequestMessage[]
 
   @@index([orgId, status])
   @@index([requesterProfileId])
+}
+
+// The conversation attached to a request — the channel a reviewer uses to say what needs
+// changing and the author uses to answer. Kept on the request rather than in the mailbox
+// so the whole exchange is in one place when the document is finally decided.
+model RequestMessage {
+  id              String       @id @default(uuid())
+  requestId       String
+  request         VaultRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorProfileId String
+  /// SUGGESTION (reviewer asking for changes) | REPLY (either side) | RESUBMIT (author
+  /// sending it back for another look) | DECISION (the closing word).
+  kind            String       @default("REPLY")
+  body            String
+  createdAt       DateTime     @default(now())
+
+  @@index([requestId, createdAt])
 }
 
 // One message in a profile's mailbox. Written through notify()/notifyFromAdmin(), which

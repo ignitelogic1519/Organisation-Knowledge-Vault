@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   REQUEST_KIND_LABELS,
+  REQUEST_STATUS_TEXT,
+  REVIEW_OUTCOME_TEXT,
   type RequestView,
   type RequestsOverview,
+  type ReviewOutcome,
 } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
@@ -32,8 +36,152 @@ function KindChip({ kind }: { kind: RequestView["kind"] }) {
 
 function StatusBadge({ status }: { status: RequestView["status"] }) {
   const cls =
-    status === "APPROVED" ? "badge badge-ok" : status === "REJECTED" ? "badge badge-danger" : "badge";
-  return <span className={cls}>{status.toLowerCase()}</span>;
+    status === "APPROVED"
+      ? "badge badge-ok"
+      : status === "REJECTED"
+        ? "badge badge-danger"
+        : status === "CHANGES_REQUESTED"
+          ? "badge badge-warn"
+          : "badge";
+  const text = REQUEST_STATUS_TEXT[status];
+  return (
+    <span
+      className={cls}
+      data-hint={
+        text.waitingOn === "author"
+          ? "Your reviewer read it and asked for changes. Your draft is untouched — revise it and send it back from the conversation below."
+          : text.waitingOn === "reviewer"
+            ? "Waiting on the person who decides it."
+            : "Decided — nothing further is needed."
+      }
+      data-hint-title={text.label}
+    >
+      {text.label}
+    </span>
+  );
+}
+
+/**
+ * The conversation on a Document review — the channel that was missing.
+ *
+ * A reviewer used to have two buttons: publish, or reject, which DELETED the author's
+ * draft outright. There was nowhere to say "the scope section is wrong" and no way for the
+ * author to answer. This is that channel, and it is shown to both sides of the review.
+ */
+function ReviewThread({
+  r,
+  onDone,
+}: {
+  r: RequestView;
+  onDone: () => void;
+}) {
+  const dialogs = useDialogs();
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "nearest" });
+  }, [r.messages.length]);
+
+  const post = async (kind: "REPLY" | "RESUBMIT") => {
+    if (!body.trim()) return;
+    setBusy(true);
+    try {
+      await requests.message(r.id, { body: body.trim(), kind });
+      setBody("");
+      dialogs.toast(
+        kind === "RESUBMIT" ? "Sent back to your reviewer." : "Message sent.",
+        "success",
+      );
+      onDone();
+    } catch (e) {
+      dialogs.toast(e instanceof ApiError ? e.message : "Could not send", "danger");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** The signed-in user is the AUTHOR of a review that has come back to them. */
+  const isAuthorSide = r.awaitingAuthor && r.isMyTurn;
+
+  return (
+    <div className="revthread">
+      <div className="revthread-head">
+        <h4>Review conversation</h4>
+        {r.revisionRound > 0 && (
+          <span
+            className="badge"
+            data-hint={`This document has been sent back for changes ${r.revisionRound} ${r.revisionRound === 1 ? "time" : "times"}.`}
+            data-hint-title="Revision rounds"
+          >
+            round {r.revisionRound + 1}
+          </span>
+        )}
+      </div>
+
+      {r.messages.length === 0 && (
+        <p className="auth-sub">
+          Nothing said yet. Write here to ask a question or explain a change before deciding.
+        </p>
+      )}
+      <ul className="revthread-list">
+        {r.messages.map((m) => (
+          <li key={m.id} data-mine={m.mine} data-kind={m.kind}>
+            <div className="revthread-bubble">
+              {m.kind === "SUGGESTION" && (
+                <span className="revthread-tag">changes requested</span>
+              )}
+              {m.kind === "RESUBMIT" && <span className="revthread-tag">resubmitted</span>}
+              <p>{m.body}</p>
+              <span className="revthread-meta">
+                {m.mine ? "You" : m.author.displayName} · {m.createdAt.slice(0, 10)}
+              </span>
+            </div>
+          </li>
+        ))}
+        <div ref={endRef} />
+      </ul>
+
+      {r.canMessage && (
+        <div className="revthread-compose">
+          <textarea
+            rows={2}
+            maxLength={2000}
+            value={body}
+            placeholder={
+              isAuthorSide
+                ? "Say what you changed, then send it back…"
+                : "Write to the author…"
+            }
+            onChange={(e) => setBody(e.target.value)}
+          />
+          <div className="revthread-compose-actions">
+            <button
+              className="btn btn-quiet btn-small"
+              disabled={busy || !body.trim()}
+              data-hint="Adds a message to this review without changing whose turn it is."
+              data-hint-title="Send a message"
+              onClick={() => post("REPLY")}
+            >
+              Send message
+            </button>
+            {r.awaitingAuthor && (
+              <button
+                className="btn btn-primary btn-small"
+                disabled={busy || !body.trim()}
+                data-hint="Puts the document back in your reviewer's inbox with this note. Revise it in the Studio first if you have not already."
+                data-hint-title="Send back for review"
+                onClick={() => post("RESUBMIT")}
+              >
+                ↩ Send back for review
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function InboxCard({
@@ -50,9 +198,11 @@ function InboxCard({
   focused: boolean;
 }) {
   const dialogs = useDialogs();
-  const [configOpen, setConfigOpen] = useState(false);
+  const [panel, setPanel] = useState<null | "approve" | "changes">(null);
   const [busy, setBusy] = useState(false);
+  const [showThread, setShowThread] = useState(false);
   const needsConfig = r.kind === "COURSE_ASSIGN" || r.kind === "CONTENT_REVIEW";
+  const isReview = r.kind === "CONTENT_REVIEW";
 
   const decide = async (
     approve: boolean,
@@ -64,13 +214,18 @@ function InboxCard({
       inLibrary?: boolean;
     },
     note?: string,
+    outcome?: ReviewOutcome,
   ) => {
     setBusy(true);
     try {
-      await requests.decide(r.id, { approve, config, decisionNote: note });
+      await requests.decide(r.id, { approve, config, decisionNote: note, outcome });
       dialogs.toast(
-        approve ? "Request approved and applied." : "Request rejected.",
-        approve ? "success" : "info",
+        outcome === "CHANGES"
+          ? "Sent back to the author with your notes."
+          : approve
+            ? "Request approved and applied."
+            : "Request declined.",
+        approve || outcome === "CHANGES" ? "success" : "info",
       );
       onDone();
     } catch (e) {
@@ -81,9 +236,18 @@ function InboxCard({
   };
 
   return (
-    <li className="request-card glass" id={`request-${r.id}`} data-focus={focused}>
+    <li className="request-card glass" id={`request-${r.id}`} data-focus={focused} data-waiting={r.awaitingAuthor}>
       <div className="request-head">
         <KindChip kind={r.kind} />
+        {r.awaitingAuthor && (
+          <span
+            className="badge"
+            data-hint="You sent this back for changes. It is with its author until they revise it and send it back — it is not waiting on you."
+            data-hint-title="With the author"
+          >
+            with the author
+          </span>
+        )}
         <span className="auth-sub">{r.createdAt.slice(0, 10)}</span>
       </div>
       <p className="request-line">
@@ -113,7 +277,7 @@ function InboxCard({
             <strong>{r.targetRoleName}</strong>
           </>
         )}
-        {r.kind === "CONTENT_REVIEW" && (
+        {isReview && (
           <>
             submitted the document <strong>{r.courseTitle ?? r.courseCode}</strong>{" "}
             {r.courseCode && <span className="chip">{r.courseCode}</span>} for{" "}
@@ -121,42 +285,62 @@ function InboxCard({
           </>
         )}
       </p>
-      {r.message && <p className="request-msg">“{r.message}”</p>}
+      {r.message && !isReview && <p className="request-msg">“{r.message}”</p>}
 
-      {needsConfig && configOpen ? (
+      {isReview && showThread && <ReviewThread r={r} onDone={onDone} />}
+
+      {panel === "approve" ? (
         <form
           className="request-config"
           onSubmit={(e) => {
             e.preventDefault();
             const d = new FormData(e.currentTarget);
-            decide(true, {
-              mandatory: d.get("mandatory") === "on",
-              inheritToDescendants: d.get("inherit") === "on",
-              deadlineDays: d.get("deadline") ? Number(d.get("deadline")) : null,
-              retakeEveryNDays: d.get("retake") ? Number(d.get("retake")) : null,
-              inLibrary: d.get("inLibrary") === "on",
-            });
+            decide(
+              true,
+              {
+                mandatory: d.get("mandatory") === "on",
+                inheritToDescendants: d.get("inherit") === "on",
+                deadlineDays: d.get("deadline") ? Number(d.get("deadline")) : null,
+                retakeEveryNDays: d.get("retake") ? Number(d.get("retake")) : null,
+                inLibrary: d.get("inLibrary") === "on",
+              },
+              String(d.get("note") || "") || undefined,
+              isReview ? "APPROVE" : undefined,
+            );
           }}
         >
           <p className="auth-sub">
-            {r.kind === "CONTENT_REVIEW"
-              ? "Configure and publish this document for "
-              : "Tune the course for "}
+            {isReview ? "Configure and publish this document for " : "Tune the course for "}
             <strong>{r.targetRoleName}</strong>:
           </p>
           <div className="request-config-grid">
             <label className="ack-row">
               <input type="checkbox" name="mandatory" defaultChecked />
-              <span>Mandatory</span>
+              <span
+                data-hint="Everyone this branch reaches gets it on their compliance list and is chased until they finish it."
+                data-hint-title="Mandatory"
+              >
+                Mandatory
+              </span>
             </label>
             <label className="ack-row">
               <input type="checkbox" name="inherit" />
-              <span>Inherit to sub-branches</span>
+              <span
+                data-hint="Every branch beneath this one receives it too."
+                data-hint-title="Inherit to sub-branches"
+              >
+                Inherit to sub-branches
+              </span>
             </label>
-            {r.kind === "CONTENT_REVIEW" && (
+            {isReview && (
               <label className="ack-row">
                 <input type="checkbox" name="inLibrary" defaultChecked />
-                <span>Publish to library</span>
+                <span
+                  data-hint="Other branches can find it in the library and ask for it too."
+                  data-hint-title="Publish to library"
+                >
+                  Publish to library
+                </span>
               </label>
             )}
             <label className="field">
@@ -168,34 +352,82 @@ function InboxCard({
               <input name="retake" type="number" min={1} placeholder="course default" />
             </label>
           </div>
+          <label className="field">
+            <span>A note for the author (optional)</span>
+            <textarea name="note" rows={2} maxLength={500} placeholder="Nicely done — published as is." />
+          </label>
           <div className="request-actions">
-            <button
-              type="button"
-              className="btn btn-quiet btn-small"
-              onClick={() => setConfigOpen(false)}
-            >
+            <button type="button" className="btn btn-quiet btn-small" onClick={() => setPanel(null)}>
               Back
             </button>
             <button className="btn btn-primary btn-small" disabled={busy}>
-              {r.kind === "CONTENT_REVIEW" ? "Approve & publish" : "Approve & assign"}
+              {isReview ? "Approve & publish" : "Approve & assign"}
+            </button>
+          </div>
+        </form>
+      ) : panel === "changes" ? (
+        <form
+          className="request-config"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const note = String(new FormData(e.currentTarget).get("note") || "").trim();
+            if (!note) return;
+            decide(false, undefined, note, "CHANGES");
+          }}
+        >
+          <p className="auth-sub">
+            The author keeps their draft. Say what needs changing — they revise it and send it
+            back to you.
+          </p>
+          <label className="field">
+            <span>What needs changing</span>
+            <textarea
+              name="note"
+              rows={4}
+              required
+              maxLength={500}
+              autoFocus
+              placeholder="The scope section still says “all staff” — this only applies to the field teams. Everything else reads well."
+            />
+          </label>
+          <div className="request-actions">
+            <button type="button" className="btn btn-quiet btn-small" onClick={() => setPanel(null)}>
+              Back
+            </button>
+            <button className="btn btn-primary btn-small" disabled={busy}>
+              ↩ Send back with these notes
             </button>
           </div>
         </form>
       ) : (
         <div className="request-actions">
-          {r.kind === "CONTENT_REVIEW" && r.courseCode && (
+          {isReview && r.courseCode && (
             <button
               className="btn btn-quiet btn-small"
               disabled={busy}
+              data-hint="Read the document exactly as its readers would, before you decide."
+              data-hint-title="Preview"
               onClick={() => onPreview(r.courseCode!)}
             >
               👁 Preview document
             </button>
           )}
+          {isReview && (
+            <button
+              className="btn btn-quiet btn-small"
+              data-hint="The conversation with the author about this document."
+              data-hint-title="Conversation"
+              onClick={() => setShowThread((v) => !v)}
+            >
+              💬 {showThread ? "Hide" : "Discuss"}
+              {r.messages.length > 0 && ` (${r.messages.length})`}
+            </button>
+          )}
           <button
             className="btn btn-quiet btn-small"
             disabled={busy}
-            title="Delete this request without deciding it"
+            data-hint="Removes the request without deciding it. The author's entry disappears too."
+            data-hint-title="Delete this request"
             onClick={onRemove}
           >
             Delete
@@ -203,25 +435,45 @@ function InboxCard({
           <button
             className="btn btn-danger btn-small"
             disabled={busy}
+            data-hint={
+              isReview
+                ? "Discards the proposal and DELETES the author's draft. Use this only when the document should not exist — if it just needs work, send it back instead."
+                : undefined
+            }
+            data-hint-title={isReview ? "Decline" : undefined}
+            data-hint-tone="danger"
             onClick={async () => {
               if (
                 await dialogs.confirm({
-                  title: "Reject request",
-                  message: `Reject this ${REQUEST_KIND_LABELS[r.kind].toLowerCase()} from ${r.requester.displayName}?`,
-                  confirmLabel: "Reject",
+                  title: isReview ? "Decline this document" : "Reject request",
+                  message: isReview
+                    ? `Declining discards “${r.courseTitle ?? r.courseCode}” and deletes ${r.requester.displayName}'s draft. If it only needs changes, use “Send back” instead — they keep their work.`
+                    : `Reject this ${REQUEST_KIND_LABELS[r.kind].toLowerCase()} from ${r.requester.displayName}?`,
+                  confirmLabel: isReview ? "Decline & delete" : "Reject",
                   danger: true,
                 })
               )
-                decide(false);
+                decide(false, undefined, undefined, isReview ? "REJECT" : undefined);
             }}
           >
-            Reject
+            {isReview ? "Decline" : "Reject"}
           </button>
+          {isReview && (
+            <button
+              className="btn btn-quiet btn-small"
+              disabled={busy}
+              data-hint={REVIEW_OUTCOME_TEXT.CHANGES.blurb}
+              data-hint-title={REVIEW_OUTCOME_TEXT.CHANGES.label}
+              onClick={() => setPanel("changes")}
+            >
+              ↩ Send back
+            </button>
+          )}
           {needsConfig ? (
             <button
               className="btn btn-primary btn-small"
               disabled={busy}
-              onClick={() => setConfigOpen(true)}
+              onClick={() => setPanel("approve")}
             >
               Review &amp; configure
             </button>
@@ -257,6 +509,7 @@ function InboxCard({
 
 export default function RequestsPage() {
   const { org } = useOrg();
+  const router = useRouter();
   const dialogs = useDialogs();
   const [data, setData] = useState<RequestsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -420,8 +673,34 @@ export default function RequestsPage() {
                 )}{" "}
                 <span className="auth-sub">· {r.createdAt.slice(0, 10)}</span>
               </p>
-              {r.decisionNote && <p className="request-msg">Decision note: “{r.decisionNote}”</p>}
+              {r.decisionNote && r.status !== "CHANGES_REQUESTED" && (
+                <p className="request-msg">Decision note: “{r.decisionNote}”</p>
+              )}
+              {r.kind === "CONTENT_REVIEW" && r.status === "CHANGES_REQUESTED" && (
+                <p className="request-msg request-msg-warn">
+                  Your reviewer asked for changes. Your draft is safe — revise it and send it
+                  back below.
+                </p>
+              )}
+              {r.kind === "CONTENT_REVIEW" &&
+                (r.status === "PENDING" || r.status === "CHANGES_REQUESTED") && (
+                  <ReviewThread r={r} onDone={load} />
+                )}
               <div className="request-actions">
+                {r.kind === "CONTENT_REVIEW" &&
+                  r.status === "CHANGES_REQUESTED" &&
+                  r.courseCode && (
+                    <button
+                      className="btn btn-quiet btn-small"
+                      data-hint="Open the document in the Studio and make the changes your reviewer asked for."
+                      data-hint-title="Revise it"
+                      onClick={() =>
+                        router.push(`/orgs/${org.id}/studio?course=${r.courseCode}`)
+                      }
+                    >
+                      ✎ Revise in the Studio
+                    </button>
+                  )}
                 {r.status === "PENDING" ? (
                   <button
                     className="btn btn-quiet btn-small"

@@ -6,6 +6,7 @@ import type {
   DecideRequestInput,
   OrgDetail,
   OrgSummary,
+  RequestMessageInput,
   RequestsOverview,
   StructureView,
   SupremeSession,
@@ -101,4 +102,10 @@ export const requests = {
     }),
   withdraw: (requestId: string) =>
     api<{ ok: boolean }>(`/requests/${requestId}`, { method: "DELETE" }),
+  /** Write on a Document review's thread — the suggestion channel, both directions. */
+  message: (requestId: string, input: RequestMessageInput) =>
+    api<{ ok: boolean }>(`/requests/${requestId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

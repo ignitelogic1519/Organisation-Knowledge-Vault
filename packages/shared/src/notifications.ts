@@ -207,6 +207,38 @@ export const NOTIFICATION_KINDS: Record<string, NotificationKindMeta> = {
     sublabel: "New edition",
     icon: "🔁",
   },
+  course_superseded: {
+    label: "A document you completed has been replaced",
+    category: "LEARNING",
+    priority: "NORMAL",
+    retentionDays: RETENTION_DAYS.LEARNING,
+    sublabel: "Replacement",
+    icon: "↪",
+  },
+  content_changes_requested: {
+    label: "Your document came back with changes to make",
+    category: "CONTENT",
+    priority: "HIGH",
+    retentionDays: RETENTION_DAYS.CONTENT,
+    sublabel: "Review",
+    icon: "✍",
+  },
+  content_resubmitted: {
+    label: "A document you reviewed has been revised",
+    category: "CONTENT",
+    priority: "NORMAL",
+    retentionDays: RETENTION_DAYS.CONTENT,
+    sublabel: "Review",
+    icon: "↩",
+  },
+  request_message: {
+    label: "New message on a request",
+    category: "REQUESTS",
+    priority: "NORMAL",
+    retentionDays: RETENTION_DAYS.REQUESTS,
+    sublabel: "Message",
+    icon: "💬",
+  },
 
   // ── Learning ─────────────────────────────────────────────────────────────
   course_assigned: {

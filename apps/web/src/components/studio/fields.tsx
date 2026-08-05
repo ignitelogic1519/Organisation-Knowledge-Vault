@@ -8,16 +8,45 @@ export function Row({
   label,
   children,
   hint,
+  /** Compulsory: gets a marker, and the marker explains itself on hover. */
+  required,
+  /** Compulsory AND not yet satisfied — the field is highlighted until it is. */
+  missing,
+  /** Why the platform insists on it, shown on the marker and on the highlight. */
+  why,
+  id,
 }: {
   label: string;
   children: React.ReactNode;
   hint?: string;
+  required?: boolean;
+  missing?: boolean;
+  why?: string;
+  id?: string;
 }) {
   return (
-    <label className="insp-row">
-      <span className="insp-label">{label}</span>
+    <label className="insp-row" id={id} data-required={required || undefined} data-missing={missing || undefined}>
+      <span className="insp-label">
+        {label}
+        {required && (
+          <span
+            className="insp-req"
+            aria-label="Compulsory"
+            data-hint={why ?? "This has to be filled in before the document can be published."}
+            data-hint-title={`${label} is compulsory`}
+            data-hint-tone="required"
+          >
+            ✳
+          </span>
+        )}
+      </span>
       {children}
       {hint && <small className="insp-hint">{hint}</small>}
+      {missing && why && (
+        <small className="insp-missing" role="status">
+          {why}
+        </small>
+      )}
     </label>
   );
 }

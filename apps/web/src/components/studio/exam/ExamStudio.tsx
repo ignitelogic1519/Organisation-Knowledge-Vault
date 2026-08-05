@@ -14,6 +14,7 @@ import {
   type ExamQuestion,
   type ExamQuestionType,
   type ExamSettings,
+  type PublishCheck,
 } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
@@ -27,6 +28,7 @@ import { useCourseEdit } from "../edit-session";
 import { examDraftKey } from "../local-drafts";
 import { EMPTY_META, type StudioMeta } from "../model";
 import { useStudioSession } from "../session";
+import { focusCheck, PublishReadiness, usePublishGate } from "../PublishGate";
 import { ExamInspector } from "./ExamInspector";
 import { QuestionCard } from "./QuestionCard";
 import {
@@ -253,6 +255,23 @@ export function ExamStudio({
   const problems = useMemo(() => examProblems(cleanExam(doc.exam)), [doc.exam]);
   const examDrafts = useMemo(() => session.drafts.filter((d) => d.kind === "EXAM"), [session.drafts]);
 
+  // The same publish rules the document editor runs, plus the paper's own marking check —
+  // an exam is a document with questions in it, so "ready to publish" means the same thing.
+  const gate = usePublishGate({
+    title: doc.meta.title,
+    description: doc.meta.description,
+    scope: doc.meta.scope,
+    category: doc.meta.category,
+    classification: doc.meta.classification,
+    contentCount: doc.exam.questions.length,
+    markingProblems: problems,
+    noun: "exam",
+  });
+
+  const goToCheck = useCallback((id: PublishCheck["id"]) => {
+    if (id !== "content" && id !== "marking") setInspectorTab("document");
+  }, []);
+
   // ── Question operations ────────────────────────────────────────────────────
   const addQuestion = useCallback(
     (type: ExamQuestionType = "single") => {
@@ -424,35 +443,37 @@ export function ExamStudio({
   const publish = async () => {
     if (!node) return;
     const { meta } = doc;
-    if (meta.title.trim().length < 2) {
-      dialogs.toast("Give the exam a title.", "danger");
-      setInspectorTab("document");
-      return;
-    }
-    if (!meta.classification) {
-      dialogs.toast("Classification is compulsory.", "danger");
-      setInspectorTab("document");
-      return;
-    }
-    if (meta.description.trim().length < 8) {
-      dialogs.toast("Add a short description — it becomes the exam's description page.", "danger");
-      setInspectorTab("document");
-      return;
-    }
     const exam = cleanExam(doc.exam);
-    const blocking = examProblems(exam);
-    if (blocking.length > 0) {
+
+    // One panel listing everything outstanding — the paper's marking problems and the
+    // document properties together, because to a publishing author they are one list.
+    if (gate.blockers.length > 0) {
+      setInspectorTab("document");
+      const first = gate.blockers[0];
       await dialogs.alert({
-        title: "The paper isn't ready yet",
-        tone: "info",
+        title:
+          gate.blockers.length === 1
+            ? `${first.label} is still needed`
+            : `${gate.blockers.length} things are still needed`,
+        tone: "danger",
         message: (
-          <ul className="sheet-msg">
-            {blocking.map((p) => (
-              <li key={p}>{p}</li>
-            ))}
-          </ul>
+          <>
+            <p>
+              This exam cannot be published yet. Each item below is compulsory, and the reason
+              it is compulsory is with it.
+            </p>
+            <ul className="pubgate-alert-list">
+              {gate.blockers.map((c) => (
+                <li key={c.id}>
+                  <strong>{c.label}</strong> — {c.fix}
+                  <small>{c.why}</small>
+                </li>
+              ))}
+            </ul>
+          </>
         ),
       });
+      window.setTimeout(() => focusCheck(first.id), 80);
       return;
     }
     // ── Revising something already published ────────────────────────────────
@@ -468,9 +489,14 @@ export function ExamStudio({
           description: meta.description.trim(),
           scope: meta.scope.trim() || null,
           category: meta.category.trim() || null,
-          classification: meta.classification,
+          classification: meta.classification ?? undefined,
           inLibrary: meta.inLibrary,
           resetsCompletionOnUpdate: meta.resets,
+          allowDownload: meta.allowDownload,
+          deadlineDays: meta.deadlineDays,
+          retakeEveryNDays: meta.retakeEveryNDays,
+          prerequisiteCodes: meta.prerequisiteCodes,
+          versionNote: meta.versionNote.trim() || undefined,
           exam,
           theme: meta.theme,
         });
@@ -516,14 +542,19 @@ export function ExamStudio({
         title: meta.title.trim(),
         description: meta.description.trim(),
         scope: meta.scope.trim() || undefined,
-        classification: meta.classification,
-        allowDownload: false,
+        classification: meta.classification!,
+        allowDownload: meta.allowDownload,
         inLibrary: meta.inLibrary,
         category: meta.category.trim() || undefined,
         exam,
         theme: meta.theme,
         resetsCompletionOnUpdate: meta.resets,
-        prerequisiteCodes: [],
+        deadlineDays: meta.deadlineDays ?? undefined,
+        retakeEveryNDays: meta.retakeEveryNDays ?? undefined,
+        prerequisiteCodes: meta.prerequisiteCodes,
+        replacesCourseCode: meta.replacesCourseCode || undefined,
+        replacementMode: meta.replacementMode,
+        versionNote: meta.versionNote.trim() || undefined,
       });
       // Owners place immediately; a member's paper is placed by the reviewer on approval
       if (!created.draft) {
@@ -605,7 +636,7 @@ export function ExamStudio({
           <button className="btn btn-quiet btn-small" onClick={() => router.back()}>
             ← Back
           </button>
-          <div className="studio-title-wrap">
+          <div className="studio-title-wrap" data-check="title">
             <input
               className="studio-title-input"
               placeholder="Untitled exam"
@@ -663,14 +694,27 @@ export function ExamStudio({
               {busy === "draft" ? "Saving…" : limits?.draftsEnabled ? "🖫 Save draft" : "🔒 Save draft"}
             </button>
           )}
+          <PublishReadiness
+            blockers={gate.blockers}
+            advisories={gate.advisories}
+            noun="exam"
+            onGo={goToCheck}
+          />
           <button
             className="btn btn-primary btn-small"
             disabled={busy !== null || (!!editCode && edit.live)}
-            title={
+            data-pending={!gate.ready || undefined}
+            data-hint={
               editCode && edit.live
-                ? "Take the exam out of deployment before publishing the new edition"
-                : undefined
+                ? "Take the exam out of deployment before publishing the new edition — candidates may be mid-paper."
+                : gate.ready
+                  ? needsReview
+                    ? "Send this to your branch manager. They publish it, or send it back with suggestions."
+                    : "Publish it to the branch and, if you asked for it, to the library."
+                  : `${gate.blockers.length} compulsory ${gate.blockers.length === 1 ? "item is" : "items are"} still missing: ${gate.blockers.map((b) => b.label).join(", ")}.`
             }
+            data-hint-title={gate.ready ? "Publish" : "Not ready yet"}
+            data-hint-tone={gate.ready ? "info" : "required"}
             onClick={publish}
           >
             {busy === "publish"
@@ -766,8 +810,8 @@ export function ExamStudio({
             </aside>
 
             {/* ── Canvas: the paper itself ───────────────────────────────────── */}
-            <div className="studio-canvas">
-              <div className="studio-canvas-sheet exam-sheet">
+            <div className="studio-canvas" data-check="content">
+              <div className="studio-canvas-sheet exam-sheet" data-check="marking">
                 <header className="exam-sheet-head">
                   <span className="doc-cover-org">{org.name}</span>
                   <h1>{doc.meta.title || "Untitled exam"}</h1>
@@ -828,6 +872,12 @@ export function ExamStudio({
               categories={categories}
               needsReview={needsReview}
               showPlacement={!editCode}
+              showVersionControl={!editCode}
+              checks={gate.checks}
+              onGoToCheck={goToCheck}
+              orgId={org.id}
+              selfCode={editCode ?? undefined}
+              pendingCount={gate.blockers.length}
               passMark={stats.passMark}
               totalPoints={stats.totalPoints}
             />

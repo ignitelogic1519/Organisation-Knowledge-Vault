@@ -2,7 +2,12 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { versionLabel, type AuthoredBlock, type Classification } from "@vault/shared";
+import {
+  versionLabel,
+  type AuthoredBlock,
+  type Classification,
+  type PublishCheck,
+} from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
@@ -13,6 +18,7 @@ import { Inspector } from "@/components/studio/Inspector";
 import { Ribbon } from "@/components/studio/Ribbon";
 import { SideRail } from "@/components/studio/SideRail";
 import { EditBanner } from "@/components/studio/EditBanner";
+import { focusCheck, PublishReadiness, usePublishGate } from "@/components/studio/PublishGate";
 import { StudioChooser } from "@/components/studio/StudioChooser";
 import { ExamStudio } from "@/components/studio/exam/ExamStudio";
 import { documentDraftKey } from "@/components/studio/local-drafts";
@@ -264,6 +270,12 @@ function StudioInner() {
               kind: info.kind === "BOOK" ? "BOOK" : "DOCUMENT",
               inLibrary: info.inLibrary,
               resets: info.resetsCompletionOnUpdate,
+              // The reading rules travel with the revision, so a new edition never
+              // silently drops the deadline or the recurrence the old one carried.
+              allowDownload: info.allowDownload,
+              deadlineDays: info.deadlineDays,
+              retakeEveryNDays: info.retakeEveryNDays,
+              prerequisiteCodes: info.prerequisiteCodes,
               theme: content.theme ?? {},
             },
           };
@@ -339,6 +351,23 @@ function StudioInner() {
   const pages = useMemo(() => editorPages(doc.blocks), [doc.blocks]);
   const stats = useMemo(() => documentStats(doc.blocks), [doc.blocks]);
   const published = useMemo(() => meaningfulBlocks(doc.blocks), [doc.blocks]);
+
+  // What is still outstanding, recomputed on every keystroke — the same rules the server
+  // enforces, so the editor and the API can never disagree about what "ready" means.
+  const gate = usePublishGate({
+    title: doc.meta.title,
+    description: doc.meta.description,
+    scope: doc.meta.scope,
+    category: doc.meta.category,
+    classification: doc.meta.classification,
+    contentCount: published.length,
+    noun: "document",
+  });
+
+  /** A checklist line was clicked: open the tab its field lives on before scrolling. */
+  const goToCheck = useCallback((id: PublishCheck["id"]) => {
+    if (id !== "content") setInspectorTab("document");
+  }, []);
   // Exam drafts belong to the other editor — this tray offers only what it can open.
   const documentDrafts = useMemo(
     () => session.drafts.filter((d) => d.kind !== "EXAM"),
@@ -577,23 +606,40 @@ function StudioInner() {
   const publish = async () => {
     if (!node) return;
     const { meta } = doc;
-    if (meta.title.trim().length < 2) {
-      dialogs.toast("Give the document a title.", "danger");
+
+    // Everything outstanding, at once, with the reason for each — instead of one toast
+    // per problem naming a field the author then has to go and find.
+    if (gate.blockers.length > 0) {
       setInspectorTab("document");
-      return;
-    }
-    if (!meta.classification) {
-      dialogs.toast("Classification is compulsory.", "danger");
-      setInspectorTab("document");
-      return;
-    }
-    if (meta.description.trim().length < 8) {
-      dialogs.toast("Add a short description — it becomes the document's description page.", "danger");
-      setInspectorTab("document");
-      return;
-    }
-    if (published.length === 0) {
-      dialogs.toast("Add some content before publishing.", "danger");
+      const first = gate.blockers[0];
+      await dialogs.alert({
+        title:
+          gate.blockers.length === 1
+            ? `${first.label} is still needed`
+            : `${gate.blockers.length} things are still needed`,
+        tone: "danger",
+        message: (
+          <>
+            <p>
+              This document cannot be published yet. Each item below is compulsory, and the
+              reason it is compulsory is with it.
+            </p>
+            <ul className="pubgate-alert-list">
+              {gate.blockers.map((c) => (
+                <li key={c.id}>
+                  <strong>{c.label}</strong> — {c.fix}
+                  <small>{c.why}</small>
+                </li>
+              ))}
+            </ul>
+            <p className="auth-sub">
+              They are highlighted in the Document tab on the right, and the checklist there
+              takes you to each one.
+            </p>
+          </>
+        ),
+      });
+      window.setTimeout(() => focusCheck(first.id), 80);
       return;
     }
 
@@ -610,9 +656,14 @@ function StudioInner() {
           description: meta.description.trim(),
           scope: meta.scope.trim() || null,
           category: meta.category.trim() || null,
-          classification: meta.classification,
+          classification: meta.classification ?? undefined,
           inLibrary: meta.inLibrary,
           resetsCompletionOnUpdate: meta.resets,
+          allowDownload: meta.allowDownload,
+          deadlineDays: meta.deadlineDays,
+          retakeEveryNDays: meta.retakeEveryNDays,
+          prerequisiteCodes: meta.prerequisiteCodes,
+          versionNote: meta.versionNote.trim() || undefined,
           blocks: published,
           theme: meta.theme,
         });
@@ -658,14 +709,19 @@ function StudioInner() {
         title: meta.title.trim(),
         description: meta.description.trim(),
         scope: meta.scope.trim() || undefined,
-        classification: meta.classification,
-        allowDownload: false,
+        classification: meta.classification!,
+        allowDownload: meta.allowDownload,
         inLibrary: meta.inLibrary,
         category: meta.category.trim() || undefined,
         blocks: published,
         theme: meta.theme,
         resetsCompletionOnUpdate: meta.resets,
-        prerequisiteCodes: [],
+        deadlineDays: meta.deadlineDays ?? undefined,
+        retakeEveryNDays: meta.retakeEveryNDays ?? undefined,
+        prerequisiteCodes: meta.prerequisiteCodes,
+        replacesCourseCode: meta.replacesCourseCode || undefined,
+        replacementMode: meta.replacementMode,
+        versionNote: meta.versionNote.trim() || undefined,
       });
       // Owners place immediately; a member's draft is placed by the reviewer on approval
       if (!created.draft) {
@@ -752,7 +808,7 @@ function StudioInner() {
           <button className="btn btn-quiet btn-small" onClick={() => router.back()}>
             ← Back
           </button>
-          <div className="studio-title-wrap">
+          <div className="studio-title-wrap" data-check="title">
             <input
               className="studio-title-input"
               placeholder="Untitled document"
@@ -769,9 +825,23 @@ function StudioInner() {
               {savedAt ? ` · draft saved ${savedAt}` : ""}
             </span>
           </div>
-          {needsReview && !editCode && <span className="badge">needs manager review</span>}
+          {needsReview && !editCode && (
+            <span
+              className="badge"
+              data-hint="You hold content rights but not publishing rights on this branch, so what you write goes to the branch manager. They can publish it, or send it back with suggestions for you to revise."
+              data-hint-title="Needs manager review"
+            >
+              needs manager review
+            </span>
+          )}
         </div>
         <div className="studio-topbar-actions">
+          <PublishReadiness
+            blockers={gate.blockers}
+            advisories={gate.advisories}
+            noun="document"
+            onGo={goToCheck}
+          />
           <div className="studio-mode-switch" role="tablist" aria-label="Studio mode">
             <button
               type="button"
@@ -819,11 +889,18 @@ function StudioInner() {
           <button
             className="btn btn-primary btn-small"
             disabled={busy !== null || (!!editCode && edit.live)}
-            title={
+            data-pending={!gate.ready || undefined}
+            data-hint={
               editCode && edit.live
-                ? "Take the document out of deployment before publishing the new edition"
-                : undefined
+                ? "Take the document out of deployment before publishing the new edition — its readers are still on the current one."
+                : gate.ready
+                  ? needsReview
+                    ? "Send this to your branch manager. They publish it, or send it back with suggestions."
+                    : "Publish it to the branch and, if you asked for it, to the library."
+                  : `${gate.blockers.length} compulsory ${gate.blockers.length === 1 ? "item is" : "items are"} still missing: ${gate.blockers.map((b) => b.label).join(", ")}.`
             }
+            data-hint-title={gate.ready ? "Publish" : "Not ready yet"}
+            data-hint-tone={gate.ready ? "info" : "required"}
             onClick={publish}
           >
             {busy === "publish"
@@ -912,6 +989,14 @@ function StudioInner() {
               // Where a course is placed is the branch's business, not the reviser's — a
               // new edition lands on exactly the placements the old one had.
               showPlacement={!editCode}
+              // A new edition of an existing document does not replace a DIFFERENT
+              // document — that choice belongs to a first publication.
+              showVersionControl={!editCode}
+              checks={gate.checks}
+              onGoToCheck={goToCheck}
+              orgId={org.id}
+              selfCode={editCode ?? undefined}
+              pendingCount={gate.blockers.length}
             />
           </div>
 

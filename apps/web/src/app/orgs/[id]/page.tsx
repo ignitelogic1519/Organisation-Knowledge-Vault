@@ -8,8 +8,11 @@ import { ApiError } from "@/lib/auth-client";
 import { orgs, requests, roles } from "@/lib/orgs-client";
 import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
-import { storageApi, uploadFile } from "@/lib/storage-client";
+import { storageApi } from "@/lib/storage-client";
 import { StoragePanel } from "@/components/StoragePanel";
+import { PropertiesEditor } from "@/components/studio/PropertiesEditor";
+import { ReplaceFileSheet } from "@/components/studio/ReplaceFileSheet";
+import { UploadComposer } from "@/components/studio/UploadComposer";
 import { useSupremeGate } from "@/components/supreme-gate";
 import { GraphLegend, OrgGraph } from "@/components/OrgGraph";
 import { useOrg } from "@/components/org-context";
@@ -686,19 +689,21 @@ function CoursesPanel({
   // The organization's own storage, when it has connected one (docs/structure.md §9).
   // Uploads go straight to it; without it they fall back to the inline adapter.
   const [orgStorage, setOrgStorage] = useState<StorageView | null>(null);
-  const [uploadStage, setUploadStage] = useState<string | null>(null);
   useEffect(() => {
     storageApi
       .get(orgId)
       .then(setOrgStorage)
       .catch(() => setOrgStorage(null));
   }, [orgId]);
-  const [category, setCategory] = useState("");
   const [limits, setLimits] = useState<OrgPlanLimitsView | null>(null);
   const [catInfo, setCatInfo] = useState<{ suggestion: string | null; categories: string[] }>({
     suggestion: null,
     categories: [],
   });
+  /** Course whose properties are open for editing — the "I got something wrong" door. */
+  const [editingProps, setEditingProps] = useState<string | null>(null);
+  /** Uploaded course whose file is being swapped for a new edition. */
+  const [replacing, setReplacing] = useState<string | null>(null);
 
   const load = useCallback(() => {
     courses
@@ -708,6 +713,11 @@ function CoursesPanel({
     studio
       .limits(orgId)
       .then(setLimits)
+      .catch(() => undefined);
+    // The shelves that already exist — offered as suggestions wherever a shelf is asked for.
+    courses
+      .suggestCategory(orgId, "", "")
+      .then(setCatInfo)
       .catch(() => undefined);
   }, [node.id, orgId, onError]);
   useEffect(load, [load]);
@@ -735,17 +745,6 @@ function CoursesPanel({
         </>
       ),
     });
-
-  // Shelf suggestion: match the draft's words against existing library categories so
-  // similar content lands together ("…AI AWS…" → suggests "AI"); always overridable.
-  const suggestShelf = (form: HTMLFormElement | null) => {
-    if (!form) return;
-    const d = new FormData(form);
-    courses
-      .suggestCategory(orgId, String(d.get("title") || ""), String(d.get("description") || ""))
-      .then(setCatInfo)
-      .catch(() => undefined);
-  };
 
   const run = async (fn: () => Promise<unknown>) => {
     await act(fn);
@@ -784,217 +783,49 @@ function CoursesPanel({
       </div>
 
       {showNew && (
-        <form
-          className="add-person-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const d = new FormData(e.currentTarget);
-            const file = d.get("file") as File | null;
-            const url = String(d.get("url") || "");
-            run(async () => {
-              // When the organization has its own storage, the file goes straight from
-              // this browser to their hardware and we only pass on the reference. The
-              // inline (base64 through our API) path stays for organizations that have
-              // not connected storage yet. docs/structure.md §9.3.
-              let uploaded: { storageObjectId: string } | null = null;
-              if (file && file.size > 0 && orgStorage?.status === "ACTIVE") {
-                uploaded = await uploadFile(orgId, file, (stage) =>
-                  setUploadStage(
-                    stage === "encrypting"
-                      ? "Encrypting…"
-                      : stage === "uploading"
-                        ? "Uploading to your storage…"
-                        : stage === "finishing"
-                          ? "Finishing…"
-                          : "Preparing…",
-                  ),
-                );
-                setUploadStage(null);
-              }
-              const created = await courses.create(orgId, {
-                roleNodeId: node.id,
-                kind: (d.get("kind") as "DOCUMENT") ?? "DOCUMENT",
-                title: String(d.get("title")),
-                description: String(d.get("description")),
-                scope: String(d.get("scope") || "") || undefined,
-                classification: d.get("classification") as
-                  | "PUBLIC"
-                  | "CONFIDENTIAL"
-                  | "PRIVATE"
-                  | "SECRET",
-                allowDownload: d.get("allowDownload") === "on",
-                inLibrary: d.get("inLibrary") === "on",
-                category: category.trim() || undefined,
-                url: url || undefined,
-                storageObjectId: uploaded?.storageObjectId,
-                fileBase64:
-                  !uploaded && file && file.size > 0 ? await fileToBase64(file) : undefined,
-                filename: !uploaded && file && file.size > 0 ? file.name : undefined,
-                mime:
-                  !uploaded && file && file.size > 0
-                    ? file.type || "application/octet-stream"
-                    : undefined,
-                deadlineDays: d.get("deadline") ? Number(d.get("deadline")) : undefined,
-                retakeEveryNDays: d.get("retake") ? Number(d.get("retake")) : undefined,
-                resetsCompletionOnUpdate: d.get("resets") === "on",
-                prerequisiteCodes: String(d.get("prereqs") || "")
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              });
-              await courses.place(created.code, {
-                roleNodeId: node.id,
-                mandatory: d.get("mandatory") === "on",
-                inheritToDescendants: d.get("inherit") === "on",
-              });
-              setShowNew(false);
-            });
+        <UploadComposer
+          orgId={orgId}
+          roleNodeId={node.id}
+          roleName={node.name}
+          limits={limits}
+          categories={catInfo.categories}
+          orgStorage={orgStorage}
+          needsReview={!node.my.canAddPeople}
+          onDone={() => {
+            setShowNew(false);
+            load();
           }}
-        >
-          <label className="field">
-            <span>Title</span>
-            <input
-              name="title"
-              required
-              minLength={2}
-              autoFocus
-              onBlur={(e) => suggestShelf(e.currentTarget.form)}
-            />
-          </label>
-          <label className="field">
-            <span>Short description (cover page 2)</span>
-            <textarea
-              name="description"
-              required
-              minLength={8}
-              maxLength={500}
-              rows={2}
-              placeholder="What is this course for? Shown in the library and the document's description page."
-              onBlur={(e) => suggestShelf(e.currentTarget.form)}
-            />
-          </label>
-          <label className="field">
-            <span>Scope (cover page 2)</span>
-            <textarea
-              name="scope"
-              maxLength={2000}
-              rows={2}
-              placeholder="Who this applies to and what it covers — added to the standardized cover."
-            />
-          </label>
-          <label className="field">
-            <span>Classification (compulsory)</span>
-            <select name="classification" required defaultValue="">
-              <option value="" disabled>
-                Choose classification…
-              </option>
-              <option value="PUBLIC">Public</option>
-              <option value="CONFIDENTIAL">Confidential</option>
-              <option value="PRIVATE">Private</option>
-              <option value="SECRET">Secret</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>Library shelf (category)</span>
-            <input
-              name="category"
-              list="shelf-options"
-              maxLength={40}
-              placeholder="AI, Safety, Onboarding…"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            />
-            <datalist id="shelf-options">
-              {catInfo.categories.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-            {catInfo.suggestion && catInfo.suggestion !== category && (
-              <small>
-                Similar content lives on the{" "}
-                <button
-                  type="button"
-                  className="chip chip-shelf"
-                  onClick={() => setCategory(catInfo.suggestion!)}
-                >
-                  {catInfo.suggestion}
-                </button>{" "}
-                shelf — click to use it, or keep your own tag.
-              </small>
-            )}
-          </label>
-          <label className="field">
-            <span>Kind</span>
-            <select name="kind" defaultValue="DOCUMENT">
-              <option>DOCUMENT</option>
-              <option>BOOK</option>
-              <option>LINK</option>
-              <option>AUDIO</option>
-              <option>VIDEO</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>External URL (video/audio/link)</span>
-            <input name="url" type="url" placeholder="https://…" />
-          </label>
-          <label className="field">
-            <span>
-              {orgStorage?.status === "ACTIVE"
-                ? "…or a file (≤ 200 MB)"
-                : "…or a file (≤ 10 MB)"}
-            </span>
-            <input name="file" type="file" />
-            {orgStorage?.status === "ACTIVE" && (
-              <small>
-                Goes straight to your own storage
-                {orgStorage.encryption === "ENCRYPTED" ? ", encrypted in this browser first" : ""}.
-              </small>
-            )}
-            {orgStorage?.status === "DEGRADED" && (
-              <small className="form-error">
-                Your storage is unreachable, so uploads are paused. Existing documents are
-                safe.
-              </small>
-            )}
-            {uploadStage && <small>{uploadStage}</small>}
-          </label>
-          <label className="field">
-            <span>Deadline (days, optional)</span>
-            <input name="deadline" type="number" min={1} />
-          </label>
-          <label className="field">
-            <span>Retake every N days (optional)</span>
-            <input name="retake" type="number" min={1} />
-          </label>
-          <label className="field">
-            <span>Prerequisite codes (comma-separated)</span>
-            <input name="prereqs" placeholder="100-101-0001, …" />
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="allowDownload" />
-            <span>Allow members to download from the preview</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="inLibrary" defaultChecked />
-            <span>Publish to the organization library</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="mandatory" defaultChecked />
-            <span>Mandatory</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="inherit" defaultChecked />
-            <span>Inherit to lower branches</span>
-          </label>
-          <label className="ack-row">
-            <input type="checkbox" name="resets" />
-            <span>Updates reset completion</span>
-          </label>
-          <button className="btn btn-primary btn-small">Publish course</button>
-        </form>
+          onCancel={() => setShowNew(false)}
+        />
       )}
 
       <h3 className="learning-h">Courses on this role</h3>
+      {(list?.length ?? 0) > 0 && (
+        <p className="auth-sub course-legend">
+          Three different ways to stop something reaching people, and they are not the same:{" "}
+          <strong
+            data-hint="Removes it from THIS branch only. It keeps existing and keeps reaching every other branch it is placed on."
+            data-hint-title="Unplace"
+          >
+            Unplace
+          </strong>{" "}
+          takes it off this branch,{" "}
+          <strong
+            data-hint="A pause. It reaches nobody and leaves the library, but every placement is kept so the next edition lands on exactly the same audience."
+            data-hint-title="Out of deployment"
+          >
+            out of deployment
+          </strong>{" "}
+          pauses it everywhere while a new edition is written, and{" "}
+          <strong
+            data-hint="Retirement. It stays readable and keeps its history, but it can never be assigned to a new branch again."
+            data-hint-title="Archive"
+          >
+            Archive
+          </strong>{" "}
+          retires it org-wide. Hover any button to see what it does.
+        </p>
+      )}
       {!list && <p className="auth-sub">Loading…</p>}
       {list?.length === 0 && <p className="auth-sub">No courses placed here yet.</p>}
       <ul className="people-list">
@@ -1016,7 +847,12 @@ function CoursesPanel({
             <div className="person-actions">
               <button
                 className="btn btn-quiet btn-small"
-                title="Toggle whether this course is mandatory here"
+                data-hint={
+                  c.mandatory
+                    ? "Mandatory here: it is on the compliance list of everyone this branch reaches, and they are chased if they do not finish it. Click to make it opt-in."
+                    : "Opt-in here: it is offered but nobody is required to finish it, and it never shows as non-compliant. Click to make it mandatory."
+                }
+                data-hint-title={c.mandatory ? "Mandatory" : "Opt-in"}
                 onClick={() =>
                   run(() =>
                     courses.place(c.code, {
@@ -1031,7 +867,12 @@ function CoursesPanel({
               </button>
               <button
                 className="btn btn-quiet btn-small"
-                title="Toggle inheritance to lower branches"
+                data-hint={
+                  c.inheritToDescendants
+                    ? "Every branch beneath this one receives it too. Click to limit it to this branch alone."
+                    : "Only this branch receives it — sub-branches do not. Click to pass it down the whole subtree."
+                }
+                data-hint-title="Inheritance"
                 onClick={() =>
                   run(() =>
                     courses.place(c.code, {
@@ -1044,43 +885,70 @@ function CoursesPanel({
               >
                 {c.inheritToDescendants ? "inherits ↓ ✓" : "this role only"}
               </button>
-              <button
-                className="btn btn-quiet btn-small"
-                title="Remove from this branch only — the course keeps existing elsewhere"
-                onClick={() => run(() => courses.unplace(c.code, node.id))}
-              >
-                Unplace
-              </button>
-              {c.canManage && c.source === "STUDIO" && (
+              {c.canManage && (
+                <button
+                  className="btn btn-quiet btn-small"
+                  data-hint="Change what the organization says about this document — classification, description, shelf, deadline, recurrence, prerequisites, downloads. The content is untouched, so nothing here bumps the version or expires anybody's completion."
+                  data-hint-title="Edit properties"
+                  onClick={() => setEditingProps(c.code)}
+                >
+                  ⚙ Properties
+                </button>
+              )}
+              {/* Version control is not a Studio privilege. An uploaded document has
+                  editions too — a replaced file is a new edition of the same document,
+                  which is exactly what the deployment switch and Revise exist for. */}
+              {c.canManage && (
                 <>
                   <button
                     className="btn btn-quiet btn-small"
-                    title={
+                    data-hint={
                       c.withdrawn
-                        ? "Put it back into deployment unchanged"
-                        : "Take it out of deployment so it can be revised — placements are kept"
+                        ? "Put it back into deployment on exactly the branches it already had. Readers get the current edition again."
+                        : "Out of deployment it reaches nobody and leaves the library, but every placement is kept. This is the step before publishing a new edition — it is how readers are never left mid-way through an edition that is being rewritten."
                     }
+                    data-hint-title={c.withdrawn ? "Put back into deployment" : "Take out of deployment"}
                     onClick={() => run(() => courses.withdraw(c.code, !c.withdrawn))}
                   >
                     {c.withdrawn ? "▲ Put back" : "⏸ Take out of deployment"}
                   </button>
                   <button
                     className="btn btn-quiet btn-small"
-                    title={`Open ${versionLabel(c.version)} in the Studio and publish ${versionLabel(c.version + 1)}`}
+                    data-hint={
+                      c.source === "STUDIO"
+                        ? `Open ${versionLabel(c.version)} in the Studio and publish ${versionLabel(c.version + 1)}. Everyone keeps receiving it on the same branches.`
+                        : `Replace the file or address behind this document and publish ${versionLabel(c.version + 1)}. Its title, classification and placements are all kept.`
+                    }
+                    data-hint-title="New edition"
                     onClick={() =>
-                      router.push(
-                        `/orgs/${orgId}/studio?role=${node.id}&type=${c.kind === "EXAM" ? "exam" : "document"}&course=${c.code}`,
-                      )
+                      c.source === "STUDIO"
+                        ? router.push(
+                            `/orgs/${orgId}/studio?role=${node.id}&type=${c.kind === "EXAM" ? "exam" : "document"}&course=${c.code}`,
+                          )
+                        : setReplacing(c.code)
                     }
                   >
-                    ✎ Revise
+                    {c.source === "STUDIO" ? "✎ Revise" : "⇪ Replace file"}
                   </button>
                 </>
               )}
+              <button
+                className="btn btn-quiet btn-small"
+                data-hint="Removes it from THIS branch only. The document keeps existing, stays in the library and keeps reaching every other branch it is placed on. Use it when this branch simply no longer needs it."
+                data-hint-title="Unplace — from this branch"
+                onClick={() => run(() => courses.unplace(c.code, node.id))}
+              >
+                Unplace
+              </button>
               {c.canManage && (
                 <button
                   className="btn btn-quiet btn-small"
-                  title={c.archived ? "Bring the course back into use" : "Archive: keep it but stop new assignments"}
+                  data-hint={
+                    c.archived
+                      ? "Bring it back into use: it can be assigned to branches again."
+                      : "Archives the document EVERYWHERE, not just here. It keeps its history and stays readable to the people who already have it, but it cannot be assigned to any new branch again. Use it when the material is retired org-wide — Unplace is the one for “not needed on this branch”."
+                  }
+                  data-hint-title={c.archived ? "Unarchive" : "Archive — everywhere"}
                   onClick={() => run(() => courses.archive(c.code, !c.archived))}
                 >
                   {c.archived ? "Unarchive" : "Archive"}
@@ -1089,6 +957,9 @@ function CoursesPanel({
               {c.canDelete && (
                 <button
                   className="btn btn-danger btn-small"
+                  data-hint="Deletes the document and every placement of it, everywhere, permanently. Completion history survives. There is no undo."
+                  data-hint-title="Delete"
+                  data-hint-tone="danger"
                   onClick={async () => {
                     if (
                       await dialogs.confirm({
@@ -1108,6 +979,30 @@ function CoursesPanel({
           </li>
         ))}
       </ul>
+
+      {editingProps && (
+        <PropertiesEditor
+          code={editingProps}
+          orgId={orgId}
+          limits={limits}
+          categories={catInfo.categories}
+          onClose={() => setEditingProps(null)}
+          onSaved={load}
+        />
+      )}
+
+      {replacing && (
+        <ReplaceFileSheet
+          code={replacing}
+          orgId={orgId}
+          orgStorage={orgStorage}
+          onClose={() => setReplacing(null)}
+          onDone={() => {
+            setReplacing(null);
+            load();
+          }}
+        />
+      )}
 
       {/* Where the plan stands. It sits at the FOOT of the panel — reference, not a
           banner — and only says anything when the plan actually meters something. An

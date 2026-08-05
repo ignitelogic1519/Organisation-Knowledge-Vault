@@ -3,6 +3,7 @@
 import type {
   ComplianceReport,
   CourseAdminView,
+  CourseHistoryView,
   CourseReviewView,
   CreateCourseInput,
   LibraryCourse,
@@ -35,6 +36,11 @@ export interface CourseDetail {
   source: "STUDIO" | "UPLOAD";
   /** Out of deployment: it reaches nobody while its next edition is written. */
   withdrawn: boolean;
+  archived: boolean;
+  /** Retired by a newer document — an old reference forwards here. */
+  supersededByCode: string | null;
+  /** What this one replaced when it was published. */
+  supersedesCode: string | null;
   canManage: boolean;
   publishedAt: string;
   creatorName: string;
@@ -86,6 +92,8 @@ export const courses = {
       method: "POST",
       body: JSON.stringify({ withdrawn }),
     }),
+  /** Every edition ever published, and how this document stands against its neighbours. */
+  editions: (code: string) => api<CourseHistoryView>(`/courses/${code}/editions`),
   admin: (code: string) => api<CourseAdminView>(`/courses/${code}/admin`),
   grantAccess: (code: string, username: string, level: "VIEW" | "EDIT", canGrant: boolean) =>
     api<{ ok: boolean }>(`/courses/${code}/admin/access`, {
@@ -122,6 +130,13 @@ export const courses = {
         inheritToDescendants: boolean;
         deadlineDays: number | null;
         retakeEveryNDays: number | null;
+        /** The course's own defaults, before the placement's overrides. */
+        courseDeadlineDays: number | null;
+        courseRetakeEveryNDays: number | null;
+        scope: string | null;
+        category: string | null;
+        resetsCompletionOnUpdate: boolean;
+        supersededByCourseId: string | null;
         canManage: boolean;
         canDelete: boolean;
       }[];

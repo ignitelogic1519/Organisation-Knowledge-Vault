@@ -11,7 +11,7 @@ import {
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
-import { Stars } from "@/components/CourseViewer";
+import { CourseViewer, Stars } from "@/components/CourseViewer";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
@@ -62,6 +62,11 @@ function CourseDetail({
   const dialogs = useDialogs();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
+  /** The reader, when the course is already theirs — opened in place, not requested. */
+  const [viewing, setViewing] = useState<React.ComponentProps<typeof CourseViewer>["item"] | null>(
+    null,
+  );
   const [reviews, setReviews] = useState<CourseReviewView[] | null>(null);
   // Compliance is manager-only: the endpoint returns 403 for everyone else, so we
   // simply hide the panel unless the fetch succeeds (branch manager or course owner).
@@ -83,6 +88,31 @@ function CourseDetail({
     compliance && compliance.total > 0
       ? Math.round((compliance.compliant / compliance.total) * 100)
       : 0;
+
+  /**
+   * Open a course that already reaches the reader. My Learning is the authority on how it
+   * reaches them — their deadline, their completion, their prerequisites — so the item is
+   * taken from there rather than reconstructed out of the library card.
+   */
+  const openIt = async () => {
+    setOpening(true);
+    try {
+      const mine = await courses.myLearning(org.id);
+      const item = [...mine.mandatory, ...mine.optIn].find((i) => i.code === course.code);
+      if (!item) {
+        dialogs.toast(
+          "This is no longer assigned to you — request it for your branch instead.",
+          "danger",
+        );
+        return;
+      }
+      setViewing(item);
+    } catch (e) {
+      dialogs.toast(e instanceof ApiError ? e.message : "Could not open it", "danger");
+    } finally {
+      setOpening(false);
+    }
+  };
 
   return (
     <div
@@ -281,74 +311,150 @@ function CourseDetail({
             </ul>
           )}
 
-          <form
-            className="library-request-form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const d = new FormData(e.currentTarget);
-              const target = String(d.get("target"));
-              if (!target) return;
-              setBusy(true);
-              try {
-                await requests.create(org.id, {
-                  kind: "COURSE_ASSIGN",
-                  targetRoleNodeId: target,
-                  courseCode: course.code,
-                  message: String(d.get("message") || "") || undefined,
-                });
-                dialogs.toast(
-                  "Course request sent — your branch handler will configure and approve it.",
-                  "success",
-                );
-                onClose();
-              } catch (err) {
-                dialogs.toast(
-                  err instanceof ApiError ? err.message : "Could not send the request",
-                  "danger",
-                );
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <h4 className="learning-h">Request this course</h4>
-            {org.myPlacements.length === 0 ? (
-              <p className="auth-sub">
-                You hold no position in this organization yet — join a branch first.
-              </p>
-            ) : (
-              <>
-                <label className="field">
-                  <span>For your branch</span>
-                  <select name="target" required defaultValue={org.myPlacements[0]?.roleNodeId}>
-                    {org.myPlacements.map((p) => (
-                      <option key={`${p.roleNodeId}:${p.kind}`} value={p.roleNodeId}>
-                        {p.roleName} (you: {p.kind.toLowerCase()})
-                      </option>
-                    ))}
-                  </select>
-                  <small>
-                    The request goes to this branch&apos;s handler, who tunes mandatory /
-                    recurrence settings before assigning it
-                  </small>
-                </label>
-                <label className="field">
-                  <span>Message (optional)</span>
-                  <textarea name="message" rows={2} maxLength={500} placeholder="Why your branch needs it…" />
-                </label>
-                <div className="sheet-actions">
-                  <button type="button" className="btn btn-quiet" onClick={onClose}>
-                    Close
-                  </button>
-                  <button className="btn btn-primary" disabled={busy}>
-                    {busy ? "Sending…" : "Send course request"}
-                  </button>
+          {/* ── What you can actually do with it ──────────────────────────────
+              The library used to hand everyone the same "request this for my branch"
+              form — including for documents already sitting in the reader's own My
+              Learning. Asking permission for something you already have is not a step,
+              it is an obstacle. So: if it already reaches you, open it. Only the
+              branches it does NOT reach are worth requesting it for, and when there are
+              none the form does not appear at all. */}
+          {course.inMySpace && (
+            <div className="library-mine">
+              <div className="library-mine-head">
+                <span className="library-mine-tick" aria-hidden>
+                  ✓
+                </span>
+                <div>
+                  <strong>This is already in your space.</strong>
+                  <p className="auth-sub">
+                    It reaches you through{" "}
+                    <strong>{[...new Set(course.reachesViaRoleNames)].join(", ")}</strong>
+                    {course.myStatus === "COMPLETED"
+                      ? " — and you have completed it."
+                      : course.myStatus === "IN_PROGRESS"
+                        ? " — you have it in progress."
+                        : "."}
+                  </p>
                 </div>
-              </>
-            )}
-          </form>
+              </div>
+              <button
+                className="btn btn-primary"
+                disabled={opening}
+                data-hint="Opens it right here in the reader. No request, no approval — it is already yours."
+                data-hint-title="Open it"
+                onClick={openIt}
+              >
+                {opening ? "Opening…" : course.kind === "EXAM" ? "▷ Sit the exam" : "📖 Open it now"}
+              </button>
+            </div>
+          )}
+
+          {course.supersededByCode && (
+            <p className="insp-warn">
+              This document has been replaced. The current word on the subject is{" "}
+              <strong>{course.supersededByCode}</strong> — look for it on the shelves.
+            </p>
+          )}
+
+          {course.requestableRoles.length > 0 ? (
+            <form
+              className="library-request-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const d = new FormData(e.currentTarget);
+                const target = String(d.get("target"));
+                if (!target) return;
+                setBusy(true);
+                try {
+                  await requests.create(org.id, {
+                    kind: "COURSE_ASSIGN",
+                    targetRoleNodeId: target,
+                    courseCode: course.code,
+                    message: String(d.get("message") || "") || undefined,
+                  });
+                  dialogs.toast(
+                    "Course request sent — your branch handler will configure and approve it.",
+                    "success",
+                  );
+                  onClose();
+                } catch (err) {
+                  dialogs.toast(
+                    err instanceof ApiError ? err.message : "Could not send the request",
+                    "danger",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <h4 className="learning-h">
+                {course.inMySpace ? "Request it for another branch" : "Request this course"}
+              </h4>
+              <label className="field">
+                <span>For your branch</span>
+                <select
+                  name="target"
+                  required
+                  defaultValue={course.requestableRoles[0]?.roleNodeId}
+                >
+                  {course.requestableRoles.map((p) => (
+                    <option key={p.roleNodeId} value={p.roleNodeId}>
+                      {p.roleName} (you: {p.kind.toLowerCase()})
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  Only branches this course does not already reach are listed — the request
+                  goes to that branch&apos;s handler, who tunes mandatory / recurrence settings
+                  before assigning it.
+                </small>
+              </label>
+              <label className="field">
+                <span>Message (optional)</span>
+                <textarea name="message" rows={2} maxLength={500} placeholder="Why your branch needs it…" />
+              </label>
+              <div className="sheet-actions">
+                <button type="button" className="btn btn-quiet" onClick={onClose}>
+                  Close
+                </button>
+                <button className="btn btn-primary" disabled={busy}>
+                  {busy ? "Sending…" : "Send course request"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="sheet-actions">
+              {org.myPlacements.length === 0 && (
+                <p className="auth-sub" style={{ marginRight: "auto" }}>
+                  You hold no position in this organization yet — join a branch first.
+                </p>
+              )}
+              {org.myPlacements.length > 0 && !course.inMySpace && (
+                <p className="auth-sub" style={{ marginRight: "auto" }}>
+                  Every branch you hold already receives this.
+                </p>
+              )}
+              {course.inMySpace && course.requestableRoles.length === 0 && (
+                <p className="auth-sub" style={{ marginRight: "auto" }}>
+                  Every branch you hold already receives this — there is nothing left to ask for.
+                </p>
+              )}
+              <button type="button" className="btn btn-quiet" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {viewing && (
+        <CourseViewer
+          item={viewing}
+          orgName={org.name}
+          onClose={() => setViewing(null)}
+          onChanged={() => undefined}
+        />
+      )}
     </div>
   );
 }
@@ -364,6 +470,8 @@ export default function LibraryPage() {
   const [classFilter, setClassFilter] = useState("all");
   const [minRating, setMinRating] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
+  /** "Already in my space" vs "not yet mine" — the split the reader actually cares about. */
+  const [scopeFilter, setScopeFilter] = useState<"all" | "mine" | "new">("all");
   const [sort, setSort] = useState<"newest" | "rating" | "completions" | "title">("newest");
 
   const load = useCallback(
@@ -388,6 +496,8 @@ export default function LibraryPage() {
     const filtered = list.filter(
       (c) =>
         (showArchived || !c.archived) &&
+        (scopeFilter === "all" ||
+          (scopeFilter === "mine" ? c.inMySpace : !c.inMySpace)) &&
         (kindFilter === "all" || c.kind === kindFilter) &&
         (shelfFilter === "all" || (c.category ?? UNSHELVED) === shelfFilter) &&
         (classFilter === "all" || c.classification === classFilter) &&
@@ -408,7 +518,7 @@ export default function LibraryPage() {
     return [...grouped.entries()].sort(([a], [b]) =>
       a === UNSHELVED ? 1 : b === UNSHELVED ? -1 : a.localeCompare(b),
     );
-  }, [list, kindFilter, shelfFilter, classFilter, minRating, showArchived, sort]);
+  }, [list, kindFilter, shelfFilter, classFilter, minRating, showArchived, scopeFilter, sort]);
 
   const allShelves = useMemo(
     () => [...new Set((list ?? []).map((c) => c.category ?? UNSHELVED))].sort(),
@@ -475,6 +585,14 @@ export default function LibraryPage() {
               <option value={2}>★ 2+</option>
             </select>
           </label>
+          <label className="field">
+            <span>Scope</span>
+            <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as typeof scopeFilter)}>
+              <option value="all">Everything</option>
+              <option value="mine">Already in my space</option>
+              <option value="new">Not yet mine</option>
+            </select>
+          </label>
           <label className="ack-row" style={{ alignSelf: "center" }}>
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             <span>Show archived</span>
@@ -510,7 +628,18 @@ export default function LibraryPage() {
             </div>
             <div className="library-grid">
               {items.map((c) => (
-                <button key={c.code} className="library-card glass" onClick={() => setOpen(c)}>
+                <button
+                  key={c.code}
+                  className="library-card glass"
+                  data-mine={c.inMySpace}
+                  onClick={() => setOpen(c)}
+                  data-hint={
+                    c.inMySpace
+                      ? `Already yours through ${[...new Set(c.reachesViaRoleNames)].join(", ")} — opening this opens the document, it does not ask for it.`
+                      : "Not assigned to you yet. Open it to read what it is and ask for it for your branch."
+                  }
+                  data-hint-title={c.title}
+                >
                   <div className="library-card-head">
                     <span className="badge">{KIND_LABELS[c.kind] ?? c.kind}</span>
                     <span className={`badge class-badge class-${c.classification}`}>
@@ -524,7 +653,13 @@ export default function LibraryPage() {
                   </h3>
                   <p className="library-desc">{c.description ?? "No description added."}</p>
                   <div className="library-meta">
-                    <span>✓ {c.completedCount} completed</span>
+                    {c.inMySpace ? (
+                      <span className="library-mine-chip">
+                        {c.myStatus === "COMPLETED" ? "✓ completed" : "in my space"}
+                      </span>
+                    ) : (
+                      <span>✓ {c.completedCount} completed</span>
+                    )}
                     <span>
                       · {c.usedIn.length} branch{c.usedIn.length === 1 ? "" : "es"}
                     </span>

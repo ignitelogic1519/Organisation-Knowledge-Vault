@@ -1,6 +1,11 @@
 "use client";
 
-import type { DocumentTheme, MediaOptions, OrgPlanLimitsView } from "@vault/shared";
+import type {
+  DocumentTheme,
+  MediaOptions,
+  OrgPlanLimitsView,
+  PublishCheck,
+} from "@vault/shared";
 import { DocumentProperties } from "./DocumentProperties";
 import { Row, Toggle } from "./fields";
 import { THEME_PRESETS } from "./presets";
@@ -164,6 +169,12 @@ export function Inspector({
   categories,
   needsReview,
   showPlacement = true,
+  showVersionControl = true,
+  checks,
+  onGoToCheck,
+  orgId,
+  selfCode,
+  pendingCount = 0,
 }: {
   tab: "format" | "document";
   onTab: (t: "format" | "document") => void;
@@ -176,6 +187,14 @@ export function Inspector({
   needsReview: boolean;
   /** false while revising a published document — its placements are the branch's. */
   showPlacement?: boolean;
+  showVersionControl?: boolean;
+  /** Live publish checks — drives the checklist and the field highlights. */
+  checks?: PublishCheck[];
+  onGoToCheck?: (id: PublishCheck["id"]) => void;
+  orgId?: string;
+  selfCode?: string;
+  /** How many compulsory items are outstanding — badged on the Document tab. */
+  pendingCount?: number;
 }) {
   const style = block?.style ?? {};
   const patchStyle = (patch: Record<string, unknown>) =>
@@ -189,8 +208,24 @@ export function Inspector({
         <button type="button" data-active={tab === "format"} onClick={() => onTab("format")}>
           Format
         </button>
-        <button type="button" data-active={tab === "document"} onClick={() => onTab("document")}>
+        <button
+          type="button"
+          data-active={tab === "document"}
+          onClick={() => onTab("document")}
+          data-hint={
+            pendingCount > 0
+              ? `${pendingCount} compulsory ${pendingCount === 1 ? "property is" : "properties are"} still missing here.`
+              : "Everything the document itself carries — cover data, reading rules, version control and placement."
+          }
+          data-hint-title="Document properties"
+          data-hint-tone={pendingCount > 0 ? "required" : "info"}
+        >
           Document
+          {pendingCount > 0 && (
+            <span className="insp-tab-count" aria-label={`${pendingCount} outstanding`}>
+              {pendingCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -402,7 +437,23 @@ export function Inspector({
 
       {tab === "document" && (
         <div className="studio-inspector-body">
-          <h4 className="insp-section">Theme</h4>
+          <DocumentProperties
+            meta={meta}
+            onMeta={onMeta}
+            limits={limits}
+            categories={categories}
+            needsReview={needsReview}
+            showPlacement={showPlacement}
+            showVersionControl={showVersionControl}
+            checks={checks}
+            onGoToCheck={onGoToCheck}
+            orgId={orgId}
+            selfCode={selfCode}
+          />
+
+          <h4 className="insp-section" style={{ marginTop: "1.1rem" }}>
+            Look &amp; feel
+          </h4>
           <p className="insp-note">
             Sets the type, colour and spacing of the whole document — readers see exactly this.
           </p>
@@ -507,14 +558,6 @@ export function Inspector({
             />
           </Row>
 
-          <DocumentProperties
-            meta={meta}
-            onMeta={onMeta}
-            limits={limits}
-            categories={categories}
-            needsReview={needsReview}
-            showPlacement={showPlacement}
-          />
         </div>
       )}
     </aside>

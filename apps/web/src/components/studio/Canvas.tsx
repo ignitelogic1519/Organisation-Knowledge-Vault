@@ -58,7 +58,8 @@ export function Canvas({
   const draggingId = drag?.payload.kind === "move" ? drag.payload.id : null;
 
   return (
-    <div className="studio-canvas" ref={canvasRef} data-dropping={dropIndex !== null}>
+    // `data-check`: where the publish checklist scrolls to for the "content" item.
+    <div className="studio-canvas" ref={canvasRef} data-check="content" data-dropping={dropIndex !== null}>
       <div
         className="studio-canvas-sheet"
         data-density={theme?.density ?? "normal"}
