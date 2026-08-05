@@ -7,6 +7,7 @@ import { PricingPreview } from "@/components/PricingPreview";
 import { Reveal } from "@/components/Reveal";
 import { SiteNav } from "@/components/SiteNav";
 import { SessionNavLinks } from "@/components/SessionNavLinks";
+import { STATUS_LABEL, STORAGE_BACKENDS } from "@/lib/storage-backends";
 
 const STEPS = [
   {
@@ -163,6 +164,49 @@ export default function Home() {
         </Reveal>
       </section>
 
+      {/* Where the documents actually live. Rendered from the storage register, so a
+          new backend shows up on the front page the day it is added to the list. */}
+      <section className="section" id="storage">
+        <Reveal className="section-head" variant="up">
+          <span className="eyebrow">Storage</span>
+          <h2>
+            We keep the catalogue. <span className="gradient-text">You keep the contents.</span>
+          </h2>
+          <p>
+            Your documents live on storage you provide and control — a NAS in your own
+            building today, more backends as their adapters ship. We hold only what answers
+            who may see what, and what has been done.
+          </p>
+        </Reveal>
+        <div className="home-storage-grid">
+          {STORAGE_BACKENDS.map((b, i) => (
+            <Reveal
+              key={b.key}
+              className="home-storage-card glass"
+              variant="up"
+              delay={i * 60}
+            >
+              <span className="home-storage-icon" aria-hidden>
+                {b.icon}
+              </span>
+              <span className="badge storage-status" data-status={b.status}>
+                {STATUS_LABEL[b.status]}
+              </span>
+              <h3>{b.name}</h3>
+              <p>{b.tagline}</p>
+              <Link className="home-storage-link" href={`/storage#${b.key}`}>
+                How it works →
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+        <div className="hero-cta" style={{ justifyContent: "center" }}>
+          <Link className="btn btn-quiet" href="/storage">
+            Read the whole storage story
+          </Link>
+        </div>
+      </section>
+
       <section className="section">
         <Reveal className="section-head" variant="up">
           <span className="eyebrow">Why teams choose it</span>
@@ -221,6 +265,7 @@ export default function Home() {
         <span>Knowledge Vault — your structure, your knowledge, your custody.</span>
         <span className="footer-links">
           <Link href="/features">Features</Link>
+          <Link href="/storage">Storage</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/help">Help &amp; guide book</Link>
           <Link href="/login">Sign in</Link>

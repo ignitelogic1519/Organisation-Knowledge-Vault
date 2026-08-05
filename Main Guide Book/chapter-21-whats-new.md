@@ -1,4 +1,4 @@
-# Chapter 20 — What's new
+# Chapter 21 — What's new
 
 A short, dated record of what changed in the product, so a returning reader can see what has
 moved since they last used it. Newest first.
@@ -6,6 +6,41 @@ moved since they last used it. Newest first.
 ---
 
 ## August 2026
+
+### A page about where your documents live
+
+**Storage** joins the navigation bar and the footer. It describes each storage arrangement end
+to end — **NAS** on hardware you own and the **KVEP** employee perk today, cloud object storage
+next, cloud drives and private-network NAS under examination — with the process step by step,
+what each gives you, what each costs you, and a side-by-side comparison. Every backend carries
+an honest status label, and the list is a register the product reads from, so a new way of
+storing data appears everywhere at once. See
+[Chapter 20](chapter-20-where-your-documents-live.md).
+
+![Where your documents live](images/home-storage-section.png)
+
+### The navigation bar takes its time
+
+The bar used to widen a label fast enough that the link you were aiming at slid out from under
+your pointer. It now waits before it opens, opens gently without overshooting, and waits before
+it closes — so a pointer that slips off for an instant does not snap it shut. Colour still
+answers immediately; only the shape is unhurried.
+
+On a phone, the public pages — Home, Features, Storage, Pricing and Help — finally have a menu
+button. Before this they had no way to reach their navigation on a narrow screen at all, and
+the sheet is now solid rather than see-through, so the page underneath does not compete with
+the links. See [Chapter 17](chapter-17-appearance-and-navigation.md).
+
+### Buttons look like buttons
+
+Secondary buttons across the product — *Upload a logo*, *Check credentials*, *Test connection*
+and others — were rendering as bare text with no edge at all. Every button now has a visible
+border, lifts when you reach for it, and sinks when you press it; a disabled button goes flat
+so it no longer advertises that it can be used. On the **Create an organization** page the form
+now fills its column instead of sitting as a narrow strip, so the storage fields have room to
+breathe.
+
+![Creating an organization, with room for the storage fields](images/create-organization-storage.png)
 
 ### The Mailbox replaces the notification bell
 

@@ -12,7 +12,7 @@ export const BOOKS = [
     footer: "Knowledge Vault — The Main Guide Book",
     coverLines: [
       "A complete, plain-language guide to using Knowledge Vault",
-      "Chapters 1–20 · exams · the Mailbox · plans &amp; Knowledge Coins · flow diagrams",
+      "Chapters 1–21 · exams · the Mailbox · plans &amp; Knowledge Coins · storage · flow diagrams",
     ],
     // Peach — the platform's own default theme.
     theme: {
@@ -45,7 +45,8 @@ export const BOOKS = [
       "chapter-17-appearance-and-navigation.md",
       "chapter-18-flow-diagrams.md",
       "chapter-19-help-and-support.md",
-      "chapter-20-whats-new.md",
+      "chapter-20-where-your-documents-live.md",
+      "chapter-21-whats-new.md",
       "appendix-glossary-and-reference.md",
     ],
   },
@@ -57,7 +58,7 @@ export const BOOKS = [
     footer: "Knowledge Vault — Super Admin Guide Book · INTERNAL",
     coverLines: [
       "The administration console behind Knowledge Vault",
-      "Requests &amp; access codes · organizations · coins &amp; plans · administrators",
+      "Requests &amp; codes · organizations · users · coins &amp; plans · administrators · glossary",
     ],
     coverWarning:
       "INTERNAL — Knowledge Base team only. Not for customers, and not published with the product.",
@@ -76,8 +77,10 @@ export const BOOKS = [
       "chapter-01-the-portal.md",
       "chapter-02-requests-and-codes.md",
       "chapter-03-organizations-console.md",
-      "chapter-04-coins-and-plans.md",
-      "chapter-05-administrators-and-safety.md",
+      "chapter-04-users.md",
+      "chapter-05-coins-and-plans.md",
+      "chapter-06-administrators-and-safety.md",
+      "chapter-07-glossary-and-definitions.md",
     ],
   },
 ];

@@ -55,9 +55,12 @@ Still ahead:
 - Server-enforced timing (an issued-paper token) rather than the client's own clock.
 - Score and re-attempt time on `CompletionRecord` itself, so a report needs no join.
 
-## 6. Additional storage adapters
-v1 ships the storage adapter interface with **Google Drive** as the first backend. Later adapters
-chosen per organization's capability: NAS, S3-compatible object storage, other clouds.
+## 6. Additional storage adapters — SUPERSEDED (2026-08-05)
+The original note here assumed Google Drive would be the first backend. It was not: S3-compatible
+storage ships as **NAS** (`docs/structure.md` §9.2), and the queue of backends after it is now a
+register the product renders from rather than a paragraph — `apps/web/src/lib/storage-backends.ts`,
+specified in `docs/structure.md` §9.15 and published at `/storage`. See §12 below for the current
+state of each candidate.
 
 ## 7. Mobile application
 API-first backend (Render) is kept separate from the web frontend from day 1 specifically so a
@@ -119,13 +122,22 @@ Prereqs for both: an LLM provider decision + per-org API budget, and a text-extr
 step in the storage adapter port. Ship 11a first — it needs no index.
 
 
-## 12. Storage backends — NAS / Google Drive / OneDrive (open)
+## 12. Storage backends — the queue after NAS (updated 2026-08-05)
 The storage adapter port (`apps/api/src/storage/adapter.ts`, `storageRef.adapter`) is kept
-deliberately open. v1 ships `inline` (gzip-compressed Postgres bytes, ≤10 MB), `link`, and
-`authored` (Studio blocks). The organization's real media backend — NAS, Google Drive,
-OneDrive, or S3 — is a client decision still TBD; each becomes a new adapter behind the same
-`saveInline`/`resolve` port with no course-logic changes. Large-media upload pipelines,
-previews, and per-org backend selection land here.
+deliberately open. Shipped: `inline` (gzip-compressed Postgres bytes, ≤10 MB, and the KVEP
+path), `link`, `authored` (Studio blocks), and **S3-compatible storage presented as NAS**.
+
+The remaining candidates are registered in `apps/web/src/lib/storage-backends.ts` with a public
+status, so the roadmap on `/storage` and this register can never disagree:
+
+| Backend | Status | What is actually left to do |
+|---------|--------|-----------------------------|
+| **Cloud object storage** (S3, R2, GCS, Wasabi, B2, Spaces) | `planned` | Nothing in the adapter — a provider list, endpoint templates, and per-provider IAM/CORS documentation. This is the whole return on choosing S3 first. |
+| **Cloud drives** (Google Drive, OneDrive) | `exploring` | OAuth, token refresh, and an answer to the fact that neither issues signed URLs in the form we need — so every byte would proxy through our API, which is the one thing §9 exists to avoid. |
+| **NAS with no public address** | `exploring` | A connector the organization runs beside the storage, opening outbound only. The unsolved part is the off-network read: any design that ends in us proxying the bytes is the cloud-drive problem in different clothes. |
+
+Large-media upload pipelines and previews still land here. Changing a status is one edit in the
+register; the public page, its comparison table and the home-page teaser follow.
 
 ## 13. Enterprise features to consider (SNOW / Veeva Vault / Confluence)
 A running backlog of proven ideas from mature platforms, ranked roughly by value/effort:

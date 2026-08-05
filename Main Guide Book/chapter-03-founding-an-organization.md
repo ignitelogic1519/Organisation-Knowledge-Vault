@@ -80,6 +80,14 @@ access code is requested and again when the organization is created — which is
 perk internal. An ordinary access code will not create a KVEP organization, and a KVEP code
 will not create an ordinary one.
 
+![The creation form, with the storage choice below the Supreme password](images/create-organization-storage.png)
+
+> **Want the whole picture before you decide?**
+> [Chapter 20 — Where your documents live](chapter-20-where-your-documents-live.md) walks
+> through each arrangement step by step, says exactly what stays with us and what goes to you,
+> and lists the storage backends still to come. The public **Storage** page in the navigation
+> bar carries the same material.
+
 ### The Supreme password — read this carefully
 
 The form shows a prominent warning, and it means every word of it:

@@ -19,12 +19,12 @@ here:
 ## 1. Approving is one click
 
 **You do not have to design the customer's plan.** Every request arrives carrying the terms of
-the plan the customer chose, resolved from the pricing table, printed on the card:
+the plan the customer chose, resolved from the pricing table and laid out on the card as a
+labelled block — days, people, custom documents, uploads, and what it costs — with the
+requester's **coin balance** printed above it and a warning in red when that balance will not
+cover the price.
 
-> *Will grant: 130 days · unlimited people · unlimited custom documents · unlimited uploads ·
-> costs 150 coins*
-
-Select **Approve** and exactly that is what happens. Days, price, people, documents and uploads
+Select **Approve** and exactly those terms are what happens. Days, price, people, documents and uploads
 all default to the plan's own numbers — or, on a custom proposal, to the numbers the customer
 stated in their form. Nothing has to be re-typed, and nothing can drift between what the
 Pricing page promised and what you granted.

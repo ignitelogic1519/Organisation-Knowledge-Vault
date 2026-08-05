@@ -30,11 +30,13 @@ be answering questions about it.
 
 | # | Chapter | What it covers |
 |---|---------|----------------|
-| 1 | [The portal & signing in](chapter-01-the-portal.md) | What the console is, how to reach it, and the rules of the account realm |
+| 1 | [The portal & signing in](chapter-01-the-portal.md) | What the console is, how to reach it, how it is laid out, and the rules of the account realm |
 | 2 | [Requests & access codes](chapter-02-requests-and-codes.md) | The one-click approval flow, what a code grants, upgrades, denials |
-| 3 | [The organizations console](chapter-03-organizations-console.md) | Cards, the property table, bulk actions, broadcast messages |
-| 4 | [Coins, plans & the pricing table](chapter-04-coins-and-plans.md) | Granting coins, setting plans, editing the ladder |
-| 5 | [Administrators, audit & safety](chapter-05-administrators-and-safety.md) | Accounts, the audit trail, and the things to be careful with |
+| 3 | [The organizations console](chapter-03-organizations-console.md) | Searching and filtering, the five-tab drawer, editing every property, bulk actions, broadcasts |
+| 4 | [Users](chapter-04-users.md) | Profiles, where they belong, moving coins, suspending, deleting |
+| 5 | [Coins, plans & the pricing table](chapter-05-coins-and-plans.md) | Granting coins, setting plans, editing the ladder |
+| 6 | [Administrators, audit & safety](chapter-06-administrators-and-safety.md) | Accounts, the audit trail, and the things to be careful with |
+| 7 | [The Glossary & definitions on hover](chapter-07-glossary-and-definitions.md) | How every property explains itself, and the definitions that settle arguments |
 
 ---
 
@@ -48,6 +50,15 @@ be answering questions about it.
    have and cannot make.
 3. **You cannot read a Supreme password, and neither can the platform.** If a customer has
    lost theirs, there is no back door here to offer them. Say so plainly.
+
+---
+
+## If you read nothing else
+
+**Every label with a dotted underline and a small `?` explains itself.** Point at it. The
+console is built so that no figure in it is a number you are expected to already understand —
+and [Chapter 7](chapter-07-glossary-and-definitions.md) collects all of those definitions in
+one searchable page.
 
 ---
 

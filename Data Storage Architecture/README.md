@@ -1,12 +1,20 @@
 # Data Storage Architecture
 
-**Status: design in progress. Nothing here is built yet.**
+**Status: the first backend is built and shipping. This folder remains the working record.**
 
 This folder is the working record of one decision: **moving document bytes off our
 infrastructure and onto storage the organization provides and pays for.**
 
 It is kept up to date as we talk. Each conversation adds to the decision log at the bottom,
 and the numbered documents are rewritten to match whatever we settle on.
+
+> **Where the normative version lives.** What actually ships is specified in
+> `docs/structure.md` §9 — and where that section and this folder disagree, **§9 wins**.
+> S3-compatible storage ships as **NAS** (§9.2), the employee perk as **KVEP** (§9.13), and
+> §9.15 defines the **storage register** (`apps/web/src/lib/storage-backends.ts`) that
+> publishes the current state of every backend — live, planned or exploring — on the public
+> `/storage` page. Adding a backend is one entry in that register; this folder is where the
+> reasoning behind it belongs.
 
 | Document | What it covers |
 |----------|----------------|

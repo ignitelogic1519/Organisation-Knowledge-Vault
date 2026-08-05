@@ -101,15 +101,50 @@ server secret — is what the server trusts on revive.
 
 Separate auth realm (`platform/tokens.ts`, audience `kv-platform-admin`; `PlatformAdmin`
 table). Reached from the footer **"Knowledge base employee login"** → `/kbase/login` →
-`/kbase`. Capabilities:
+`/kbase`.
 
-- **Organizations** — god view of every org (owners, plan, expiry, member/document/upload
-  counts against their limits, role counts, tree depth); set/upgrade a plan with a custom
-  duration and per-org member / custom-document / upload limits.
-- **Requests** — approve (issues OTP + terms) or deny, both with a custom message.
-- **Coins** — gift/adjust any user.
-- **Admins** — add any project member as a super-admin; activate/deactivate. First admin is
-  seeded; new admins must change their password on first login.
+### 7.1 Shape
+
+A **section rail** on the left and a content column on the right. Below 992 px the rail
+becomes a slide-over sheet behind a hamburger; the layout contract is normative and lives in
+`docs/design.md` §7. Seven sections:
+
+| Section | What it is for |
+|---------|----------------|
+| **Overview** | The platform in one screen: organizations, paid/expired/expiring counts, requests waiting, profiles, dormant organizations, storage we hold — plus the two lists worth acting on (needs a decision · worth a look). Read-only; every tile links onward. |
+| **Organizations** | Every organization, live. Search, filter (paid · expired · dormant ≥ 30 days · KVEP · in a Recycle Bin), sort by any column in either direction, and a **cards / table** switch. Opening one is a drawer, not a page. |
+| **Users** | Every profile. Open one to see where they belong, move their coins, suspend them, or delete them when they own nothing. |
+| **Requests** | Approve (issues the OTP + terms) or deny, both with a message. What approving *will grant* is shown resolved from the plan before you decide. |
+| **Coins** | The default balance for new profiles, and gift/adjust for any user. |
+| **Administrators** | Add a super-admin; activate/deactivate. First admin is seeded; new admins must change their password on first sign-in. |
+| **Glossary** | Every property the console can show, defined, searchable. The same register the hover cards read from. |
+
+### 7.2 The organization drawer
+
+Five tabs over one organization:
+
+| Tab | Contents |
+|-----|----------|
+| **At a glance** | People / custom documents / uploads / storage as *used / limit* with a proportional meter; roles and depth; plan, expiry (with days remaining), created, last activity; the organization ID. |
+| **Properties** | Every property from `GET /admin/orgs/:n/detail`, **editable in place**. Changed fields are outlined; the footer button counts the pending changes. Blank means *inherit from the plan*, not zero — set `0` to actually forbid. |
+| **Storage** | Where the documents live: status, address, bucket/prefix, region, masked key, encryption posture, object count and bytes, anything not yet migrated — and **Test connection**, which re-runs the health check now. KVEP organizations say so instead. |
+| **Owners** | Each owner with their coin balance and their profile ID. An organization with none gets a warning: nobody can govern it. |
+| **Activity** | The audit trail for this organization. |
+
+Pinned in the footer, reachable however far you have scrolled: **Save**, **Discard**,
+**Message owners**, **Purge**.
+
+### 7.3 Rules the console holds to
+
+- **Every property carries its own definition.** Point at any label and the console says what
+  it counts and what changing it does (`docs/design.md` §3.2). The Glossary tab is the same
+  register as a page.
+- **Verbose is the default.** A Verbose/Compact switch in the top bar hides the explanatory
+  prose and nothing else — never data, never a control. Persisted per device.
+- **Live where it matters.** Organizations and Requests re-read every 10 s, the Overview every
+  15 s, and the rail badges the pending-request count from any section.
+- **Purge is not delete.** The customer's delete is a soft delete with 30-day retention; the
+  console's purge is permanent and immediate, and the glossary says so at the point of use.
 - Every action is written to `PlatformAdminAudit`.
 
 The URL is not the security boundary — auth is. The footer link is only for discovery.

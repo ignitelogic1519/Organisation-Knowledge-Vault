@@ -740,3 +740,41 @@ organization ever renders as a blank square.
 The badge appears wherever an organization is identified — the organization card, the
 super-admin console, and the document frame, so a published or printed document carries the
 mark of the organization that issued it.
+
+### 9.15 The storage register — how a new backend arrives ✅ DECIDED (2026-08-05)
+
+The set of ways an organization can store its documents is a **data structure**, not a page of
+prose: `apps/web/src/lib/storage-backends.ts`.
+
+Every backend is one entry carrying its name, its status (`live` · `planned` · `exploring`),
+who it is for, the process step by step, its strengths and its trade-offs, and the **four
+facts that classify any backend at all**:
+
+| Fact | The question it answers |
+|------|-------------------------|
+| `reach` | Can our server reach it? Storage with no address we can call needs a different approach entirely — no configuration fixes it. |
+| `bytes` | Do the bytes cross our servers? Signed URLs are the difference between paying for bandwidth on every read and paying for none. |
+| `encryption` | Opaque `.kvblob` objects, or readable files? |
+| `cost` | Whose bill is it? |
+
+Three surfaces render themselves from that register and **must never be edited to add a
+backend**: the public `/storage` page (its detail sections, its comparison table and its
+roadmap section), the storage teaser on the home page, and the anchor links between them
+(`/storage#<key>`). Adding a way to store data is one entry in the array.
+
+**Registered today:**
+
+| Key | Status | What it is |
+|-----|--------|-----------|
+| `nas` | live | S3-compatible storage on hardware the organization owns — §9.2 |
+| `kvep` | live | The employee perk; content stays on our storage — §9.13 |
+| `cloud-object` | planned | S3 / R2 / GCS / Wasabi / B2 / Spaces — the same adapter, a different endpoint |
+| `cloud-drive` | exploring | Google Drive and OneDrive — no useful signed URLs, so we would proxy every byte |
+| `private-nas` | exploring | A NAS with no public address, reached through a connector the organization runs |
+
+The status vocabulary is normative, because it is a promise to a reader:
+
+- **live** — shipping; an organization can pick it today.
+- **planned** — the adapter exists and this is configuration and documentation, not new code.
+- **exploring** — a real requirement with an unsolved part. Listed so nobody has to guess
+  whether we have thought about it, and honest about why it is not next.

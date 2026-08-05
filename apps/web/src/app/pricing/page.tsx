@@ -345,7 +345,7 @@ export default function PricingPage() {
         )}
 
         {view && view.tabs.length > 1 && (
-          <div className="kbase-tabs" style={{ justifyContent: "center" }}>
+          <div className="pill-tabs" style={{ justifyContent: "center" }}>
             {view.tabs.map((t) => (
               <button
                 key={t}

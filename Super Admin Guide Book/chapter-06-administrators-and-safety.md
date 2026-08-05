@@ -1,4 +1,4 @@
-# Chapter 5 — Administrators, audit & safety
+# Chapter 6 — Administrators, audit & safety
 
 ## What it is
 

@@ -1,11 +1,12 @@
-# Chapter 4 — Coins, plans & the pricing table
+# Chapter 5 — Coins, plans & the pricing table
 
 ## What it is
 
-Two tabs, and the table behind them: **Coins**, where balances are granted and adjusted, and
-the **pricing table**, which is what every customer sees on the Pricing page.
+The **Coins** section, and the pricing table behind it. Two panels sit side by side: the
+starting balance every newly registered profile gets, and the gift/adjust form for any single
+user.
 
-![The coins tab](images/admin-coins.png)
+![The Coins section](images/admin-coins.png)
 
 ---
 
@@ -40,10 +41,11 @@ The balance can never be driven below zero; the attempt is refused.
 
 ## 2. Setting a plan directly
 
-![Setting a plan](images/admin-set-plan.png)
+![Setting a plan in the organization drawer's property editor](images/admin-set-plan.png)
 
-Beyond the property table in [Chapter 3](chapter-03-organizations-console.md), there is a
-direct plan-upgrade action: pick an organization number and a plan key, optionally override the
+The everyday route is the **Properties** tab of the organization drawer
+([Chapter 3](chapter-03-organizations-console.md)), where the plan, its status, its expiry and
+every limit are edited in place. Beyond it there is a direct plan-upgrade action: pick an organization number and a plan key, optionally override the
 duration and the limits, and apply. Every root owner is messaged with the new plan and expiry.
 
 Use it after a confirmed payment made outside the request flow.

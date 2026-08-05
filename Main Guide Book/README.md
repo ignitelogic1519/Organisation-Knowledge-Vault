@@ -33,7 +33,9 @@ so you can follow along and recognise exactly what you'll see.
 - **Paying for it — or just starting out?** Chapter 15 explains Knowledge Coins, the plan
   ladder, what the free plan includes, and how upgrading works.
 - **Just want it to look right?** Chapter 17 covers themes and the navigation bar.
-- **Coming back after a while?** Chapter 20 is the dated record of what changed.
+- **Wondering where the files actually go?** Chapter 20 walks through every storage
+  arrangement end to end — NAS on your own hardware, the KVEP perk, and what is coming after.
+- **Coming back after a while?** Chapter 21 is the dated record of what changed.
 
 Each chapter is self-contained, with a short **"What it is"**, a step-by-step **"How to use
 it"**, and **Tips** at the end.
@@ -63,7 +65,8 @@ it"**, and **Tips** at the end.
 | 17 | [Appearance & navigation](chapter-17-appearance-and-navigation.md) | Themes, accents, and the icon-first nav bar |
 | 18 | [Flow diagrams — every setting at a glance](chapter-18-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
 | 19 | [Help & support](chapter-19-help-and-support.md) | Where to find answers in-app |
-| 20 | [What's new](chapter-20-whats-new.md) | A dated record of what changed |
+| 20 | [Where your documents live](chapter-20-where-your-documents-live.md) | NAS, the KVEP perk, and the storage backends still to come |
+| 21 | [What's new](chapter-21-whats-new.md) | A dated record of what changed |
 | A | [Appendix — Glossary & quick reference](appendix-glossary-and-reference.md) | Every term and code, at a glance |
 
 ---
@@ -83,6 +86,7 @@ it"**, and **Tips** at the end.
 | Read what the platform told you | The **bell** — your Mailbox |
 | Get your organization back | **Organizations** → **Recovery**, bottom-left |
 | Change how it looks | The **palette** button, top right |
+| Understand where your documents are stored | **Storage**, in the navigation bar |
 
 ---
 

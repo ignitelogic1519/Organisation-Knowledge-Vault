@@ -403,3 +403,36 @@ clicks and taps still work.
 An in-memory per-org SSE registry (`apps/api/src/events.ts`) broadcasts `{topic}` hints
 (`structure` | `requests` | `courses` | `notifications`). This is single-instance; scaling
 horizontally requires Postgres `LISTEN/NOTIFY` or Redis pub/sub (tracked risk).
+
+### Web routes and the modules that drive them (2026-08-05)
+
+```
+apps/web/src/app
+├── page.tsx                  landing — hero, showcase, features, pricing, STORAGE, pillars, steps
+├── features/                 the full feature catalogue
+├── storage/                  where documents live: NAS · KVEP · what comes next
+│   └── page.tsx              renders entirely from lib/storage-backends.ts
+├── pricing/  help/  account/ register/  login/  payment/
+├── orgs/                     the product (list · new · [id] and its tabs)
+└── kbase/                    the super-admin console
+    ├── page.tsx              rail + seven sections + two drawers
+    ├── kbase.css             the console's own material and layout contract
+    └── login/
+```
+
+| Module | Responsibility |
+|--------|----------------|
+| `lib/storage-backends.ts` | The storage register (`docs/structure.md` §9.15). The public storage page, its comparison table and the home-page teaser all render from it — adding a backend is one entry. |
+| `lib/kbase-glossary.ts` | Every property the console can show, defined once. Keys match `AdminOrgProperty.key`, so the property editor looks a definition up straight from the server's payload; `defineProperty()` falls back to the API's own `hint`. |
+| `components/Define.tsx` | The hover/focus/tap definition card. Portalled to `<body>` and positioned in viewport coordinates so no scrolling panel can clip it. |
+| `app/kbase/page.tsx` → `Overlay` | Portals drawers and scrims to `<body>`. Required, not stylistic: `backdrop-filter` on a glass panel makes it a containing block for `position: fixed` descendants, so an in-panel drawer anchors to the panel instead of the window. |
+
+**Page-scoped CSS.** `kbase.css` is imported by the console page rather than appended to
+`globals.css`. Next's App Router allows a stylesheet import in any page or component under
+`app/`, and keeping the console's 900-odd lines out of the shared sheet means a change to the
+console cannot regress the product.
+
+**Client-side API mocking for screenshots.** The console reads `NEXT_PUBLIC_API_URL` like the
+rest of the app, so the guide-book screenshots are taken against a small stand-in server
+serving the seven `GET /admin/*` shapes, with the admin token seeded into `localStorage`. No
+database is involved and nothing about it ships.

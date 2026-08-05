@@ -44,6 +44,14 @@ A one-stop reference for the terms, codes and rules you'll meet across Knowledge
 | **Plan status** | `active`, `demo`, `expired` — shown as the countdown chip above an org card. |
 | **Super Admin** | The Knowledge Base team member who approves plan requests and issues codes. |
 | **Knowledge Base portal** | The staff-only administration console (Chapter 18). |
+| **NAS** | Storage on hardware you own, spoken to over the S3 protocol. The ordinary way an organization stores its documents (Chapter 20). |
+| **KVEP** | *Knowledge Vault Employee Perk* — an organization created by Knowledge Vault staff, whose documents stay on our storage. Not available to customers. |
+| **Bucket** | The container inside your storage that holds this organization's objects. It must already exist; Knowledge Vault never creates one. |
+| **Encryption posture** | Whether documents are written to your storage **encrypted** (opaque `.kvblob` objects) or **readable** (ordinary browsable files). Fixed once storage is active. |
+| **Connection test** | The five-step probe — reach, write, read back, compare, delete — run against your storage *before* the organization is created. A failure names the step and does not consume your access code. |
+| **Signed link** | A short-lived link that lets your browser talk to your storage directly, so document bytes never cross Knowledge Vault's servers. |
+| **`Knowledge_vault_map`** | The signed manifest written into your storage describing the structure and what each object is for. A mirror, never the authority on permissions. |
+| **Degraded / unreachable** | Your storage could not be reached on the last health check. Not data loss — new uploads have nowhere to go until it returns. |
 
 ---
 

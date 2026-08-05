@@ -49,11 +49,21 @@ The platform is live end-to-end. What works today:
   nudge when the inbox passes 10 messages.
 - **Plans, coins & administration** — organization creation is gated behind a **plan** and a
   one-time **access code (OTP)**; a dynamic **Pricing** page and **Knowledge Coins** (150 per
-  profile) drive it, and a separate **super-admin console** (`/kbase`, footer login) approves
-  requests, gifts coins, and sets plans. Plans travel (signed) inside the `.main` file, so an
-  expired free org routes to Pricing on restore. Plans also meter **content**: the free demo
-  structure allows **20 Studio documents** and **30 uploads**, and server-side **drafts** are a
-  premium capability. See [docs/pricing.md](docs/pricing.md).
+  profile) drive it. Plans travel (signed) inside the `.main` file, so an expired free org
+  routes to Pricing on restore. Plans also meter **content**: the free demo structure allows
+  **20 Studio documents** and **30 uploads**, and server-side **drafts** are a premium
+  capability. See [docs/pricing.md](docs/pricing.md).
+- **The Knowledge Base console** (`/kbase`, footer login) — the staff portal, rebuilt on a
+  section rail with seven sections: an **Overview** of the whole platform, **Organizations**
+  (search, filter, sort, cards or table, and a five-tab drawer where every property is
+  editable in place), **Users**, **Requests**, **Coins**, **Administrators** and a
+  **Glossary**. Every property explains itself on hover, and the whole console is built to be
+  used in a quarter-screen window beside a support ticket.
+- **Storage** — documents live on storage the organization provides. `/storage` describes each
+  backend end to end: **NAS** on your own hardware and the **KVEP** employee perk today, cloud
+  object storage next, cloud drives and private-network NAS under examination. The set is a
+  register (`apps/web/src/lib/storage-backends.ts`), so a new backend is one entry rather than
+  a page rewrite — see [docs/structure.md](docs/structure.md) §9.15.
 
 ## Repository layout
 

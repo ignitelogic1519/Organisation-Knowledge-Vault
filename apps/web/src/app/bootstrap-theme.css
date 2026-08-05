@@ -107,6 +107,7 @@
   align-items: center;
   gap: 0;
   max-width: 2.55rem;
+  min-height: 2.55rem;
   padding: 0.5rem;
   border-radius: 980px;
   color: var(--text-secondary);
@@ -115,13 +116,18 @@
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
+  /* Geometry moves on the navigation budget (slow, no overshoot, hesitant at
+     both ends); colour still answers instantly, because feedback that you have
+     reached a link should never lag. The delays in the shorthand below are the
+     CLOSING delays — the hover rule replaces them with the opening ones. Order
+     matters: the delay list has to line up with the property list. */
   transition:
-    max-width var(--dur-standard) var(--spring),
-    gap var(--dur-standard) var(--spring),
-    padding var(--dur-standard) var(--ease),
-    color var(--dur-micro) var(--ease),
-    background var(--dur-micro) var(--ease),
-    box-shadow var(--dur-micro) var(--ease);
+    max-width var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
+    gap var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
+    padding var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
+    color var(--dur-micro) var(--ease) 0s,
+    background var(--dur-micro) var(--ease) 0s,
+    box-shadow var(--dur-micro) var(--ease) 0s;
 }
 
 .kv-rail-icon {
@@ -145,9 +151,9 @@
   opacity: 0;
   transform: translateX(-4px);
   transition:
-    max-width var(--dur-standard) var(--spring),
-    opacity var(--dur-micro) var(--ease),
-    transform var(--dur-standard) var(--spring);
+    max-width var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
+    opacity var(--dur-standard) var(--ease) var(--nav-close-delay),
+    transform var(--dur-nav) var(--ease-nav) var(--nav-close-delay);
 }
 
 .kv-rail-link:hover,
@@ -162,6 +168,8 @@
   max-width: 15rem;
   gap: 0.45rem;
   padding-right: 0.95rem;
+  /* Opening delays, in the same property order as the base shorthand. */
+  transition-delay: var(--nav-open-delay), var(--nav-open-delay), var(--nav-open-delay), 0s, 0s, 0s;
 }
 
 .kv-rail-link:hover .kv-rail-label,
@@ -170,6 +178,7 @@
   max-width: 12rem;
   opacity: 1;
   transform: none;
+  transition-delay: var(--nav-open-delay);
 }
 
 .kv-rail-link[data-active="true"] {
@@ -247,9 +256,11 @@
     margin: 0;
     padding: 0.5rem;
     border-radius: var(--radius);
-    background: var(--glass-strong);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    backdrop-filter: blur(18px) saturate(140%);
+    /* Solid, not glass. A navigation sheet sits directly on top of body copy,
+       and a translucent one leaves the page showing through its own links —
+       which is exactly where legibility matters most. */
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
   }
   .kv-rail[data-open="true"] {
@@ -268,6 +279,39 @@
     max-width: none;
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Phones: the controls cluster is the thing that overflows first, so it loses
+   its padding before the brand mark or the hamburger lose their hit area. */
+@media (max-width: 575.98px) {
+  .kv-navbar {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+  .kv-navbar-inner {
+    gap: 0.4rem;
+  }
+  .kv-navbar-controls {
+    gap: 0.25rem;
+  }
+  .kv-navbar-controls .icon-btn {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+  .kv-navbar-controls .btn {
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+  .kv-rail {
+    right: 0.4rem;
+    left: 0.4rem;
+  }
+  /* A sheet taller than the window has to scroll, not spill off the bottom. */
+  .kv-rail[data-open="true"] {
+    max-height: calc(100svh - 5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 

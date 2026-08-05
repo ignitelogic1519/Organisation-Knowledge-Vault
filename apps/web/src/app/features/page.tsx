@@ -34,6 +34,7 @@ export default function FeaturesPage() {
       <footer className="footer">
         <span>Knowledge Vault — your structure, your knowledge, your custody.</span>
         <span className="footer-links">
+          <Link href="/storage">Storage</Link>
           <Link href="/pricing">Pricing</Link>
           <Link href="/help">Help &amp; guide book</Link>
           <Link href="/login">Sign in</Link>

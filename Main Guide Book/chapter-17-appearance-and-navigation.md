@@ -27,11 +27,37 @@ Three things worth knowing:
 - **Counts ride along.** A branch with requests waiting shows the number on its icon, expanded
   or not.
 
+### The bar is deliberately unhurried
+
+Widening a label makes the bar wider, which moves every link after it. If that happened at the
+speed of an ordinary hover effect, the link you were aiming at would slide out from under your
+pointer and you would click the wrong one — which is exactly what used to happen.
+
+So the navigation bar moves on its own, slower timing:
+
+- **It waits before it opens.** Sweeping past a link on your way somewhere else does not
+  disturb the bar at all.
+- **It opens gently, and does not overshoot.** No bounce, nothing that springs past its resting
+  place and comes back.
+- **It waits before it closes.** Slipping off the pill for an instant does not snap it shut
+  under your finger.
+
+Colour still answers instantly — you always know the moment you have reached a link. Only the
+*shape* takes its time. If you have asked your device to reduce motion, none of this animates
+at all.
+
+![The navigation sheet on a phone](images/mobile-navigation.png)
+
 ### On a phone or a tablet
 
 There is no hovering on a touch screen, so the bar behaves differently and honestly: the
 **menu button** opens the destinations as a vertical sheet with **every label already showing**.
-Nothing is hidden behind a gesture you cannot perform.
+Nothing is hidden behind a gesture you cannot perform. The sheet is solid rather than
+see-through, so the page underneath never competes with the links, and it scrolls on its own if
+there are more destinations than fit.
+
+The same menu button now serves the public pages — Home, Features, Storage, Pricing and Help —
+which previously had no way to reach their navigation on a narrow screen at all.
 
 ---
 

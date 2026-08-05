@@ -16,6 +16,58 @@ accounts themselves.
 
 ---
 
+## Finding your way around
+
+The console is a **section rail** down the left and one working surface to the right of it.
+Seven sections, in the order you tend to need them:
+
+| Section | What it answers |
+|---------|-----------------|
+| **Overview** | "What is the state of the platform, and is anything waiting on me?" |
+| **Organizations** | "Show me every organization, and let me change one." |
+| **Users** | "Who is this person, where do they belong, and what can I do about them?" |
+| **Requests** | "Who is blocked on a decision from me?" |
+| **Coins** | "Move a balance, or change what new profiles start with." |
+| **Administrators** | "Who can open this portal?" |
+| **Glossary** | "What does that number actually mean?" |
+
+![The Overview — the whole platform in one screen](images/admin-overview.png)
+
+The rail badges **Requests** with the number waiting, from whichever section you are in, and
+the count keeps itself current without a refresh. The section you were last in is remembered,
+so a reload puts you back where you were.
+
+### Everything explains itself
+
+Any label with a **dotted underline and a small `?`** is a definition. Point at it — or focus
+it with the keyboard, or tap it on a touch screen — and the console tells you what it counts
+and what changing it does.
+
+![Pointing at a label gives you its definition](images/admin-definition.png)
+
+You never have to remember which of *documents* and *uploads* is metered separately, or what
+blank means in a limit field. The same definitions are collected in
+[Chapter 7](chapter-07-glossary-and-definitions.md), searchable, if you would rather read them
+all at once.
+
+### Verbose or Compact
+
+Top right of every section. **Verbose** is the default and shows the explanatory paragraph on
+every panel. **Compact** hides that prose — and *only* that prose. No figure, no control and no
+row ever disappears with it. The choice is remembered per device, so your second week can look
+different from your first.
+
+### It works in a small window
+
+The console is built to be used in a quarter-screen window beside a support ticket, not only
+full-screen. Below a laptop width the rail folds into a sheet behind the hamburger, the
+toolbars stack, and every table stops being a table — each row becomes its own card with the
+column names attached, so nothing is cut off and nothing scrolls sideways.
+
+![The console on a phone-width window](images/admin-narrow.png)
+
+---
+
 ## Signing in
 
 The portal is reached from the small **"Knowledge base employee login"** link in the site
@@ -55,7 +107,7 @@ variable immediately afterwards.**
 - **It is not a password recovery service.** Supreme passwords are not stored in any
   recoverable form. If a customer has lost one, the honest answer is that it is gone, and their
   `.main` file (encrypted with that same password) cannot help them either.
-- **It is not exempt from the audit trail.** See [Chapter 5](chapter-05-administrators-and-safety.md).
+- **It is not exempt from the audit trail.** See [Chapter 6](chapter-06-administrators-and-safety.md).
 
 ---
 

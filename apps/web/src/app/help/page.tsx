@@ -10,7 +10,7 @@ export const metadata = {
 /** The published guide book, served from the app's own public folder. */
 const GUIDE_PDF = "/guide/Knowledge-Vault-Main-Guide-Book.pdf";
 const GUIDE_MD = "/guide/Knowledge-Vault-Main-Guide-Book.md";
-const GUIDE_CHAPTERS = 20;
+const GUIDE_CHAPTERS = 21;
 
 // Help — a plain-language guide to every component of the platform, public so both
 // prospective and signed-in users can read it (linked from the app sidebar too).
@@ -194,6 +194,39 @@ const TOPICS = [
             branch&apos;s owners and restorable in place.
           </li>
         </ul>
+      </>
+    ),
+  },
+  {
+    icon: "🗄",
+    title: "Where your documents live",
+    body: (
+      <>
+        <p>
+          <strong>We keep the catalogue; you keep the contents.</strong> Your documents live on
+          storage you provide and control — we hold only the things that answer{" "}
+          <em>who may see what</em> and <em>what has been done</em>.
+        </p>
+        <ul>
+          <li>
+            <strong>NAS — your own storage.</strong> An S3-compatible server on hardware you
+            own. Uploads go from the browser straight to it through a short-lived signed link;
+            the bytes never cross our servers.
+          </li>
+          <li>
+            <strong>Encrypted or readable.</strong> Encrypted storage holds opaque{" "}
+            <code>.kvblob</code> objects nobody can open out of band. The choice is fixed once
+            storage is active.
+          </li>
+          <li>
+            <strong>KVEP</strong> is the Knowledge Vault Employee Perk — staff organizations
+            whose content stays with us. It is not available to customers.
+          </li>
+        </ul>
+        <p>
+          The <Link href="/storage">Storage page</Link> walks through every arrangement step by
+          step, compares them side by side, and lists the backends still to come.
+        </p>
       </>
     ),
   },
