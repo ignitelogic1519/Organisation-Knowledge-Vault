@@ -19,6 +19,13 @@
   --warning: #a16207;
   --danger: #c92f45;
 
+  /* Readable foreground ON a solid status fill — the same idea as --accent-contrast.
+     The light palette's status colours are DEEP, so white reads on them. The dark
+     palette's are BRIGHT, so it does not: see the override in [data-theme="dark"].
+     Anything that paints text over a solid --success/--warning must use these. */
+  --on-success: #ffffff;
+  --on-warning: #ffffff;
+
   /* glass */
   --glass: color-mix(in srgb, var(--surface-solid) 60%, transparent);
   --glass-strong: color-mix(in srgb, var(--surface-solid) 84%, transparent);
@@ -70,6 +77,12 @@
   --success: #4cd471;
   --warning: #fbbf24;
   --danger: #ff5d73;
+
+  /* The night palette lights these up so they read against a dark ground — which means
+     the fill itself is now the BRIGHT surface, and white text on it is unreadable. The
+     readable foreground on a bright chip is the dark ground it sits on, not white. */
+  --on-success: #052614;
+  --on-warning: #2a1c00;
 
   --glass: color-mix(in srgb, var(--surface-solid) 58%, transparent);
   --glass-strong: color-mix(in srgb, var(--surface-solid) 82%, transparent);
@@ -9336,7 +9349,7 @@ html.kv-pointer-on * {
   height: 1.3rem;
   border-radius: 50%;
   background: var(--warning);
-  color: #fff;
+  color: var(--on-warning);
   font-size: 0.72rem;
   font-weight: 800;
   /* A count that never moves stops being noticed; one pulse when it appears does. */
@@ -9576,12 +9589,12 @@ html.kv-pointer-on * {
 
 .pubcheck-list li[data-ok="true"] .pubcheck-tick {
   background: var(--success);
-  color: #fff;
+  color: var(--on-success);
 }
 
 .pubcheck-list li[data-ok="false"][data-required="true"] .pubcheck-tick {
   background: var(--warning);
-  color: #fff;
+  color: var(--on-warning);
 }
 
 .pubcheck-list li[data-ok="true"] .pubcheck-label {
@@ -9661,7 +9674,7 @@ html.kv-pointer-on * {
   padding: 0 0.25rem;
   border-radius: 980px;
   background: var(--warning);
-  color: #fff;
+  color: var(--on-warning);
   font-size: 0.66rem;
   font-weight: 800;
 }
@@ -9789,7 +9802,7 @@ html.kv-pointer-on * {
 
 .upcomp-steps button[data-done="true"] .upcomp-step-n {
   background: var(--success);
-  color: #fff;
+  color: var(--on-success);
 }
 
 .upcomp-body {
@@ -10231,7 +10244,7 @@ html.kv-pointer-on * {
   flex: none;
   border-radius: 50%;
   background: var(--success);
-  color: #fff;
+  color: var(--on-success);
   font-weight: 800;
 }
 
