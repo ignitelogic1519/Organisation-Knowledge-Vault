@@ -93,26 +93,29 @@ export function AppShell({
             <span className="kv-brand-word">Knowledge Vault</span>
           </Link>
 
-          {/* Desktop: the icon rail sits in the middle of the bar and expands on hover. */}
-          <ul className="kv-rail" data-open={open}>
-            {nav.map((item) => (
-              <li key={item.href} className="kv-rail-item">
-                <Link
-                  href={item.href}
-                  className="kv-rail-link"
-                  data-active={isActive(item)}
-                  aria-current={isActive(item) ? "page" : undefined}
-                  onClick={() => setOpen(false)}
-                >
-                  <span className="kv-rail-icon" aria-hidden>
-                    {item.icon}
-                  </span>
-                  <span className="kv-rail-label">{item.label}</span>
-                  {item.badge ? <span className="kv-nav-badge">{item.badge}</span> : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {/* Desktop: the icon rail sits in the middle of the bar and expands on hover.
+              Below 992px the wrapper turns into the sheet under the hamburger. */}
+          <div className="kv-sheet" id="kv-navbar-nav" data-open={open}>
+            <ul className="kv-rail">
+              {nav.map((item) => (
+                <li key={item.href} className="kv-rail-item">
+                  <Link
+                    href={item.href}
+                    className="kv-rail-link"
+                    data-active={isActive(item)}
+                    aria-current={isActive(item) ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="kv-rail-icon" aria-hidden>
+                      {item.icon}
+                    </span>
+                    <span className="kv-rail-label">{item.label}</span>
+                    {item.badge ? <span className="kv-nav-badge">{item.badge}</span> : null}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           <div className="kv-navbar-controls">
             <Mailbox />

@@ -77,10 +77,29 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  /* The layout opts into `viewport-fit=cover`, so on a notched phone held sideways the
+     bar's own ends sit under the rounded corners unless they are inset. */
+  padding-left: max(var(--bs-gutter-x, 1.5rem) * 0.5, env(safe-area-inset-left));
+  padding-right: max(var(--bs-gutter-x, 1.5rem) * 0.5, env(safe-area-inset-right));
 }
 
 .kv-brand-word {
   white-space: nowrap;
+}
+
+/* The rail and the session slot share one wrapper so that a phone can move BOTH of them
+   into the sheet under the hamburger in a single move. On a wide screen the wrapper is
+   `display: contents` — it contributes no box at all, so its children lay out as direct
+   flex children of the bar exactly as they did before it existed. */
+.kv-sheet {
+  display: contents;
+}
+
+/* The `right` slot on the public bar (session links, coin wallet). */
+.kv-sheet-slot {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .kv-rail {
@@ -243,7 +262,10 @@
   .kv-toggler {
     display: inline-flex;
   }
-  .kv-rail {
+  /* The wrapper stops being transparent and becomes the sheet itself, carrying the rail
+     AND the session slot out of the bar. What stays in the bar is only what fits on the
+     narrowest phone: the brand mark, the mailbox, the theme control, the hamburger. */
+  .kv-sheet {
     position: absolute;
     top: calc(100% + 0.4rem);
     right: 0.6rem;
@@ -252,8 +274,7 @@
     display: none;
     flex-direction: column;
     align-items: stretch;
-    gap: 0.15rem;
-    margin: 0;
+    gap: 0.5rem;
     padding: 0.5rem;
     border-radius: var(--radius);
     /* Solid, not glass. A navigation sheet sits directly on top of body copy,
@@ -262,10 +283,25 @@
     background: var(--surface-solid);
     border: 1px solid var(--border);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+    /* A sheet taller than the window has to scroll, not spill off the bottom. */
+    max-height: calc(100svh - 5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
-  .kv-rail[data-open="true"] {
+  .kv-sheet[data-open="true"] {
     display: flex;
     animation: kv-fade-up 220ms var(--ease) both;
+  }
+  .kv-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
   }
   .kv-rail-link,
   .kv-rail-link:hover,
@@ -279,6 +315,40 @@
     max-width: none;
     opacity: 1;
     transform: none;
+  }
+  /* Session links stack full-width under a hairline, so "Sign in / Get started" (or the
+     coin wallet on Pricing) reads as its own group rather than a crowded second row. */
+  .kv-sheet-slot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .kv-sheet-slot > *,
+  .kv-sheet-slot .pricing-wallet {
+    width: 100%;
+  }
+  /* The Pricing bar wraps its own controls in a flex row; stack that too. */
+  .kv-sheet-slot .pricing-wallet {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+  .kv-sheet-slot .nav-link,
+  .kv-sheet-slot .btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+  /* The placeholder holds width in the bar; in a stacked sheet it would just add a gap. */
+  .kv-sheet-slot .nav-session-placeholder {
+    display: none;
+  }
+  /* A wallet chip is a label, not a control — keep it on its own centred line. */
+  .kv-sheet-slot .coins-chip {
+    text-align: center;
   }
 }
 
@@ -303,15 +373,9 @@
     padding-left: 0.7rem;
     padding-right: 0.7rem;
   }
-  .kv-rail {
+  .kv-sheet {
     right: 0.4rem;
     left: 0.4rem;
-  }
-  /* A sheet taller than the window has to scroll, not spill off the bottom. */
-  .kv-rail[data-open="true"] {
-    max-height: calc(100svh - 5rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
   }
 }
 

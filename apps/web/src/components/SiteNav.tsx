@@ -14,6 +14,12 @@ import { Breadcrumbs } from "./Breadcrumbs";
 // Below 992px the rail leaves the bar and becomes a sheet under the hamburger — exactly as
 // it does in the app shell. It used to be rendered without a toggler, which meant every
 // public link simply disappeared on a phone with no way to reach it.
+//
+// The `right` slot (session links, the coin wallet on Pricing) travels with the rail into
+// that sheet. Left in the bar it was the widest thing on the page — "My organizations" and
+// an Account button do not shrink — so on a phone it pushed the mailbox, the theme control
+// and the hamburger itself off the right edge, and the only way to reach them was to scroll
+// the page sideways.
 
 const LINKS = [
   { href: "/", label: "Home", icon: "✦" },
@@ -56,32 +62,41 @@ export function SiteNav({ right }: { right?: React.ReactNode }) {
             <span className="kv-brand-word">Knowledge Vault</span>
           </Link>
 
-          <ul className="kv-rail" data-open={open}>
-            {LINKS.map((l) => (
-              <li key={l.href} className="kv-rail-item">
-                <Link
-                  href={l.href}
-                  className="kv-rail-link"
-                  data-active={l.href === "/" ? pathname === "/" : pathname.startsWith(l.href)}
-                  aria-current={pathname === l.href ? "page" : undefined}
-                  onClick={() => setOpen(false)}
-                >
-                  <span className="kv-rail-icon" aria-hidden>
-                    {l.icon}
-                  </span>
-                  <span className="kv-rail-label">{l.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {/* Desktop: `display: contents`, so the rail and the session slot sit in the bar
+              exactly as before. Below 992px this becomes the sheet under the hamburger. */}
+          <div className="kv-sheet" id="kv-site-nav" data-open={open}>
+            <ul className="kv-rail">
+              {LINKS.map((l) => (
+                <li key={l.href} className="kv-rail-item">
+                  <Link
+                    href={l.href}
+                    className="kv-rail-link"
+                    data-active={l.href === "/" ? pathname === "/" : pathname.startsWith(l.href)}
+                    aria-current={pathname === l.href ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="kv-rail-icon" aria-hidden>
+                      {l.icon}
+                    </span>
+                    <span className="kv-rail-label">{l.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {right ? (
+              <div className="kv-sheet-slot" onClick={() => setOpen(false)}>
+                {right}
+              </div>
+            ) : null}
+          </div>
 
           <div className="kv-navbar-controls">
-            {right}
             <Mailbox />
             <ThemeMenu />
             <button
               className="kv-toggler"
               type="button"
+              aria-controls="kv-site-nav"
               aria-expanded={open}
               aria-label={open ? "Close navigation" : "Open navigation"}
               onClick={() => setOpen((v) => !v)}

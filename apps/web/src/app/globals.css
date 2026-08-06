@@ -161,6 +161,16 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Nothing on any page may set the document's scroll width. A phone that scrolls sideways
+   hides whatever sits at the right edge — the navigation controls, most of the time — and
+   there is no affordance saying it moved. `clip` rather than `hidden` because `hidden`
+   turns the element into a scroll container, which silently breaks `position: sticky` for
+   everything inside it (the navigation bar included). Vertical scrolling is untouched. */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -968,6 +978,22 @@ button {
   }
 }
 
+/* Anchored to the button, this popover is wider than the room left of it on a small
+   phone, so its left edge lands off-screen. Below the breakpoint it anchors to the
+   viewport instead — the same move .mail-panel already makes. */
+@media (max-width: 575.98px) {
+  .theme-pop {
+    position: fixed;
+    top: 4rem;
+    right: 0.6rem;
+    left: 0.6rem;
+    width: auto;
+    max-height: calc(100svh - 5.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 @keyframes pop-in {
   from {
     opacity: 0;
@@ -1036,15 +1062,25 @@ button {
 .hero-content {
   position: relative;
   z-index: 1;
+  /* The hero is a `place-items: center` grid, so without an explicit width this box sizes
+     to fit-content — which on a phone is the width of the longest word in the headline,
+     past the section's own padding and into the clip. `width: 100%` pins it to the
+     content box; `max-width` still holds the measure on a wide screen. */
+  width: 100%;
   max-width: 48rem;
+  margin-inline: auto;
   animation: fade-up 700ms var(--ease) both;
 }
 
 .hero h1 {
-  font-size: clamp(2.6rem, 7vw, 5rem);
+  /* The floor has to be a size at which "organization's" still fits a 320px screen —
+     below the viewport width the `vw` term stops helping and the minimum is all there is. */
+  font-size: clamp(2rem, 7vw, 5rem);
   letter-spacing: -0.03em;
   line-height: 1.04;
   font-weight: 800;
+  /* Last resort for a long unbroken word (a URL, a compound name) on a narrow screen. */
+  overflow-wrap: break-word;
 }
 
 .hero p {
@@ -1209,13 +1245,32 @@ button {
   font-size: 0.9rem;
 }
 
+/* The footer's link row is the widest fixed run of text on the marketing pages, so it
+   wraps rather than setting the page's scroll width — on a phone it was single-handedly
+   making every landing page scroll sideways. */
 .footer-links {
   display: flex;
-  gap: 1.2rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.2rem;
 }
 
 .footer-links a:hover {
   color: var(--accent);
+}
+
+/* On a phone the footer reads as a centred stack instead of two columns fighting for a
+   row that isn't there. */
+@media (max-width: 640px) {
+  .footer {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem 1.1rem 2.5rem;
+  }
+  .footer-links {
+    justify-content: center;
+  }
 }
 
 .status-card {
@@ -5714,6 +5769,17 @@ button.reader-tab:focus-visible {
   transform: none;
 }
 
+/* A sideways entrance needs room to the side to come in from. A phone has none: a card
+   that already fills the column starts 46px past the right edge and the page picks up a
+   horizontal scrollbar for the whole time it is off-screen. Below the breakpoint every
+   reveal travels vertically instead — same effect, no sideways room needed. */
+@media (max-width: 767.98px) {
+  .reveal[data-variant="left"],
+  .reveal[data-variant="right"] {
+    transform: translateY(28px);
+  }
+}
+
 /* ── Landing: hero polish ──────────────────────────────────────────────── */
 
 .landing .hero-pill {
@@ -6020,7 +6086,22 @@ button.reader-tab:focus-visible {
 }
 .table-scroll {
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   margin-top: 0.8rem;
+}
+
+/* A comparison table with three columns cannot be read at 320px: every cell wraps to one
+   word per line. Give it a floor and let the container scroll — the scroller was already
+   here, the table just never asked for the width it needs. */
+.table-scroll > table {
+  min-width: 30rem;
+}
+
+.table-scroll th,
+.table-scroll td {
+  padding: 0.45rem 0.7rem;
+  vertical-align: top;
 }
 /* ── Pricing page ────────────────────────────────────────────────────────── */
 .coins-badge {
