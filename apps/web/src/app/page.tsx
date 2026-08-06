@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ApiStatus } from "@/components/ApiStatus";
 import { Constellation } from "@/components/Constellation";
 import { FeatureCatalogue } from "@/components/FeatureCatalogue";
+import { HeroCta } from "@/components/HeroCta";
 import { LandingShowcase } from "@/components/LandingShowcase";
 import { PricingPreview } from "@/components/PricingPreview";
 import { Reveal } from "@/components/Reveal";
@@ -90,14 +91,8 @@ export default function Home() {
             organization — a living constellation of roles, documents and people. Modern,
             auditable, and entirely yours.
           </p>
-          <div className="hero-cta">
-            <Link className="btn btn-primary btn-lg" href="/register">
-              Get started free
-            </Link>
-            <Link className="btn btn-quiet btn-lg" href="#features">
-              See every feature
-            </Link>
-          </div>
+          {/* Both account doors — register and sign in — decided in the browser. */}
+          <HeroCta />
           <ApiStatus />
         </div>
         <span className="hero-scroll" aria-hidden>
