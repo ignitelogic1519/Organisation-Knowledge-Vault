@@ -72,6 +72,9 @@ function MotionSwitch() {
   return (
     <button
       className="theme-switch"
+      // Not the day/night switch: this one carries its own state, so the knob is
+      // positioned from aria-checked rather than from the theme.
+      data-standalone=""
       role="switch"
       aria-checked={on}
       aria-label={on ? "Turn animation off" : "Turn animation on"}
