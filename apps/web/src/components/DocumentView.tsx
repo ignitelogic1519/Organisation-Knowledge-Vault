@@ -784,18 +784,29 @@ export function DocumentPages({
       </article>
       {showPager && pages.length > 1 && (
         <div className="doc-pager glass-strong">
-          <button className="btn btn-quiet btn-small" disabled={current === 0} onClick={() => go(current - 1)}>
-            ← Prev
+          <button
+            className="btn btn-quiet btn-small doc-pager-btn"
+            disabled={current === 0}
+            aria-label="Previous page"
+            onClick={() => go(current - 1)}
+          >
+            <span aria-hidden>←</span>
+            <span className="doc-pager-word">Prev</span>
           </button>
-          <span className="auth-sub">
-            {active.label ? `${active.label} · ` : ""}Page {current + 1} of {pages.length}
+          <span className="doc-pager-label auth-sub">
+            {active.label && <span className="doc-pager-name">{active.label}</span>}
+            <span className="doc-pager-count">
+              {current + 1}/{pages.length}
+            </span>
           </span>
           <button
-            className="btn btn-quiet btn-small"
+            className="btn btn-quiet btn-small doc-pager-btn"
             disabled={current >= pages.length - 1}
+            aria-label="Next page"
             onClick={() => go(current + 1)}
           >
-            Next →
+            <span className="doc-pager-word">Next</span>
+            <span aria-hidden>→</span>
           </button>
         </div>
       )}

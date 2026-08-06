@@ -1733,6 +1733,22 @@ button {
   margin: 0.9rem 0 0.3rem;
 }
 
+/* The course list scrolls within the display from tablet width up: the page then never grows
+   past the screen, and Pending / Completed / Overdue stay above the list where they belong.
+   The first heading loses its top margin because the scroller's own edge is the gap. */
+@media (min-width: 641px) {
+  .learning-scroll {
+    max-height: max(16rem, calc(100svh - 24rem));
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding-right: 0.4rem;
+    scrollbar-width: thin;
+  }
+  .learning-scroll > .learning-h:first-child {
+    margin-top: 0.2rem;
+  }
+}
+
 .learning-row {
   display: flex;
   align-items: center;
@@ -2912,16 +2928,34 @@ button {
 
 .viewer {
   /* Flexible by design: it takes the width it is given, up to a comfortable reading
-     measure, and never becomes a letterbox on a short window. */
+     measure, and never becomes a letterbox on a short window.
+     The height is the DISPLAY's height (the layer is fixed to the viewport, less its
+     padding) and `max-height` makes that a hard ceiling: a flex column whose children total
+     more than its `height` grows past it, and a grid-centred box that is taller than the
+     screen overflows equally off the top and the bottom — which is exactly how the head and
+     the tabs used to end up cut off above the fold on a tablet. Nothing may exceed the
+     screen; the panes inside scroll instead. */
   width: min(72rem, 100%);
-  height: min(92svh, 58rem);
-  min-height: min(30rem, 92svh);
+  /* A grid item's automatic minimum size is its CONTENT's minimum, so one unbreakable row
+     inside (a long title, a rank of related-document chips) grew the sheet wider than the
+     screen and pushed half of it — the ✕ included — off the right edge of a phone. The
+     panes inside scroll; the sheet obeys the display. */
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
   border-radius: calc(var(--radius) + 6px);
   padding: 1rem 1.2rem 1.1rem;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
   animation: sheet-in 320ms var(--spring) both;
+}
+
+/* The document is what stretches and shrinks; everything around it keeps its own size. */
+.viewer > .viewer-head,
+.viewer > .doc-headerbar,
+.viewer > .reader-tabs {
+  flex: none;
 }
 
 /* Reading a document is the one thing worth the whole screen. */
@@ -3216,12 +3250,22 @@ button.reader-tab:focus-visible {
   color: var(--accent);
 }
 
+/* Related documents can run long — one scrolling row rather than four wrapped ones, so they
+   never eat the height the document needs. */
 .viewer-related {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  flex-wrap: wrap;
+  flex: none;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
   font-size: 0.82rem;
+}
+
+.viewer-related > * {
+  flex: none;
 }
 
 .viewer-related-chip[data-missing="true"] {
@@ -3234,13 +3278,20 @@ button.reader-tab:focus-visible {
   display: flex;
   justify-content: flex-end;
   gap: 0.45rem;
+  flex: none;
   flex-wrap: wrap;
 }
 
+/* Rate & review shares the viewer with the document rather than pushing it off the screen:
+   it takes at most a share of the height and scrolls within it. */
 .viewer-review {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  overflow-y: auto;
   border-top: 1px solid var(--border);
   padding-top: 0.7rem;
   animation: fade-up 240ms var(--ease) both;
@@ -3659,7 +3710,7 @@ button.reader-tab:focus-visible {
   }
   .viewer {
     width: 100%;
-    height: 92svh;
+    height: 100%;
     padding: 0.75rem 0.8rem 0.8rem;
   }
   .doc-cover-pages {
@@ -5540,18 +5591,62 @@ button.reader-tab:focus-visible {
   font-size: 1.05rem;
 }
 
-/* In-viewer document pager (books turn page by page) */
+/* In-viewer document pager (books turn page by page).
+   Centred with auto margins across the FULL width rather than `left: 50%`, which caps an
+   absolutely positioned box's shrink-to-fit width at half the frame — on a phone that left
+   the control ~170px wide and wrapped every word in it onto its own line. */
 .doc-pager {
   position: absolute;
   bottom: 0.7rem;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  width: -moz-fit-content;
+  width: fit-content;
+  max-width: calc(100% - 1rem);
+  margin-inline: auto;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
   padding: 0.35rem 0.7rem;
   border-radius: 980px;
   z-index: 3;
+}
+
+/* Nothing in the pager wraps: the arrows always fit, and the page name is what gives way. */
+.doc-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  white-space: nowrap;
+}
+
+.doc-pager-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-pager-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A phone keeps the arrows and the count — "Prev", "Next" and the page's name are what a
+   240px-wide control cannot afford. */
+@media (max-width: 560px) {
+  .doc-pager {
+    gap: 0.35rem;
+    padding: 0.3rem 0.5rem;
+  }
+  .doc-pager-word,
+  .doc-pager-name {
+    display: none;
+  }
 }
 
 /* ── Profile avatar upload ─────────────────────────────────────────────── */

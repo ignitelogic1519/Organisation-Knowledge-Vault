@@ -444,19 +444,33 @@ export function CourseViewer({
                   <p>{item.scope ?? "—"}</p>
                 </section>
               )}
+              {/* The pager keeps its arrows at every width; the words drop away on a narrow
+                  screen rather than wrapping the whole control into a knot. */}
               <div className="doc-pager glass-strong">
                 <button
-                  className="btn btn-quiet btn-small"
+                  className="btn btn-quiet btn-small doc-pager-btn"
                   disabled={front === 0}
+                  aria-label="Previous page"
                   onClick={() => goFront(front - 1)}
                 >
-                  ← Prev
+                  <span aria-hidden>←</span>
+                  <span className="doc-pager-word">Prev</span>
                 </button>
-                <span className="auth-sub">
-                  {FRONT_PAGES[front]} · page {front + 1} of {FRONT_PAGES.length}
+                <span className="doc-pager-label auth-sub">
+                  <span className="doc-pager-name">{FRONT_PAGES[front]}</span>
+                  <span className="doc-pager-count">
+                    {front + 1}/{FRONT_PAGES.length}
+                  </span>
                 </span>
-                <button className="btn btn-quiet btn-small" onClick={() => goFront(front + 1)}>
-                  {front === FRONT_PAGES.length - 1 ? "Content →" : "Next →"}
+                <button
+                  className="btn btn-quiet btn-small doc-pager-btn"
+                  aria-label={front === FRONT_PAGES.length - 1 ? "Go to the content" : "Next page"}
+                  onClick={() => goFront(front + 1)}
+                >
+                  <span className="doc-pager-word">
+                    {front === FRONT_PAGES.length - 1 ? "Content" : "Next"}
+                  </span>
+                  <span aria-hidden>→</span>
                 </button>
               </div>
             </div>

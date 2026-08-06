@@ -518,6 +518,23 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   renders its **own tab strip**: one tab back to the page the document was opened from
   (`?from=`, validated as an in-app path), one for the document. ✕ closes a window it can
   close and otherwise walks back the same way, so it is never a dead control.
+- **The viewer is the size of the display, never larger.** Its height and `max-height` are
+  both the layer's (the viewport, less its padding), because a flex column whose children
+  total more grows past its `height`, and a grid-centred box taller than the screen overflows
+  off the *top* as well as the bottom — which is how the head ended up above the fold on a
+  tablet. `min-width: 0` is the same rule sideways: a grid item's automatic minimum size is
+  its content's, so one unbreakable row (a long title, a rank of related-document chips) used
+  to push the sheet — ✕ included — off the side of a phone. The document pane takes the slack;
+  the frame around it keeps its size; **related documents** scroll sideways in one row and
+  **rate & review** takes at most a share of the height and scrolls in it.
+- **The pager fits any width.** Centred with auto margins across the full frame rather than
+  `left: 50%`, which caps an absolutely positioned box at half the frame's width and wrapped
+  every word of the control onto its own line on a phone. Under 560px the arrows and the page
+  count stay; "Prev", "Next" and the page's name are what give way.
+- **My Learning scrolls its list, not the page**, from tablet width up (`.learning-scroll`),
+  so the page is the height of the display and the pending / completed / overdue counts stay
+  above the list. A phone scrolls the page instead: a scroller inside a scrolling page is a
+  trap under a thumb.
 
 ### 8.4 Compliance
 `Compliance` tab (managers): pick any branch you govern (ownership can sit on several

@@ -151,27 +151,32 @@ export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string 
 
       {empty && <p className="auth-sub">No courses reach your position yet.</p>}
 
-      {groups.pending.length > 0 && (
-        <>
-          <h3 className="learning-h">Pending</h3>
-          <ul className="owner-list">
-            {groups.pending.map((i) => (
-              <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
-            ))}
-          </ul>
-        </>
-      )}
+      {/* The list scrolls in itself from tablet width up, so the page stays the height of the
+          display and the counts above it stay in view. A phone scrolls the page instead — a
+          scroller inside a scrolling page is a trap under a thumb. */}
+      <div className="learning-scroll">
+        {groups.pending.length > 0 && (
+          <>
+            <h3 className="learning-h">Pending</h3>
+            <ul className="owner-list">
+              {groups.pending.map((i) => (
+                <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
+              ))}
+            </ul>
+          </>
+        )}
 
-      {groups.completed.length > 0 && (
-        <>
-          <h3 className="learning-h">Completed</h3>
-          <ul className="owner-list">
-            {groups.completed.map((i) => (
-              <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
-            ))}
-          </ul>
-        </>
-      )}
+        {groups.completed.length > 0 && (
+          <>
+            <h3 className="learning-h">Completed</h3>
+            <ul className="owner-list">
+              {groups.completed.map((i) => (
+                <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
 
       {viewerItem && (
         <CourseViewer
