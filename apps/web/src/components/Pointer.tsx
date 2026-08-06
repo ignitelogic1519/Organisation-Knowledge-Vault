@@ -103,7 +103,31 @@ export function Pointer() {
     if (!dot || !ring || !layer) return;
 
     const root = document.documentElement;
-    root.classList.add("kv-pointer-on");
+    /**
+     * The native cursor is hidden only once the custom one KNOWS where it is.
+     *
+     * Hiding it at mount left a window — from page load until the first mouse movement —
+     * with the system cursor already gone and ours still parked at a guessed position
+     * with `data-hidden`. That window reopens on every navigation, which is why the
+     * pointer seemed to be missing "most of the time". Nothing is hidden until the first
+     * real pointermove gives us a true coordinate.
+     */
+    let placed = false;
+    const takeOver = () => {
+      if (placed) return;
+      placed = true;
+      root.classList.add("kv-pointer-on");
+      dot.dataset.hidden = "false";
+      ring.dataset.hidden = "false";
+    };
+
+    /**
+     * Is decorative motion allowed? Two sources, and the OS setting always wins: someone
+     * who has asked their system for reduced motion must not be overridden by an
+     * in-app switch. The switch (Appearance → Animation) is for the other case — a
+     * system that permits motion, and a person who would rather this product sat still.
+     */
+    const still = () => calm.matches || root.dataset.motion === "off";
 
     let x = window.innerWidth / 2;
     let y = window.innerHeight / 2;
@@ -171,7 +195,7 @@ export function Pointer() {
     };
 
     const goIdle = () => {
-      if (idle || calm.matches) return;
+      if (idle || still()) return;
       idle = true;
       nextScene();
       dot.dataset.idle = "true";
@@ -188,7 +212,7 @@ export function Pointer() {
         refresh();
       }
       window.clearTimeout(idleTimer);
-      if (!calm.matches) idleTimer = window.setTimeout(goIdle, IDLE_AFTER);
+      if (!still()) idleTimer = window.setTimeout(goIdle, IDLE_AFTER);
     };
 
     // ── Movement ─────────────────────────────────────────────────────────────
@@ -196,17 +220,21 @@ export function Pointer() {
       x = e.clientX;
       y = e.clientY;
       hovered = e.target;
-      if (calm.matches) {
+      if (still()) {
         ringX = x;
         ringY = y;
       }
       dot.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      if (!placed) {
+        // First real coordinate: put the ring there too, so it does not fly in from
+        // the middle of the window.
+        ringX = x;
+        ringY = y;
+        ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+      takeOver();
       wake();
       setState(resolve(e.target));
-      if (dot.dataset.hidden === "true") {
-        dot.dataset.hidden = "false";
-        ring.dataset.hidden = "false";
-      }
     };
 
     // The ring is deliberately a frame behind: it is what makes the pointer feel like an
@@ -224,8 +252,17 @@ export function Pointer() {
         `scale(${1 + speed * 0.5}, ${1 - speed * 0.32})`;
       frame = requestAnimationFrame(tick);
     };
-    if (!calm.matches) frame = requestAnimationFrame(tick);
-    else ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    const startTrail = () => {
+      cancelAnimationFrame(frame);
+      if (still()) {
+        ringX = x;
+        ringY = y;
+        ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      } else {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    startTrail();
 
     // ── Press ────────────────────────────────────────────────────────────────
     const onDown = (e: PointerEvent) => {
@@ -233,7 +270,7 @@ export function Pointer() {
       dot.dataset.down = "true";
       ring.dataset.down = "true";
       wake();
-      if (calm.matches) return;
+      if (still()) return;
       // A spark burst at the exact click point — proof the hotspot is where you think.
       const burst = document.createElement("span");
       burst.className = "kv-burst";
@@ -261,6 +298,7 @@ export function Pointer() {
       ring.dataset.hidden = "true";
     };
     const onEnter = () => {
+      if (!placed) return;
       dot.dataset.hidden = "false";
       ring.dataset.hidden = "false";
     };
@@ -323,9 +361,26 @@ export function Pointer() {
 
     // A pointing device can be unplugged, or the window dragged to a touch screen.
     const onPointerKind = (e: MediaQueryListEvent) => {
-      root.classList.toggle("kv-pointer-on", e.matches);
+      root.classList.toggle("kv-pointer-on", e.matches && placed);
     };
     fine.addEventListener("change", onPointerKind);
+
+    // Appearance → Animation was toggled: drop out of any scene at once and re-arm (or
+    // don't) the idle countdown. Waiting for the next page load would make the switch
+    // feel broken.
+    const onMotionChange = () => {
+      if (still() && idle) {
+        idle = false;
+        window.clearInterval(sceneTimer);
+        dot.dataset.idle = "false";
+        ring.dataset.idle = "false";
+        refresh();
+      }
+      startTrail();
+      wake();
+    };
+    window.addEventListener("kv:motionchange", onMotionChange);
+    calm.addEventListener("change", onMotionChange);
 
     wake(); // arm the first idle countdown
 
@@ -345,6 +400,8 @@ export function Pointer() {
       document.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("pointerenter", onEnter);
       window.removeEventListener("blur", onLeave);
+      window.removeEventListener("kv:motionchange", onMotionChange);
+      calm.removeEventListener("change", onMotionChange);
       fine.removeEventListener("change", onPointerKind);
     };
   }, []);
@@ -357,10 +414,9 @@ export function Pointer() {
         {/* ── Pointing glyphs. --hx/--hy is the hotspot: the point that sits on the
             mouse. Measured off each drawing, in rendered pixels. ─────────────── */}
 
-        {/* default — a drop of ink, centred on the point */}
-        <span className="kv-pointer-dot" style={{ "--hx": "4.5px", "--hy": "4.5px" } as React.CSSProperties} />
-
-        {/* select — arrow with a star at the tip; hotspot IS the tip (4, 2.6) */}
+        {/* default AND select — the arrow. A dot does not read as a cursor, so the
+            resting pointer is the arrow too; the star simply lights up on something
+            you can click. Hotspot IS the tip, (4, 2.6). */}
         <svg
           className="kv-pointer-arrow"
           viewBox="0 0 24 24"
@@ -461,9 +517,43 @@ export function Pointer() {
         {/* ── Idle scenes ────────────────────────────────────────────────────
             Shown only when `data-idle="true"`, selected by `data-scene`. All
             centred on the point, all animated purely in CSS. ──────────────── */}
-        <div className="kv-idle" style={{ "--hx": "22px", "--hy": "22px" } as React.CSSProperties}>
+        {/* Shared shading. Living inside .kv-pointer means these gradients inherit the
+            scene ink variables, so a palette change re-lights every scene for free.
+            Flat fills were what made the scenes read as stickers; a sphere needs a
+            highlight, a terminator and a bounce to read as a sphere. */}
+        <svg className="kv-defs" width="0" height="0" aria-hidden focusable="false">
+          <defs>
+            <radialGradient id="kvSphere" cx="34%" cy="28%" r="78%">
+              <stop offset="0%" stopColor="var(--kv-hi)" />
+              <stop offset="52%" stopColor="var(--ink)" />
+              <stop offset="100%" stopColor="var(--kv-lo)" />
+            </radialGradient>
+            <radialGradient id="kvSphere2" cx="34%" cy="28%" r="78%">
+              <stop offset="0%" stopColor="var(--kv-hi2)" />
+              <stop offset="52%" stopColor="var(--ink2)" />
+              <stop offset="100%" stopColor="var(--kv-lo2)" />
+            </radialGradient>
+            <linearGradient id="kvBody" x1="0" y1="0" x2="0.35" y2="1">
+              <stop offset="0%" stopColor="var(--kv-hi)" />
+              <stop offset="60%" stopColor="var(--ink)" />
+              <stop offset="100%" stopColor="var(--kv-lo)" />
+            </linearGradient>
+            <linearGradient id="kvBody2" x1="0" y1="0" x2="0.35" y2="1">
+              <stop offset="0%" stopColor="var(--kv-hi2)" />
+              <stop offset="60%" stopColor="var(--ink2)" />
+              <stop offset="100%" stopColor="var(--kv-lo2)" />
+            </linearGradient>
+            {/* The corona behind the sun — a glow, not an outline. */}
+            <radialGradient id="kvGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="55%" stopColor="var(--ink2)" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="var(--ink2)" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+        </svg>
+
+        <div className="kv-idle" style={{ "--hx": "16px", "--hy": "16px" } as React.CSSProperties}>
           {/* twinkling stars */}
-          <svg className="kv-scene" data-for="stars" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="stars" viewBox="0 0 44 44" width="32" height="32">
             <g className="kv-twinkle-g">
               <path className="kv-twinkle kv-t1" d="M12 8 l1.4 3.6 3.6 1.4 -3.6 1.4 -1.4 3.6 -1.4 -3.6 -3.6 -1.4 3.6 -1.4 Z" />
               <path className="kv-twinkle kv-t2" d="M31 14 l1.1 2.9 2.9 1.1 -2.9 1.1 -1.1 2.9 -1.1 -2.9 -2.9 -1.1 2.9 -1.1 Z" />
@@ -474,7 +564,7 @@ export function Pointer() {
           </svg>
 
           {/* shooting star */}
-          <svg className="kv-scene" data-for="shooting" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="shooting" viewBox="0 0 44 44" width="32" height="32">
             <circle className="kv-sky-dot" cx="9" cy="34" r="1.1" />
             <circle className="kv-sky-dot" cx="34" cy="9" r="1.1" />
             <circle className="kv-sky-dot" cx="14" cy="12" r="0.9" />
@@ -485,9 +575,10 @@ export function Pointer() {
           </svg>
 
           {/* planet with an orbiting moon */}
-          <svg className="kv-scene" data-for="planet" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="planet" viewBox="0 0 44 44" width="32" height="32">
             <ellipse className="kv-orbit" cx="22" cy="22" rx="17" ry="7" />
             <circle className="kv-planet" cx="22" cy="22" r="8" />
+            <path className="kv-planet-term" d="M14.4 25 a8 8 0 0 0 14.4 -8.6" />
             <path className="kv-planet-band" d="M14.6 19 q7.4 -2.6 14.8 0" />
             <g className="kv-moon-g">
               <circle className="kv-moon" cx="39" cy="22" r="2.6" />
@@ -495,7 +586,7 @@ export function Pointer() {
           </svg>
 
           {/* a brain, braining */}
-          <svg className="kv-scene" data-for="brain" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="brain" viewBox="0 0 44 44" width="32" height="32">
             <g className="kv-brain-g">
               <path
                 className="kv-brain"
@@ -514,7 +605,7 @@ export function Pointer() {
           </svg>
 
           {/* a cloud, raining */}
-          <svg className="kv-scene" data-for="rain" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="rain" viewBox="0 0 44 44" width="32" height="32">
             <path
               className="kv-cloud"
               d="M13 24 a6 6 0 0 1 1.4 -11.8 a8 8 0 0 1 15 2.4 a5.6 5.6 0 0 1 -1.4 11 Z"
@@ -527,17 +618,28 @@ export function Pointer() {
           </svg>
 
           {/* the sun */}
-          <svg className="kv-scene" data-for="sun" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="sun" viewBox="0 0 44 44" width="32" height="32">
+            <circle className="kv-corona" cx="22" cy="22" r="19" />
             <g className="kv-rays">
-              {Array.from({ length: 8 }, (_, i) => (
-                <path key={i} className="kv-ray" d="M22 3.5 L22 8.5" transform={`rotate(${i * 45} 22 22)`} />
+              {Array.from({ length: 12 }, (_, i) => (
+                <path
+                  key={i}
+                  className="kv-ray"
+                  style={{ animationDelay: `${i * 110}ms` }}
+                  d={i % 2 ? "M22 4.5 L22 8.6" : "M22 2.6 L22 8.6"}
+                  transform={`rotate(${i * 30} 22 22)`}
+                />
               ))}
             </g>
-            <circle className="kv-sun" cx="22" cy="22" r="8.4" />
+            <circle className="kv-sun" cx="22" cy="22" r="8.6" />
+            {/* The bright limb and the specular are what make it a ball rather than a
+                circle — without them a radial gradient still reads flat. */}
+            <path className="kv-sun-limb" d="M15.2 26.8 a8.6 8.6 0 0 0 13.6 -9.6" />
+            <ellipse className="kv-sun-spec" cx="18.6" cy="18.2" rx="2.8" ry="2" />
           </svg>
 
           {/* a cat, licking its paw */}
-          <svg className="kv-scene" data-for="cat" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="cat" viewBox="0 0 44 44" width="32" height="32">
             <g className="kv-cat-body">
               <path className="kv-cat-fill" d="M12 20 L14 11 L19 15 h6 L30 11 L32 20 a10 10 0 0 1 -20 0 Z" />
               <circle className="kv-cat-eye" cx="18" cy="21" r="1.3" />
@@ -556,7 +658,7 @@ export function Pointer() {
           </svg>
 
           {/* a clock — showing the actual time */}
-          <svg className="kv-scene" data-for="clock" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="clock" viewBox="0 0 44 44" width="32" height="32">
             <circle className="kv-clock-face" cx="22" cy="22" r="15" />
             {Array.from({ length: 12 }, (_, i) => (
               <path key={i} className="kv-clock-tick" d="M22 9 L22 11.4" transform={`rotate(${i * 30} 22 22)`} />
@@ -568,7 +670,7 @@ export function Pointer() {
           </svg>
 
           {/* an internet signal, finding its bars */}
-          <svg className="kv-scene" data-for="signal" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="signal" viewBox="0 0 44 44" width="32" height="32">
             <rect className="kv-bar kv-bar-1" x="8" y="27" width="5.5" height="8" rx="1.6" />
             <rect className="kv-bar kv-bar-2" x="16" y="22" width="5.5" height="13" rx="1.6" />
             <rect className="kv-bar kv-bar-3" x="24" y="16" width="5.5" height="19" rx="1.6" />
@@ -576,7 +678,7 @@ export function Pointer() {
           </svg>
 
           {/* a rocket, going up */}
-          <svg className="kv-scene" data-for="rocket" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="rocket" viewBox="0 0 44 44" width="32" height="32">
             <g className="kv-rocket-g">
               <path className="kv-rocket-body" d="M22 6 c5 5 6.6 11 6.6 16.4 L15.4 22.4 C15.4 17 17 11 22 6 Z" />
               <path className="kv-rocket-fin" d="M15.4 19 L11.4 26 L15.4 24.6 Z" />
@@ -588,7 +690,7 @@ export function Pointer() {
           </svg>
 
           {/* a coffee, steaming */}
-          <svg className="kv-scene" data-for="coffee" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="coffee" viewBox="0 0 44 44" width="32" height="32">
             <path className="kv-steam kv-steam-1" d="M17 16 q-2.4 -3 0 -6 q2.4 -3 0 -6" />
             <path className="kv-steam kv-steam-2" d="M23 16 q-2.4 -3 0 -6 q2.4 -3 0 -6" />
             <path className="kv-cup" d="M11 19 h20 v7 a10 10 0 0 1 -20 0 Z" />
@@ -597,7 +699,7 @@ export function Pointer() {
           </svg>
 
           {/* a seedling, growing */}
-          <svg className="kv-scene" data-for="plant" viewBox="0 0 44 44" width="44" height="44">
+          <svg className="kv-scene" data-for="plant" viewBox="0 0 44 44" width="32" height="32">
             <path className="kv-pot" d="M13 28 h18 l-2.4 10 h-13.2 Z" />
             <g className="kv-sprout">
               <path className="kv-stem" d="M22 28 V15" />

@@ -39,13 +39,17 @@ try{
   d.setAttribute('data-theme', t==='dark'?'dark':'light');
   try{ localStorage.setItem('theme', t==='dark'?'dark':'light') }catch(e){}
   d.setAttribute('data-accent', read('kv.accent')||'peach');
+  // Motion is a preference like the others, so it has to be on the element before the
+  // first frame — otherwise an author who switched animation off still sees one paint
+  // of it on every page load.
+  d.setAttribute('data-motion', read('kv.motion')==='off'?'off':'full');
 }catch(e){}
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the script above sets data-theme before hydration
-    <html lang="en" suppressHydrationWarning data-theme="light" data-accent="peach">
+    <html lang="en" suppressHydrationWarning data-theme="light" data-accent="peach" data-motion="full">
       <body>
         <script dangerouslySetInnerHTML={{ __html: appearanceInit }} />
         <ThemeProvider attribute="data-theme" defaultTheme="light" enableSystem={false}>

@@ -52,6 +52,51 @@ export function ThemeSwitch() {
   );
 }
 
+/**
+ * The animation switch.
+ *
+ * Separate from the OS-level `prefers-reduced-motion`, which this never overrides: that
+ * setting always wins, and this is for someone whose system allows motion but who would
+ * rather this particular product sat still. It drives `data-motion` on <html>, which the
+ * pointer reads and the stylesheet keys off, and it is remembered exactly like the theme.
+ */
+function MotionSwitch() {
+  const [motion, setMotion] = useState<"full" | "off">("full");
+  useEffect(() => {
+    setMotion(
+      document.documentElement.getAttribute("data-motion") === "off" ? "off" : "full",
+    );
+  }, []);
+
+  const on = motion === "full";
+  return (
+    <button
+      className="theme-switch"
+      role="switch"
+      aria-checked={on}
+      aria-label={on ? "Turn animation off" : "Turn animation on"}
+      data-hint={
+        on
+          ? "Turns off the animated cursor, its idle scenes and the decorative motion across the app. Remembered on this device."
+          : "Animation is off. The cursor becomes a plain pointer and the idle scenes never appear."
+      }
+      data-hint-title="Animation"
+      onClick={() => {
+        const next = on ? "off" : "full";
+        setMotion(next);
+        document.documentElement.setAttribute("data-motion", next);
+        remember("kv.motion", next);
+        // The pointer runs outside React, so it is told directly rather than polled.
+        window.dispatchEvent(new CustomEvent("kv:motionchange", { detail: next }));
+      }}
+    >
+      <span className="theme-knob" aria-hidden>
+        {on ? "✨" : "⏸"}
+      </span>
+    </button>
+  );
+}
+
 export function ThemeMenu() {
   const [open, setOpen] = useState(false);
   const [accent, setAccent] = useState("peach");
@@ -107,8 +152,14 @@ export function ThemeMenu() {
               />
             ))}
           </div>
+          <h4>Motion</h4>
+          <div className="theme-row">
+            <span className="auth-sub">Animation</span>
+            <MotionSwitch />
+          </div>
           <p className="auth-sub theme-pop-note">
-            Your choice is remembered on this device and restored the next time you sign in.
+            Your choices are remembered on this device and restored the next time you sign
+            in. If your system already asks for reduced motion, that always wins.
           </p>
         </div>
       )}
