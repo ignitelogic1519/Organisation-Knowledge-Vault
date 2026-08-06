@@ -415,7 +415,10 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   file upload — the content is created as a **draft** (never in the library, reaching
   nobody) and a **Document-review** request (`CONTENT_REVIEW`) is filed to the branch's
   handler.
-- The handler **previews** the draft in a read-only viewer, then decides between **three**
+- The handler **previews** the draft in a read-only viewer — opened in a **window of its own**
+  (`/read/:orgId/:code?mode=preview`), filling the screen, so the document is read the way its
+  readers will read it and nothing of the requests page is left behind it — then decides
+  between **three**
   outcomes ✅ REVISED (2026-08-05). There used to be two, and the missing one was the one
   reviews are actually for:
 
@@ -449,7 +452,10 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   (Public / Confidential / Private / Secret), an optional **scope**, and an owner-controlled
   **allowDownload** flag. The in-app viewer wraps all content in the standard frame: an
   auto-generated **cover** (org, title, classification, version, published date, author) and
-  a **description & scope** page, plus a header/footer on the framed content. Downloads are
+  a **description & scope** page, plus a header/footer on the framed content. Those two are
+  **pages, not a preamble**: they are turned one at a time with the same pager, keyboard
+  (← →) and page-turn animation as the content — there is no "skip to content" shortcut past
+  them, and **↑ Cover** returns to page one. Downloads are
   offered only when the owner enabled them (`GET /courses/:code/content?download=1`).
 - **Document Studio** (`/orgs/:id/studio`): a three-pane editor — an **insert/pages/drafts
   rail**, a **paper canvas** of drag-and-drop block cards, and a **block inspector** — under a
@@ -495,7 +501,12 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
 - **Archival**: `POST /courses/:code/archive` keeps the course and its history but refuses new
   placements. **Deletion** is allowed for the course's editors **and the owners of its home
   branch** (and above).
-- **In-app viewer only.** Content never opens in a second tab. Uploaded files stream as a
+- **In-app viewer, or a window of its own.** Content never opens in a stray second *tab*:
+  either it opens in the app's viewer, or — on request — in a **reader window**
+  (`/read/:orgId/:code`), a pop-up sized to the screen that carries the same viewer with no
+  app chrome around it and offers true fullscreen from inside. **⤢ Own window** in the
+  viewer's actions opens it; a document **review preview** always uses it. Uploaded files
+  stream as a
   same-origin blob into a **non-sandboxed** iframe (so the browser PDF viewer works — the old
   "blocked by Chrome" sandbox bug); external links embed sandboxed with an open-externally
   fallback.

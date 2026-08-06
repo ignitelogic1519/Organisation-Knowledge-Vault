@@ -450,6 +450,7 @@ function CourseDetail({
       {viewing && (
         <CourseViewer
           item={viewing}
+          orgId={org.id}
           orgName={org.name}
           onClose={() => setViewing(null)}
           onChanged={() => undefined}

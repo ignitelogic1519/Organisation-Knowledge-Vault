@@ -176,6 +176,7 @@ export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string 
       {viewerItem && (
         <CourseViewer
           item={viewerItem}
+          orgId={orgId}
           orgName={orgName}
           onClose={() => setViewerItem(null)}
           onChanged={reload}

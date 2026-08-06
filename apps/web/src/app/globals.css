@@ -2929,6 +2929,38 @@ button {
   width: min(96rem, 100%);
 }
 
+/* ── The reader window (/read/<org>/<code>) ─────────────────────────────────
+   The document has a window to itself, so there is nothing to centre it against
+   and nothing behind it to dim: it takes the whole page. */
+.viewer-layer.viewer-window {
+  position: static;
+  display: block;
+  padding: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
+}
+
+.viewer-window > .viewer {
+  width: 100%;
+  height: 100svh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0.8rem 1.1rem 0.9rem;
+  animation: none;
+}
+
+.reader-window-empty {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
 .viewer-head {
   display: flex;
   align-items: flex-start;
@@ -3443,15 +3475,28 @@ button {
   border-left: 3px solid var(--danger);
 }
 
+/* Front matter is one page at a time, centred, with room at the foot for the pager —
+   the reader turns onto the content instead of skipping past a stack. */
 .doc-cover-pages {
   position: absolute;
   inset: 0;
-  overflow-y: auto;
+  /* The container itself does not scroll — the page inside it does, so the pager stays
+     pinned to the foot of the frame however long the scope text runs. */
+  overflow: hidden;
   background: var(--surface-2);
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 1rem;
-  padding: 1.2rem;
+  padding: 1.2rem 1.2rem 3.6rem;
+}
+
+.doc-cover-pages > .doc-page {
+  width: 100%;
+  max-width: 46rem;
+  max-height: 100%;
+  overflow-y: auto;
+  margin: 0 auto;
 }
 
 .doc-page {
@@ -3534,17 +3579,6 @@ button {
   white-space: pre-wrap;
 }
 
-/* Pin the skip control to the bottom of the scrolling cover area so it is
-   reachable without scrolling past the full cover + scope pages first. */
-.doc-cover-skip {
-  position: sticky;
-  bottom: 0.6rem;
-  align-self: center;
-  z-index: 3;
-  background: var(--surface-solid);
-  border: 1px solid var(--border);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-}
 
 /* ── Course viewer — mobile responsiveness ─────────────────────────────── */
 @media (max-width: 640px) {
@@ -7363,13 +7397,16 @@ body.is-dragging-block * {
   }
 }
 
+/* The page behind the mailbox is not something to read — it is something to push
+   out of the way. The scrim dims and blurs it heavily so the only thing with
+   contrast on screen is the mail itself. */
 .mail-scrim {
   position: fixed;
   inset: 0;
   z-index: 86;
-  background: rgba(6, 8, 16, 0.35);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  background: rgba(6, 8, 16, 0.52);
+  -webkit-backdrop-filter: blur(10px) saturate(80%);
+  backdrop-filter: blur(10px) saturate(80%);
   animation: kv-fade-in 180ms var(--ease) both;
 }
 
@@ -7387,6 +7424,22 @@ body.is-dragging-block * {
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.28);
   overflow: hidden;
   animation: kv-fade-up 220ms var(--ease) both;
+  /* Frosted, not see-through: a heavier blur than the shared .glass-strong and a
+     nearly solid ground, so message text never competes with whatever page sits
+     underneath it. Overrides .glass-strong, which this panel also carries. */
+  background: color-mix(in srgb, var(--surface-solid) 96%, transparent);
+  -webkit-backdrop-filter: blur(48px) saturate(180%);
+  backdrop-filter: blur(48px) saturate(180%);
+}
+
+/* Without backdrop-filter there is no frosting to hide behind — go solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mail-panel {
+    background: var(--surface-solid);
+  }
+  .mail-scrim {
+    background: rgba(6, 8, 16, 0.66);
+  }
 }
 
 .mail-head {

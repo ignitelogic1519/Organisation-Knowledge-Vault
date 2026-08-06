@@ -5,20 +5,24 @@ import { versionLabel, type AuthoredBlock, type Classification, type DownloadTic
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
 import { fetchAndDecrypt } from "@/lib/storage-crypto";
+import { openInWindow } from "@/lib/reader-window";
 import { CourseExam } from "./CourseExam";
 import { AuthoredBlockView, DocumentPages, paginate } from "./DocumentView";
 import { PdfView } from "./PdfView";
 import { useDialogs } from "./dialogs";
 
-// The in-app course viewer: content opens INSIDE the app — no second tab. Every document
-// is wrapped in the organization's standard frame (cover with org / title / version /
-// date / creator / classification; a scope & description page; a header & footer on every
-// view). Uploaded files stream into an inline frame (NOT sandboxed — same-origin blobs,
-// so the browser's PDF viewer works); external links embed sandboxed with a fallback;
-// Studio-authored documents render natively. Downloads are offered only when the owner
-// enabled them.
+// The course viewer: content opens in the app, never in a stray second tab — or, when the
+// reader asks for it, in a window of ITS OWN (`standalone`, the /read route), where the same
+// viewer fills the screen with no app chrome around it. Every document is wrapped in the
+// organization's standard frame (cover with org / title / version / date / creator /
+// classification; a description & scope page; a header & footer on every view). The frame's
+// two pages are pages: they turn, with the animation and the pager the content uses, rather
+// than sitting behind a "skip" button. Uploaded files stream into an inline frame (NOT
+// sandboxed — same-origin blobs, so the browser's PDF viewer works); external links embed
+// sandboxed with a fallback; Studio-authored documents render natively. Downloads are
+// offered only when the owner enabled them.
 
-type ViewerItem = Pick<
+export type ViewerItem = Pick<
   LearningItem,
   | "code"
   | "title"
@@ -75,6 +79,9 @@ function Stars({
   );
 }
 
+/** The auto-generated front matter: cover, then description & scope. */
+const FRONT_PAGES = ["Cover", "Description & scope"];
+
 export function CourseViewer({
   item,
   orgName,
@@ -82,6 +89,8 @@ export function CourseViewer({
   onChanged,
   onOpenRelated,
   readOnly = false,
+  standalone = false,
+  orgId,
 }: {
   item: ViewerItem;
   orgName: string;
@@ -90,6 +99,10 @@ export function CourseViewer({
   onOpenRelated?: (code: string) => void;
   /** Preview only — hides Mark-complete and Rate & review (e.g. reviewing a draft). */
   readOnly?: boolean;
+  /** The document has a window to itself: fill it, and drop the centred sheet. */
+  standalone?: boolean;
+  /** Enables “open in its own window” — omit to hide that action. */
+  orgId?: string;
 }) {
   const dialogs = useDialogs();
   const frameWrapRef = useRef<HTMLDivElement>(null);
@@ -108,8 +121,12 @@ export function CourseViewer({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
-  const [showCover, setShowCover] = useState(true);
+  // Front matter is read page by page like the rest of the document: `front` is which of
+  // FRONT_PAGES is showing, and FRONT_PAGES.length means "past the cover, in the content".
+  const [front, setFront] = useState(0);
+  const [frontDir, setFrontDir] = useState<"next" | "prev">("next");
   const [page, setPage] = useState(0);
+  const showCover = front < FRONT_PAGES.length;
   const locked = item.missingPrerequisites.length > 0;
   const completed = item.status === "COMPLETED";
   const pages = authored ? paginate(authored) : [];
@@ -236,12 +253,61 @@ export function CourseViewer({
       .catch(() => undefined);
   }, [item.code, completed]);
 
+  // Turning onto (or back off) a front-matter page — the direction drives the same
+  // page-turn animation the authored pages use.
+  const goFront = useCallback(
+    (n: number) => {
+      const next = Math.max(0, Math.min(FRONT_PAGES.length, n));
+      setFrontDir(next >= front ? "next" : "prev");
+      setFront(next);
+    },
+    [front],
+  );
+
+  // ← → / PageUp PageDown turn the cover pages too, so paging never changes hands
+  // halfway through the document. Past the cover, DocumentPages takes over.
+  useEffect(() => {
+    if (!showCover) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (el?.isContentEditable) return;
+      if (e.key === "ArrowRight" || e.key === "PageDown") goFront(front + 1);
+      if (e.key === "ArrowLeft" || e.key === "PageUp") goFront(front - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showCover, front, goFront]);
+
   const toggleFullscreen = useCallback(() => {
-    const el = frameWrapRef.current;
+    // In its own window the whole page is the document, so fullscreen means the page.
+    const el = standalone ? document.documentElement : frameWrapRef.current;
     if (!el) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void el.requestFullscreen().catch(() => undefined);
-  }, []);
+  }, [standalone]);
+
+  // The window opens at the size of the screen, and a script-opened window has no user
+  // activation, so the browser refuses requestFullscreen() until the reader touches
+  // something. Take the first touch of the document itself as that permission — but never a
+  // control (a click on ✕ or a pager button means what it says, not "go fullscreen"). The
+  // Full screen button is there for every other case.
+  useEffect(() => {
+    if (!standalone) return;
+    let done = false;
+    const tryOnce = (e: Event) => {
+      if (done) return;
+      const el = e.target as HTMLElement | null;
+      if (!el || !frameWrapRef.current?.contains(el)) return;
+      if (el.closest("button, a, input, select, textarea, video, audio")) return;
+      done = true;
+      if (!document.fullscreenElement) {
+        void document.documentElement.requestFullscreen().catch(() => undefined);
+      }
+    };
+    window.addEventListener("pointerdown", tryOnce);
+    return () => window.removeEventListener("pointerdown", tryOnce);
+  }, [standalone]);
 
   const download = useCallback(async () => {
     try {
@@ -261,8 +327,13 @@ export function CourseViewer({
   const publishedDate = item.publishedAt.slice(0, 10);
 
   return (
-    <div className="viewer-layer" role="presentation">
-      <div className="viewer glass-strong" role="dialog" aria-modal="true" aria-label={item.title}>
+    <div className={`viewer-layer${standalone ? " viewer-window" : ""}`} role="presentation">
+      <div
+        className={standalone ? "viewer" : "viewer glass-strong"}
+        role={standalone ? "document" : "dialog"}
+        aria-modal={standalone ? undefined : true}
+        aria-label={item.title}
+      >
         <div className="viewer-head">
           <div className="viewer-title">
             <h3>{item.title}</h3>
@@ -273,7 +344,12 @@ export function CourseViewer({
             <span className="badge">{item.mandatory ? "mandatory" : "opt-in"}</span>
             {completed && <span className="badge badge-ok">completed</span>}
           </div>
-          <button className="icon-btn" aria-label="Close" onClick={onClose}>
+          <button
+            className="icon-btn"
+            aria-label={standalone ? "Close this window" : "Close"}
+            title={standalone ? "Close this window" : "Close"}
+            onClick={onClose}
+          >
             ✕
           </button>
         </div>
@@ -286,44 +362,72 @@ export function CourseViewer({
         </div>
 
         <div className="viewer-frame-wrap" ref={frameWrapRef}>
-          {/* Auto-generated cover + scope pages (the "first two pages" standard) */}
+          {/* Auto-generated cover + scope pages (the "first two pages" standard). They are
+              pages, not a preamble to skip: one at a time, turned with the same page-turn
+              animation and the same pager as the content that follows. */}
           {showCover && (
             <div className="doc-cover-pages">
-              <section className="doc-page doc-cover">
-                <span className={`doc-cover-class class-badge class-${item.classification}`}>
-                  {CLASS_LABEL[item.classification]}
+              {front === 0 && (
+                <section
+                  key="cover"
+                  className="doc-page doc-cover doc-turn"
+                  data-transition="zoom"
+                  data-direction={frontDir}
+                >
+                  <span className={`doc-cover-class class-badge class-${item.classification}`}>
+                    {CLASS_LABEL[item.classification]}
+                  </span>
+                  <span className="doc-cover-org">{orgName}</span>
+                  <h1 className="doc-cover-title">{item.title}</h1>
+                  <dl className="doc-cover-meta">
+                    <div>
+                      <dt>Published</dt>
+                      <dd>{publishedDate}</dd>
+                    </div>
+                    <div>
+                      <dt>Version</dt>
+                      <dd>{versionLabel(item.version)}</dd>
+                    </div>
+                    <div>
+                      <dt>Author</dt>
+                      <dd>{item.creatorName}</dd>
+                    </div>
+                    <div>
+                      <dt>Reference</dt>
+                      <dd>{item.code}</dd>
+                    </div>
+                  </dl>
+                </section>
+              )}
+              {front === 1 && (
+                <section
+                  key="scope"
+                  className="doc-page doc-scope-page doc-turn"
+                  data-transition="slide"
+                  data-direction={frontDir}
+                >
+                  <h2>Description &amp; scope</h2>
+                  <h3>Description</h3>
+                  <p>{item.description ?? "—"}</p>
+                  <h3>Scope</h3>
+                  <p>{item.scope ?? "—"}</p>
+                </section>
+              )}
+              <div className="doc-pager glass-strong">
+                <button
+                  className="btn btn-quiet btn-small"
+                  disabled={front === 0}
+                  onClick={() => goFront(front - 1)}
+                >
+                  ← Prev
+                </button>
+                <span className="auth-sub">
+                  {FRONT_PAGES[front]} · page {front + 1} of {FRONT_PAGES.length}
                 </span>
-                <span className="doc-cover-org">{orgName}</span>
-                <h1 className="doc-cover-title">{item.title}</h1>
-                <dl className="doc-cover-meta">
-                  <div>
-                    <dt>Published</dt>
-                    <dd>{publishedDate}</dd>
-                  </div>
-                  <div>
-                    <dt>Version</dt>
-                    <dd>{versionLabel(item.version)}</dd>
-                  </div>
-                  <div>
-                    <dt>Author</dt>
-                    <dd>{item.creatorName}</dd>
-                  </div>
-                  <div>
-                    <dt>Reference</dt>
-                    <dd>{item.code}</dd>
-                  </div>
-                </dl>
-              </section>
-              <section className="doc-page doc-scope-page">
-                <h2>Description &amp; scope</h2>
-                <h3>Description</h3>
-                <p>{item.description ?? "—"}</p>
-                <h3>Scope</h3>
-                <p>{item.scope ?? "—"}</p>
-              </section>
-              <button className="btn btn-quiet btn-small doc-cover-skip" onClick={() => setShowCover(false)}>
-                Skip to content ↓
-              </button>
+                <button className="btn btn-quiet btn-small" onClick={() => goFront(front + 1)}>
+                  {front === FRONT_PAGES.length - 1 ? "Content →" : "Next →"}
+                </button>
+              </div>
             </div>
           )}
 
@@ -458,13 +562,22 @@ export function CourseViewer({
 
         <div className="viewer-actions">
           {!showCover && (
-            <button className="btn btn-quiet btn-small" onClick={() => setShowCover(true)}>
+            <button className="btn btn-quiet btn-small" onClick={() => goFront(0)}>
               ↑ Cover
             </button>
           )}
           <button className="btn btn-quiet btn-small" onClick={toggleFullscreen}>
-            ⛶ Fullscreen
+            ⛶ {standalone ? "Full screen" : "Fullscreen"}
           </button>
+          {orgId && !standalone && (
+            <button
+              className="btn btn-quiet btn-small"
+              title="Read it in a window of its own, filling the screen"
+              onClick={() => openInWindow(orgId, item.code, readOnly)}
+            >
+              ⤢ Own window
+            </button>
+          )}
           {item.allowDownload && !authored && (
             <button className="btn btn-quiet btn-small" onClick={download}>
               ⬇ Download

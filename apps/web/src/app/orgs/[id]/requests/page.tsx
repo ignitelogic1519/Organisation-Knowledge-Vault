@@ -12,13 +12,10 @@ import {
 } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
-import { courses } from "@/lib/courses-client";
-import { CourseViewer } from "@/components/CourseViewer";
+import { openInWindow } from "@/lib/reader-window";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
-
-type PreviewItem = React.ComponentProps<typeof CourseViewer>["item"];
 
 // Requests — the ask-and-approve center. Two views:
 //  · Inbox: pending requests the signed-in user has the authority to decide. Course
@@ -405,11 +402,11 @@ function InboxCard({
             <button
               className="btn btn-quiet btn-small"
               disabled={busy}
-              data-hint="Read the document exactly as its readers would, before you decide."
+              data-hint="Opens in a window of its own, filling the screen — read the document exactly as its readers would, before you decide."
               data-hint-title="Preview"
               onClick={() => onPreview(r.courseCode!)}
             >
-              👁 Preview document
+              👁 Preview document ⤢
             </button>
           )}
           {isReview && (
@@ -514,35 +511,19 @@ export default function RequestsPage() {
   const [data, setData] = useState<RequestsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreviewItem | null>(null);
 
-  // Open a draft in the read-only viewer for review
+  // Reviewing a document is reading it, not glancing at it: it opens in a window of its
+  // own, filling the screen, so nothing of this page is left behind it.
   const openPreview = useCallback(
-    async (code: string) => {
-      try {
-        const c = await courses.info(code);
-        setPreview({
-          code: c.code,
-          title: c.title,
-          kind: c.kind,
-          version: c.version,
-          status: "AVAILABLE",
-          mandatory: false,
-          missingPrerequisites: [],
-          prerequisiteCodes: c.prerequisiteCodes,
-          viaRoleName: "",
-          description: c.description,
-          scope: c.scope,
-          classification: c.classification,
-          allowDownload: c.allowDownload,
-          publishedAt: c.publishedAt,
-          creatorName: c.creatorName,
-        });
-      } catch (e) {
-        dialogs.toast(e instanceof ApiError ? e.message : "Could not open the document", "danger");
+    (code: string) => {
+      if (!openInWindow(org.id, code, true)) {
+        dialogs.toast(
+          "Your browser blocked the reader window. Allow pop-ups for Knowledge Vault and try again.",
+          "danger",
+        );
       }
     },
-    [dialogs],
+    [org.id, dialogs],
   );
 
   // Deep link from a notification: /requests?focus=<id> highlights that exact request
@@ -727,15 +708,6 @@ export default function RequestsPage() {
         </ul>
       </div>
 
-      {preview && (
-        <CourseViewer
-          item={preview}
-          orgName={org.name}
-          readOnly
-          onClose={() => setPreview(null)}
-          onChanged={() => undefined}
-        />
-      )}
     </div>
   );
 }

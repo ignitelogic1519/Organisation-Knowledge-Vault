@@ -1566,11 +1566,15 @@ Every document opens on its **standardized cover page**, showing:
 - the **published date**, **version**, and **author**, and
 - the document's **reference code**.
 
-Scroll past the cover (or use **Skip to content**) for the **description & scope**, then the
-content itself. From the viewer you can also:
+The cover is **page one**, not a preamble to skip. Turn it with **Next →** (or the arrow
+keys) to reach the **description & scope**, and again to reach the content — each page
+arriving with the same page-turn the rest of the document uses. **↑ Cover** takes you back
+to the front at any time. From the viewer you can also:
 
 - mark the course **complete**,
 - go **fullscreen** for focused reading,
+- open it in a **window of its own** (**⤢ Own window**) — the whole screen, the same
+  options, nothing of the app around it,
 - see **related documents**, and
 - after completing, **rate & review** it — feeding the ratings shown in the library.
 
