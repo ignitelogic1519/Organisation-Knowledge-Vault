@@ -40,16 +40,20 @@ try{
   try{ localStorage.setItem('theme', t==='dark'?'dark':'light') }catch(e){}
   d.setAttribute('data-accent', read('kv.accent')||'peach');
   // Motion is a preference like the others, so it has to be on the element before the
-  // first frame — otherwise an author who switched animation off still sees one paint
-  // of it on every page load.
-  d.setAttribute('data-motion', read('kv.motion')==='off'?'off':'full');
+  // first frame — otherwise a reader whose animation is off still sees one paint of it
+  // on every page load.
+  //
+  // The default is OFF. A first-time visitor gets a calm, static interface and opts IN
+  // to the motion from Appearance → Animation; only an explicit stored 'full' turns it
+  // on, so an unset or unreadable preference always lands on the quieter side.
+  d.setAttribute('data-motion', read('kv.motion')==='full'?'full':'off');
 }catch(e){}
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // suppressHydrationWarning: the script above sets data-theme before hydration
-    <html lang="en" suppressHydrationWarning data-theme="light" data-accent="peach" data-motion="full">
+    <html lang="en" suppressHydrationWarning data-theme="light" data-accent="peach" data-motion="off">
       <body>
         <script dangerouslySetInnerHTML={{ __html: appearanceInit }} />
         <ThemeProvider attribute="data-theme" defaultTheme="light" enableSystem={false}>

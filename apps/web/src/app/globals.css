@@ -11204,6 +11204,14 @@ html.kv-pointer-on * {
   animation-delay: 0ms !important;
 }
 
+/* One carve-out: the loading shimmer. A frozen skeleton is just a grey block, and the
+   difference between "still fetching" and "there is nothing here" is information, not
+   decoration. Everything else in this block is ornament. */
+[data-motion="off"] .skeleton::after {
+  animation-duration: 1.4s !important;
+  animation-iteration-count: infinite !important;
+}
+
 /* The pointer's decorative companions go entirely, rather than freezing mid-pose. */
 [data-motion="off"] .kv-idle,
 [data-motion="off"] .kv-burst,

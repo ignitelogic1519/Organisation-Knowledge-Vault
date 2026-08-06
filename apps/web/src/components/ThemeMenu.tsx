@@ -81,7 +81,7 @@ function MotionSwitch() {
       data-hint={
         on
           ? "Turns off the animated cursor, its idle scenes and the decorative motion across the app. Remembered on this device."
-          : "Animation is off. The cursor becomes a plain pointer and the idle scenes never appear."
+          : "Animation is off — the default. Turn it on for the animated cursor, its idle scenes and the motion across the app. Your choice is remembered."
       }
       data-hint-title="Animation"
       onClick={() => {
@@ -161,8 +161,9 @@ export function ThemeMenu() {
             <MotionSwitch />
           </div>
           <p className="auth-sub theme-pop-note">
-            Your choices are remembered on this device and restored the next time you sign
-            in. If your system already asks for reduced motion, that always wins.
+            Animation starts off — turn it on if you want it. Your choices are remembered on
+            this device and restored the next time you sign in. If your system already asks
+            for reduced motion, that always wins.
           </p>
         </div>
       )}
