@@ -160,11 +160,6 @@ export function ThemeMenu() {
             <span className="auth-sub">Animation</span>
             <MotionSwitch />
           </div>
-          <p className="auth-sub theme-pop-note">
-            Animation starts off — turn it on if you want it. Your choices are remembered on
-            this device and restored the next time you sign in. If your system already asks
-            for reduced motion, that always wins.
-          </p>
         </div>
       )}
     </div>

@@ -954,6 +954,18 @@ button {
   flex-direction: column;
   gap: 0.7rem;
   animation: pop-in 220ms var(--spring) both;
+  /* Frosted, not see-through: a heavier blur than the shared .glass and a nearly solid
+     ground, so the swatches and switches never compete with whatever page sits underneath
+     — the same treatment as .mail-panel. Overrides .glass, which this popover also carries. */
+  background: color-mix(in srgb, var(--surface-solid) 96%, transparent);
+  -webkit-backdrop-filter: blur(48px) saturate(180%);
+  backdrop-filter: blur(48px) saturate(180%);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .theme-pop {
+    background: var(--surface-solid);
+  }
 }
 
 @keyframes pop-in {
