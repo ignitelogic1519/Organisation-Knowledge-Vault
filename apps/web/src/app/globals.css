@@ -2961,6 +2961,78 @@ button {
   padding: 1.5rem;
 }
 
+/* The reader's own tab strip. A phone — and the Android shell, which is one WebView with no
+   tabs at all — has nothing to switch back with, so the reader draws the strip itself: the
+   page the document came from on the left, the document on the right. */
+.reader-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+  flex: none;
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+
+.reader-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 60%;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom-color: transparent;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    background 140ms var(--ease),
+    color 140ms var(--ease);
+}
+
+.reader-tab > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.reader-tab:hover,
+button.reader-tab:focus-visible {
+  color: var(--text);
+  background: var(--surface-solid);
+}
+
+/* The document's own tab: where you are, so it is not a button and cannot be clicked. */
+.reader-tab[data-active="true"] {
+  color: var(--text);
+  background: var(--surface-solid);
+  border-bottom-color: var(--surface-solid);
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  /* On a phone the way back is the important half — the document's tab shrinks first, and
+     both tabs stay big enough to hit with a thumb. */
+  .reader-tab {
+    max-width: 55%;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  .reader-tabs {
+    gap: 0.25rem;
+  }
+  /* Every millimetre of a phone screen belongs to the document. */
+  .viewer-window > .viewer {
+    padding: 0.45rem 0.55rem 0.55rem;
+  }
+}
+
 .viewer-head {
   display: flex;
   align-items: flex-start;

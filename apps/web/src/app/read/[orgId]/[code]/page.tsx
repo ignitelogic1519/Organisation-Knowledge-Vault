@@ -16,13 +16,29 @@ const CourseViewer = dynamic(
   { ssr: false, loading: () => <div className="skeleton" style={{ position: "fixed", inset: 0 }} /> },
 );
 
-// The reader window: one document, a window of its own, and nothing else on the page —
-// no navigation bar, no mailbox, no sidebar. It renders the SAME viewer the in-app reader
-// uses, so every option (cover pages that turn, fullscreen, download, related documents,
-// mark complete, rate & review) is here too; it simply has the whole window to work in.
-// Opened by openInWindow() in components/CourseViewer.tsx.
+// The reader: one document, the whole screen, and nothing else on the page — no navigation
+// bar, no mailbox, no sidebar. It renders the SAME viewer the in-app reader uses, so every
+// option (cover pages that turn, fullscreen, download, related documents, mark complete,
+// rate & review) is here too; it simply has the whole window to work in.
+//
+// On a desktop browser it arrives as a window of its own. On a phone, and inside the Android
+// shell — a single WebView with no tab strip and no second window — it opens in the same view
+// instead, which is why it always draws its OWN tabs: one back to the page it was opened
+// from (`?from=`), one for the document. Opened by openInWindow() in lib/reader-window.ts.
 
 type Item = ViewerItem;
+
+/** Which page the reader came from, and what to call it on the tab. */
+function backTarget(from: string | null, orgId: string): { href: string; label: string } {
+  // Only a path within this app is ever followed — a `from` from anywhere else is ignored.
+  const safe = from && from.startsWith("/") && !from.startsWith("//") ? from : null;
+  const href = safe ?? `/orgs/${orgId}/learning`;
+  if (href.includes("/library")) return { href, label: "Library" };
+  if (href.includes("/requests")) return { href, label: "Requests" };
+  if (href.includes("/learning")) return { href, label: "My Learning" };
+  if (href.includes("/compliance")) return { href, label: "Compliance" };
+  return { href, label: "Back to the app" };
+}
 
 export default function ReaderWindowPage() {
   const { orgId, code } = useParams<{ orgId: string; code: string }>();
@@ -88,15 +104,23 @@ export default function ReaderWindowPage() {
     if (item) document.title = `${item.title} · Knowledge Vault`;
   }, [item]);
 
-  // Closing the reader closes its window. If this page was reached by typing the address
-  // (a window the script never opened, which close() may not touch), fall back to the
-  // organization's learning list rather than leaving a dead ✕.
-  const close = useCallback(() => {
-    window.close();
-    window.setTimeout(() => {
-      if (!window.closed) router.replace(`/orgs/${orgId}/learning`);
-    }, 200);
-  }, [orgId, router]);
+  const back = backTarget(params.get("from"), orgId);
+
+  // Leaving the reader means whatever leaving means here: a window this script opened gets
+  // closed; a view that IS the app (a phone, the Android shell, or an address typed by hand)
+  // goes back to the page the document was opened from. A ✕ that does nothing is not an
+  // option on a device with no tabs to escape to.
+  const leave = useCallback(() => {
+    if (window.opener && !window.opener.closed) {
+      window.close();
+      // close() is refused in some embedders; only navigate if we are still here.
+      window.setTimeout(() => {
+        if (!window.closed) router.replace(back.href);
+      }, 200);
+      return;
+    }
+    router.replace(back.href);
+  }, [router, back.href]);
 
   if (error) {
     return (
@@ -104,8 +128,8 @@ export default function ReaderWindowPage() {
         <div className="empty-card glass">
           <h2>This document didn&apos;t open</h2>
           <p className="auth-sub">{error}</p>
-          <button className="btn btn-quiet btn-small" onClick={close}>
-            Close this window
+          <button className="btn btn-quiet btn-small" onClick={leave}>
+            ← {back.label}
           </button>
         </div>
       </main>
@@ -120,9 +144,17 @@ export default function ReaderWindowPage() {
       item={item}
       orgName={orgName}
       readOnly={previewMode || !assigned}
-      onClose={close}
+      backTab={{ label: back.label, onGo: leave }}
+      onClose={leave}
       onChanged={() => void load()}
-      onOpenRelated={(related) => router.push(`/read/${orgId}/${related}`)}
+      onOpenRelated={(related) =>
+        router.push(
+          `/read/${orgId}/${related}?${new URLSearchParams({
+            ...(previewMode ? { mode: "preview" } : {}),
+            from: back.href,
+          }).toString()}`,
+        )
+      }
     />
   );
 }

@@ -61,8 +61,10 @@ to the front at any time. From the viewer you can also:
 
 - mark the course **complete**,
 - go **fullscreen** for focused reading,
-- open it in a **window of its own** (**⤢ Own window**) — the whole screen, the same
-  options, nothing of the app around it,
+- give it the **whole screen** — **⤢ Own window** on a computer opens the document in a
+  window of its own; on a phone, and in the Android app, the same button hands the whole
+  screen to the document, and a **tab at the top takes you straight back** to My Learning
+  (the mobile app has no tabs of its own, so the reader brings its own),
 - see **related documents**, and
 - after completing, **rate & review** it — feeding the ratings shown in the library.
 

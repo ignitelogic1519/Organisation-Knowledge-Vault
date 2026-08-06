@@ -5,7 +5,7 @@ import { versionLabel, type AuthoredBlock, type Classification, type DownloadTic
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
 import { fetchAndDecrypt } from "@/lib/storage-crypto";
-import { openInWindow } from "@/lib/reader-window";
+import { isSingleViewDevice, openInWindow } from "@/lib/reader-window";
 import { CourseExam } from "./CourseExam";
 import { AuthoredBlockView, DocumentPages, paginate } from "./DocumentView";
 import { PdfView } from "./PdfView";
@@ -91,6 +91,7 @@ export function CourseViewer({
   readOnly = false,
   standalone = false,
   orgId,
+  backTab,
 }: {
   item: ViewerItem;
   orgName: string;
@@ -103,6 +104,12 @@ export function CourseViewer({
   standalone?: boolean;
   /** Enables “open in its own window” — omit to hide that action. */
   orgId?: string;
+  /**
+   * The way back out of a standalone reader, drawn as a tab beside the document's own.
+   * On a phone — and in the Android shell, which has no tabs of its own — this is the only
+   * way back to the page the document was opened from, so it is never optional there.
+   */
+  backTab?: { label: string; onGo: () => void };
 }) {
   const dialogs = useDialogs();
   const frameWrapRef = useRef<HTMLDivElement>(null);
@@ -127,6 +134,10 @@ export function CourseViewer({
   const [frontDir, setFrontDir] = useState<"next" | "prev">("next");
   const [page, setPage] = useState(0);
   const showCover = front < FRONT_PAGES.length;
+  // Whether this device has windows to give — decided after mount, since the answer depends
+  // on the device rather than on the markup.
+  const [singleView, setSingleView] = useState(false);
+  useEffect(() => setSingleView(isSingleViewDevice()), []);
   const locked = item.missingPrerequisites.length > 0;
   const completed = item.status === "COMPLETED";
   const pages = authored ? paginate(authored) : [];
@@ -325,6 +336,13 @@ export function CourseViewer({
   }, [item.code, dialogs]);
 
   const publishedDate = item.publishedAt.slice(0, 10);
+  // ✕ says what it will actually do: close a window that can be closed, otherwise go back to
+  // the page this document was opened from.
+  const closeLabel = !standalone
+    ? "Close"
+    : singleView && backTab
+      ? `Back to ${backTab.label}`
+      : "Close this window";
 
   return (
     <div className={`viewer-layer${standalone ? " viewer-window" : ""}`} role="presentation">
@@ -334,6 +352,19 @@ export function CourseViewer({
         aria-modal={standalone ? undefined : true}
         aria-label={item.title}
       >
+        {/* The way back, drawn as the tab strip a phone doesn't have: one tab for the page
+            the document came from, one for the document itself. */}
+        {standalone && backTab && (
+          <nav className="reader-tabs" aria-label="Where you are">
+            <button type="button" className="reader-tab" onClick={backTab.onGo}>
+              <span aria-hidden>←</span> {backTab.label}
+            </button>
+            <span className="reader-tab" data-active="true" aria-current="page">
+              <span aria-hidden>📄</span> {item.title}
+            </span>
+          </nav>
+        )}
+
         <div className="viewer-head">
           <div className="viewer-title">
             <h3>{item.title}</h3>
@@ -346,8 +377,8 @@ export function CourseViewer({
           </div>
           <button
             className="icon-btn"
-            aria-label={standalone ? "Close this window" : "Close"}
-            title={standalone ? "Close this window" : "Close"}
+            aria-label={closeLabel}
+            title={closeLabel}
             onClick={onClose}
           >
             ✕
@@ -572,10 +603,14 @@ export function CourseViewer({
           {orgId && !standalone && (
             <button
               className="btn btn-quiet btn-small"
-              title="Read it in a window of its own, filling the screen"
+              title={
+                singleView
+                  ? "Give the document the whole screen — a tab brings you back"
+                  : "Read it in a window of its own, filling the screen"
+              }
               onClick={() => openInWindow(orgId, item.code, readOnly)}
             >
-              ⤢ Own window
+              ⤢ {singleView ? "Whole screen" : "Own window"}
             </button>
           )}
           {item.allowDownload && !authored && (

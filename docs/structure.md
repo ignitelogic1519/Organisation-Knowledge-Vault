@@ -502,14 +502,22 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
   placements. **Deletion** is allowed for the course's editors **and the owners of its home
   branch** (and above).
 - **In-app viewer, or a window of its own.** Content never opens in a stray second *tab*:
-  either it opens in the app's viewer, or — on request — in a **reader window**
-  (`/read/:orgId/:code`), a pop-up sized to the screen that carries the same viewer with no
-  app chrome around it and offers true fullscreen from inside. **⤢ Own window** in the
-  viewer's actions opens it; a document **review preview** always uses it. Uploaded files
+  either it opens in the app's viewer, or — on request — in the **reader**
+  (`/read/:orgId/:code`), which carries the same viewer with no app chrome around it and
+  offers true fullscreen from inside. **⤢ Own window** in the viewer's actions opens it; a
+  document **review preview** always uses it. Uploaded files
   stream as a
   same-origin blob into a **non-sandboxed** iframe (so the browser PDF viewer works — the old
   "blocked by Chrome" sandbox bug); external links embed sandboxed with an open-externally
   fallback.
+- **Where the reader opens depends on the device, and it always draws its own way back.**
+  A desktop browser gets a **pop-up sized to the screen** (no tab strip, no toolbars). A
+  phone, an installed PWA, or the **Android shell** — one WebView, no tabs, nowhere to switch
+  to — gets the reader **in the same view** instead (`lib/reader-window.ts`,
+  `isSingleViewDevice()`); a second window there is a room with no door. Either way the reader
+  renders its **own tab strip**: one tab back to the page the document was opened from
+  (`?from=`, validated as an in-app path), one for the document. ✕ closes a window it can
+  close and otherwise walks back the same way, so it is never a dead control.
 
 ### 8.4 Compliance
 `Compliance` tab (managers): pick any branch you govern (ownership can sit on several

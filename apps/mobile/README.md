@@ -102,6 +102,14 @@ apps/mobile/
 
 - **Android only** for now. The same shell runs on iOS (`--platforms=ios` +
   `WKWebView`), but iOS builds/distribution need a Mac and an Apple account.
+- **One view, no tabs — and the web app knows it.** This shell is a single WebView: there
+  is no tab strip and no second window, so a pop-up would be a place the reader could not
+  leave. The web app detects that (`apps/web/src/lib/reader-window.ts`, WebView user agent /
+  coarse pointer / standalone display-mode) and opens the full-screen document **reader**
+  in the same view, where it draws its own tab strip back to the page the document came
+  from. Nothing here needs `supportMultipleWindows`; leaving it off is the deliberate
+  choice, and the hardware back button keeps working because the reader is an ordinary
+  navigation.
 - Needs the site reachable over the network (it's not an offline app); the error
   screen offers a retry.
 - File **downloads** are handed to the system browser/download manager.
