@@ -501,12 +501,15 @@ Requesters and deciders can delete request entries; decided requests auto-purge 
 - **Archival**: `POST /courses/:code/archive` keeps the course and its history but refuses new
   placements. **Deletion** is allowed for the course's editors **and the owners of its home
   branch** (and above).
-- **In-app viewer, or a window of its own.** Content never opens in a stray second *tab*:
-  either it opens in the app's viewer, or — on request — in the **reader**
-  (`/read/:orgId/:code`), which carries the same viewer with no app chrome around it and
-  offers true fullscreen from inside. **⤢ Own window** in the viewer's actions opens it; a
-  document **review preview** always uses it. Uploaded files
-  stream as a
+- **Every "Open" goes straight to the full-screen reader.** Content never opens in a stray
+  second *tab*, and — since a small dialog floating over the page it was opened from read as
+  broken rather than a preview — it no longer opens as an in-page dialog either. My Learning
+  and the Library's **📖 Open it now** both navigate to the **reader**
+  (`/read/:orgId/:code`, `lib/reader-window.ts`'s `readerPath()`), which carries the same
+  viewer with no app chrome around it and offers true fullscreen from inside; the reader looks
+  up the course itself, so it always has the latest deadline, completion and prerequisites,
+  not a snapshot from the card that opened it. A document **review preview** (Requests) uses
+  the same reader via **⤢ Own window** / `openInWindow()`. Uploaded files stream as a
   same-origin blob into a **non-sandboxed** iframe (so the browser PDF viewer works — the old
   "blocked by Chrome" sandbox bug); external links embed sandboxed with an open-externally
   fallback.

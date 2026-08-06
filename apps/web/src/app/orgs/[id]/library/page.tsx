@@ -11,7 +11,8 @@ import {
 import { ApiError } from "@/lib/auth-client";
 import { requests } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
-import { CourseViewer, Stars } from "@/components/CourseViewer";
+import { Stars } from "@/components/CourseViewer";
+import { readerPath } from "@/lib/reader-window";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
@@ -62,11 +63,6 @@ function CourseDetail({
   const dialogs = useDialogs();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [opening, setOpening] = useState(false);
-  /** The reader, when the course is already theirs — opened in place, not requested. */
-  const [viewing, setViewing] = useState<React.ComponentProps<typeof CourseViewer>["item"] | null>(
-    null,
-  );
   const [reviews, setReviews] = useState<CourseReviewView[] | null>(null);
   // Compliance is manager-only: the endpoint returns 403 for everyone else, so we
   // simply hide the panel unless the fetch succeeds (branch manager or course owner).
@@ -90,29 +86,12 @@ function CourseDetail({
       : 0;
 
   /**
-   * Open a course that already reaches the reader. My Learning is the authority on how it
-   * reaches them — their deadline, their completion, their prerequisites — so the item is
-   * taken from there rather than reconstructed out of the library card.
+   * Open a course that already reaches the reader — straight to the full-screen reader
+   * (/read/:orgId/:code), the same one My Learning uses. It looks itself up there, so it
+   * always has the latest deadline, completion and prerequisites, not a snapshot from the
+   * library card.
    */
-  const openIt = async () => {
-    setOpening(true);
-    try {
-      const mine = await courses.myLearning(org.id);
-      const item = [...mine.mandatory, ...mine.optIn].find((i) => i.code === course.code);
-      if (!item) {
-        dialogs.toast(
-          "This is no longer assigned to you — request it for your branch instead.",
-          "danger",
-        );
-        return;
-      }
-      setViewing(item);
-    } catch (e) {
-      dialogs.toast(e instanceof ApiError ? e.message : "Could not open it", "danger");
-    } finally {
-      setOpening(false);
-    }
-  };
+  const openIt = () => router.push(readerPath(org.id, course.code));
 
   return (
     <div
@@ -339,12 +318,11 @@ function CourseDetail({
               </div>
               <button
                 className="btn btn-primary"
-                disabled={opening}
-                data-hint="Opens it right here in the reader. No request, no approval — it is already yours."
+                data-hint="Opens in the full-screen reader. No request, no approval — it is already yours."
                 data-hint-title="Open it"
                 onClick={openIt}
               >
-                {opening ? "Opening…" : course.kind === "EXAM" ? "▷ Sit the exam" : "📖 Open it now"}
+                {course.kind === "EXAM" ? "▷ Sit the exam" : "📖 Open it now"}
               </button>
             </div>
           )}
@@ -446,16 +424,6 @@ function CourseDetail({
           )}
         </div>
       </div>
-
-      {viewing && (
-        <CourseViewer
-          item={viewing}
-          orgId={org.id}
-          orgName={org.name}
-          onClose={() => setViewing(null)}
-          onChanged={() => undefined}
-        />
-      )}
     </div>
   );
 }

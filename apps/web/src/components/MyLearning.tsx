@@ -1,15 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { versionLabel, type LearningItem, type MyLearningView } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
-import { CourseViewer } from "./CourseViewer";
-import { useDialogs } from "./dialogs";
+import { readerPath } from "@/lib/reader-window";
 import { useOrgEvent } from "./org-events";
 
 // My Learning — the member's course list, grouped by what matters to them:
 // pending (assigned / in progress / expired / overdue) first, completed below.
+//
+// "Open" goes straight to the full-screen reader (/read/:orgId/:code) rather than a dialog
+// floating over this page — a document is the one thing here worth the whole screen, and a
+// small centred panel with its own internal scrollbars read as broken, not as a preview.
 
 type Item = LearningItem & { mandatory: boolean };
 
@@ -84,16 +88,20 @@ function Row({
   );
 }
 
-export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string }) {
-  const dialogs = useDialogs();
+export function MyLearning({ orgId }: { orgId: string }) {
+  const router = useRouter();
   const [view, setView] = useState<MyLearningView | null>(null);
-  const [viewerItem, setViewerItem] = useState<Item | null>(null);
   const reload = useCallback(() => {
     courses.myLearning(orgId).then(setView).catch(() => setView(null));
   }, [orgId]);
   useEffect(reload, [reload]);
   // Live: newly assigned/changed courses land without a refresh
   useOrgEvent(["courses", "structure"], reload);
+
+  const openReader = useCallback(
+    (item: Item) => router.push(readerPath(orgId, item.code)),
+    [router, orgId],
+  );
 
   const groups = useMemo(() => {
     if (!view) return null;
@@ -108,13 +116,6 @@ export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string 
       overdue: all.filter((i) => i.overdue).length,
     };
   }, [view]);
-
-  // The viewer's item goes stale after reloads — keep it in sync
-  useEffect(() => {
-    if (!viewerItem || !groups) return;
-    const fresh = groups.all.find((i) => i.code === viewerItem.code);
-    if (fresh && fresh !== viewerItem) setViewerItem(fresh);
-  }, [groups, viewerItem]);
 
   if (!groups) {
     return (
@@ -160,7 +161,7 @@ export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string 
             <h3 className="learning-h">Pending</h3>
             <ul className="owner-list">
               {groups.pending.map((i) => (
-                <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
+                <Row key={i.code} item={i} onChanged={reload} onOpen={openReader} />
               ))}
             </ul>
           </>
@@ -171,27 +172,12 @@ export function MyLearning({ orgId, orgName }: { orgId: string; orgName: string 
             <h3 className="learning-h">Completed</h3>
             <ul className="owner-list">
               {groups.completed.map((i) => (
-                <Row key={i.code} item={i} onChanged={reload} onOpen={setViewerItem} />
+                <Row key={i.code} item={i} onChanged={reload} onOpen={openReader} />
               ))}
             </ul>
           </>
         )}
       </div>
-
-      {viewerItem && (
-        <CourseViewer
-          item={viewerItem}
-          orgId={orgId}
-          orgName={orgName}
-          onClose={() => setViewerItem(null)}
-          onChanged={reload}
-          onOpenRelated={(code) => {
-            const related = groups.all.find((i) => i.code === code);
-            if (related) setViewerItem(related);
-            else dialogs.toast("That document doesn't reach your position.", "info");
-          }}
-        />
-      )}
     </div>
   );
 }
