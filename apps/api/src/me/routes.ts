@@ -12,15 +12,32 @@ export async function meRoutes(app: FastifyInstance) {
   // contains, capped at 8 — enough to confirm "this person exists" without turning the
   // profile table into a directory anyone can page through. Only the public identity
   // fields are returned, and a query shorter than two characters returns nothing.
-  app.get<{ Querystring: { q?: string; orgId?: string } }>(
+  //
+  // `memberOfOrgId` narrows the search to one organization's own people. That is not the
+  // same question as `orgId`: adding somebody searches everyone on the platform and merely
+  // MARKS the ones already here, while a manager looking up an employee must never be
+  // offered a stranger. The caller with `memberOfOrgId` must belong to that organization
+  // themselves — it is a member directory, not a platform-wide one.
+  app.get<{ Querystring: { q?: string; orgId?: string; memberOfOrgId?: string } }>(
     "/profiles/search",
     { preHandler: app.authenticate },
-    async (req) => {
+    async (req, reply) => {
       const q = (req.query.q ?? "").trim().toLowerCase();
       if (q.length < 2) return { profiles: [] };
+      const restrictTo = req.query.memberOfOrgId;
+      if (restrictTo) {
+        const caller = await db.membership.findFirst({
+          where: { orgId: restrictTo, profileId: req.profileId },
+          select: { id: true },
+        });
+        if (!caller) {
+          return reply.status(403).send({ error: "You are not a member of that organization" });
+        }
+      }
       const rows = await db.profile.findMany({
         where: {
           OR: [{ username: { contains: q } }, { displayName: { contains: q, mode: "insensitive" } }],
+          ...(restrictTo ? { memberships: { some: { orgId: restrictTo } } } : {}),
         },
         select: { id: true, username: true, displayName: true, avatar: true },
         take: 24,

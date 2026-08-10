@@ -776,6 +776,38 @@ export interface ComplianceReport {
   courses: ComplianceCourse[];
 }
 
+/**
+ * One course as it stands for ONE person — the row of the per-person compliance card.
+ * The branch report answers "who is behind on this course"; this answers the question a
+ * manager actually asks about someone in particular: "where does this person stand?"
+ */
+export interface CompliancePersonCourse
+  extends Omit<CompliancePerson, "profileId" | "displayName" | "username" | "reason"> {
+  code: string;
+  title: string;
+  mandatory: boolean;
+  viaRoleName: string;
+  isExam: boolean;
+  /** True when this course is satisfied — `reason` is then null. */
+  compliant: boolean;
+  reason: ComplianceReason | null;
+}
+
+/** Everything that reaches one person within a branch the manager governs. */
+export interface CompliancePersonReport {
+  roleId: string;
+  roleName: string;
+  profileId: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  /** Which roles in this branch the person occupies — where they sit under the manager. */
+  roleNames: string[];
+  compliant: number;
+  total: number;
+  courses: CompliancePersonCourse[];
+}
+
 export interface LearningItem extends CourseInfo {
   mandatory: boolean;
   viaRoleName: string; // which placement reaches this user

@@ -4,6 +4,9 @@ import {
   can,
   isSelfOrAncestor,
   type ComplianceCourse,
+  type CompliancePerson,
+  type CompliancePersonCourse,
+  type CompliancePersonReport,
   type ComplianceReport,
 } from "@vault/shared";
 import { db } from "../db.js";
@@ -38,6 +41,210 @@ async function examMaxAttempts(course: { kind: string; storageRef: unknown }): P
   }
 }
 
+/** One person's standing on one course, before it is shaped for a particular view. */
+interface Entry extends CompliancePerson {
+  compliant: boolean;
+}
+
+/** A course reaching the branch, with EVERY person it reaches — compliant or not. */
+interface BranchCourse {
+  code: string;
+  title: string;
+  mandatory: boolean;
+  viaRoleName: string;
+  isExam: boolean;
+  entries: Entry[];
+}
+
+/**
+ * Compliance for a branch, computed once and shaped twice.
+ *
+ * The branch report shows a course and the people behind on it; the per-person card shows
+ * a person and the courses behind them. They are the same arithmetic read along different
+ * axes, so it is computed here and only formatted at the route — the two views can never
+ * disagree about whether somebody is compliant.
+ */
+async function branchCompliance(node: { id: string; orgId: string; path: string }): Promise<{
+  peopleCount: number;
+  courses: BranchCourse[];
+  /** Everyone in the subtree: their profile, and which of the branch's roles they occupy. */
+  people: Map<
+    string,
+    {
+      profile: { id: string; username: string; displayName: string; avatar: string | null };
+      roleNames: string[];
+    }
+  >;
+}> {
+  const allNodes = await db.roleNode.findMany({ where: { orgId: node.orgId } });
+  const subtree = allNodes.filter((n) => isSelfOrAncestor(node.path, n.path));
+  const subtreeIds = new Set(subtree.map((n) => n.id));
+
+  // Course placements that touch this branch: on a subtree node, or inherited
+  // from a level above it
+  const cps = await db.coursePlacement.findMany({
+    where: { course: { orgId: node.orgId } },
+    include: { course: true },
+  });
+  const relevant = cps.filter((cp) => {
+    if (subtreeIds.has(cp.roleNodeId)) return true;
+    const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
+    return !!cpNode && cp.inheritToDescendants && isSelfOrAncestor(cpNode.path, node.path);
+  });
+
+  const occupants = await db.placement.findMany({
+    where: { roleNodeId: { in: [...subtreeIds] } },
+    include: { membership: { include: { profile: true } }, roleNode: true },
+  });
+  const peopleCount = new Set(occupants.map((o) => o.membership.profileId)).size;
+
+  const byCourse = new Map<string, { cp: (typeof relevant)[number]; audience: Set<string> }>();
+  for (const cp of relevant) {
+    const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
+    if (!cpNode) continue;
+    // Audience within this branch: occupants of the exact placement node, or —
+    // when the placement inherits — every subtree occupant the placement reaches.
+    // (`occupants` already holds only this branch's subtree.)
+    const audience = new Set(
+      occupants
+        .filter((o) =>
+          cp.inheritToDescendants
+            ? isSelfOrAncestor(cpNode.path, o.roleNode.path)
+            : o.roleNodeId === cp.roleNodeId,
+        )
+        .map((o) => o.membership.profileId),
+    );
+    const existing = byCourse.get(cp.courseId);
+    if (existing) {
+      for (const a of audience) existing.audience.add(a);
+      if (cp.mandatory && !existing.cp.mandatory) existing.cp = cp;
+    } else {
+      byCourse.set(cp.courseId, { cp, audience });
+    }
+  }
+
+  const records = await db.completionRecord.findMany({
+    where: { courseId: { in: [...byCourse.keys()] } },
+  });
+  const profileOf = new Map(
+    occupants.map((o) => [o.membership.profileId, o.membership.profile]),
+  );
+
+  // Exam attempts, fetched once for every exam in the report and bucketed by
+  // course+candidate — the per-person lookup below is then a single map probe.
+  const examCourseIds = [...byCourse.values()]
+    .filter(({ cp }) => cp.course.kind === "EXAM")
+    .map(({ cp }) => cp.courseId);
+  const attempts = examCourseIds.length
+    ? await db.examAttempt.findMany({
+        where: { courseId: { in: examCourseIds }, voided: false },
+        select: { courseId: true, profileId: true, scorePercent: true, passed: true },
+      })
+    : [];
+  const attemptsBy = new Map<string, { count: number; best: number; passed: boolean }>();
+  for (const a of attempts) {
+    const key = `${a.courseId}:${a.profileId}`;
+    const entry = attemptsBy.get(key) ?? { count: 0, best: 0, passed: false };
+    entry.count++;
+    entry.best = Math.max(entry.best, a.scorePercent);
+    entry.passed ||= a.passed;
+    attemptsBy.set(key, entry);
+  }
+  // The paper's own attempt allowance lives in its stored settings.
+  const examLimits = new Map<string, number | null>();
+  for (const courseId of examCourseIds) {
+    const { cp } = [...byCourse.values()].find((c) => c.cp.courseId === courseId)!;
+    examLimits.set(courseId, await examMaxAttempts(cp.course));
+  }
+
+  const courses: BranchCourse[] = [...byCourse.values()].map(({ cp, audience }) => {
+    const entries: Entry[] = [];
+    const deadlineDays = cp.deadlineDays ?? cp.course.deadlineDays;
+    const isExam = cp.course.kind === "EXAM";
+    const maxAttempts = isExam ? examLimits.get(cp.courseId) ?? null : null;
+    for (const profileId of audience) {
+      const rec = records.find((r) => r.courseId === cp.courseId && r.profileId === profileId);
+      const done =
+        rec?.status === "COMPLETED" && (!rec.validUntil || rec.validUntil > new Date());
+      const profile = profileOf.get(profileId);
+      const overdue =
+        !done &&
+        cp.mandatory &&
+        deadlineDays !== null &&
+        new Date(cp.createdAt.getTime() + deadlineDays * 86400_000) < new Date();
+      const stat = isExam ? attemptsBy.get(`${cp.courseId}:${profileId}`) : undefined;
+      const exhausted =
+        !done && isExam && maxAttempts != null && (stat?.count ?? 0) >= maxAttempts && !stat?.passed;
+
+      // The most specific true statement wins: an exhausted exam explains itself
+      // better than "overdue" ever could.
+      const reason = exhausted
+        ? "EXAM_ATTEMPTS_EXHAUSTED"
+        : isExam && (stat?.count ?? 0) > 0
+          ? "EXAM_FAILED"
+          : rec?.status === "EXPIRED"
+            ? "EXPIRED"
+            : overdue
+              ? "OVERDUE"
+              : rec?.status === "IN_PROGRESS"
+                ? "IN_PROGRESS"
+                : "NOT_STARTED";
+
+      entries.push({
+        profileId,
+        displayName: profile?.displayName ?? "Unknown",
+        username: profile?.username ?? "unknown",
+        status: done ? "COMPLETED" : rec?.status ?? (cp.mandatory ? "ASSIGNED" : "AVAILABLE"),
+        overdue,
+        reason,
+        compliant: done,
+        ...(isExam
+          ? {
+              attemptsUsed: stat?.count ?? 0,
+              attemptsAllowed: maxAttempts,
+              bestPercent: stat?.best ?? null,
+              resettable: (stat?.count ?? 0) > 0,
+            }
+          : {}),
+      });
+    }
+    const viaNode = allNodes.find((n) => n.id === cp.roleNodeId);
+    return {
+      code: cp.course.code,
+      title: cp.course.title,
+      mandatory: cp.mandatory,
+      viaRoleName: viaNode?.name ?? "—",
+      isExam,
+      entries,
+    };
+  });
+
+  // Who sits where, so a person's card can say which of the branch's roles they hold.
+  const people = new Map<
+    string,
+    {
+      profile: { id: string; username: string; displayName: string; avatar: string | null };
+      roleNames: string[];
+    }
+  >();
+  for (const o of occupants) {
+    const pr = o.membership.profile;
+    const entry = people.get(pr.id) ?? {
+      profile: {
+        id: pr.id,
+        username: pr.username,
+        displayName: pr.displayName,
+        avatar: pr.avatar ?? null,
+      },
+      roleNames: [],
+    };
+    if (!entry.roleNames.includes(o.roleNode.name)) entry.roleNames.push(o.roleNode.name);
+    people.set(pr.id, entry);
+  }
+
+  return { peopleCount, courses, people };
+}
+
 export async function complianceRoutes(app: FastifyInstance) {
   // The mailbox itself lives in notifications/routes.ts — this file keeps the compliance
   // views and the nightly housekeeping job.
@@ -59,160 +266,98 @@ export async function complianceRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "Only this branch's managers see compliance" });
       }
 
-      const allNodes = await db.roleNode.findMany({ where: { orgId: node.orgId } });
-      const subtree = allNodes.filter((n) => isSelfOrAncestor(node.path, n.path));
-      const subtreeIds = new Set(subtree.map((n) => n.id));
-
-      // Course placements that touch this branch: on a subtree node, or inherited
-      // from a level above it
-      const cps = await db.coursePlacement.findMany({
-        where: { course: { orgId: node.orgId } },
-        include: { course: true },
-      });
-      const relevant = cps.filter((cp) => {
-        if (subtreeIds.has(cp.roleNodeId)) return true;
-        const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
-        return !!cpNode && cp.inheritToDescendants && isSelfOrAncestor(cpNode.path, node.path);
-      });
-
-      const occupants = await db.placement.findMany({
-        where: { roleNodeId: { in: [...subtreeIds] } },
-        include: { membership: { include: { profile: true } }, roleNode: true },
-      });
-      const peopleCount = new Set(occupants.map((o) => o.membership.profileId)).size;
-
-      const byCourse = new Map<string, { cp: (typeof relevant)[number]; audience: Set<string> }>();
-      for (const cp of relevant) {
-        const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
-        if (!cpNode) continue;
-        // Audience within this branch: occupants of the exact placement node, or —
-        // when the placement inherits — every subtree occupant the placement reaches.
-        // (`occupants` already holds only this branch's subtree.)
-        const audience = new Set(
-          occupants
-            .filter((o) =>
-              cp.inheritToDescendants
-                ? isSelfOrAncestor(cpNode.path, o.roleNode.path)
-                : o.roleNodeId === cp.roleNodeId,
-            )
-            .map((o) => o.membership.profileId),
-        );
-        const existing = byCourse.get(cp.courseId);
-        if (existing) {
-          for (const a of audience) existing.audience.add(a);
-          if (cp.mandatory && !existing.cp.mandatory) existing.cp = cp;
-        } else {
-          byCourse.set(cp.courseId, { cp, audience });
-        }
-      }
-
-      const records = await db.completionRecord.findMany({
-        where: { courseId: { in: [...byCourse.keys()] } },
-      });
-      const profileOf = new Map(
-        occupants.map((o) => [o.membership.profileId, o.membership.profile]),
-      );
-
-      // Exam attempts, fetched once for every exam in the report and bucketed by
-      // course+candidate — the per-person lookup below is then a single map probe.
-      const examCourseIds = [...byCourse.values()]
-        .filter(({ cp }) => cp.course.kind === "EXAM")
-        .map(({ cp }) => cp.courseId);
-      const attempts = examCourseIds.length
-        ? await db.examAttempt.findMany({
-            where: { courseId: { in: examCourseIds }, voided: false },
-            select: { courseId: true, profileId: true, scorePercent: true, passed: true },
-          })
-        : [];
-      const attemptsBy = new Map<string, { count: number; best: number; passed: boolean }>();
-      for (const a of attempts) {
-        const key = `${a.courseId}:${a.profileId}`;
-        const entry = attemptsBy.get(key) ?? { count: 0, best: 0, passed: false };
-        entry.count++;
-        entry.best = Math.max(entry.best, a.scorePercent);
-        entry.passed ||= a.passed;
-        attemptsBy.set(key, entry);
-      }
-      // The paper's own attempt allowance lives in its stored settings.
-      const examLimits = new Map<string, number | null>();
-      for (const courseId of examCourseIds) {
-        const { cp } = [...byCourse.values()].find((c) => c.cp.courseId === courseId)!;
-        examLimits.set(courseId, await examMaxAttempts(cp.course));
-      }
-
-      const courses: ComplianceCourse[] = [...byCourse.values()].map(({ cp, audience }) => {
-        const pending: ComplianceCourse["pending"] = [];
-        let compliant = 0;
-        const deadlineDays = cp.deadlineDays ?? cp.course.deadlineDays;
-        const isExam = cp.course.kind === "EXAM";
-        const maxAttempts = isExam ? examLimits.get(cp.courseId) ?? null : null;
-        for (const profileId of audience) {
-          const rec = records.find(
-            (r) => r.courseId === cp.courseId && r.profileId === profileId,
-          );
-          const done =
-            rec?.status === "COMPLETED" &&
-            (!rec.validUntil || rec.validUntil > new Date());
-          if (done) {
-            compliant++;
-            continue;
-          }
-          const profile = profileOf.get(profileId);
-          const overdue =
-            cp.mandatory &&
-            deadlineDays !== null &&
-            new Date(cp.createdAt.getTime() + deadlineDays * 86400_000) < new Date();
-          const stat = isExam ? attemptsBy.get(`${cp.courseId}:${profileId}`) : undefined;
-          const exhausted =
-            isExam && maxAttempts != null && (stat?.count ?? 0) >= maxAttempts && !stat?.passed;
-
-          // The most specific true statement wins: an exhausted exam explains itself
-          // better than "overdue" ever could.
-          const reason = exhausted
-            ? "EXAM_ATTEMPTS_EXHAUSTED"
-            : isExam && (stat?.count ?? 0) > 0
-              ? "EXAM_FAILED"
-              : rec?.status === "EXPIRED"
-                ? "EXPIRED"
-                : overdue
-                  ? "OVERDUE"
-                  : rec?.status === "IN_PROGRESS"
-                    ? "IN_PROGRESS"
-                    : "NOT_STARTED";
-
-          pending.push({
-            profileId,
-            displayName: profile?.displayName ?? "Unknown",
-            username: profile?.username ?? "unknown",
-            status: rec?.status ?? (cp.mandatory ? "ASSIGNED" : "AVAILABLE"),
-            overdue,
-            reason,
-            ...(isExam
-              ? {
-                  attemptsUsed: stat?.count ?? 0,
-                  attemptsAllowed: maxAttempts,
-                  bestPercent: stat?.best ?? null,
-                  resettable: (stat?.count ?? 0) > 0,
-                }
-              : {}),
-          });
-        }
-        const viaNode = allNodes.find((n) => n.id === cp.roleNodeId);
-        return {
-          code: cp.course.code,
-          title: cp.course.title,
-          mandatory: cp.mandatory,
-          viaRoleName: viaNode?.name ?? "—",
-          isExam,
-          total: audience.size,
-          compliant,
-          pending,
-        };
-      });
-
-      return { roleId: node.id, roleName: node.name, peopleCount, courses };
+      const { peopleCount, courses } = await branchCompliance(node);
+      return {
+        roleId: node.id,
+        roleName: node.name,
+        peopleCount,
+        courses: courses.map((c): ComplianceCourse => {
+          const { entries, ...rest } = c;
+          return {
+            ...rest,
+            total: entries.length,
+            compliant: entries.filter((e) => e.compliant).length,
+            pending: entries
+              .filter((e) => !e.compliant)
+              .map(({ compliant: _compliant, ...person }) => person),
+          };
+        }),
+      };
     },
   );
+
+  // One person, every course that reaches them inside a branch the manager governs.
+  // The branch report answers "who is behind on this course"; a manager checking up on
+  // somebody in particular is asking the other question, and used to have to read every
+  // course card looking for a name.
+  app.get<{ Params: { roleId: string }; Querystring: { username?: string } }>(
+    "/roles/:roleId/compliance/person",
+    { preHandler: app.authenticate },
+    async (req, reply): Promise<CompliancePersonReport> => {
+      const node = await db.roleNode.findUnique({
+        where: { id: req.params.roleId },
+        include: { org: true },
+      });
+      if (!node || node.org.deletedAt) return reply.status(404).send({ error: "Role not found" });
+      const placements = await actorPlacements(req.profileId, node.orgId);
+      if (!can(placements, "add_people", toRoleRef(node))) {
+        return reply.status(403).send({ error: "Only this branch's managers see compliance" });
+      }
+
+      const wanted = (req.query.username ?? "").trim().toLowerCase();
+      if (!wanted) return reply.status(400).send({ error: "Name somebody to look up" });
+
+      const { courses, people } = await branchCompliance(node);
+      const person = [...people.values()].find(
+        (p) => p.profile.username.toLowerCase() === wanted,
+      );
+      // Somebody outside this branch simply has nothing here, and saying so plainly is
+      // the honest answer — the manager needs to pick the branch they belong to.
+      if (!person) {
+        return reply
+          .status(404)
+          .send({ error: "That person is not in this branch — pick the branch they belong to" });
+      }
+
+      const rows: CompliancePersonCourse[] = [];
+      for (const c of courses) {
+        const entry = c.entries.find((e) => e.profileId === person.profile.id);
+        if (!entry) continue; // this course does not reach them
+        const { profileId: _p, displayName: _d, username: _u, reason, compliant, ...rest } = entry;
+        rows.push({
+          code: c.code,
+          title: c.title,
+          mandatory: c.mandatory,
+          viaRoleName: c.viaRoleName,
+          isExam: c.isExam,
+          compliant,
+          reason: compliant ? null : reason,
+          ...rest,
+        });
+      }
+      // Mandatory and outstanding first — what a manager is looking for is at the top.
+      rows.sort(
+        (a, b) =>
+          Number(a.compliant) - Number(b.compliant) ||
+          Number(b.mandatory) - Number(a.mandatory) ||
+          a.title.localeCompare(b.title),
+      );
+
+      return {
+        roleId: node.id,
+        roleName: node.name,
+        profileId: person.profile.id,
+        username: person.profile.username,
+        displayName: person.profile.displayName,
+        avatar: person.profile.avatar,
+        roleNames: person.roleNames,
+        compliant: rows.filter((r) => r.compliant).length,
+        total: rows.length,
+        courses: rows,
+      };
+    },
+  );
+
 
   // Nudge the non-compliant: the manager picks people and sends a custom (or default)
   // message straight to their bell.

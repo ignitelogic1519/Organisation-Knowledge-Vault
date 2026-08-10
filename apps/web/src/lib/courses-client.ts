@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  CompliancePersonReport,
   ComplianceReport,
   CourseAdminView,
   CourseHistoryView,
@@ -172,6 +173,11 @@ export const courses = {
 
 export const compliance = {
   report: (roleId: string) => api<ComplianceReport>(`/roles/${roleId}/compliance`),
+  /** One person's standing across every course that reaches this branch. */
+  person: (roleId: string, username: string) =>
+    api<CompliancePersonReport>(
+      `/roles/${roleId}/compliance/person?username=${encodeURIComponent(username)}`,
+    ),
   remind: (roleId: string, input: { courseCode: string; profileIds: string[]; message?: string }) =>
     api<{ ok: boolean; reminded: number }>(`/roles/${roleId}/compliance/remind`, {
       method: "POST",
@@ -185,12 +191,27 @@ export const compliance = {
     ),
 };
 
-/** Live username suggestions for the add-person forms. */
+export interface PersonSuggestion {
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  alreadyMember: boolean;
+}
+
+/**
+ * Live username suggestions for every form that asks for a person.
+ *
+ * `orgId` marks the people who are already in that organization; `memberOfOrgId` refuses
+ * to offer anybody who is not — the difference between "invite anyone, and tell me who is
+ * already here" and "look somebody up inside my organization".
+ */
 export const people = {
-  search: (q: string, orgId?: string) =>
-    api<{ profiles: { username: string; displayName: string; avatar: string | null; alreadyMember: boolean }[] }>(
-      `/profiles/search?q=${encodeURIComponent(q)}${orgId ? `&orgId=${orgId}` : ""}`,
-    ),
+  search: (q: string, opts: { orgId?: string; memberOfOrgId?: string } = {}) => {
+    const params = new URLSearchParams({ q });
+    if (opts.orgId) params.set("orgId", opts.orgId);
+    if (opts.memberOfOrgId) params.set("memberOfOrgId", opts.memberOfOrgId);
+    return api<{ profiles: PersonSuggestion[] }>(`/profiles/search?${params.toString()}`);
+  },
 };
 
 /** The mailbox — one read returns folders, labels, counts and expiry in a single trip. */

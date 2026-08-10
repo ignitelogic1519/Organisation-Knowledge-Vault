@@ -1,47 +1,72 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { people } from "@/lib/courses-client";
+import { people, type PersonSuggestion } from "@/lib/courses-client";
 
 // Username input with live suggestions, GitLab-style: type two characters and the people
 // who match appear underneath, so you can see whether the person you mean actually exists
 // before you commit. It stays a plain text input underneath — an unknown username is still
-// accepted (it becomes a reservation that attaches when that person registers).
+// accepted (it becomes a reservation that attaches when that person registers), unless the
+// caller says otherwise with `mustExist`.
+//
+// One component serves every form that asks for a person, because the three that did it
+// their own way — the org's add-person drawer, the super-admin console, the compliance
+// look-up — each answered "who exists?" differently, and two of them did not answer at
+// all. A caller that reaches a different directory (the super-admin console searches every
+// account through the admin API) passes its own `source`; everything else about the field
+// is identical.
 //
 // The lookup is debounced and every in-flight response is stamped, so a slow answer for
 // "an" can never overwrite the answer for "anna".
 
-interface Suggestion {
-  username: string;
-  displayName: string;
-  avatar: string | null;
-  alreadyMember: boolean;
-}
+export type Suggestion = PersonSuggestion;
 
 export function UsernameField({
   name = "username",
   orgId,
+  memberOfOrgId,
   label = "Username",
   hint,
   required,
   autoFocus,
   defaultValue = "",
+  value: controlled,
   placeholder = "their-username",
+  source,
+  labelClassName = "field",
+  emptyNote,
   onPick,
+  onChange,
 }: {
   name?: string;
   /** Marks people who already belong to this organization. */
   orgId?: string;
+  /** Offers ONLY that organization's own people — a member directory, not the platform. */
+  memberOfOrgId?: string;
   label?: string;
   hint?: React.ReactNode;
   required?: boolean;
   autoFocus?: boolean;
   defaultValue?: string;
+  /** Controlled mode — pair it with `onChange`. */
+  value?: string;
   placeholder?: string;
+  /** Where the suggestions come from, when it is not the ordinary member directory. */
+  source?: (q: string) => Promise<Suggestion[]>;
+  /** The label's class — forms outside the app shell (the console) style their own. */
+  labelClassName?: string;
+  /** What to say when nobody matches. The default assumes an unknown name is allowed. */
+  emptyNote?: React.ReactNode;
   onPick?: (username: string) => void;
+  onChange?: (username: string) => void;
 }) {
   const listId = useId();
-  const [value, setValue] = useState(defaultValue);
+  const [inner, setInner] = useState(defaultValue);
+  const value = controlled ?? inner;
+  const setValue = (next: string) => {
+    if (controlled === undefined) setInner(next);
+    onChange?.(next);
+  };
   const [items, setItems] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -59,19 +84,21 @@ export function UsernameField({
       }
       const mine = ++seq.current;
       setState("searching");
-      people
-        .search(term, orgId)
-        .then((r) => {
+      const lookup = source
+        ? source(term)
+        : people.search(term, { orgId, memberOfOrgId }).then((r) => r.profiles);
+      lookup
+        .then((profiles) => {
           if (mine !== seq.current) return; // a newer keystroke already won
-          setItems(r.profiles);
-          setState(r.profiles.length ? "idle" : "none");
+          setItems(profiles);
+          setState(profiles.length ? "idle" : "none");
           setActive(-1);
         })
         .catch(() => {
           if (mine === seq.current) setState("idle");
         });
     },
-    [orgId],
+    [orgId, memberOfOrgId, source],
   );
 
   useEffect(() => {
@@ -95,7 +122,7 @@ export function UsernameField({
 
   return (
     <div className="username-field" ref={wrapRef}>
-      <label className="field">
+      <label className={labelClassName}>
         <span>{label}</span>
         <input
           name={name}
@@ -134,14 +161,18 @@ export function UsernameField({
       </label>
 
       {open && value.trim().length >= 2 && (
-        <ul className="username-suggest glass" id={listId} role="listbox">
+        <ul className="username-suggest" id={listId} role="listbox">
           {state === "searching" && items.length === 0 && (
             <li className="username-suggest-note auth-sub">Looking…</li>
           )}
           {state === "none" && (
             <li className="username-suggest-note auth-sub">
-              Nobody registered under that name yet — you can still add it, and the place is
-              reserved until they sign up.
+              {emptyNote ?? (
+                <>
+                  Nobody registered under that name yet — you can still add it, and the place
+                  is reserved until they sign up.
+                </>
+              )}
             </li>
           )}
           {items.map((s, i) => (

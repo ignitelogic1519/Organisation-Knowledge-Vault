@@ -6,6 +6,12 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
+  /* Tells the browser which way its OWN widgets go — the native <select> menu, scrollbars,
+     checkboxes and the date picker. Without it a dark theme gets a white popup list with
+     our light text painted on it, which is how the classification menu came to be a column
+     of invisible options. */
+  color-scheme: light;
+
   /* base (light) — the peach-white day theme, the platform's default look */
   --bg: #fdf3ec;
   --bg-2: #f7e6dc;
@@ -74,6 +80,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0a0d17;
   --bg-2: #10152a;
   --surface-solid: #151a2c;
@@ -501,6 +508,14 @@ button {
   gap: 0.3rem;
 }
 
+/* Small enough to sit on a field's own label line without displacing it. */
+.btn-tiny {
+  padding: 0.15rem 0.55rem;
+  font-size: 0.72rem;
+  gap: 0.2rem;
+  border-radius: 980px;
+}
+
 .btn-block {
   width: 100%;
 }
@@ -665,6 +680,50 @@ button {
   font-size: 0.75rem;
 }
 
+/* A label that carries its own help — the question mark and, where there is somewhere to
+   send the reader, the link that answers it. */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.field-label-aids {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field-help {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: help;
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease);
+}
+
+.field-help:hover,
+.field-help:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.create-org-gate {
+  margin-bottom: 0.4rem;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -692,6 +751,31 @@ button {
     inset -2px -2px 6px var(--neu-hi),
     inset 2px 2px 6px var(--neu-lo),
     0 0 0 3px var(--accent-soft);
+}
+
+/* The dropped-open list of a native <select>, everywhere in the app.
+   `color-scheme` above fixes this on its own in most browsers, but not all of them: the
+   popup is drawn by the platform, and several (Chrome on Windows and Android in
+   particular) keep painting it white while inheriting the page's light text — which is
+   exactly how "Public / Confidential / Private / Secret" became four blank lines. Naming
+   both colours explicitly leaves nothing for the platform to guess. */
+select option,
+select optgroup {
+  background-color: var(--surface-solid);
+  color: var(--text);
+  font-weight: 500;
+}
+
+select option:checked,
+select option:hover {
+  background-color: var(--accent-soft);
+  color: var(--text);
+}
+
+/* A placeholder option ("Choose…") reads as a prompt, not as a value — but it must stay
+   legible, so it is dimmed rather than greyed out into the background. */
+select option[value=""] {
+  color: var(--text-secondary);
 }
 
 .form-error {
@@ -2641,6 +2725,10 @@ button {
 .username-field {
   position: relative;
 }
+/* Deliberately NOT glass. A menu that lies over a form has the form's own labels and
+   inputs directly behind it, and a translucent surface makes both unreadable at once —
+   the reader sees two overlapping texts and trusts neither. Every other floating surface
+   in the app sits over the page background; this one sits over content, so it is opaque. */
 .username-suggest {
   position: absolute;
   z-index: 30;
@@ -2654,7 +2742,9 @@ button {
   overflow-y: auto;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
 }
 .username-suggest-note {
   padding: 0.5rem 0.6rem;
@@ -3528,6 +3618,103 @@ button.reader-tab:focus-visible {
 
 /* ── Compliance ────────────────────────────────────────────────────────── */
 
+/* Looking one person up. The course cards answer "who is behind on this?"; this answers
+   "where does this person stand?", which is the question a manager actually arrives with. */
+.person-lookup {
+  margin-top: 1rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.person-lookup-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.person-lookup-form .username-field {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.person-report {
+  margin-top: 0.9rem;
+  animation: sheet-in 260ms var(--spring) both;
+}
+
+.person-report-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.person-report-who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  min-width: 0;
+  flex: 1;
+}
+
+.person-report-list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.person-report-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-left: 3px solid var(--warning);
+}
+
+.person-report-list li[data-ok="true"] {
+  border-left-color: var(--success);
+}
+
+.person-report-list li[data-overdue="true"][data-ok="false"] {
+  border-left-color: var(--danger);
+}
+
+.person-report-mark {
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.person-report-list li[data-ok="true"] .person-report-mark {
+  background: var(--success);
+  color: var(--on-success);
+}
+
+.person-report-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
 .compliance-list {
   display: flex;
   flex-direction: column;
@@ -3855,6 +4042,10 @@ button.reader-tab:focus-visible {
   overflow-y: auto;
   background: var(--surface-2);
   padding: 1.2rem;
+  /* The pinch handler manages the reading size itself; the browser must not also zoom the
+     whole page, and a scroll that runs out here must not scroll the page behind it. */
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
 }
 .doc-sheet {
   max-width: 46rem;
@@ -3868,6 +4059,61 @@ button.reader-tab:focus-visible {
   flex-direction: column;
   gap: 0.7rem;
   line-height: 1.7;
+  /* Reading size. Scaling the TYPE rather than transforming the sheet is what keeps a
+     zoomed document readable: the column keeps its width, the lines re-wrap, and the
+     reader never has to scroll sideways to finish a sentence. Every child sized in `em`
+     follows automatically. */
+  font-size: calc(1rem * var(--doc-zoom, 1));
+}
+
+/* The reading-size pill — the same shape and place as the PDF view's, because a reader
+   who has learned one should not have to learn the other. */
+.reader-zoom {
+  position: sticky;
+  bottom: 0.6rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  width: max-content;
+  margin: 0.8rem auto 0;
+  padding: 0.25rem 0.4rem;
+  border-radius: 980px;
+  border: 1px solid var(--border);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.reader-zoom button {
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 980px;
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reader-zoom button:hover {
+  background: var(--accent-soft);
+}
+.reader-zoom-level {
+  font-size: 0.78rem !important;
+  font-variant-numeric: tabular-nums;
+}
+.reader-zoom-hint {
+  padding: 0 0.5rem 0 0.3rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .reader-zoom-hint {
+    display: none;
+  }
 }
 .doc-sheet h1 {
   font-size: 1.7rem;
@@ -10171,11 +10417,20 @@ html.kv-pointer-on * {
   animation: sheet-in 280ms var(--spring) both;
 }
 
+.upcomp {
+  /* The composer is mounted in places of very different widths — a role drawer, a full
+     page — so it sizes itself against ITS OWN width rather than the window's. A viewport
+     media query got this wrong in both directions: two columns inside a narrow drawer on
+     a wide screen, one cramped column in a wide panel on a small laptop. */
+  container-type: inline-size;
+}
+
 .upcomp-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.5rem 0.6rem;
+  flex-wrap: wrap;
   padding: 0.6rem 0.7rem;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-2) 65%, transparent);
@@ -10185,17 +10440,22 @@ html.kv-pointer-on * {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  margin-left: auto;
 }
 
 .upcomp-steps {
   display: flex;
+  align-items: center;
   gap: 0.3rem;
+  min-width: 0;
+  flex: 1 1 14rem;
 }
 
 .upcomp-steps button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
   padding: 0.35rem 0.7rem;
   border-radius: 980px;
   border: 1px solid transparent;
@@ -10209,10 +10469,30 @@ html.kv-pointer-on * {
     border-color var(--dur-standard) var(--ease);
 }
 
+.upcomp-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .upcomp-steps button[data-active="true"] {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--text);
+}
+
+/* The thread between the two steps — it fills in when the first one is satisfied, so the
+   composer reads as a route with a position on it rather than two unrelated tabs. */
+.upcomp-step-link {
+  flex: 0 1 1.6rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background var(--dur-large) var(--ease);
+}
+
+.upcomp-step-link[data-done="true"] {
+  background: var(--success);
 }
 
 .upcomp-step-n {
@@ -10220,25 +10500,99 @@ html.kv-pointer-on * {
   place-items: center;
   width: 1.25rem;
   height: 1.25rem;
+  flex: none;
   border-radius: 50%;
   background: var(--surface-2);
   font-size: 0.7rem;
   font-weight: 800;
-  transition: background var(--dur-standard) var(--ease);
+  transition:
+    background var(--dur-standard) var(--ease),
+    transform var(--dur-standard) var(--spring);
 }
 
 .upcomp-steps button[data-done="true"] .upcomp-step-n {
   background: var(--success);
   color: var(--on-success);
+  transform: scale(1.08);
 }
 
 .upcomp-body {
-  padding: 0.85rem 0.9rem 0.9rem;
+  padding: 1rem 1rem 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  max-height: min(60svh, 40rem);
+  /* Air between fields. The panel asks a lot of questions; running them together at
+     0.15rem made a wall of boxes that nobody reads to the bottom of. */
+  gap: 0.55rem;
+  max-height: min(68svh, 44rem);
   overflow-y: auto;
+  /* The step that just arrived slides in from the direction it came from. */
+  animation: upcomp-step-in var(--dur-large) var(--ease) both;
+}
+
+.upcomp-body[data-dir="back"] {
+  --upcomp-from: -1.5rem;
+}
+
+.upcomp-body[data-dir="forward"] {
+  --upcomp-from: 1.5rem;
+}
+
+@keyframes upcomp-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--upcomp-from, 1.5rem));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upcomp-body {
+    animation: none;
+  }
+}
+
+/* Section headings become real dividers, so "Cover & library", "Reaching people" and the
+   rest are visible groups instead of bold lines lost in a column of inputs. */
+.upcomp-body .insp-section {
+  margin: 0.9rem 0 0.1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.upcomp-body > .insp-section:first-child,
+.upcomp-body .pubcheck + .insp-section {
+  margin-top: 0.2rem;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Above ~34rem of its own width the questions pair up two to a line. The container query
+   means this happens because there is room for it, not because the window is large. */
+@container (min-width: 34rem) {
+  .upcomp-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.7rem 1.1rem;
+    align-content: start;
+  }
+
+  /* Anything that is a group rather than a field keeps the full width. */
+  .upcomp-body > .insp-section,
+  .upcomp-body > .pubcheck,
+  .upcomp-body > .upcomp-kinds,
+  .upcomp-body > .upcomp-foot,
+  .upcomp-body > .insp-note,
+  .upcomp-body > .insp-warn,
+  .upcomp-body > .insp-meter,
+  .upcomp-body > .insp-modes,
+  .upcomp-body > [data-check="content"],
+  .upcomp-body > [data-check="description"],
+  .upcomp-body > [data-check="scope"] {
+    grid-column: 1 / -1;
+  }
 }
 
 .upcomp-kinds {
@@ -10347,11 +10701,34 @@ html.kv-pointer-on * {
 
 .upcomp-foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 0.9rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--border);
+  /* It is the way out of a scrolling panel, so it stays on screen rather than being
+     something you have to reach the bottom of the form to find. */
+  position: sticky;
+  bottom: -1.1rem;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--surface-solid) 85%, transparent) 35%
+  );
+  padding-bottom: 0.3rem;
+}
+
+/* Under ~26rem of its own width the two actions stack and fill the row: side by side they
+   were two half-legible buttons with their labels clipped. */
+@container (max-width: 26rem) {
+  .upcomp-foot {
+    flex-direction: column-reverse;
+  }
+
+  .upcomp-foot .btn {
+    width: 100%;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -17,6 +17,7 @@ import { OrgBadge } from "@/components/OrgLogoField";
 import { Define } from "@/components/Define";
 import { KBASE_GLOSSARY, defineProperty } from "@/lib/kbase-glossary";
 import { IconLogout } from "@/components/icons";
+import { UsernameField, type Suggestion } from "@/components/UsernameField";
 import "./kbase.css";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2401,9 +2402,28 @@ function UserDrawer({
 
 // ── Coins ───────────────────────────────────────────────────────────────────
 
+/**
+ * Suggestions for the console's person fields. The console signs in with its own
+ * credentials against the admin API, so it cannot use the member directory the rest of the
+ * app searches — but it can search every account, which is exactly what an administrator
+ * granting coins needs.
+ */
+async function adminPeopleSource(q: string): Promise<Suggestion[]> {
+  const { users } = await admin.users(q);
+  return users.slice(0, 8).map((u) => ({
+    username: u.username,
+    displayName: u.displayName,
+    avatar: u.avatar,
+    alreadyMember: false,
+  }));
+}
+
 function CoinsTab({ flash }: { flash: (m: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [defaultCoins, setDefaultCoins] = useState<number | null>(null);
+  // form.reset() cannot clear a controlled field, so the username box is remounted
+  // instead once a grant has gone through.
+  const [formKey, setFormKey] = useState(0);
 
   useEffect(() => {
     admin
@@ -2490,16 +2510,24 @@ function CoinsTab({ flash }: { flash: (m: string) => void }) {
                 });
                 flash(`New balance: ${res.balance} coins`);
                 form.reset();
+                setFormKey((k) => k + 1);
               } catch (err) {
                 setError(err instanceof AdminApiError ? err.message : "Failed");
               }
             }}
           >
             <div className="kb-form-grid">
-              <label className="kb-label">
-                Username
-                <input name="username" required placeholder="their-username" />
-              </label>
+              {/* The console knows every account on the platform, so asking an admin to
+                  type a username from memory — and finding out it was wrong only after
+                  the grant failed — was never necessary. */}
+              <UsernameField
+                key={formKey}
+                label="Username"
+                labelClassName="kb-label"
+                required
+                source={adminPeopleSource}
+                emptyNote="No account matches that name."
+              />
               <label className="kb-label">
                 Amount (+ / −)
                 <input name="delta" type="number" required defaultValue={150} />

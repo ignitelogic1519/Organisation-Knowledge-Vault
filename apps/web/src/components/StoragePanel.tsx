@@ -37,6 +37,10 @@ export function StoragePanel({
   const [config, setConfig] = useState<StorageConfigInput>(emptyStorageConfig);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Same gate as organization creation: settings nobody has reached are not saved. Here it
+  // matters more, not less — pointing a live organization at unreachable storage stops
+  // every upload it already depends on. StorageSetupFields clears this on any edit.
+  const [tested, setTested] = useState(false);
 
   const load = useCallback(() => {
     storageApi
@@ -114,13 +118,20 @@ export function StoragePanel({
         <StorageSetupFields
           value={config}
           onChange={setConfig}
+          onTested={setTested}
           webOrigin={typeof window === "undefined" ? "" : window.location.origin}
           // Fixed at activation: changing it re-encrypts everything already stored.
           showEncryptionChoice={!view.configured}
         />
         {error && <p className="form-error">{error}</p>}
+        {!tested && (
+          <p className="insp-warn">
+            Run “Test connection” above first. Saving settings we have never reached would
+            stop every upload this organization makes.
+          </p>
+        )}
         <div className="row-actions">
-          <button className="btn btn-primary" onClick={save} disabled={busy}>
+          <button className="btn btn-primary" onClick={save} disabled={busy || !tested}>
             {busy ? "Saving…" : "Save storage settings"}
           </button>
           {view.configured && (
@@ -203,6 +214,7 @@ export function StoragePanel({
           className="btn"
           onClick={() => {
             setConfig({ ...emptyStorageConfig, encryption: view.encryption ?? "ENCRYPTED" });
+            setTested(false);
             setEditing(true);
           }}
         >

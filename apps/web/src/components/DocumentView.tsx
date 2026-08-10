@@ -21,6 +21,7 @@ import {
   type MediaOptions,
   type TableCell,
 } from "@vault/shared";
+import { useReaderZoom } from "@/lib/reader-zoom";
 
 // The document renderer — one implementation shared by the in-app viewer, the Studio's
 // live preview and its present mode, so what an author sees while writing is exactly what
@@ -716,6 +717,8 @@ export function DocumentPages({
   page,
   onPage,
   showPager = true,
+  /** The reading-size pill. Off in the Studio's preview, which has its own controls. */
+  showZoom = true,
   className = "",
   theme,
 }: {
@@ -723,10 +726,12 @@ export function DocumentPages({
   page?: number;
   onPage?: (n: number) => void;
   showPager?: boolean;
+  showZoom?: boolean;
   className?: string;
   theme?: DocumentTheme;
 }) {
   const [own, setOwn] = useState(0);
+  const zoom = useReaderZoom();
   const current = Math.min(page ?? own, Math.max(0, pages.length - 1));
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const go = (n: number) => {
@@ -765,7 +770,13 @@ export function DocumentPages({
 
   if (!active) return null;
   return (
-    <div className={`doc-authored ${className}`}>
+    <div
+      className={`doc-authored ${className}`}
+      ref={zoom.ref}
+      // Type scale, not a transform: the sheet keeps its width and the lines re-wrap, so
+      // a reader who has zoomed in never has to scroll sideways to finish a sentence.
+      style={{ "--doc-zoom": zoom.zoom } as CSSProperties}
+    >
       <article
         className="doc-sheet doc-turn"
         key={current}
@@ -782,6 +793,36 @@ export function DocumentPages({
           ))}
         </HeadingContext.Provider>
       </article>
+      {showZoom && (
+      <div className="reader-zoom" role="group" aria-label="Reading size">
+        <button
+          type="button"
+          onClick={() => zoom.zoomBy(1 / 1.15)}
+          aria-label="Smaller"
+          title="Smaller (Ctrl −)"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="reader-zoom-level"
+          onClick={zoom.reset}
+          title="Back to 100% (Ctrl 0)"
+        >
+          {zoom.percent}%
+        </button>
+        <button
+          type="button"
+          onClick={() => zoom.zoomBy(1.15)}
+          aria-label="Larger"
+          title="Larger (Ctrl +)"
+        >
+          +
+        </button>
+        <span className="reader-zoom-hint">Ctrl + scroll, or pinch</span>
+      </div>
+      )}
+
       {showPager && pages.length > 1 && (
         <div className="doc-pager glass-strong">
           <button
@@ -825,5 +866,5 @@ export function DocumentBody({
   theme?: DocumentTheme;
 }) {
   const pages = useMemo(() => paginate(blocks), [blocks]);
-  return <DocumentPages pages={pages} className={className} theme={theme} />;
+  return <DocumentPages pages={pages} className={className} theme={theme} showZoom={false} />;
 }

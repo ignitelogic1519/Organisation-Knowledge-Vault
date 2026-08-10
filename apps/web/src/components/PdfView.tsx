@@ -35,11 +35,21 @@ export function PdfView({ data }: { data: ArrayBuffer }) {
   const [preview, setPreview] = useState(1);
   const renderedZoom = useRef(1);
 
-  /** Zoom about a point (the cursor or the pinch centre), keeping it under the fingers. */
+  /**
+   * Zoom about a point (the cursor or the pinch centre), keeping it under the fingers.
+   *
+   * The transform preview is applied HERE rather than only in the pinch handler, which is
+   * what made the buttons feel broken: a click set `zoom`, and then nothing moved on screen
+   * until the whole document had been re-rasterised — a fifth of a second of debounce plus
+   * a render of every page. The scale now lands on the very next frame and the re-render
+   * catches up behind it, so the buttons, the keyboard and the wheel all feel the way the
+   * pinch already did.
+   */
   const zoomAt = useCallback((factor: number, clientX?: number, clientY?: number) => {
     setZoom((current) => {
       const next = clamp(current * factor);
       if (next === current) return current;
+      setPreview(next / renderedZoom.current);
       const el = scrollRef.current;
       if (el && clientX != null && clientY != null) {
         const rect = el.getBoundingClientRect();
@@ -53,6 +63,16 @@ export function PdfView({ data }: { data: ArrayBuffer }) {
         });
       }
       return next;
+    });
+  }, []);
+
+  /** Jump straight to a scale (the 100% reset), preview included. */
+  const zoomTo = useCallback((next: number) => {
+    setZoom((current) => {
+      const target = clamp(next);
+      if (target === current) return current;
+      setPreview(target / renderedZoom.current);
+      return target;
     });
   }, []);
 
@@ -101,8 +121,7 @@ export function PdfView({ data }: { data: ArrayBuffer }) {
       e.preventDefault();
       const c = centre();
       const target = clamp(startZoom * (spread() / startSpread));
-      setPreview(target / renderedZoom.current); // instant feedback
-      zoomAt(target / zoom, c.x, c.y);
+      zoomAt(target / zoom, c.x, c.y); // zoomAt paints the preview on the next frame
     };
     const up = (e: PointerEvent) => {
       points.delete(e.pointerId);
@@ -133,12 +152,12 @@ export function PdfView({ data }: { data: ArrayBuffer }) {
         zoomAt(1 / 1.2);
       } else if (e.key === "0") {
         e.preventDefault();
-        setZoom(1);
+        zoomTo(1);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [zoomAt]);
+  }, [zoomAt, zoomTo]);
 
   // Render (and re-render on zoom). Debounced, so a continuous pinch redraws once it
   // settles rather than on every frame.
@@ -215,7 +234,7 @@ export function PdfView({ data }: { data: ArrayBuffer }) {
         <button type="button" onClick={() => zoomAt(1 / 1.25)} aria-label="Zoom out" title="Zoom out (Ctrl −)">
           −
         </button>
-        <button type="button" className="pdf-zoom-level" onClick={() => setZoom(1)} title="Reset to 100% (Ctrl 0)">
+        <button type="button" className="pdf-zoom-level" onClick={() => zoomTo(1)} title="Reset to 100% (Ctrl 0)">
           {percent}%
         </button>
         <button type="button" onClick={() => zoomAt(1.25)} aria-label="Zoom in" title="Zoom in (Ctrl +)">
