@@ -5,6 +5,7 @@ import {
   addOwnerSchema,
   createOrgSchema,
   supremeVerifySchema,
+  updateOrgLogoSchema,
   type MyPlacement,
   type OrgDetail,
   type OrgSummary,
@@ -12,6 +13,7 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { broadcast } from "../events.js";
+import { orgOwnerProfileIds } from "./owners.js";
 import { audit } from "../security.js";
 import { connectStorage, testConnection } from "../storage/org-storage.js";
 import {
@@ -31,6 +33,9 @@ import {
 
 // The Owner role of every org gets the first role number in the per-org sequence.
 const FIRST_ROLE_NUMBER = 100;
+
+/** A logo is a small raster data URL — the same shape a profile picture has to be. */
+const ORG_LOGO_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
 type OrgReq = FastifyRequest<{ Params: { id: string } }>;
 
@@ -323,6 +328,58 @@ export async function orgRoutes(app: FastifyInstance) {
         planKey: org.planKey,
         planExpiresAt: org.planExpiresAt?.toISOString() ?? null,
       };
+    },
+  );
+
+  // The organization's logo. Its owners change it; nobody else can, and there was no way
+  // to change it at all before — a logo could only be chosen in the second before the
+  // organization existed, and an organization that rebranded was stuck with the old one
+  // (or, more often, with the letter it never meant to keep).
+  //
+  // The same data-URL rules as a profile picture: the browser has already downscaled it
+  // to a small square, and anything that is not a raster image of a sane size is refused
+  // here as well — the client's downscaler is a convenience, not the check.
+  app.patch<{ Params: { id: string } }>(
+    "/orgs/:id/logo",
+    { preHandler: app.authenticate },
+    async (req, reply) => {
+      const body = updateOrgLogoSchema.parse(req.body);
+      const org = await db.organization.findFirst({
+        where: { id: req.params.id, deletedAt: null },
+        select: { id: true },
+      });
+      if (!org) return reply.status(404).send({ error: "Organization not found" });
+      const owners = await orgOwnerProfileIds(org.id);
+      if (!owners.includes(req.profileId)) {
+        return reply
+          .status(403)
+          .send({ error: "Only this organization's owners can change its logo" });
+      }
+      if (body.logo !== null) {
+        if (!ORG_LOGO_RE.test(body.logo)) {
+          return reply
+            .status(400)
+            .send({ error: "The logo must be a PNG, JPEG, WebP or GIF image" });
+        }
+        const bytes = Math.floor((body.logo.length - body.logo.indexOf(",") - 1) * 0.75);
+        if (bytes > 300_000) {
+          return reply
+            .status(413)
+            .send({ error: "That image is too large — keep it under ~300 KB" });
+        }
+      }
+      await db.organization.update({
+        where: { id: org.id },
+        data: { logo: body.logo },
+      });
+      void audit(org.id, "org_logo_changed", {
+        actorProfileId: req.profileId,
+        ip: req.ip,
+        detail: { cleared: body.logo === null },
+      });
+      // Every open tab is showing this organization's face somewhere.
+      broadcast(org.id, "structure");
+      return { ok: true, logo: body.logo };
     },
   );
 

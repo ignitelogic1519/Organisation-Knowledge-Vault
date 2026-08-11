@@ -44,6 +44,12 @@ export const orgs = {
       method: "POST",
       body: JSON.stringify({ password }),
     }),
+  /** Change (or clear, with null) the organization's logo. Owners only. */
+  setLogo: (id: string, logo: string | null) =>
+    api<{ ok: boolean; logo: string | null }>(`/orgs/${id}/logo`, {
+      method: "PATCH",
+      body: JSON.stringify({ logo }),
+    }),
   addOwner: (id: string, username: string, supremeToken: string) =>
     api<{ ok: boolean }>(`/orgs/${id}/owners`, {
       method: "POST",

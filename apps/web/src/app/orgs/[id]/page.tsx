@@ -19,6 +19,7 @@ import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
 import { UsernameField } from "@/components/UsernameField";
+import { OrgLogoField } from "@/components/OrgLogoField";
 import {
   IconArchive,
   IconBook,
@@ -62,6 +63,7 @@ function ConfigPanel({
   const dialogs = useDialogs();
   const router = useRouter();
   const [subRoleOpen, setSubRoleOpen] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
   const isRoot = node.parentId === null;
   // One shared gate: it keeps the sheet open and names the reason when a password is
   // rejected, instead of closing silently behind a four-second toast.
@@ -230,6 +232,46 @@ function ConfigPanel({
           >
             Request
           </button>
+        </div>
+      )}
+
+      {/* The organization's identity — root node only, and its owners.
+          Not Supreme-gated: the Supreme password guards the irreversible (who owns this,
+          where the documents live, deleting it). A logo is reversible by uploading the
+          previous one, and asking for the unrecoverable password to change a picture
+          teaches people to type it without thinking. */}
+      {isRoot && isSupremeOwner && (
+        <div className="config-row config-row-logo">
+          <div>
+            <strong>Organization logo</strong>
+            <p className="auth-sub">
+              Shown on the organization card, at the top of every page here, and on the
+              cover of every document this organization publishes. Without one, the
+              first letter of the name is used.
+            </p>
+            <OrgLogoField
+              name={org.name}
+              value={org.logo}
+              busy={logoBusy}
+              label={null}
+              hint={null}
+              onChange={async (next) => {
+                setLogoBusy(true);
+                try {
+                  await orgs.setLogo(org.id, next);
+                  reload();
+                  dialogs.toast(next ? "Logo updated." : "Logo removed.", "success");
+                } catch (e) {
+                  dialogs.toast(
+                    e instanceof ApiError ? e.message : "Could not save the logo",
+                    "danger",
+                  );
+                } finally {
+                  setLogoBusy(false);
+                }
+              }}
+            />
+          </div>
         </div>
       )}
 
