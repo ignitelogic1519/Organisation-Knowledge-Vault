@@ -12895,3 +12895,343 @@ html.kv-pointer-on * {
     justify-content: flex-end;
   }
 }
+
+
+/* ── The guide's decisions, choices and inputs ───────────────────────────────
+   The guide asks questions and rewrites itself around the answers, so the
+   controls that collect them have to look like part of the document rather than
+   like a form bolted to the side of one. Choices are cards you press; the one
+   you chose keeps its reasons on show, because a decision you cannot re-examine
+   is one you will have to make again from memory later. */
+
+.guide-decisions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.9rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.guide-decisions > div {
+  min-width: 0;
+}
+
+.guide-decisions dt {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.guide-decisions dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.guide-skipped {
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+/* ── Choices ─────────────────────────────────────────────────────────────── */
+
+.guide-choice {
+  margin: 1.1rem 0;
+  padding: 0.9rem 1rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.guide-choice h3 {
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.guide-choice-help {
+  margin: 0.3rem 0 0.8rem;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.guide-options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Eight machines do not need eight full-width rows; two columns keeps the
+   chooser on one screen. Trade-off questions stay one per row, where the pros
+   and cons have somewhere to unfold. */
+@media (min-width: 620px) {
+  .guide-options[data-compact="true"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.guide-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  text-align: left;
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    background var(--dur-standard) var(--ease),
+    transform var(--dur-micro) var(--ease);
+}
+
+.guide-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  transform: translateY(-1px);
+}
+
+.guide-option[data-active="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-solid));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.guide-option-tick {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.guide-option[data-active="true"] .guide-option-tick {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-contrast);
+}
+
+.guide-option-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.guide-option-main strong {
+  font-size: 0.92rem;
+}
+
+.guide-option-main small {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.guide-option-tradeoff {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.guide-pro {
+  color: var(--success);
+}
+
+.guide-con {
+  color: var(--warning);
+}
+
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
+
+.guide-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.9rem 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.guide-input-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.guide-input-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.guide-input input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem;
+  font-family: var(--font-mono, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace);
+}
+
+.guide-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.guide-input small {
+  font-size: 0.79rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* ── Tables, notes, links ────────────────────────────────────────────────── */
+
+.guide-tablewrap {
+  margin: 0.9rem 0;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.guide-table th {
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.7rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.guide-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.guide-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The left column of a two-column table is a term, not prose. */
+.guide-table td:first-child {
+  font-weight: 600;
+  min-width: 7rem;
+}
+
+.guide-note {
+  margin: 0 0 0.8rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.guide-cmd-note {
+  margin: 0;
+  padding: 0.45rem 0.75rem 0.6rem;
+  font-size: 0.79rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.guide-linkline {
+  margin: 0 0 0.9rem;
+  font-size: 0.87rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.guide-linkline a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* ── The depth switch ────────────────────────────────────────────────────── */
+
+.guide-depth {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  border-radius: 980px;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+
+.guide-depth button {
+  padding: 0.25rem 0.7rem;
+  border: 0;
+  border-radius: 980px;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition:
+    background var(--dur-standard) var(--ease),
+    color var(--dur-standard) var(--ease);
+}
+
+.guide-depth button[data-active="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.guide-rail-step[data-skipped="true"] {
+  opacity: 0.55;
+}
+
+.guide-rail-step[data-skipped="true"] .guide-rail-n {
+  background: var(--surface-2);
+}
+
+@media (max-width: 720px) {
+  .guide-depth button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.72rem;
+  }
+}

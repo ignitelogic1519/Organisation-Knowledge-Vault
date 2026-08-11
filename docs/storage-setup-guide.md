@@ -15,24 +15,53 @@ This document is written for **us** — the people building and testing Knowledg
 starts from a folder on a laptop because that is the fastest way to have something to test
 against, and it spends most of its length on failure modes.
 
-An **organization owner** connecting a real NAS does not want any of that. They get a
-different artefact, and it is not this file:
+An **organization owner** connecting a real NAS does not read this. They get a different
+artefact, and it is not a document at all — it is a program:
 
 | Surface | Where | What it is |
 |---|---|---|
-| **The guide window** | `/storage/guide`, opened from the storage form | Nine cards, one step at a time, with Next. Its own tab beside the form, full-screen on a phone. |
-| **The handout** | "Download for your IT" on the same form and in the guide | The same nine steps as Markdown, for the owner to send to whoever administers the NAS. |
-| **This file** | `docs/storage-setup-guide.md` | The long version: laptop testing, the tunnel, and every error message explained. |
+| **The guide** | `/storage/guide`, opened from the storage form | An interviewing document. Ten steps, one card at a time, that asks the reader questions and rewrites itself around the answers. Its own tab beside the form; full-screen on a phone. |
+| **The PDF** | The "PDF" button in that guide | The same steps, with the same answers already substituted, as a laid-out A4 document to email to whoever administers the NAS. |
+| **This file** | `docs/storage-setup-guide.md` | The long version for us: laptop testing, the tunnel, and every error message explained. |
 
-**All three come from one place for the steps themselves.** The guide window and the
-handout are both rendered from `apps/web/src/lib/nas-guide.ts` — the steps are data, so
-the screen and the file cannot drift apart. Appendix A below is that same sequence in
-prose, and **it is the thing to keep in step with the code when either changes.**
+### What "rewrites itself" means
 
-The division of labour that matters: an owner reads the guide, but the person who does the
-work is usually somebody else — the IT contractor, the person who looks after the NAS —
-and that person never signs in to Knowledge Vault at all. That is why the handout exists,
-and why the guide's first card is about what a NAS *is* rather than about our form.
+The guide is not a fixed sequence with variables in it. It is built from
+`apps/web/src/lib/nas-guide.ts`, which is a function from **answers** to **steps**:
+
+* **Which machine.** Synology, QNAP, TrueNAS, Unraid, a Linux server, a Windows PC, a Mac,
+  or "I do not have one yet" — which produces buying advice instead of instructions. The
+  answer decides what Docker is called on that machine, where it is installed from, what
+  the default folder path is, and how you open a terminal on it.
+* **Clicking or typing.** The same three steps written twice: once as a walk through the
+  machine's own screens, once as commands. Presented as a preference with its trade-offs,
+  not as a fork the reader has to be qualified to take.
+* **A domain, or not.** The reachability step branches three ways — a permanent named
+  tunnel on their own domain, a free quick tunnel with the URL that changes on every
+  restart, or an address they already have. Each option shows its pros and cons *at the
+  moment of choosing*, and the choice changes the commands, the checks, and whether step 7
+  is marked skippable.
+* **Free text.** The folder, the bucket, the MinIO user name and password, the NAS's local
+  address, the domain, the hostname. Every one is substituted into every later command and
+  into the final table of values, so nothing is left to fill in by hand.
+
+Two depths — "Explain everything" and "Just the steps" — filter the same blocks, so a
+reader who has done this before is not reading what a bucket is, and a reader who has not
+is not being asked to guess. Answers persist in `localStorage`, because somebody who gets
+to step 6 and goes off to buy a domain should not come back to an empty form.
+
+### Keeping this file honest
+
+Appendix A is the same sequence in prose. **When `nas-guide.ts` changes, change Appendix A
+with it** — that is the reviewable version, and the only way a change to the customer's
+guide gets read by anybody in a diff.
+
+The division of labour that motivates all of it: an owner reads the guide, but the person
+who does the work is often somebody else — the IT contractor, whoever looks after the NAS —
+and that person never signs in to Knowledge Vault. That is why the PDF exists, why it
+carries the owner's answers, and why the guide's first card explains what a NAS is rather
+than what our form wants.
+
 
 ---
 
@@ -565,46 +594,48 @@ delete queue can clean the objects out of the bucket properly.
 
 ---
 
-## Appendix A — The owner's path, in nine steps
+## Appendix A — The owner's path, in ten steps
 
-This is what the guide window (`/storage/guide`) and the downloaded handout contain, in
-the same order. Parts 1–3 above are how *we* test and what *we* explain; this is the
-sequence a customer actually walks, once, on real hardware.
+What the guide and the PDF contain, in the order they present it. Parts 1–3 above are how
+*we* test; this is the sequence a customer walks once, on real hardware.
 
-Keep this appendix and `apps/web/src/lib/nas-guide.ts` in step. The file is the source the
-UI renders; this is the reviewable prose version.
+**Before they start.** The guide opens with what a NAS, Docker, MinIO and a bucket actually
+are — four sentences, because a reader who does not have those does not have anything — and
+with the one warning that is a prerequisite rather than a footnote: their storage becomes
+the only copy of their documents.
 
-**Before they start.** A machine that stays on, Docker on it, administrator access to it,
-a free Cloudflare account with a domain, and a backup of the NAS. The last one is stated
-as a prerequisite rather than a footnote on purpose: their storage becomes the only copy
-of their documents, and a NAS with one disk is a single point of failure for their
-training records.
-
-1. **What you are actually building.** A NAS is a computer with disks; MinIO is the
-   program that lets other software read and write a folder on it over the network; and
-   our API runs in a datacentre, so it cannot see anything on their office LAN. Everything
-   else follows from those three sentences.
-2. **Run MinIO on the machine.** One Docker container, `--restart unless-stopped`, mounted
-   on the shared folder they chose. The master credentials they set here are never given
-   to Knowledge Vault.
-3. **Create the bucket.** One bucket, lowercase, left private. We refuse to connect a
-   public one, because a public bucket makes every permission rule in the app decorative.
-4. **Create an access key.** A service account scoped to that one bucket with
-   `GetObject`, `PutObject`, `DeleteObject`, `ListBucket`. The secret is displayed once.
-5. **Give the storage an HTTPS address.** A Cloudflare Tunnel, because the connector makes
-   an *outbound* connection and nothing needs opening on their firewall. The guide is
-   explicit that port forwarding is the wrong answer, and why.
-6. **Tell MinIO its public address.** `MINIO_SERVER_URL`, set to the tunnel hostname. This
-   is the single most common failure, and the error it produces — `SignatureDoesNotMatch`
-   — points at the password, which is never the problem.
-7. **Apply the CORS rules.** Generated by `corsRulesFor(webOrigin)` so the rules name that
-   deployment and nothing else. Recent MinIO builds allow all origins by default, so this
-   is a no-op as often as not; the guide says so rather than presenting it as mandatory.
-8. **Enter the four values and test.** Address, bucket, key, secret, and the encryption
-   choice — which is fixed at activation and says so.
-9. **Before calling it done.** Reboot the NAS and re-test (do both containers really come
-   back?), set up and *test* a backup, write down who holds the master password, and run
-   the migration if documents were uploaded before storage was connected.
+1. **What you are about to build, in plain words.** The vocabulary, the datacentre/office
+   problem in one paragraph, the backup warning, and the choice of machine. Choosing "I do
+   not have one yet" replaces the step with three costed options and sizing advice.
+2. **Install Docker.** Named and located per machine: Package Center → Container Manager on
+   a Synology, App Center → Container Station on a QNAP, Apps on TrueNAS, the Docker tab on
+   Unraid, `get.docker.com` on Linux, Docker Desktop on Windows and macOS — each with the
+   manufacturer's own documentation linked. Ends by asking clicking-or-typing, and tells the
+   reader how to open a terminal on their specific machine if they chose typing.
+3. **Install MinIO.** Collects the folder, the MinIO user name and a generated password.
+   Then either the container-manager walkthrough (ports, volume, the two environment
+   variables, the command, the restart policy) or the single `docker run`, followed by a
+   table explaining every flag in it. Ends with the local address and a check that signs in
+   to the console.
+4. **Create the bucket.** Collects the bucket name. Console route or `mc` route, with the
+   note that recent MinIO builds have removed the console's create button — which is the
+   thing that makes people think they are stuck.
+5. **Create the access key.** Why it is not the master password; both routes; the warning
+   that the secret is shown once; and an optional scoped policy for the security-minded.
+6. **Give the storage an address.** Why port forwarding is the wrong answer and a tunnel is
+   not. Branches on the domain question. The own-domain branch walks the Cloudflare Zero
+   Trust dashboard click by click and explains why the public hostname is `HTTP` to
+   `localhost:9000` when the address is HTTPS. The no-domain branch gives the quick tunnel,
+   how to read the URL out of the logs, and an honest account of what it costs them.
+7. **Tell MinIO its public address.** `MINIO_SERVER_URL`, with the whole recreate command
+   already carrying their values. Marked skippable when their storage was already public.
+8. **The browser rules.** `corsRulesFor(webOrigin)` for the deployment they are on, and the
+   two commands to apply it to their bucket.
+9. **Connect.** A table of the four values with theirs already in it, the encryption choice
+   and why it is permanent, what the connection test actually does, and the three failure
+   messages with what each really means.
+10. **Finish well.** Reboot and re-test, back up the folder and restore one file from it,
+    write down who holds what. Plus the migration button, if documents predate the storage.
 
 ### Where this appears in the product
 
@@ -613,10 +644,23 @@ training records.
 - **Connecting or reconfiguring storage** — the storage panel on the root branch's Group
   configuration.
 
-Both render `StorageSetupFields`, so the entry card lives there once and shows up in both
-places automatically. The guide opens in a new tab on a desktop and navigates in place on
-a phone (`openStorageGuide()` in `lib/reader-window.ts`, the same rule documents follow),
+Both render `StorageSetupFields`, so the entry card is written once and appears in both.
+The guide opens in a new tab on a desktop and navigates in place on a phone
+(`openStorageGuide()` in `lib/reader-window.ts`, the rule documents already follow),
 because a pop-up on a device with no tab strip is a window the reader cannot get out of.
+
+### The PDF
+
+`lib/nas-guide-pdf.ts`, built with jsPDF, which is imported dynamically so a reader who
+never presses the button never downloads the library. It renders the same block types the
+screen does — prose, numbered steps, monospace commands, tinted panels for notes, warnings
+and checks, tables, and the reader's choices with what they chose — onto A4 with a cover
+that lists every decision made so far. Skipped steps are collected at the end rather than
+silently dropped, so the recipient can see what was deliberately left out.
+
+jsPDF's built-in fonts are WinAnsi, so `ascii()` maps the handful of characters the guide
+uses that fall outside it. Em dashes and middle dots survive; ticks and arrows are
+substituted.
 
 
 ---
