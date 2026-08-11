@@ -6,10 +6,10 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Tells the browser which way its OWN widgets go — the native <select> menu, scrollbars,
-     checkboxes and the date picker. Without it a dark theme gets a white popup list with
-     our light text painted on it, which is how the classification menu came to be a column
-     of invisible options. */
+  /* Which way the browser's OWN widgets go — scrollbars, checkboxes, the date picker.
+     next-themes also writes this inline on <html>; this is the baseline for the frame
+     before its script runs. It is NOT what makes the <select> menu readable — see the
+     `option` rules below for why that needs its own answer. */
   color-scheme: light;
 
   /* base (light) — the peach-white day theme, the platform's default look */
@@ -688,6 +688,11 @@ button {
   justify-content: space-between;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin-bottom: -0.05rem;
+}
+
+.field-label-row > label {
+  cursor: pointer;
 }
 
 .field-label-aids {
@@ -701,6 +706,8 @@ button {
   place-items: center;
   width: 1.15rem;
   height: 1.15rem;
+  padding: 0;
+  line-height: 1;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -754,28 +761,44 @@ button {
 }
 
 /* The dropped-open list of a native <select>, everywhere in the app.
-   `color-scheme` above fixes this on its own in most browsers, but not all of them: the
-   popup is drawn by the platform, and several (Chrome on Windows and Android in
-   particular) keep painting it white while inheriting the page's light text — which is
-   exactly how "Public / Confidential / Private / Secret" became four blank lines. Naming
-   both colours explicitly leaves nothing for the platform to guess. */
+
+   This list is drawn by the PLATFORM, not by us, and the platforms disagree about how
+   much of our styling they will honour. Desktop Chrome follows `color-scheme` and paints
+   a dark popup; an Android WebView — which is how this app is used on a phone — draws its
+   own light dialog and yet still applies the author's `color`. Under the night theme that
+   author colour is near-white, which is exactly how the classification menu came to be
+   four invisible lines on a white sheet.
+
+   So the popup is settled deliberately, in the one direction that cannot fail: a light
+   sheet with dark ink, in literal colours rather than theme tokens, on every theme. A
+   platform that honours all of it draws precisely that; a platform that honours only the
+   text colour draws dark ink on the light sheet it was going to draw anyway. Both are
+   readable, which the alternative was not.
+
+   The CLOSED control is untouched by this — every select gets its own background and
+   colour from the rule below, so the field itself still belongs to the night theme. */
+select {
+  color-scheme: light;
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+
 select option,
 select optgroup {
-  background-color: var(--surface-solid);
-  color: var(--text);
+  background-color: #ffffff;
+  color: #14161c;
   font-weight: 500;
 }
 
-select option:checked,
-select option:hover {
-  background-color: var(--accent-soft);
-  color: var(--text);
+/* A solid tint: a translucent one is composited against the platform's own popup
+   background, not the page's, so it lands somewhere nobody chose. */
+select option:checked {
+  background-color: #dbe4f0;
+  color: #14161c;
 }
 
-/* A placeholder option ("Choose…") reads as a prompt, not as a value — but it must stay
-   legible, so it is dimmed rather than greyed out into the background. */
 select option[value=""] {
-  color: var(--text-secondary);
+  color: #5a6272;
 }
 
 .form-error {
@@ -2070,6 +2093,23 @@ select option[value=""] {
   flex-direction: column;
   gap: 0.7rem;
   animation: drawer-in 320ms var(--spring) both;
+  transition: width var(--dur-large) var(--ease);
+}
+
+/* 340px is the right width for a menu of four sections and the wrong width for the
+   fifteen questions the upload composer asks — on a wide screen that was a magazine
+   column of stacked inputs beside an empty half-screen of stars. When the composer is in
+   the drawer, the drawer makes room for it, and the composer's own container query then
+   pairs the fields two to a line. On a phone the `100% - 1.8rem` cap means nothing
+   changes at all. */
+.node-drawer:has(.upcomp) {
+  width: min(760px, calc(100% - 1.8rem));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-drawer {
+    transition: none;
+  }
 }
 
 @keyframes drawer-in {
@@ -3357,7 +3397,6 @@ button.reader-tab:focus-visible {
   width: max-content;
   min-width: 100%;
   margin: 0 auto;
-  transition: transform 90ms linear;
 }
 .pdf-page {
   border-radius: 4px;
@@ -4066,17 +4105,20 @@ button.reader-tab:focus-visible {
   font-size: calc(1rem * var(--doc-zoom, 1));
 }
 
-/* The reading-size pill — the same shape and place as the PDF view's, because a reader
-   who has learned one should not have to learn the other. */
+/* The reading-size pill — the same shape as the PDF view's, because a reader who has
+   learned one should not have to learn the other. It rides the TOP of the document area,
+   not the bottom: the page turner already owns the bottom centre, and two floating pills
+   fighting over the same strip is worse than either of them. Sticky, so it is still there
+   on page forty. */
 .reader-zoom {
   position: sticky;
-  bottom: 0.6rem;
-  z-index: 3;
+  top: 0;
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: 0.15rem;
   width: max-content;
-  margin: 0.8rem auto 0;
+  margin: 0 0 0.4rem auto;
   padding: 0.25rem 0.4rem;
   border-radius: 980px;
   border: 1px solid var(--border);
@@ -10707,20 +10749,14 @@ html.kv-pointer-on * {
   margin-top: 0.9rem;
   padding-top: 0.7rem;
   border-top: 1px solid var(--border);
-  /* It is the way out of a scrolling panel, so it stays on screen rather than being
-     something you have to reach the bottom of the form to find. */
-  position: sticky;
-  bottom: -1.1rem;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    color-mix(in srgb, var(--surface-solid) 85%, transparent) 35%
-  );
-  padding-bottom: 0.3rem;
 }
 
 /* Under ~26rem of its own width the two actions stack and fill the row: side by side they
-   were two half-legible buttons with their labels clipped. */
+   were two half-legible buttons with their labels clipped.
+
+   (Deliberately NOT sticky. The composer's body is only sometimes the scrolling element —
+   in a role drawer the page scrolls instead — and a footer that sticks to whichever
+   scrollport it finds lands in the middle of the form, on top of the fields.) */
 @container (max-width: 26rem) {
   .upcomp-foot {
     flex-direction: column-reverse;
@@ -10728,6 +10764,19 @@ html.kv-pointer-on * {
 
   .upcomp-foot .btn {
     width: 100%;
+  }
+}
+
+/* Narrow enough that the thread between the steps is costing the step names their last
+   few characters. The names say more than the thread does. */
+@container (max-width: 24rem) {
+  .upcomp-step-link {
+    display: none;
+  }
+
+  .upcomp-steps button {
+    padding: 0.35rem 0.5rem;
+    gap: 0.3rem;
   }
 }
 

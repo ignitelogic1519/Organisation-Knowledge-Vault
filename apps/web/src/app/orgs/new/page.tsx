@@ -145,36 +145,47 @@ export default function NewOrgPage() {
               code arrives in your <Link href="/account">notifications</Link>. Paste it below.
             </p>
           </div>
-          <label className="field">
-            <span className="field-label-row">
-              Access code
-              {/* Somebody reaching this field without a code is stuck, and the answer —
-                  "pick a plan, wait for approval" — was only written above the form where
-                  they had already scrolled past it. Both routes out are here: the whole
-                  explanation on hover, and the pricing page one click away. */}
+          {/* Not a <label> wrapping everything, the way the other fields are: this one
+              carries a link and a help button, and interactive controls inside a label
+              hand their clicks to the input as well. The label is bound by `htmlFor`
+              instead, so pressing "See pricing" does exactly one thing.
+
+              Somebody reaching this field without a code is stuck, and the answer — pick a
+              plan, wait for approval — was only written above the form, where they have
+              already scrolled past it. Both routes out are here now. */}
+          <div className="field">
+            <div className="field-label-row">
+              <label htmlFor="accessCode">
+                <span>Access code</span>
+              </label>
               <span className="field-label-aids">
-                <span
+                <button
+                  type="button"
                   className="field-help"
-                  role="img"
                   aria-label="How do I get an access code?"
-                  tabIndex={0}
                   data-hint-title="How to get an access code"
-                  data-hint="Choose a plan (here or on the Pricing page) and send the request. The Knowledge Base team reviews it, and your one-time code arrives in your notifications — usually the same day. One code creates one organization."
+                  data-hint="Choose a plan — on the panel beside this form, or on the Pricing page — and send the request. The Knowledge Base team reviews it and your one-time code arrives in your notifications. One code creates one organization."
                 >
                   ?
-                </span>
-                <Link href="/pricing" className="btn btn-quiet btn-tiny" prefetch={false}>
+                </button>
+                <Link href="/pricing" className="btn btn-quiet btn-tiny">
                   See pricing →
                 </Link>
               </span>
-            </span>
-            <input name="accessCode" required placeholder="8-character code from your notifications" autoCapitalize="characters" />
+            </div>
+            <input
+              id="accessCode"
+              name="accessCode"
+              required
+              placeholder="8-character code from your notifications"
+              autoCapitalize="characters"
+            />
             <small>
               The super-admin sends this after approving your plan request. No code yet?{" "}
-              <Link href="/pricing">Compare the plans</Link> or request one from the panel
+              <Link href="/pricing">Compare the plans</Link>, or request one from the panel
               beside this form.
             </small>
-          </label>
+          </div>
           <label className="field">
             <span>Organization name</span>
             <input

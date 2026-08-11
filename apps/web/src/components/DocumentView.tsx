@@ -79,7 +79,11 @@ export function blockStyleToCss(style?: BlockStyle): CSSProperties {
   if (style.color) css.color = style.color;
   if (style.background) css.background = style.background;
   if (style.font) css.fontFamily = FONT_STACKS[style.font] ?? undefined;
-  if (style.fontSize) css.fontSize = `${style.fontSize}px`;
+  // An author's explicit size is absolute at 100%, but it still has to follow the reader's
+  // zoom — a document with one hand-sized heading in it must not have that heading stay
+  // put while everything around it grows. `--doc-zoom` is 1 wherever nobody set it (the
+  // Studio canvas, the exported preview), so this is the plain px size there.
+  if (style.fontSize) css.fontSize = `calc(${style.fontSize}px * var(--doc-zoom, 1))`;
   if (style.lineHeight) css.lineHeight = style.lineHeight;
   if (style.letterSpacing) css.letterSpacing = `${style.letterSpacing}px`;
   if (style.uppercase) css.textTransform = "uppercase";
@@ -731,7 +735,7 @@ export function DocumentPages({
   theme?: DocumentTheme;
 }) {
   const [own, setOwn] = useState(0);
-  const zoom = useReaderZoom();
+  const zoom = useReaderZoom(showZoom);
   const current = Math.min(page ?? own, Math.max(0, pages.length - 1));
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const go = (n: number) => {
@@ -777,22 +781,6 @@ export function DocumentPages({
       // a reader who has zoomed in never has to scroll sideways to finish a sentence.
       style={{ "--doc-zoom": zoom.zoom } as CSSProperties}
     >
-      <article
-        className="doc-sheet doc-turn"
-        key={current}
-        data-transition={active.transition}
-        data-density={theme?.density ?? "normal"}
-        data-headings={theme?.headingStyle ?? "plain"}
-        data-themed={theme ? Object.keys(theme).length > 0 : false}
-        data-direction={direction}
-        style={themeToCss(theme)}
-      >
-        <HeadingContext.Provider value={headings}>
-          {active.blocks.map((b, i) => (
-            <AuthoredBlockView key={i} block={b} index={i} />
-          ))}
-        </HeadingContext.Provider>
-      </article>
       {showZoom && (
       <div className="reader-zoom" role="group" aria-label="Reading size">
         <button
@@ -822,6 +810,22 @@ export function DocumentPages({
         <span className="reader-zoom-hint">Ctrl + scroll, or pinch</span>
       </div>
       )}
+      <article
+        className="doc-sheet doc-turn"
+        key={current}
+        data-transition={active.transition}
+        data-density={theme?.density ?? "normal"}
+        data-headings={theme?.headingStyle ?? "plain"}
+        data-themed={theme ? Object.keys(theme).length > 0 : false}
+        data-direction={direction}
+        style={themeToCss(theme)}
+      >
+        <HeadingContext.Provider value={headings}>
+          {active.blocks.map((b, i) => (
+            <AuthoredBlockView key={i} block={b} index={i} />
+          ))}
+        </HeadingContext.Provider>
+      </article>
 
       {showPager && pages.length > 1 && (
         <div className="doc-pager glass-strong">
