@@ -12477,3 +12477,421 @@ html.kv-pointer-on * {
   opacity: 1;
   transform: none;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Storage setup guide — app/storage/guide/page.tsx and the card that opens it.
+
+   A surface of its own rather than a panel inside the form: the reader works
+   between the two, and on a phone the guide needs the whole screen. Laid out
+   as a fixed head, a scrolling middle and a fixed foot, so Next is always
+   under the thumb however long a step runs.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The card in the storage form ────────────────────────────────────────── */
+
+.storage-guide-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0 0 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.storage-guide-main {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.storage-guide-main p {
+  margin: 0.25rem 0 0;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.storage-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (max-width: 560px) {
+  .storage-guide-actions {
+    width: 100%;
+  }
+
+  .storage-guide-actions .btn {
+    flex: 1 1 10rem;
+    justify-content: center;
+  }
+}
+
+/* ── The guide window ────────────────────────────────────────────────────── */
+
+.guide-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.9rem clamp(0.9rem, 4vw, 2rem) 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.guide-head-main {
+  min-width: 0;
+}
+
+.guide-kicker {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.guide-head h1 {
+  font-size: clamp(1.05rem, 3.4vw, 1.4rem);
+  letter-spacing: -0.01em;
+  margin: 0.1rem 0 0;
+}
+
+.guide-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+}
+
+/* ── The rail ────────────────────────────────────────────────────────────── */
+
+.guide-rail {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.6rem clamp(0.9rem, 4vw, 2rem);
+  /* Sideways on a phone: nine steps wrapped into four lines of chips is a worse map
+     than one line you can push along with a thumb. */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  background: var(--surface-2);
+}
+
+.guide-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.guide-rail-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+  padding: 0.3rem 0.7rem 0.3rem 0.35rem;
+  border-radius: 980px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition:
+    background var(--dur-standard) var(--ease),
+    color var(--dur-standard) var(--ease),
+    border-color var(--dur-standard) var(--ease);
+}
+
+.guide-rail-step[data-active="true"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text);
+}
+
+.guide-rail-n {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.guide-rail-step[data-done="true"] .guide-rail-n {
+  background: var(--success);
+  border-color: transparent;
+  color: var(--on-success);
+}
+
+.guide-progress {
+  height: 3px;
+  background: var(--border);
+  flex: none;
+}
+
+.guide-progress span {
+  display: block;
+  height: 100%;
+  background: var(--grad-accent);
+  transition: width var(--dur-large) var(--ease);
+}
+
+/* ── The step ────────────────────────────────────────────────────────────── */
+
+.guide-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(0.9rem, 3vw, 1.6rem) clamp(0.9rem, 4vw, 2rem) 2rem;
+}
+
+.guide-prereq,
+.guide-card {
+  max-width: 44rem;
+  margin: 0 auto 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+
+.guide-prereq h2 {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+.guide-lede {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.6rem;
+}
+
+.guide-prereq ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+
+/* Each step arrives from the side, so pressing Next reads as moving rather than as the
+   page redrawing itself. Keyed on the step id in the component, so it replays. */
+.guide-card {
+  animation: guide-step-in var(--dur-large) var(--ease) both;
+}
+
+@keyframes guide-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.2rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-card {
+    animation: none;
+  }
+}
+
+.guide-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.guide-mins {
+  padding: 0.1rem 0.5rem;
+  border-radius: 980px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.guide-title {
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+  letter-spacing: -0.015em;
+  margin: 0.5rem 0 0.5rem;
+}
+
+.guide-why {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  margin: 0 0 1rem;
+}
+
+.guide-todo {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+/* Inline code inside a sentence — a flag or a container name, not a block to copy. */
+.guide-inline-code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace);
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
+}
+
+.guide-todo li::marker {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+/* ── Commands ────────────────────────────────────────────────────────────── */
+
+.guide-cmd {
+  margin: 0 0 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.guide-cmd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+/* A command is copied, not retyped, so it scrolls sideways rather than wrapping mid-flag
+   where a broken line would become a broken command. */
+.guide-cmd pre {
+  margin: 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-family: var(--font-mono, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre;
+  -webkit-text-size-adjust: 100%;
+}
+
+.guide-check,
+.guide-warn {
+  margin: 0 0 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.guide-check {
+  border-left: 3px solid var(--success);
+  background: color-mix(in srgb, var(--success) 9%, transparent);
+}
+
+.guide-warn {
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.guide-check strong,
+.guide-warn strong {
+  display: inline;
+}
+
+.guide-doneline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* ── The way forward ─────────────────────────────────────────────────────── */
+
+.guide-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem clamp(0.9rem, 4vw, 2rem);
+  /* Clear of a phone's home indicator. */
+  padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.guide-foot-mid {
+  flex: 1;
+  text-align: center;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 520px) {
+  .guide-foot .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding-inline: 0.6rem;
+  }
+
+  .guide-foot-mid {
+    flex: 0 0 auto;
+  }
+
+  /* The header wraps rather than dropping the download: handing this to whoever runs
+     the NAS is the single most useful thing on the screen for an owner who will not be
+     doing the work themselves. */
+  .guide-head {
+    flex-wrap: wrap;
+  }
+
+  .guide-head-actions {
+    order: -1;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
