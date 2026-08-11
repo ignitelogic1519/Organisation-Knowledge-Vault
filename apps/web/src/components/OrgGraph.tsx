@@ -121,6 +121,126 @@ function layoutTree(nodes: TreeNode[]): Star[] {
   return stars;
 }
 
+/* ── Labels ───────────────────────────────────────────────────────────────────
+   Names were drawn centred under every star at a fixed offset, with nothing
+   stopping two of them from landing in the same place. That is fine on a desktop,
+   where the tree is spread out. On a phone the whole tree is scaled to fit ~360px,
+   so four siblings 150 units apart sit maybe 70px apart on screen — and "Depot
+   Operations", "Safety and Compliance" and "Driver Training" were painted directly
+   on top of one another into an unreadable smear.
+
+   Labels are now laid out the way a map lays out place names: collected, sorted by
+   how much the reader needs them, and placed one at a time into the first free
+   space — a second or third row under the star if the first is taken, and dropped
+   entirely if none is. A star with no room for its name keeps its glyph, and the
+   name arrives as soon as there is room for it, which is what zooming in is for.
+   Nothing is ever painted over anything else. */
+
+interface LabelJob {
+  text: string;
+  /** The second line the hovered or selected star gets. */
+  sub?: string;
+  x: number;
+  /** Top of the first row, in screen pixels. */
+  top: number;
+  /** 0 is the most important. Ties are broken by input order, which is stable. */
+  priority: number;
+  strong: boolean;
+}
+
+interface Box {
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+}
+
+/** The float a star is riding, so a label can subtract it and hold still. */
+function floatOf(s: Star, t: number): number {
+  return Math.sin(t / 1600 + s.phase) * 2.4 * s.z;
+}
+
+/** Longest prefix of `text` that fits `max` pixels, with an ellipsis when it is cut. */
+function fitText(ctx: CanvasRenderingContext2D, text: string, max: number): string {
+  if (ctx.measureText(text).width <= max) return text;
+  // Estimated first, then corrected — measuring every prefix of every name on every
+  // frame is real work in a loop that runs at 60fps.
+  const perChar = ctx.measureText(text).width / text.length;
+  let n = Math.max(1, Math.floor(max / perChar));
+  while (n > 1 && ctx.measureText(`${text.slice(0, n)}…`).width > max) n--;
+  while (n < text.length && ctx.measureText(`${text.slice(0, n + 1)}…`).width <= max) n++;
+  return n >= text.length ? text : `${text.slice(0, n)}…`;
+}
+
+/** How wide any single name may be, so one long one cannot crowd out three short ones. */
+const LABEL_MAX_WIDTH = 190;
+/** Horizontal breathing room between two names before they count as touching. */
+const LABEL_GAP = 8;
+/** How far a label may be pushed down looking for a free row. */
+const LABEL_ROWS = [0, 13, 26];
+
+function drawLabels(
+  ctx: CanvasRenderingContext2D,
+  jobs: LabelJob[],
+  colors: { text: string; muted: string; bg: string },
+  zoom: number,
+  width: number,
+  height: number,
+) {
+  const size = Math.max(11, 12 * Math.min(zoom, 1.4));
+  const lineHeight = size + 2;
+  const placed: Box[] = [];
+  const hits = (b: Box) =>
+    placed.some((o) => b.x1 < o.x2 && b.x2 > o.x1 && b.y1 < o.y2 && b.y2 > o.y1);
+  // A tree wider than the frame is pannable by design — but a name sliced in half by the
+  // frame's edge is not a name, so a label that does not fit whole is not drawn.
+  const inside = (b: Box) => b.x1 >= 2 && b.x2 <= width - 2 && b.y1 >= 0 && b.y2 <= height;
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+
+  for (const job of [...jobs].sort((a, b) => a.priority - b.priority)) {
+    ctx.font = `500 ${size}px -apple-system, "Segoe UI", sans-serif`;
+    const text = fitText(ctx, job.text, LABEL_MAX_WIDTH);
+    if (!text) continue;
+    const textWidth = ctx.measureText(text).width;
+    const textHeight = lineHeight * (job.sub ? 2 : 1);
+
+    const row = LABEL_ROWS.map((offset) => ({
+      x1: job.x - textWidth / 2 - LABEL_GAP,
+      x2: job.x + textWidth / 2 + LABEL_GAP,
+      y1: job.top + offset,
+      y2: job.top + offset + textHeight,
+    })).find((box) => !hits(box) && inside(box));
+    // No room at any row, or no room on the canvas: the star keeps its glyph and loses
+    // its name until the reader pans or zooms to it. Better than a word printed over
+    // another word, and better than half a word sliced off at the edge.
+    if (!row) continue;
+    placed.push(row);
+
+    // A halo of the page's own background, so a name crossing a connector line reads as
+    // text on the sky rather than as text on a wire. Cheaper and softer than a plate.
+    ctx.shadowColor = colors.bg;
+    ctx.shadowBlur = 6;
+    ctx.globalAlpha = job.strong ? 1 : 0.85;
+    ctx.fillStyle = colors.text;
+    ctx.fillText(text, job.x, row.y1);
+    ctx.fillText(text, job.x, row.y1); // twice: one pass of blur is too faint to bite
+
+    if (job.sub) {
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = colors.muted;
+      ctx.font = `400 10px -apple-system, "Segoe UI", sans-serif`;
+      const sub = fitText(ctx, job.sub, LABEL_MAX_WIDTH);
+      ctx.fillText(sub, job.x, row.y1 + lineHeight);
+      ctx.fillText(sub, job.x, row.y1 + lineHeight);
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.textBaseline = "alphabetic";
+}
+
 function diamondPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x, y - r);
@@ -194,7 +314,7 @@ export function OrgGraph({
     let raf = 0;
     let hovered: Star | null = null;
     const pointer = { x: 0.5, y: 0.5 };
-    let colors = { star: "", accent: "", accent2: "", text: "", muted: "", warning: "" };
+    let colors = { star: "", accent: "", accent2: "", text: "", muted: "", warning: "", bg: "" };
 
     const readColors = () => {
       const cs = getComputedStyle(document.documentElement);
@@ -205,6 +325,9 @@ export function OrgGraph({
         text: cs.getPropertyValue("--text").trim(),
         muted: cs.getPropertyValue("--text-secondary").trim(),
         warning: cs.getPropertyValue("--warning").trim(),
+        // The page behind the sky — a label paints a soft halo of it so a name stays
+        // legible where it crosses a connector line.
+        bg: cs.getPropertyValue("--bg").trim(),
       };
     };
 
@@ -238,10 +361,9 @@ export function OrgGraph({
     // graph space → screen space, with per-star depth parallax
     const project = (s: { x: number; y: number; z?: number }, t: number) => {
       const z = s.z ?? 1;
-      const floatY =
-        !reducedMotion && "phase" in s
-          ? Math.sin(t / 1600 + (s as Star).phase) * 2.4 * z
-          : 0;
+      // One definition of the float, shared with the label pass — a label subtracts it
+      // to hold still, and two copies of this formula would drift apart.
+      const floatY = !reducedMotion && "phase" in s ? floatOf(s as Star, t) : 0;
       const px = (pointer.x - 0.5) * 22 * (1 - z);
       const py = (pointer.y - 0.5) * 22 * (1 - z);
       return {
@@ -308,6 +430,7 @@ export function OrgGraph({
       }
 
       // stars
+      const labels: LabelJob[] = [];
       for (const s of stars) {
         const p = project(s, t);
         const r = s.r * cam.zoom;
@@ -408,26 +531,30 @@ export function OrgGraph({
           ctx.stroke();
         }
 
-        // labels when zoomed in enough, hovered, selected, or on the user's chain
+        // Labels are not drawn here — they are collected and laid out in a pass of their
+        // own once every star is placed, so a name can never be painted over a star that
+        // had not been drawn yet, and so the pass can see all of them at once.
         if (cam.zoom > 0.55 || isHov || isSel || s.mark !== "none") {
-          ctx.globalAlpha = isHov || isSel ? 1 : 0.85;
-          ctx.fillStyle = colors.text;
-          ctx.font = `500 ${Math.max(11, 12 * Math.min(cam.zoom, 1.4))}px -apple-system, "Segoe UI", sans-serif`;
-          ctx.textAlign = "center";
-          const label = mine ? `${s.node.name} · you` : s.node.name;
-          ctx.fillText(label, p.x, p.y + r + 16);
-          if (isHov || isSel) {
-            ctx.globalAlpha = 0.7;
-            ctx.fillStyle = colors.muted;
-            ctx.font = `400 10px -apple-system, "Segoe UI", sans-serif`;
-            ctx.fillText(
-              `#${s.node.roleNumber} · ${s.node.ownerCount + s.node.memberCount} people`,
-              p.x,
-              p.y + r + 30,
-            );
-          }
+          labels.push({
+            text: mine ? `${s.node.name} · you` : s.node.name,
+            sub:
+              isHov || isSel
+                ? `#${s.node.roleNumber} · ${s.node.ownerCount + s.node.memberCount} people`
+                : undefined,
+            x: p.x,
+            // The star breathes; its name holds still. Two or three pixels of float is
+            // charming on a glyph and tiring on a word, and a label that moves cannot be
+            // laid out against its neighbours without flickering in and out.
+            top: p.y - (reducedMotion ? 0 : floatOf(s, t)) + r + 8,
+            // Who gets the space when two names want it: what you are pointing at, then
+            // what you are part of, then the rest.
+            priority: isSel ? 0 : isHov ? 1 : mine ? 2 : s.mark === "path" ? 3 : 4,
+            strong: isHov || isSel,
+          });
         }
       }
+
+      drawLabels(ctx, labels, colors, cam.zoom, width, height);
       ctx.globalAlpha = 1;
 
       raf = requestAnimationFrame(draw);
