@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   COMPLIANCE_REASON_TEXT,
   type ComplianceCourse,
+  type CompliancePersonReport,
   type ComplianceReport,
   type TreeNode,
 } from "@vault/shared";
@@ -13,6 +14,7 @@ import { compliance } from "@/lib/courses-client";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
+import { UsernameField } from "@/components/UsernameField";
 
 // Compliance — the manager's view: pick any branch you govern (ownership can sit on
 // several levels at once), see per-course compliance across its subtree, and nudge the
@@ -233,6 +235,139 @@ function CourseBlock({
   );
 }
 
+/* ── Look somebody up ─────────────────────────────────────────────────────────
+   The course cards answer "who is behind on this?". A manager asking after one
+   person — before a review, after a complaint, when somebody is up for a move —
+   was left reading every card hunting for a name. This asks the other question.
+
+   The suggestions are the ORGANIZATION's own people, never the platform's: a
+   manager looking up an employee must not be offered a stranger who happens to
+   share a first name. */
+function PersonLookup({ orgId, roleId, roleName }: { orgId: string; roleId: string; roleName: string }) {
+  const [username, setUsername] = useState("");
+  const [report, setReport] = useState<CompliancePersonReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const look = useCallback(
+    async (who: string) => {
+      const name = who.trim().replace(/^@/, "");
+      if (!name) return;
+      setBusy(true);
+      setError(null);
+      setReport(null);
+      try {
+        setReport(await compliance.person(roleId, name));
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Could not look that person up");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [roleId],
+  );
+
+  // A different branch is a different question — the old answer would be misleading.
+  useEffect(() => {
+    setReport(null);
+    setError(null);
+  }, [roleId]);
+
+  const pct = report && report.total > 0 ? Math.round((report.compliant / report.total) * 100) : null;
+
+  return (
+    <div className="person-lookup">
+      <form
+        className="person-lookup-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void look(username);
+        }}
+      >
+        <UsernameField
+          label="Look up a person"
+          memberOfOrgId={orgId}
+          value={username}
+          onChange={setUsername}
+          onPick={(u) => void look(u)}
+          placeholder="Name or username…"
+          hint={`Anyone in ${roleName} or below it — see every course that reaches them.`}
+          emptyNote="Nobody in this organization matches that name."
+        />
+        <button className="btn btn-primary btn-small" disabled={busy || !username.trim()}>
+          {busy ? "Looking…" : "Check compliance"}
+        </button>
+      </form>
+
+      {error && <p className="form-error">{error}</p>}
+
+      {report && (
+        <div className="person-report">
+          <div className="person-report-head">
+            {report.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="username-suggest-avatar" src={report.avatar} alt="" />
+            ) : (
+              <span className="username-suggest-avatar" aria-hidden>
+                {report.displayName.slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <div className="person-report-who">
+              <strong>{report.displayName}</strong>
+              <span className="auth-sub">
+                @{report.username}
+                {report.roleNames.length > 0 && ` · ${report.roleNames.join(", ")}`}
+              </span>
+            </div>
+            <span className={`badge ${pct === 100 ? "badge-ok" : pct === null ? "" : "badge-danger"}`}>
+              {pct === null ? "no courses reach them" : `${report.compliant}/${report.total} · ${pct}%`}
+            </span>
+          </div>
+
+          {report.courses.length === 0 ? (
+            <p className="auth-sub">
+              No course placed on this branch reaches {report.displayName} — there is nothing
+              for them to be compliant with here.
+            </p>
+          ) : (
+            <ul className="person-report-list">
+              {report.courses.map((c) => (
+                <li key={c.code} data-ok={c.compliant} data-overdue={c.overdue}>
+                  <span className="person-report-mark" aria-hidden>
+                    {c.compliant ? "✓" : c.overdue ? "!" : "○"}
+                  </span>
+                  <span className="person-report-main">
+                    <strong>{c.title}</strong>
+                    <span className="auth-sub">
+                      {c.code} · {c.mandatory ? "mandatory" : "opt-in"} · via {c.viaRoleName}
+                    </span>
+                    <span className="compliance-reason">
+                      {c.compliant
+                        ? "Compliant"
+                        : COMPLIANCE_REASON_TEXT[c.reason ?? "NOT_STARTED"]}
+                      {c.isExam && c.attemptsUsed !== undefined && (
+                        <>
+                          {" · "}
+                          {c.attemptsUsed} attempt{c.attemptsUsed === 1 ? "" : "s"} used
+                          {c.attemptsAllowed != null ? ` of ${c.attemptsAllowed}` : ""}
+                          {c.bestPercent != null && c.attemptsUsed > 0
+                            ? ` · best ${c.bestPercent}%`
+                            : ""}
+                        </>
+                      )}
+                    </span>
+                  </span>
+                  {!c.compliant && c.overdue && <span className="badge badge-danger">overdue</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CompliancePage() {
   const { org } = useOrg();
   const [nodes, setNodes] = useState<TreeNode[] | null>(null);
@@ -311,6 +446,14 @@ export default function CompliancePage() {
             ))}
           </select>
         </label>
+
+        {roleId && (
+          <PersonLookup
+            orgId={org.id}
+            roleId={roleId}
+            roleName={governed.find((n) => n.id === roleId)?.name ?? "this branch"}
+          />
+        )}
 
         {error && <p className="form-error">{error}</p>}
         {!report && !error && <div className="skeleton" style={{ minHeight: "6rem" }} />}

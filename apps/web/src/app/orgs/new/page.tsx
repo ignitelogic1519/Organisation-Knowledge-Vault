@@ -41,6 +41,17 @@ export default function NewOrgPage() {
   const [kvepCheckMsg, setKvepCheckMsg] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(null);
   const [orgName, setOrgName] = useState("");
+  // Whether the CURRENT storage settings have been proven to work. Creating an organization
+  // against storage nobody has reached produces one that cannot accept a single upload, and
+  // the owner only finds out later — so the test is a gate, not a courtesy. Editing any
+  // field clears it again (StorageSetupFields calls back with false).
+  const [storageTested, setStorageTested] = useState(false);
+  // Switching between NAS and KVEP swaps which proof is required, and neither carries over.
+  const proofReady = mode === "NAS" ? storageTested : kvepCheck === "ok";
+  const proofNote =
+    mode === "NAS"
+      ? "Run “Test connection” on your storage first — an organization whose storage cannot be reached can never accept an upload."
+      : "Check the super-admin credentials first — the employee perk is only granted against an account we can verify.";
 
   // Plan chooser (shown beside the form)
   const [plans, setPlans] = useState<PricingPlanView[]>([]);
@@ -134,11 +145,47 @@ export default function NewOrgPage() {
               code arrives in your <Link href="/account">notifications</Link>. Paste it below.
             </p>
           </div>
-          <label className="field">
-            <span>Access code</span>
-            <input name="accessCode" required placeholder="8-character code from your notifications" autoCapitalize="characters" />
-            <small>The super-admin sends this after approving your plan request.</small>
-          </label>
+          {/* Not a <label> wrapping everything, the way the other fields are: this one
+              carries a link and a help button, and interactive controls inside a label
+              hand their clicks to the input as well. The label is bound by `htmlFor`
+              instead, so pressing "See pricing" does exactly one thing.
+
+              Somebody reaching this field without a code is stuck, and the answer — pick a
+              plan, wait for approval — was only written above the form, where they have
+              already scrolled past it. Both routes out are here now. */}
+          <div className="field">
+            <div className="field-label-row">
+              <label htmlFor="accessCode">
+                <span>Access code</span>
+              </label>
+              <span className="field-label-aids">
+                <button
+                  type="button"
+                  className="field-help"
+                  aria-label="How do I get an access code?"
+                  data-hint-title="How to get an access code"
+                  data-hint="Choose a plan — on the panel beside this form, or on the Pricing page — and send the request. The Knowledge Base team reviews it and your one-time code arrives in your notifications. One code creates one organization."
+                >
+                  ?
+                </button>
+                <Link href="/pricing" className="btn btn-quiet btn-tiny">
+                  See pricing →
+                </Link>
+              </span>
+            </div>
+            <input
+              id="accessCode"
+              name="accessCode"
+              required
+              placeholder="8-character code from your notifications"
+              autoCapitalize="characters"
+            />
+            <small>
+              The super-admin sends this after approving your plan request. No code yet?{" "}
+              <Link href="/pricing">Compare the plans</Link>, or request one from the panel
+              beside this form.
+            </small>
+          </div>
           <label className="field">
             <span>Organization name</span>
             <input
@@ -215,6 +262,7 @@ export default function NewOrgPage() {
             <StorageSetupFields
               value={storage}
               onChange={setStorage}
+              onTested={setStorageTested}
               webOrigin={typeof window === "undefined" ? "" : window.location.origin}
             />
           ) : (
@@ -232,7 +280,13 @@ export default function NewOrgPage() {
                 <span>Super-admin username</span>
                 <input
                   value={kvepUser}
-                  onChange={(e) => setKvepUser(e.target.value)}
+                  onChange={(e) => {
+                    setKvepUser(e.target.value);
+                    // The tick belonged to the credentials that were checked, not to
+                    // whatever is in the boxes now.
+                    setKvepCheck("idle");
+                    setKvepCheckMsg(null);
+                  }}
                   autoComplete="off"
                   placeholder="adminbase"
                 />
@@ -242,7 +296,11 @@ export default function NewOrgPage() {
                 <input
                   type="password"
                   value={kvepPass}
-                  onChange={(e) => setKvepPass(e.target.value)}
+                  onChange={(e) => {
+                    setKvepPass(e.target.value);
+                    setKvepCheck("idle");
+                    setKvepCheckMsg(null);
+                  }}
                   autoComplete="new-password"
                 />
                 <small>
@@ -296,7 +354,14 @@ export default function NewOrgPage() {
           )}
 
           {error && <p className="form-error">{error}</p>}
-          <button className="btn btn-primary btn-block" disabled={busy}>
+          {!proofReady && <p className="insp-warn create-org-gate">{proofNote}</p>}
+          <button
+            className="btn btn-primary btn-block"
+            disabled={busy || !proofReady}
+            data-hint={proofReady ? undefined : proofNote}
+            data-hint-title={proofReady ? undefined : "Not ready yet"}
+            data-hint-tone={proofReady ? undefined : "required"}
+          >
             {busy ? "Creating…" : "Create organization"}
           </button>
         </form>

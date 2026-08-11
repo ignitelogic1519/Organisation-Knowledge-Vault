@@ -21,6 +21,7 @@ import {
   type MediaOptions,
   type TableCell,
 } from "@vault/shared";
+import { useReaderZoom } from "@/lib/reader-zoom";
 
 // The document renderer — one implementation shared by the in-app viewer, the Studio's
 // live preview and its present mode, so what an author sees while writing is exactly what
@@ -78,7 +79,11 @@ export function blockStyleToCss(style?: BlockStyle): CSSProperties {
   if (style.color) css.color = style.color;
   if (style.background) css.background = style.background;
   if (style.font) css.fontFamily = FONT_STACKS[style.font] ?? undefined;
-  if (style.fontSize) css.fontSize = `${style.fontSize}px`;
+  // An author's explicit size is absolute at 100%, but it still has to follow the reader's
+  // zoom — a document with one hand-sized heading in it must not have that heading stay
+  // put while everything around it grows. `--doc-zoom` is 1 wherever nobody set it (the
+  // Studio canvas, the exported preview), so this is the plain px size there.
+  if (style.fontSize) css.fontSize = `calc(${style.fontSize}px * var(--doc-zoom, 1))`;
   if (style.lineHeight) css.lineHeight = style.lineHeight;
   if (style.letterSpacing) css.letterSpacing = `${style.letterSpacing}px`;
   if (style.uppercase) css.textTransform = "uppercase";
@@ -716,6 +721,8 @@ export function DocumentPages({
   page,
   onPage,
   showPager = true,
+  /** The reading-size pill. Off in the Studio's preview, which has its own controls. */
+  showZoom = true,
   className = "",
   theme,
 }: {
@@ -723,10 +730,12 @@ export function DocumentPages({
   page?: number;
   onPage?: (n: number) => void;
   showPager?: boolean;
+  showZoom?: boolean;
   className?: string;
   theme?: DocumentTheme;
 }) {
   const [own, setOwn] = useState(0);
+  const zoom = useReaderZoom(showZoom);
   const current = Math.min(page ?? own, Math.max(0, pages.length - 1));
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const go = (n: number) => {
@@ -765,7 +774,42 @@ export function DocumentPages({
 
   if (!active) return null;
   return (
-    <div className={`doc-authored ${className}`}>
+    <div
+      className={`doc-authored ${className}`}
+      ref={zoom.ref}
+      // Type scale, not a transform: the sheet keeps its width and the lines re-wrap, so
+      // a reader who has zoomed in never has to scroll sideways to finish a sentence.
+      style={{ "--doc-zoom": zoom.zoom } as CSSProperties}
+    >
+      {showZoom && (
+      <div className="reader-zoom" role="group" aria-label="Reading size">
+        <button
+          type="button"
+          onClick={() => zoom.zoomBy(1 / 1.15)}
+          aria-label="Smaller"
+          title="Smaller (Ctrl −)"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="reader-zoom-level"
+          onClick={zoom.reset}
+          title="Back to 100% (Ctrl 0)"
+        >
+          {zoom.percent}%
+        </button>
+        <button
+          type="button"
+          onClick={() => zoom.zoomBy(1.15)}
+          aria-label="Larger"
+          title="Larger (Ctrl +)"
+        >
+          +
+        </button>
+        <span className="reader-zoom-hint">Ctrl + scroll, or pinch</span>
+      </div>
+      )}
       <article
         className="doc-sheet doc-turn"
         key={current}
@@ -782,6 +826,7 @@ export function DocumentPages({
           ))}
         </HeadingContext.Provider>
       </article>
+
       {showPager && pages.length > 1 && (
         <div className="doc-pager glass-strong">
           <button
@@ -825,5 +870,5 @@ export function DocumentBody({
   theme?: DocumentTheme;
 }) {
   const pages = useMemo(() => paginate(blocks), [blocks]);
-  return <DocumentPages pages={pages} className={className} theme={theme} />;
+  return <DocumentPages pages={pages} className={className} theme={theme} showZoom={false} />;
 }

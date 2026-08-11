@@ -203,6 +203,9 @@ export function UploadComposer({
 
   return (
     <div className="upcomp glass">
+      {/* The header is a two-row grid under ~640px rather than one row that overflows: on a
+          phone the step pills used to be pushed off the right edge by the readiness pill,
+          so "Its properties" was unreachable by the only control that reaches it. */}
       <div className="upcomp-head">
         <div className="upcomp-steps" role="tablist" aria-label="Upload steps">
           <button
@@ -213,8 +216,10 @@ export function UploadComposer({
             data-done={hasSource}
             onClick={() => setStep("source")}
           >
-            <span className="upcomp-step-n">1</span> The material
+            <span className="upcomp-step-n">{hasSource ? "✓" : "1"}</span>
+            <span className="upcomp-step-label">The material</span>
           </button>
+          <span className="upcomp-step-link" aria-hidden data-done={hasSource} />
           <button
             type="button"
             role="tab"
@@ -223,7 +228,8 @@ export function UploadComposer({
             data-done={gate.ready}
             onClick={() => setStep("properties")}
           >
-            <span className="upcomp-step-n">2</span> Its properties
+            <span className="upcomp-step-n">{gate.ready ? "✓" : "2"}</span>
+            <span className="upcomp-step-label">Its properties</span>
           </button>
         </div>
         <div className="upcomp-head-actions">
@@ -240,7 +246,10 @@ export function UploadComposer({
       </div>
 
       {step === "source" && (
-        <div className="upcomp-body">
+        // Keyed so React remounts on a step change and the entrance animation replays —
+        // the panel slides in from the side the step came from, which is what tells the
+        // author they moved rather than that the page redrew.
+        <div className="upcomp-body" key="source" data-dir="back">
           <h4 className="insp-section">What kind of material is this?</h4>
           <div className="upcomp-kinds">
             {KINDS.map((k) => (
@@ -364,7 +373,7 @@ export function UploadComposer({
       )}
 
       {step === "properties" && (
-        <div className="upcomp-body">
+        <div className="upcomp-body" key="properties" data-dir="forward">
           <div data-check="title">
             <Row
               label="Title"

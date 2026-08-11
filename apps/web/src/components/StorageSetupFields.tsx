@@ -36,22 +36,37 @@ export function StorageSetupFields({
   onChange,
   webOrigin,
   showEncryptionChoice = true,
+  onTested,
 }: {
   value: StorageConfigInput;
   onChange: (next: StorageConfigInput) => void;
   webOrigin: string;
   /** Hidden when reconfiguring: the posture is fixed once storage is activated (§9.5). */
   showEncryptionChoice?: boolean;
+  /**
+   * Whether these exact settings have been PROVEN to work. The surrounding form gates its
+   * own save on it: an organization created against storage nobody has reached is an
+   * organization that cannot accept a single upload, and the owner finds out afterwards.
+   * Any edit to the settings retracts it — the proof belonged to the old values.
+   */
+  onTested?: (passed: boolean) => void;
 }) {
   const [test, setTest] = useState<StorageTestResult | null>(null);
   const [testing, setTesting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  const set = <K extends keyof StorageConfigInput>(key: K, next: StorageConfigInput[K]) =>
+  const set = <K extends keyof StorageConfigInput>(key: K, next: StorageConfigInput[K]) => {
+    // Changing a field invalidates the last result — it was about different settings.
+    if (test) {
+      setTest(null);
+      onTested?.(false);
+    }
     onChange({ ...value, [key]: next });
+  };
 
   async function runTest() {
     setTest(null);
+    onTested?.(false);
     const parsed = storageConfigSchema.safeParse(value);
     if (!parsed.success) {
       setTest({ ok: false, steps: [], error: parsed.error.issues[0].message });
@@ -59,7 +74,9 @@ export function StorageSetupFields({
     }
     setTesting(true);
     try {
-      setTest(await storageApi.test(parsed.data));
+      const result = await storageApi.test(parsed.data);
+      setTest(result);
+      onTested?.(result.ok);
     } catch (err) {
       setTest({
         ok: false,
@@ -229,10 +246,24 @@ export function StorageSetupFields({
       )}
 
       <div className="storage-test-row">
-        <button type="button" className="btn" onClick={runTest} disabled={testing}>
-          {testing ? "Testing…" : "Test connection"}
+        <button
+          type="button"
+          className="btn"
+          onClick={runTest}
+          disabled={testing}
+          data-state={test?.ok ? "ok" : test ? "bad" : undefined}
+        >
+          {testing ? "Testing…" : test?.ok ? "✓ Connection tested" : "Test connection"}
         </button>
-        {test?.ok && <span className="ok-text">✓ Connected — your storage is ready.</span>}
+        {test?.ok ? (
+          <span className="ok-text">✓ Connected — your storage is ready.</span>
+        ) : (
+          !testing && (
+            <span className="auth-sub">
+              The test has to pass before these settings can be saved.
+            </span>
+          )
+        )}
       </div>
 
       {test && !test.ok && (
