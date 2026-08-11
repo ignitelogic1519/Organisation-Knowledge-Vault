@@ -1801,6 +1801,473 @@ select option[value=""] {
   box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
+/* The organization's face beside its name, on every page it owns. */
+.org-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.org-title-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The logo editor in the root branch's configuration panel. */
+.config-row-logo .org-logo-field {
+  margin-top: 0.6rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   The organization card — components/OrgCard.tsx
+
+   A card you are about to walk into rather than a row of facts: the
+   organization's own star field behind its badge, its name, how long its plan
+   has, and where the reader stands in it. The sky is decoration, seeded from
+   the organization number so the same organization always wears the same one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.orgcard {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 11.5rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--dur-standard) var(--spring),
+    box-shadow var(--dur-standard) var(--ease),
+    border-color var(--dur-micro) var(--ease);
+}
+
+.orgcard:hover,
+.orgcard:focus-visible {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--accent) 22%, transparent);
+  outline: none;
+}
+
+/* An organization you govern is marked by the card itself, not only by a chip: a rail
+   down its leading edge, visible before any text is read. */
+.orgcard[data-owner="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--grad-accent);
+  z-index: 1;
+}
+
+/* ── The sky ─────────────────────────────────────────────────────────────── */
+
+.orgcard-sky {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  opacity: 0.55;
+  transition: opacity var(--dur-large) var(--ease);
+  /* Faded out of the lower-left, which is where the name, the plan chip and the roles
+     are. A star behind a word does not read as a sky; it reads as a smudge on the screen. */
+  -webkit-mask-image: radial-gradient(125% 105% at 100% 22%, #000 12%, rgba(0, 0, 0, 0.45) 48%, transparent 76%);
+  mask-image: radial-gradient(125% 105% at 100% 22%, #000 12%, rgba(0, 0, 0, 0.45) 48%, transparent 76%);
+}
+
+.orgcard:hover .orgcard-sky {
+  opacity: 0.9;
+}
+
+/* The night theme has the contrast to carry it further. */
+[data-theme="dark"] .orgcard-sky {
+  opacity: 0.8;
+}
+
+[data-theme="dark"] .orgcard:hover .orgcard-sky {
+  opacity: 1;
+}
+
+.orgcard-sky-star {
+  fill: var(--accent);
+  animation: orgcard-twinkle 4.5s var(--ease) infinite;
+}
+
+.orgcard-sky-link {
+  stroke: var(--accent);
+  stroke-width: 0.25;
+  opacity: 0.18;
+}
+
+@keyframes orgcard-twinkle {
+  0%,
+  100% {
+    opacity: inherit;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+/* A card is not a light show. The stars hold still for anyone who asked for that, and
+   they are still there — the sky does not disappear, it stops flickering. */
+@media (prefers-reduced-motion: reduce) {
+  .orgcard-sky-star {
+    animation: none;
+  }
+}
+
+[data-motion="off"] .orgcard-sky-star {
+  animation: none;
+}
+
+/* ── Badge, name, number ─────────────────────────────────────────────────── */
+
+.orgcard-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+/* The logo is the brightest thing on the card — the star the constellation hangs from. */
+.orgcard-badge-halo {
+  position: relative;
+  display: inline-flex;
+  border-radius: 30%;
+}
+
+.orgcard-badge-halo::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 26%, transparent),
+    transparent 68%
+  );
+  z-index: -1;
+  transition: inset var(--dur-large) var(--ease);
+}
+
+.orgcard:hover .orgcard-badge-halo::after {
+  inset: -45%;
+}
+
+.orgcard-ids {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+}
+
+.orgcard-num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 0.15rem 0.5rem;
+  border-radius: 980px;
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.orgcard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.orgcard-name {
+  font-size: 1.15rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0;
+  /* Two lines, then an ellipsis: a long name must not push the roles off the card. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.orgcard-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+/* ── The plan chip ───────────────────────────────────────────────────────── */
+
+.orgcard-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem 0.2rem 0.45rem;
+  border-radius: 980px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 85%, transparent);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* The dot carries the urgency, so the colour is legible before the words are read. */
+.orgcard-plan-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  flex: none;
+  background: var(--text-secondary);
+}
+
+.orgcard-plan[data-tone="calm"] .orgcard-plan-dot {
+  background: var(--success);
+}
+
+.orgcard-plan[data-tone="soon"] {
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--warning);
+}
+
+.orgcard-plan[data-tone="soon"] .orgcard-plan-dot {
+  background: var(--warning);
+}
+
+.orgcard-plan[data-tone="urgent"],
+.orgcard-plan[data-tone="dead"] {
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.orgcard-plan[data-tone="urgent"] .orgcard-plan-dot,
+.orgcard-plan[data-tone="dead"] .orgcard-plan-dot {
+  background: var(--danger);
+}
+
+/* Only the last few days pulse. A card that throbs for a year teaches people to ignore it. */
+.orgcard-plan[data-tone="urgent"] .orgcard-plan-dot {
+  animation: orgcard-pulse 1.8s var(--ease) infinite;
+}
+
+@keyframes orgcard-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 60%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 0.32rem transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orgcard-plan[data-tone="urgent"] .orgcard-plan-dot {
+    animation: none;
+  }
+}
+
+.orgcard-kvep {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ── Where the reader stands ─────────────────────────────────────────────── */
+
+.orgcard-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+/* One position, wherever a position is mentioned — components/RoleChips.tsx. */
+.role-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border-radius: 980px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-solid) 70%, transparent);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Owning a branch is the difference that matters, so it is the one that gets the accent. */
+.role-chip[data-kind="OWNER"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.role-chip-mark {
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.role-chip-more {
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+
+/* "Your position" in the organization's own header. */
+.org-position {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.45rem;
+}
+
+.org-position-label::after {
+  content: ":";
+}
+
+/* ── The way in ──────────────────────────────────────────────────────────── */
+
+.orgcard-enter {
+  position: absolute;
+  right: 1.1rem;
+  bottom: 1.15rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateX(-0.35rem);
+  transition:
+    opacity var(--dur-standard) var(--ease),
+    transform var(--dur-standard) var(--ease);
+}
+
+.orgcard:hover .orgcard-enter,
+.orgcard:focus-visible .orgcard-enter {
+  opacity: 1;
+  transform: none;
+}
+
+/* On a touch screen there is no hover to reveal it, and the roles run to the bottom-right
+   corner it would sit in. */
+@media (hover: none) {
+  .orgcard-enter {
+    display: none;
+  }
+}
+
+/* ── The filter bar, for somebody who belongs to a lot of them ───────────── */
+
+.org-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.org-lens {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 980px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+
+.org-lens-btn {
+  padding: 0.3rem 0.8rem;
+  border-radius: 980px;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition:
+    background var(--dur-standard) var(--ease),
+    color var(--dur-standard) var(--ease);
+}
+
+.org-lens-btn[data-active="true"] {
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.org-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.org-search input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  padding: 0.45rem 0.9rem;
+  transition: border-color var(--dur-micro) var(--ease);
+}
+
+.org-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Phones: one card per row, and a filter bar that stacks instead of squeezing. */
+@media (max-width: 560px) {
+  .orgcard {
+    min-height: 0;
+    padding: 0.95rem 1rem 1rem;
+  }
+
+  .orgcard-name {
+    font-size: 1.05rem;
+  }
+
+  .org-lens {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .org-lens-btn {
+    flex: 1;
+    padding: 0.3rem 0.4rem;
+    text-align: center;
+  }
+}
+
 .org-card-head {
   display: flex;
   align-items: center;

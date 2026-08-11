@@ -7,6 +7,8 @@ import { hasSession } from "@/lib/auth-client";
 import { orgs, requests } from "@/lib/orgs-client";
 import { AppShell, type ShellNavItem } from "@/components/AppShell";
 import { OrgContext } from "@/components/org-context";
+import { OrgBadge } from "@/components/OrgLogoField";
+import { RoleChips } from "@/components/RoleChips";
 import { OrgEventsProvider, useOrgEvent } from "@/components/org-events";
 import {
   IconBack,
@@ -116,18 +118,26 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         <AppShell
         nav={nav}
         title={
-          <>
-            {org.name} <span className="chip">#{org.orgNumber}</span>
-          </>
+          // The organization's own face, on every one of its pages. It was uploaded at
+          // creation and then never shown anywhere the owner would look for it.
+          <span className="org-title">
+            <OrgBadge name={org.name} logo={org.logo} orgNumber={org.orgNumber} size={34} />
+            <span className="org-title-name">{org.name}</span>
+            <span className="chip">#{org.orgNumber}</span>
+          </span>
         }
         subtitle={
-          section === "Constellation"
-            ? org.myPlacements.length > 0
-              ? `Your position: ${org.myPlacements
-                  .map((p) => `${p.roleName} (${p.kind.toLowerCase()})`)
-                  .join(" · ")}`
-              : "Your position: member"
-            : section
+          section === "Constellation" ? (
+            // Chips, not a comma-joined sentence: somebody who occupies six branches used
+            // to get a line that ran off the side of the screen, and on a phone it pushed
+            // the constellation itself below the fold.
+            <span className="org-position">
+              <span className="org-position-label">Your position</span>
+              <RoleChips placements={org.myPlacements} limit={4} />
+            </span>
+          ) : (
+            section
+          )
         }
         >
           {children}

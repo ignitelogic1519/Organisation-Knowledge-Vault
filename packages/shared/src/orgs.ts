@@ -50,6 +50,24 @@ export const createOrgSchema = z.object({
 });
 export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 
+/**
+ * Changing the organization's logo after it exists.
+ *
+ * `null` clears it and returns the organization to the lettered badge. Deliberately NOT
+ * Supreme-gated: the Supreme password guards what cannot be undone — the owner structure,
+ * deletion, where the documents live. A logo is the organization's face, changed by its
+ * owners as often as they like and reversible by uploading the old one again. Putting the
+ * unrecoverable password behind a picture would teach people to type it casually, which
+ * is the opposite of what that gate is for.
+ */
+export const updateOrgLogoSchema = z.object({
+  logo: z
+    .string()
+    .max(400_000, "That logo is too large — use a smaller image")
+    .nullable(),
+});
+export type UpdateOrgLogoInput = z.infer<typeof updateOrgLogoSchema>;
+
 export const supremeVerifySchema = z.object({
   password: z.string().min(1, "Enter the Supreme password"),
 });

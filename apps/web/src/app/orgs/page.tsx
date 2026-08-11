@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OrgSummary } from "@vault/shared";
 import { hasSession } from "@/lib/auth-client";
 import { orgs } from "@/lib/orgs-client";
 import { AppShell } from "@/components/AppShell";
+import { OrgCard } from "@/components/OrgCard";
 import { RecoveryDock } from "@/components/RecoveryDock";
 import { IconGrid, IconHelp, IconPlus, IconUser } from "@/components/icons";
 
@@ -19,30 +20,18 @@ const NAV = [
   { href: "/help", label: "Help", icon: <IconHelp /> },
 ];
 
-// The countdown chip shown above an org's name: remaining time for time-bounded plans
-// (Demo, Monthly, custom), or the plan/lapsed state otherwise.
-function PlanTimer({ status, planKey, expiresAt }: { status: string; planKey: string | null; expiresAt: string | null }) {
-  if (status === "NONE") return null;
-  if (status === "EXPIRED") {
-    return <span className="org-plan-timer" data-danger="true">⏰ {planKey ?? "Plan"} expired — upgrade to keep it</span>;
-  }
-  if (!expiresAt) {
-    return <span className="org-plan-timer">{planKey ?? "Active"} · no expiry</span>;
-  }
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  const days = Math.floor(ms / 86400_000);
-  const hours = Math.floor((ms % 86400_000) / 3600_000);
-  const danger = ms < 3 * 86400_000;
-  const label = status === "DEMO" ? "Demo" : planKey ?? "Plan";
-  const remaining = ms <= 0 ? "expired" : days >= 1 ? `${days}d ${hours}h left` : `${hours}h left`;
-  return <span className="org-plan-timer" data-danger={danger}>⏳ {label} · {remaining}</span>;
-}
+/** Above this many, finding one by eye stops working and the filter bar earns its space. */
+const FILTER_THRESHOLD = 5;
+
+type Lens = "all" | "owner" | "member";
 
 // Dashboard — every organization the signed-in profile belongs to.
 export default function OrgsPage() {
   const router = useRouter();
   const [list, setList] = useState<OrgSummary[] | null>(null);
   const [deleted, setDeleted] = useState<DeletedOrg[]>([]);
+  const [query, setQuery] = useState("");
+  const [lens, setLens] = useState<Lens>("all");
 
   const load = () => {
     orgs
@@ -61,6 +50,42 @@ export default function OrgsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
+  /**
+   * The two lenses overlap on purpose — owning one branch of an organization while
+   * sitting as a member in another is ordinary — so these are counted with exactly the
+   * predicates the filter uses rather than as a split of the total. Counting "member" as
+   * "everything I don't own" made the tab read 0 while the filter it labelled found one.
+   */
+  const owned = useMemo(
+    () => (list ?? []).filter((o) => o.myPlacements.some((p) => p.kind === "OWNER")).length,
+    [list],
+  );
+  const joined = useMemo(
+    () => (list ?? []).filter((o) => o.myPlacements.some((p) => p.kind !== "OWNER")).length,
+    [list],
+  );
+
+  /**
+   * Search covers the name, the number and the role names, because all three are things
+   * people actually remember — "the one where I'm the safety lead" is as valid a way to
+   * look as typing the organization's name.
+   */
+  const shown = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return (list ?? []).filter((o) => {
+      if (lens === "owner" && !o.myPlacements.some((p) => p.kind === "OWNER")) return false;
+      if (lens === "member" && !o.myPlacements.some((p) => p.kind !== "OWNER")) return false;
+      if (!term) return true;
+      return (
+        o.name.toLowerCase().includes(term) ||
+        String(o.orgNumber).includes(term) ||
+        o.myPlacements.some((p) => p.roleName.toLowerCase().includes(term))
+      );
+    });
+  }, [list, query, lens]);
+
+  const manyOrgs = (list?.length ?? 0) > FILTER_THRESHOLD;
+
   return (
     <AppShell
       nav={NAV}
@@ -74,8 +99,8 @@ export default function OrgsPage() {
     >
       {list === null && (
         <div className="org-grid">
-          <div className="org-card glass skeleton" style={{ minHeight: "7rem" }} />
-          <div className="org-card glass skeleton" style={{ minHeight: "7rem" }} />
+          <div className="orgcard glass skeleton" style={{ minHeight: "11rem" }} />
+          <div className="orgcard glass skeleton" style={{ minHeight: "11rem" }} />
         </div>
       )}
 
@@ -92,24 +117,52 @@ export default function OrgsPage() {
         </div>
       )}
 
+      {/* The filter bar appears only once there is enough to filter. Two or three cards
+          need no apparatus above them; twenty do. */}
+      {manyOrgs && (
+        <div className="org-toolbar">
+          <div className="org-lens" role="group" aria-label="Filter organizations">
+            {(
+              [
+                ["all", `All ${list!.length}`],
+                ["owner", `Owner ${owned}`],
+                ["member", `Member ${joined}`],
+              ] as [Lens, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className="org-lens-btn"
+                data-active={lens === key}
+                onClick={() => setLens(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <label className="org-search">
+            <span className="visually-hidden">Search your organizations</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Search by name, number or your role…"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        </div>
+      )}
+
       <div className="org-grid stagger">
-        {list?.map((o) => (
-          <Link key={o.id} href={`/orgs/${o.id}`} className="org-card glass">
-            <PlanTimer status={o.planStatus} planKey={o.planKey} expiresAt={o.planExpiresAt} />
-            <div className="org-card-head">
-              <h2>{o.name}</h2>
-              <span className="chip">#{o.orgNumber}</span>
-            </div>
-            <p className="auth-sub">
-              {o.myPlacements.length > 0
-                ? o.myPlacements
-                    .map((p) => `${p.roleName} (${p.kind.toLowerCase()})`)
-                    .join(" · ")
-                : "Member"}
-            </p>
-          </Link>
+        {shown.map((o) => (
+          <OrgCard key={o.id} org={o} />
         ))}
       </div>
+
+      {list !== null && list.length > 0 && shown.length === 0 && (
+        <p className="auth-sub">
+          Nothing matches that. <button className="linklike" onClick={() => { setQuery(""); setLens("all"); }}>Clear the filters</button>
+        </p>
+      )}
 
       {/* Recovery lives in a dock in the bottom-left corner: out of the way until
           something needs bringing back, and holding BOTH ways back — the organizations

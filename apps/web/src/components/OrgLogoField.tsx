@@ -83,11 +83,19 @@ export function OrgLogoField({
   name,
   value,
   onChange,
+  label = "Organization logo (optional)",
+  hint = "Shown on the organization card and on every document it publishes. Without one we use the first letter of the name.",
+  busy = false,
 }: {
   /** The organization name, for the fallback preview. */
   name: string;
   value: string | null;
   onChange: (next: string | null) => void;
+  /** Hidden with null where the surrounding panel already provides the heading. */
+  label?: React.ReactNode | null;
+  hint?: React.ReactNode | null;
+  /** A save is in flight — the buttons wait rather than queueing a second one. */
+  busy?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +121,7 @@ export function OrgLogoField({
 
   return (
     <div className="field org-logo-field">
-      <span>Organization logo (optional)</span>
+      {label && <span>{label}</span>}
       <div className="org-logo-row">
         <OrgBadge name={name || "?"} logo={value} size={64} />
         <div className="org-logo-actions">
@@ -124,13 +132,19 @@ export function OrgLogoField({
             hidden
             onChange={(e) => void pick(e.target.files?.[0] ?? null)}
           />
-          <button type="button" className="btn btn-small" onClick={() => inputRef.current?.click()}>
-            {value ? "Replace" : "Upload a logo"}
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+          >
+            {busy ? "Saving…" : value ? "Replace" : "Upload a logo"}
           </button>
           {value && (
             <button
               type="button"
               className="btn btn-quiet btn-small"
+              disabled={busy}
               onClick={() => {
                 onChange(null);
                 setError(null);
@@ -141,10 +155,7 @@ export function OrgLogoField({
           )}
         </div>
       </div>
-      <small>
-        Shown on the organization card and on every document it publishes. Without one we
-        use the first letter of the name.
-      </small>
+      {hint && <small>{hint}</small>}
       {error && <p className="form-error">{error}</p>}
     </div>
   );
