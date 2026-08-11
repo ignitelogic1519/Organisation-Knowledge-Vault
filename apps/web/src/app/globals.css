@@ -10115,10 +10115,23 @@ body.is-dragging-block * {
    from what is under the pointer. The whole layer is inert.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* The hosts the pointer and the hint card are portalled into (lib/top-layer.ts). Both get
+   re-parented into whatever element is showing full screen, so neither may bring a box of
+   its own: `display: contents` keeps the host out of the layout it lands in — no row in a
+   grid, no item in a flex column, no gap. */
+.kv-pointer-host,
+.kv-hint-host {
+  display: contents;
+}
+
+/* The z-index buys the top of the PAGE, and nothing more: full screen is not a stacking
+   problem and cannot be solved as one. The browser paints the full-screen element and its
+   descendants, and everything else in the document sits behind the backdrop however high
+   it is stacked. That is what the host above is for. */
 .kv-pointer-layer {
   position: fixed;
   inset: 0;
-  z-index: 2147483000; /* above dialogs, viewers and fullscreen surfaces alike */
+  z-index: 2147483000;
   pointer-events: none;
   contain: strict;
 }
