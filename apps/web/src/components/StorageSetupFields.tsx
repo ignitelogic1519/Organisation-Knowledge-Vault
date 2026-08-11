@@ -10,7 +10,7 @@ import {
 } from "@vault/shared";
 import { storageApi } from "@/lib/storage-client";
 import { openStorageGuide } from "@/lib/reader-window";
-import { nasGuideMarkdown } from "@/lib/nas-guide";
+
 
 // The storage setup fieldset (docs/structure.md §9.3). Shared by organization creation
 // and the storage settings screen, so both ask the same questions in the same words and
@@ -109,33 +109,21 @@ export function StorageSetupFields({
         <div className="storage-guide-main">
           <strong>First time setting this up?</strong>
           <p>
-            Four values are asked for below, and they come from about half an hour of work on
-            the machine that will hold your documents. The guide walks through it one step at
-            a time — installing MinIO, making the bucket and its key, and giving it an HTTPS
-            address without opening a single port on your firewall.
+            Four values are asked for below, and they come from about an hour of work on the
+            machine that will hold your documents. The guide asks what kind of machine that
+            is, whether you own a domain, and whether you would rather click or type — then
+            writes every instruction and every command around your answers. It explains as
+            much or as little as you want, and produces a PDF you can send to whoever
+            actually looks after the hardware.
           </p>
         </div>
         <div className="storage-guide-actions">
           <button type="button" className="btn btn-primary btn-small" onClick={openStorageGuide}>
             Open the setup guide ↗
           </button>
-          <button
-            type="button"
-            className="btn btn-quiet btn-small"
-            onClick={() => {
-              const blob = new Blob([nasGuideMarkdown(webOrigin)], {
-                type: "text/markdown;charset=utf-8",
-              });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "knowledge-vault-storage-setup.md";
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            ⬇ Download for your IT
-          </button>
+          {/* The PDF is built from the guide's own steps and the answers given in it, so
+              it is offered there rather than here — a handout downloaded before anybody
+              has answered a single question would describe nobody's setup. */}
         </div>
       </div>
 

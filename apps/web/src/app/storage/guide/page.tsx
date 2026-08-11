@@ -2,26 +2,36 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { GUIDE_PREREQUISITES, nasGuideMarkdown, nasGuideSteps } from "@/lib/nas-guide";
+import {
+  buildGuide,
+  decisionsSoFar,
+  EMPTY_ANSWERS,
+  suggestPassword,
+  type Answers,
+  type Block,
+  type Depth,
+  type Step,
+} from "@/lib/nas-guide";
+import { downloadGuidePdf } from "@/lib/nas-guide-pdf";
 
-// The storage setup guide — a window of its own, one step at a time.
+// The storage setup guide.
 //
-// The storage form asks for four values and used to explain where they come from in a
-// collapsed five-line summary. That is fine for somebody who has done this before and
-// useless to everybody else, and the person who actually does the work — whoever runs the
-// NAS — never sees our form at all.
+// A window of its own, opened beside the storage form, that asks the reader questions and
+// rewrites itself around the answers. Which machine they have decides where they click.
+// Whether they own a domain decides which kind of tunnel they build, and the choice is
+// presented with its costs rather than as a fork they have to guess at. The folder, the
+// bucket, the user name and the address they type are substituted into every command that
+// follows, so nothing is left to fill in by hand and nothing is mistyped.
 //
-// So this is a separate surface, opened in its own tab beside the form (the same way a
-// document opens), which matters for two reasons: the reader can keep the form open and
-// work between the two, and on a phone the guide gets the whole screen instead of being a
-// panel squeezed inside a drawer. It carries `?from=` so a device with no tabs still has
-// a way back.
+// Two depths, switched in the header: everything, or just the doing. They are the same
+// steps — one explains what a bucket is and why a datacentre cannot see an office, the
+// other assumes you know.
+//
+// Answers survive a reload. Somebody who gets halfway, goes off to buy a domain and comes
+// back tomorrow should not have to start again.
 
-/**
- * `useSearchParams` opts a route out of static prerendering unless it sits behind a
- * boundary, and the guide is otherwise a perfectly static page — so the boundary is here
- * rather than making the whole route dynamic for the sake of one optional `?from=`.
- */
+const STORAGE_KEY = "kv.storage-guide";
+
 export default function StorageGuidePage() {
   return (
     <Suspense fallback={<div className="guide-layer" />}>
@@ -30,54 +40,66 @@ export default function StorageGuidePage() {
   );
 }
 
-/**
- * Inline code, from the backticks the step text is written with. The same strings are
- * serialised to Markdown for the download, where backticks are exactly right — so rather
- * than stripping them for the screen, the screen learns to read them.
- */
-function richText(text: string): React.ReactNode[] {
-  return text.split(/`([^`]+)`/g).map((part, i) =>
-    i % 2 === 1 ? (
-      <code key={i} className="guide-inline-code">
-        {part}
-      </code>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
-}
-
 function StorageGuide() {
   const router = useRouter();
   const params = useSearchParams();
   const [origin, setOrigin] = useState("");
+  const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
+  const [depth, setDepth] = useState<Depth>("basic");
   const [index, setIndex] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
-  const [done, setDone] = useState<Set<string>>(new Set());
+  const [done, setDone] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => setOrigin(window.location.origin), []);
+  useEffect(() => {
+    setOrigin(window.location.origin);
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { answers?: Answers; depth?: Depth; done?: string[] };
+        if (saved.answers) setAnswers({ ...EMPTY_ANSWERS, ...saved.answers });
+        if (saved.depth) setDepth(saved.depth);
+        if (saved.done) setDone(saved.done);
+      }
+    } catch {
+      /* a browser with storage switched off simply starts fresh every time */
+    }
+    setLoaded(true);
+  }, []);
 
-  const steps = useMemo(() => nasGuideSteps(origin), [origin]);
-  const step = steps[index];
-  const totalMinutes = useMemo(() => steps.reduce((s, x) => s + x.minutes, 0), [steps]);
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers, depth, done }));
+    } catch {
+      /* nothing to do — the guide works without remembering */
+    }
+  }, [answers, depth, done, loaded]);
 
   useEffect(() => {
     document.title = "Setting up your storage · Knowledge Vault";
   }, []);
 
-  // Only a path within this app is ever followed — a `from` from anywhere else is ignored.
+  const steps = useMemo(() => buildGuide(answers, origin), [answers, origin]);
+  const step: Step | undefined = steps[Math.min(index, steps.length - 1)];
+  const totalMinutes = useMemo(
+    () => steps.filter((s) => !s.skipped).reduce((sum, s) => sum + s.minutes, 0),
+    [steps],
+  );
+  const decisions = useMemo(() => decisionsSoFar(answers), [answers]);
+
   const from = params.get("from");
   const back = from && from.startsWith("/") && !from.startsWith("//") ? from : null;
 
   const go = useCallback(
     (next: number) => {
       setIndex(Math.max(0, Math.min(steps.length - 1, next)));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      document.querySelector(".guide-body")?.scrollTo({ top: 0, behavior: "smooth" });
     },
     [steps.length],
   );
 
-  // ← and → walk the steps, as they do in the document reader.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -89,6 +111,9 @@ function StorageGuide() {
     return () => window.removeEventListener("keydown", onKey);
   }, [go, index]);
 
+  const set = <K extends keyof Answers>(field: K, value: Answers[K]) =>
+    setAnswers((prev) => ({ ...prev, [field]: value }));
+
   const copy = async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -99,25 +124,15 @@ function StorageGuide() {
     }
   };
 
-  const download = () => {
-    const blob = new Blob([nasGuideMarkdown(origin)], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "knowledge-vault-storage-setup.md";
-    a.click();
-    URL.revokeObjectURL(url);
+  const download = async () => {
+    setBusy(true);
+    try {
+      await downloadGuidePdf(steps, answers, origin);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const toggleDone = (id: string) =>
-    setDone((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  /** Closing: back to the window that opened this, or to the page named in `?from=`. */
   const leave = () => {
     if (window.opener && !window.opener.closed) {
       window.close();
@@ -129,9 +144,12 @@ function StorageGuide() {
     router.replace(back ?? "/orgs");
   };
 
-  if (!step) return null;
+  if (!step) return <div className="guide-layer" />;
+
+  const visible = step.blocks.filter((b) => depth === "basic" || b.depth !== "basic");
   const first = index === 0;
   const last = index === steps.length - 1;
+  const isDone = done.includes(step.id);
 
   return (
     <div className="guide-layer">
@@ -141,8 +159,18 @@ function StorageGuide() {
           <h1>Connecting your own storage</h1>
         </div>
         <div className="guide-head-actions">
-          <button type="button" className="btn btn-quiet btn-small" onClick={download}>
-            ⬇ Download for your IT
+          {/* Not "beginner" and "expert" — nobody wants to press a button that calls them
+              a beginner. It is a question about how much explanation is wanted. */}
+          <div className="guide-depth" role="group" aria-label="How much detail">
+            <button type="button" data-active={depth === "basic"} onClick={() => setDepth("basic")}>
+              Explain everything
+            </button>
+            <button type="button" data-active={depth === "full"} onClick={() => setDepth("full")}>
+              Just the steps
+            </button>
+          </div>
+          <button type="button" className="btn btn-quiet btn-small" disabled={busy} onClick={download}>
+            {busy ? "Building…" : "⬇ PDF"}
           </button>
           <button type="button" className="icon-btn" aria-label="Close the guide" onClick={leave}>
             ✕
@@ -150,9 +178,6 @@ function StorageGuide() {
         </div>
       </header>
 
-      {/* The rail is the map: how many steps there are, which one this is, and what is
-          already behind you. It scrolls sideways on a phone rather than wrapping into
-          four lines of chips. */}
       <nav className="guide-rail" aria-label="Setup steps">
         {steps.map((s, i) => (
           <button
@@ -160,12 +185,13 @@ function StorageGuide() {
             type="button"
             className="guide-rail-step"
             data-active={i === index}
-            data-done={done.has(s.id) || i < index}
+            data-done={done.includes(s.id)}
+            data-skipped={!!s.skipped}
             aria-current={i === index ? "step" : undefined}
             onClick={() => go(i)}
           >
             <span className="guide-rail-n" aria-hidden>
-              {done.has(s.id) || i < index ? "✓" : i + 1}
+              {done.includes(s.id) ? "✓" : s.skipped ? "–" : i + 1}
             </span>
             <span className="guide-rail-label">{s.short}</span>
           </button>
@@ -177,24 +203,28 @@ function StorageGuide() {
       </div>
 
       <main className="guide-body">
-        {/* Step one earns an extra panel: what to have ready before starting at all. */}
         {first && (
           <section className="guide-prereq">
-            <h2>Before you start</h2>
             <p className="guide-lede">
-              About {totalMinutes} minutes end to end, most of it waiting for downloads. You
-              can leave this open and come back to it — nothing here has to be done in one
-              sitting.
+              Roughly {totalMinutes} minutes of work, spread over as long as you like — this
+              guide remembers where you got to. Answer the questions as you go, and every
+              command below will be written with your own folder names and addresses already
+              in it.
             </p>
-            <ul>
-              {GUIDE_PREREQUISITES.map((p) => (
-                <li key={p}>{richText(p)}</li>
-              ))}
-            </ul>
+            {decisions.length > 0 && (
+              <dl className="guide-decisions">
+                {decisions.map((d) => (
+                  <div key={d.label}>
+                    <dt>{d.label}</dt>
+                    <dd>{d.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </section>
         )}
 
-        <article className="guide-card" key={step.id}>
+        <article className="guide-card" key={`${step.id}-${index}`}>
           <div className="guide-card-head">
             <span className="guide-step-of">
               Step {index + 1} of {steps.length}
@@ -202,46 +232,34 @@ function StorageGuide() {
             <span className="guide-mins">~{step.minutes} min</span>
           </div>
           <h2 className="guide-title">{step.title}</h2>
-          <p className="guide-why">{richText(step.why)}</p>
 
-          <ol className="guide-todo">
-            {step.todo.map((t) => (
-              <li key={t}>{richText(t)}</li>
-            ))}
-          </ol>
+          {step.skipped && (
+            <p className="guide-skipped">
+              <strong>You can skip this.</strong> {step.skipped.reason}
+            </p>
+          )}
 
-          {step.commands?.map((c, i) => (
-            <div className="guide-cmd" key={`${step.id}-${i}`}>
-              <div className="guide-cmd-head">
-                <span>{c.platform ?? "Run this"}</span>
-                <button
-                  type="button"
-                  className="btn btn-quiet btn-tiny"
-                  onClick={() => copy(`${step.id}-${i}`, c.code)}
-                >
-                  {copied === `${step.id}-${i}` ? "Copied" : "Copy"}
-                </button>
-              </div>
-              <pre>{c.code}</pre>
-            </div>
+          {visible.map((block, i) => (
+            <BlockView
+              key={`${step.id}-${i}`}
+              block={block}
+              answers={answers}
+              onSet={set}
+              copied={copied}
+              onCopy={copy}
+              id={`${step.id}-${i}`}
+            />
           ))}
-
-          {step.check && (
-            <p className="guide-check">
-              <strong>You should see</strong> {richText(step.check)}
-            </p>
-          )}
-          {step.warning && (
-            <p className="guide-warn">
-              <strong>Watch out.</strong> {richText(step.warning)}
-            </p>
-          )}
 
           <label className="guide-doneline">
             <input
               type="checkbox"
-              checked={done.has(step.id)}
-              onChange={() => toggleDone(step.id)}
+              checked={isDone}
+              onChange={() =>
+                setDone((prev) =>
+                  prev.includes(step.id) ? prev.filter((x) => x !== step.id) : [...prev, step.id],
+                )
+              }
             />
             <span>I have done this step</span>
           </label>
@@ -249,12 +267,7 @@ function StorageGuide() {
       </main>
 
       <footer className="guide-foot">
-        <button
-          type="button"
-          className="btn btn-quiet"
-          disabled={first}
-          onClick={() => go(index - 1)}
-        >
+        <button type="button" className="btn btn-quiet" disabled={first} onClick={() => go(index - 1)}>
           ← Back
         </button>
         <span className="guide-foot-mid" aria-hidden>
@@ -272,4 +285,192 @@ function StorageGuide() {
       </footer>
     </div>
   );
+}
+
+/** Inline code, from the backticks the step text is written with. */
+function richText(text: string): React.ReactNode[] {
+  return text.split(/`([^`]+)`/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <code key={i} className="guide-inline-code">
+        {part}
+      </code>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
+function BlockView({
+  block,
+  answers,
+  onSet,
+  copied,
+  onCopy,
+  id,
+}: {
+  block: Block;
+  answers: Answers;
+  onSet: <K extends keyof Answers>(field: K, value: Answers[K]) => void;
+  copied: string | null;
+  onCopy: (id: string, text: string) => void;
+  id: string;
+}) {
+  switch (block.kind) {
+    case "prose":
+      return <p className="guide-why">{richText(block.text)}</p>;
+
+    case "steps":
+      return (
+        <ol className="guide-todo">
+          {block.items.map((item, i) => (
+            <li key={i}>{richText(item)}</li>
+          ))}
+        </ol>
+      );
+
+    case "command":
+      return (
+        <div className="guide-cmd">
+          <div className="guide-cmd-head">
+            <span>{block.label}</span>
+            <button
+              type="button"
+              className="btn btn-quiet btn-tiny"
+              onClick={() => onCopy(id, block.code)}
+            >
+              {copied === id ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <pre>{block.code}</pre>
+          {block.note && <p className="guide-cmd-note">{richText(block.note)}</p>}
+        </div>
+      );
+
+    case "note":
+      return <p className="guide-note">{richText(block.text)}</p>;
+
+    case "warn":
+      return (
+        <p className="guide-warn">
+          <strong>Watch out.</strong> {richText(block.text)}
+        </p>
+      );
+
+    case "check":
+      return (
+        <p className="guide-check">
+          <strong>You should see</strong> {richText(block.text)}
+        </p>
+      );
+
+    case "link":
+      return (
+        <p className="guide-linkline">
+          {block.text && <span>{block.text} </span>}
+          <a href={block.href} target="_blank" rel="noreferrer noopener">
+            {block.label} ↗
+          </a>
+        </p>
+      );
+
+    case "table":
+      return (
+        <div className="guide-tablewrap">
+          <table className="guide-table">
+            {block.head.some(Boolean) && (
+              <thead>
+                <tr>
+                  {block.head.map((h) => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {block.rows.map((row, i) => (
+                <tr key={i}>
+                  {row.map((cell, j) => (
+                    <td key={j}>{richText(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+
+    case "choice": {
+      const current = String(answers[block.field] ?? "");
+      return (
+        <div className="guide-choice">
+          <h3>{block.question}</h3>
+          {block.help && <p className="guide-choice-help">{richText(block.help)}</p>}
+          <div className="guide-options" data-compact={block.options.length > 4}>
+            {block.options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className="guide-option"
+                data-active={current === o.value}
+                onClick={() => onSet(block.field, o.value as Answers[typeof block.field])}
+              >
+                <span className="guide-option-tick" aria-hidden>
+                  {current === o.value ? "✓" : ""}
+                </span>
+                <span className="guide-option-main">
+                  <strong>{o.label}</strong>
+                  <small>{o.blurb}</small>
+                  {/* The trade-off, not just the label. A reader choosing between a free
+                      temporary address and a permanent one deserves to know what each
+                      costs them at the moment of choosing, not afterwards. */}
+                  {(o.pros || o.cons) && current === o.value && (
+                    <span className="guide-option-tradeoff">
+                      {o.pros?.map((pro) => (
+                        <span key={pro} className="guide-pro">
+                          + {pro}
+                        </span>
+                      ))}
+                      {o.cons?.map((con) => (
+                        <span key={con} className="guide-con">
+                          − {con}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case "input": {
+      const value = String(answers[block.field] ?? "");
+      return (
+        <label className="guide-input">
+          <span className="guide-input-label">{block.label}</span>
+          <span className="guide-input-row">
+            <input
+              value={value}
+              placeholder={block.placeholder}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(e) => onSet(block.field, e.target.value as Answers[typeof block.field])}
+            />
+            {block.generate && (
+              <button
+                type="button"
+                className="btn btn-quiet btn-small"
+                onClick={() => onSet(block.field, suggestPassword() as Answers[typeof block.field])}
+              >
+                Generate
+              </button>
+            )}
+          </span>
+          {block.help && <small>{richText(block.help)}</small>}
+        </label>
+      );
+    }
+  }
 }
