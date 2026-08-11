@@ -55,3 +55,19 @@ export function openInWindow(orgId: string, code: string, preview = false): bool
   win?.focus();
   return !!win;
 }
+
+/**
+ * The storage setup guide, on the same terms as a document: its own tab where the device
+ * has tabs, the same view where it does not. It is opened from the storage form, and the
+ * reader is expected to work between the two — so this is a plain tab rather than the
+ * chromeless pop-up a document gets, and it keeps `?from=` so a phone can walk back.
+ */
+export function openStorageGuide(): void {
+  const from = typeof window !== "undefined" ? window.location.pathname : "";
+  const url = `/storage/guide${from ? `?from=${encodeURIComponent(from)}` : ""}`;
+  if (isSingleViewDevice()) {
+    window.location.assign(url);
+    return;
+  }
+  window.open(url, "kv-storage-guide", "noopener=no")?.focus();
+}

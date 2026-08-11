@@ -9,6 +9,8 @@ import {
   type StorageTestResult,
 } from "@vault/shared";
 import { storageApi } from "@/lib/storage-client";
+import { openStorageGuide } from "@/lib/reader-window";
+import { nasGuideMarkdown } from "@/lib/nas-guide";
 
 // The storage setup fieldset (docs/structure.md §9.3). Shared by organization creation
 // and the storage settings screen, so both ask the same questions in the same words and
@@ -97,45 +99,67 @@ export function StorageSetupFields({
           second backend ships, the picker belongs in the surrounding choice, not here. */}
       <p className="muted">{STORAGE_ADAPTERS[0].blurb}</p>
 
+      {/* The way in for somebody who has not done this before.
+          This used to be a five-line summary inside a <details>: right for a reader who
+          already knew what MinIO and a bucket were, useless to anyone else, and invisible
+          to the person who actually does the work — whoever administers the NAS never sees
+          this screen. The guide opens in its own tab so the form stays where it is, and
+          the handout goes to the NAS administrator by email. */}
+      <div className="storage-guide-card">
+        <div className="storage-guide-main">
+          <strong>First time setting this up?</strong>
+          <p>
+            Four values are asked for below, and they come from about half an hour of work on
+            the machine that will hold your documents. The guide walks through it one step at
+            a time — installing MinIO, making the bucket and its key, and giving it an HTTPS
+            address without opening a single port on your firewall.
+          </p>
+        </div>
+        <div className="storage-guide-actions">
+          <button type="button" className="btn btn-primary btn-small" onClick={openStorageGuide}>
+            Open the setup guide ↗
+          </button>
+          <button
+            type="button"
+            className="btn btn-quiet btn-small"
+            onClick={() => {
+              const blob = new Blob([nasGuideMarkdown(webOrigin)], {
+                type: "text/markdown;charset=utf-8",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "knowledge-vault-storage-setup.md";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            ⬇ Download for your IT
+          </button>
+        </div>
+      </div>
+
       <div className="warn-box" style={{ marginTop: 0 }}>
         <strong>Your NAS needs to be reachable from the internet.</strong>
         <p>
           Knowledge Vault runs in a datacentre, so it cannot see a NAS that only exists on
           your office network. The safest way to fix that is a{" "}
           <strong>Cloudflare Tunnel</strong> — one container on the NAS, no ports opened on
-          your firewall, and you get a proper HTTPS address.{" "}
+          your firewall, and you get a proper HTTPS address. It is step five of the guide.{" "}
           <button type="button" className="linklike" onClick={() => setShowGuide((v) => !v)}>
-            {showGuide ? "Hide setup steps" : "Show setup steps"}
+            {showGuide ? "Hide the browser rules" : "Show the browser rules"}
           </button>
         </p>
       </div>
 
       {showGuide && (
         <div className="info-box">
-          <ol>
-            <li>
-              On the NAS, install <strong>MinIO</strong> (Docker). It gives your NAS an S3
-              address, which is what lets your people download at your NAS&rsquo;s full
-              speed instead of through us.
-            </li>
-            <li>
-              Create a bucket — for example <code>knowledge-vault</code>. Keep it{" "}
-              <strong>private</strong>; we refuse to connect a public one.
-            </li>
-            <li>
-              Create an access key scoped to that bucket. It needs read, write, delete and
-              list — nothing else.
-            </li>
-            <li>
-              Install <strong>Cloudflare Tunnel</strong> (also Docker) pointed at MinIO&rsquo;s
-              port, and note the HTTPS address it gives you. No port forwarding needed.
-            </li>
-            <li>
-              Set the bucket&rsquo;s CORS rules so your people&rsquo;s browsers may upload and
-              download directly:
-              <pre className="code-block">{corsRulesFor(webOrigin)}</pre>
-            </li>
-          </ol>
+          <p>
+            Your people&rsquo;s browsers talk to your storage directly, so the bucket has to
+            say those requests are welcome. These rules name this Knowledge Vault and nothing
+            else — the guide shows where to apply them.
+          </p>
+          <pre className="code-block">{corsRulesFor(webOrigin)}</pre>
         </div>
       )}
 
