@@ -12,7 +12,8 @@ import {
   type AdminRequestRow,
   type AdminSession,
 } from "@vault/shared";
-import { admin, AdminApiError, clearAdminSession, hasAdminSession } from "@/lib/admin-client";
+import { admin, AdminApiError, hasAdminSession } from "@/lib/admin-client";
+import { AdminSessionGuard } from "@/components/AdminSessionGuard";
 import { OrgBadge } from "@/components/OrgLogoField";
 import { Define } from "@/components/Define";
 import { KBASE_GLOSSARY, defineProperty } from "@/lib/kbase-glossary";
@@ -265,6 +266,9 @@ export default function AdminConsole() {
 
   return (
     <div className="kb" data-verbose={verbose}>
+      {/* An hour without the admin touching anything closes the console (§8.8). The
+          console's own polling is not presence — this is what watches for the person. */}
+      <AdminSessionGuard />
       {railOpen && (
         <div className="kb-rail-scrim" onClick={() => setRailOpen(false)} aria-hidden />
       )}
@@ -310,8 +314,7 @@ export default function AdminConsole() {
             type="button"
             className="btn btn-quiet btn-small btn-block"
             onClick={() => {
-              clearAdminSession();
-              router.replace("/kbase/login");
+              void admin.logout().finally(() => router.replace("/kbase/login"));
             }}
           >
             <IconLogout size={15} /> Sign out

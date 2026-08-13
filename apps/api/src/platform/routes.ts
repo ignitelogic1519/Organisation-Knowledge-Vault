@@ -20,6 +20,8 @@ import {
   type StorageView,
 } from "@vault/shared";
 import { db } from "../db.js";
+import { IDLE_MESSAGE, IDLE_TIMEOUT_SECONDS, endAllSessions } from "../auth/tokens.js";
+import { endAdminSession, startAdminSession, touchAdminSession } from "./admin-sessions.js";
 import { orgStorageUsedMb } from "../orgs/plan.js";
 import { issueAdminToken } from "./tokens.js";
 import { generateOtp, hashOtp } from "./otp.js";
@@ -153,9 +155,11 @@ export async function platformRoutes(app: FastifyInstance) {
     const ok = admin && admin.active && (await argonVerify(admin.passwordHash, body.password).catch(() => false));
     if (!admin || !ok) return reply.status(401).send({ error: "Wrong admin username or password" });
     await db.platformAdmin.update({ where: { id: admin.id }, data: { lastLoginAt: new Date() } });
-    const { token } = await issueAdminToken(admin);
+    const { token, sessionId } = await issueAdminToken(admin);
+    startAdminSession(sessionId);
     return {
       token,
+      idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS,
       admin: {
         id: admin.id,
         username: admin.username,
@@ -163,6 +167,24 @@ export async function platformRoutes(app: FastifyInstance) {
         mustChangePassword: admin.mustChangePassword,
       },
     };
+  });
+
+  /**
+   * "The console is being used." Beaten by the browser on real interaction only — the
+   * console's own ten-second polling deliberately does not count, or a tab left open on
+   * a support desk would keep the most powerful screen in the product signed in all day.
+   */
+  app.post("/admin/activity", { preHandler: app.authenticateAdmin }, async (req, reply) => {
+    if (!req.adminSessionId || !touchAdminSession(req.adminSessionId)) {
+      return reply.status(401).send({ error: IDLE_MESSAGE, code: "session_idle" });
+    }
+    return { ok: true, idleTimeoutSeconds: IDLE_TIMEOUT_SECONDS };
+  });
+
+  /** Sign out of the console for good, rather than only dropping the token locally. */
+  app.post("/admin/logout", { preHandler: app.authenticateAdmin }, async (req) => {
+    if (req.adminSessionId) endAdminSession(req.adminSessionId);
+    return { ok: true };
   });
 
   app.get("/admin/me", { preHandler: app.authenticateAdmin }, async (req) => {
@@ -712,15 +734,13 @@ export async function platformRoutes(app: FastifyInstance) {
     const profile = await db.profile.findUnique({ where: { id: body.profileId } });
     if (!profile) return reply.status(404).send({ error: "No such user" });
 
-    await db.$transaction([
-      db.profile.update({
-        where: { id: profile.id },
-        data: { bannedAt: body.banned ? new Date() : null },
-      }),
-      ...(body.banned
-        ? [db.refreshToken.updateMany({ where: { profileId: profile.id, revokedAt: null }, data: { revokedAt: new Date() } })]
-        : []),
-    ]);
+    await db.profile.update({
+      where: { id: profile.id },
+      data: { bannedAt: body.banned ? new Date() : null },
+    });
+    // Banning signs them out of every device at once: the sessions go, and with them
+    // every refresh token in each rotation chain.
+    if (body.banned) await endAllSessions(profile.id, "banned");
     return { ok: true, banned: body.banned };
   });
 
@@ -760,6 +780,7 @@ export async function platformRoutes(app: FastifyInstance) {
         db.placement.deleteMany({ where: { membership: { profileId: profile.id } } }),
         db.membership.deleteMany({ where: { profileId: profile.id } }),
         db.refreshToken.deleteMany({ where: { profileId: profile.id } }),
+        db.session.deleteMany({ where: { profileId: profile.id } }),
         db.coinTransaction.deleteMany({ where: { profileId: profile.id } }),
         db.platformRequest.deleteMany({ where: { requesterId: profile.id } }),
         db.notification.deleteMany({ where: { profileId: profile.id } }),

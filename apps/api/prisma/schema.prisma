@@ -92,6 +92,7 @@ model Profile {
   createdAt    DateTime     @default(now())
   memberships  Membership[]
   refreshTokens RefreshToken[]
+  sessions     Session[]
   coinTxns     CoinTransaction[]
   platformRequests PlatformRequest[]
 }
@@ -110,17 +111,47 @@ model AuditLog {
   @@index([orgId, createdAt])
 }
 
+// One sign-in on one device. Refresh tokens rotate constantly (a new row every ~15
+// minutes); the SESSION is the thing that survives the rotation, so anything that has to
+// outlive a single token — when the user was last seen, whether this device is still
+// signed in — belongs here rather than on the token (structure.md §8.8).
+model Session {
+  id             String    @id @default(uuid())
+  profileId      String
+  profile        Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// Last sign of the person themselves: a click, a keystroke, a page they opened.
+  /// Background polling and token refreshes deliberately do NOT move this — otherwise a
+  /// tab left open on an empty desk would keep the session alive forever.
+  lastActivityAt DateTime  @default(now())
+  /// Absolute lifetime. Reached or not, an idle session dies first.
+  expiresAt      DateTime
+  /// Set the moment the session stops being usable — nothing signed with it works after.
+  endedAt        DateTime?
+  /// "idle" | "logout" | "expired" | "revoked" — why it ended, for support and audit.
+  endedReason    String?
+  /// Trimmed device string, kept so a person can recognise their own sessions.
+  userAgent      String?
+  createdAt      DateTime  @default(now())
+  tokens         RefreshToken[]
+
+  @@index([profileId, endedAt])
+  @@index([endedAt, expiresAt])
+}
+
 // Opaque rotating refresh tokens — only the hash is stored (architecture.md §8)
 model RefreshToken {
   id        String    @id @default(uuid())
   profileId String
   profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  sessionId String
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
 
   @@index([profileId])
+  @@index([sessionId])
 }
 
 

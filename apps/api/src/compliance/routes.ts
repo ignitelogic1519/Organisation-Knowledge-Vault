@@ -20,6 +20,7 @@ import { storage, type StorageRef } from "../storage/adapter.js";
 import { audit } from "../security.js";
 import { collectOrphans, drainDeletionQueue, runHealthChecks } from "../storage/jobs.js";
 import { broadcast } from "../events.js";
+import { IDLE_TIMEOUT_MS } from "../auth/tokens.js";
 
 /** Decided requests are removed as they are decided; this is the belt-and-braces sweep. */
 const DECIDED_REQUEST_RETENTION_MS = 2 * 86400_000;
@@ -491,6 +492,8 @@ export async function complianceRoutes(app: FastifyInstance) {
       prunedRequests: 0,
       prunedAudits: 0,
       prunedTokens: 0,
+      endedIdleSessions: 0,
+      prunedSessions: 0,
       // Storage (docs/structure.md §9.8, §9.10)
       storageChecked: 0,
       storageDegraded: 0,
@@ -539,6 +542,45 @@ export async function complianceRoutes(app: FastifyInstance) {
           OR: [{ expiresAt: { lt: cutoff15 } }, { revokedAt: { lt: cutoff15 } }],
         },
       })
+    ).count;
+
+    // 0c. Sessions (structure.md §8.8). The idle timeout is enforced on every request, so
+    //     a session someone comes back to is already refused — but a session nobody ever
+    //     comes back to would otherwise sit there marked live for a month. Closing them
+    //     here keeps "who is signed in" an honest answer, and it is what the console and
+    //     any future "your devices" screen read.
+    const idleCutoff = new Date(Date.now() - IDLE_TIMEOUT_MS);
+    const stale = await db.session.findMany({
+      where: {
+        endedAt: null,
+        OR: [{ lastActivityAt: { lt: idleCutoff } }, { expiresAt: { lt: new Date() } }],
+      },
+      select: { id: true, expiresAt: true },
+    });
+    if (stale.length > 0) {
+      const now = new Date();
+      const expired = stale.filter((s) => s.expiresAt < now).map((s) => s.id);
+      const idled = stale.filter((s) => s.expiresAt >= now).map((s) => s.id);
+      for (const [ids, reason] of [
+        [idled, "idle"],
+        [expired, "expired"],
+      ] as const) {
+        if (ids.length === 0) continue;
+        await db.session.updateMany({
+          where: { id: { in: ids } },
+          data: { endedAt: now, endedReason: reason },
+        });
+      }
+      // Tokens of an ended session are dead weight — the session is what refuses them,
+      // but leaving them unrevoked would misreport what is still live.
+      await db.refreshToken.updateMany({
+        where: { sessionId: { in: stale.map((s) => s.id) }, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      report.endedIdleSessions = stale.length;
+    }
+    report.prunedSessions = (
+      await db.session.deleteMany({ where: { endedAt: { lt: cutoff15 } } })
     ).count;
     // Forensic audit log kept longer (90 days) — trimmed here so it can't grow unbounded
     await db.auditLog.deleteMany({

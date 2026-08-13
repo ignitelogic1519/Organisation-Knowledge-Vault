@@ -20,9 +20,22 @@ import type {
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const ADMIN_KEY = "kv.adminToken";
+/** Last sign of the admin themselves — the console's own polling never touches it. */
+const ADMIN_ACTIVITY_KEY = "kv.adminLastActivity";
+const ADMIN_IDLE_KEY = "kv.adminIdleTimeout";
+/** Why the console asked for a password again — read once by its sign-in page. */
+const ADMIN_REASON_KEY = "kv.adminSignedOutReason";
+
+const DEFAULT_IDLE_SECONDS = 60 * 60;
+const ACTIVITY_THROTTLE_MS = 30_000;
 
 export class AdminApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    /** Set when the console session itself is over, not just this request. */
+    public code?: string,
+  ) {
     super(message);
   }
 }
@@ -35,6 +48,58 @@ export function hasAdminSession(): boolean {
 }
 export function clearAdminSession() {
   localStorage.removeItem(ADMIN_KEY);
+  localStorage.removeItem(ADMIN_ACTIVITY_KEY);
+}
+
+// ── The console's idle hour (structure.md §8.8) ──────────────────────────────
+// The console polls itself every ten seconds, so its own traffic proves nothing about
+// whether anyone is sitting in front of it. Presence is reported separately, from real
+// interaction, and the API refuses the token once the hour has passed.
+
+function adminIdleMs(): number {
+  const stored = Number(localStorage.getItem(ADMIN_IDLE_KEY));
+  return (Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_IDLE_SECONDS) * 1000;
+}
+
+/** When the console session dies if nobody touches anything — epoch ms. */
+export function adminIdleDeadline(): number {
+  const last = Number(localStorage.getItem(ADMIN_ACTIVITY_KEY));
+  return (Number.isFinite(last) && last > 0 ? last : Date.now()) + adminIdleMs();
+}
+
+export function hasAdminActivityMark(): boolean {
+  return typeof window !== "undefined" && Number(localStorage.getItem(ADMIN_ACTIVITY_KEY)) > 0;
+}
+
+export function seedAdminActivity(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ADMIN_ACTIVITY_KEY, String(Date.now()));
+}
+
+let lastAdminBeat = 0;
+
+/** The admin did something. Reported to the API at most every 30 seconds. */
+export function markAdminActivity(force = false): void {
+  if (typeof window === "undefined" || !hasAdminSession()) return;
+  const now = Date.now();
+  if (!force && now - lastAdminBeat < ACTIVITY_THROTTLE_MS) return;
+  lastAdminBeat = now;
+  localStorage.setItem(ADMIN_ACTIVITY_KEY, String(now));
+  void call("/admin/activity", { method: "POST", body: "{}" }).catch(() => undefined);
+}
+
+/** End the console session here, and remember why for the sign-in page. */
+export function endAdminSession(reason = "session_ended"): void {
+  if (typeof window === "undefined") return;
+  clearAdminSession();
+  localStorage.setItem(ADMIN_REASON_KEY, reason);
+}
+
+export function takeAdminSignOutReason(): string | null {
+  if (typeof window === "undefined") return null;
+  const reason = localStorage.getItem(ADMIN_REASON_KEY);
+  if (reason) localStorage.removeItem(ADMIN_REASON_KEY);
+  return reason;
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -47,8 +112,16 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
-  const body = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new AdminApiError(res.status, body.error ?? `Request failed (${res.status})`);
+  const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+  if (!res.ok) {
+    // The session itself is over (the hour passed, or it was ended elsewhere). Drop the
+    // token here so every screen in the console agrees, and keep the reason for the
+    // sign-in page.
+    if (res.status === 401 && (body.code === "session_idle" || body.code === "session_ended")) {
+      endAdminSession(body.code);
+    }
+    throw new AdminApiError(res.status, body.error ?? `Request failed (${res.status})`, body.code);
+  }
   return body as T;
 }
 
@@ -59,7 +132,22 @@ export const admin = {
       body: JSON.stringify({ username, password }),
     });
     localStorage.setItem(ADMIN_KEY, res.token);
+    if (res.idleTimeoutSeconds > 0) {
+      localStorage.setItem(ADMIN_IDLE_KEY, String(res.idleTimeoutSeconds));
+    }
+    localStorage.removeItem(ADMIN_REASON_KEY);
+    seedAdminActivity();
     return res;
+  },
+  /** Sign out on the server too, so the token cannot be replayed from storage. */
+  logout: async () => {
+    if (hasAdminSession()) {
+      await call<{ ok: boolean }>("/admin/logout", { method: "POST", body: "{}" }).catch(
+        () => undefined,
+      );
+    }
+    clearAdminSession();
+    localStorage.removeItem(ADMIN_REASON_KEY);
   },
   me: () => call<{ admin: AdminSession["admin"] }>("/admin/me"),
   changePassword: (currentPassword: string, newPassword: string, confirm: string) =>

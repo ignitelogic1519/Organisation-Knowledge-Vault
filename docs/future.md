@@ -160,3 +160,17 @@ A running backlog of proven ideas from mature platforms, ranked roughly by value
   time-boxed/temporary access grants.
 - **Bulk operations**: bulk assign/remove people, bulk course placement, CSV import of an org
   structure.
+
+---
+
+## 14. Your devices / sign out everywhere (2026-08-13)
+
+Sessions became rows when the idle timeout landed (structure.md §8.8): one per sign-in, each
+carrying when it started, when the person was last seen and the browser they used. That is
+almost the whole of a "your devices" screen — a list on the account page, a *Sign out* button
+per row, and *Sign out everywhere* for the panic case (`endSession` / `endAllSessions` already
+exist and are what a ban uses). Left for later because the timeout closes the actual hole; a
+device list is convenience on top of it.
+
+The related piece: **admin console sessions live in memory**, so they cannot be listed the
+same way. If a "who is signed into the console" view is ever wanted, they need a table first.
