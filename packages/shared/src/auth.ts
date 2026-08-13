@@ -55,9 +55,41 @@ export interface AuthTokens {
   refreshToken: string;
   /** Access token lifetime in seconds. */
   expiresIn: number;
+  /**
+   * Inactivity that ends the session, in seconds (structure.md §8.8). The API owns this
+   * number — the client counts down with it rather than hard-coding an hour of its own,
+   * so changing the policy on the server changes it everywhere.
+   */
+  idleTimeoutSeconds: number;
 }
 
 export interface AuthResponse {
   profile: PublicProfile;
   tokens: AuthTokens;
+}
+
+/**
+ * Why the API refused a token. Sent as `code` beside the 401's `error` message so the
+ * client can tell "you were away too long" apart from "something went wrong" — the
+ * difference between an explanation and a mystery on the sign-in page.
+ */
+export const SESSION_ENDED = {
+  /** No request and no sign of the user for longer than the idle window. */
+  idle: "session_idle",
+  /** Absolute lifetime reached, or the session was ended elsewhere (logout, ban). */
+  ended: "session_ended",
+} as const;
+export type SessionEndedCode = (typeof SESSION_ENDED)[keyof typeof SESSION_ENDED];
+
+export function isSessionEndedCode(value: unknown): value is SessionEndedCode {
+  return value === SESSION_ENDED.idle || value === SESSION_ENDED.ended;
+}
+
+/** Reply to POST /auth/activity — the "the user is still here" beat. */
+export interface SessionActivityResponse {
+  ok: boolean;
+  /** Inactivity that ends the session, in seconds. */
+  idleTimeoutSeconds: number;
+  /** When this session dies if nothing else happens (ISO 8601). */
+  idleDeadline: string;
 }

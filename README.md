@@ -8,8 +8,9 @@ organization owns its own data and its own existence (`.main` file custody model
 
 The platform is live end-to-end. What works today:
 
-- **Identity** — username-based global profiles (no email), refresh-token sessions,
-  retype-to-confirm on every new password.
+- **Identity** — username-based global profiles (no email), refresh-token sessions that
+  **end after an hour of inactivity** (announced with a minute to spare, enforced by the
+  API on every request), retype-to-confirm on every new password.
 - **Organizations** — Supreme-password custody model, `.main` existence backups and
   revival, 30-day soft-delete retention, per-branch `.bkp` backups.
 - **The Constellation** — the org's main page: the role tree drawn as a top-down star

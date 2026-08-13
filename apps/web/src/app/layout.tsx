@@ -4,6 +4,7 @@ import { DialogProvider } from "@/components/dialogs";
 import { HintLayer } from "@/components/Hint";
 import { MailProvider } from "@/components/mail-events";
 import { Pointer } from "@/components/Pointer";
+import { SessionGuard } from "@/components/SessionGuard";
 // Load order matters: Bootstrap base first, then the app's custom design tokens
 // (which win on the few shared class names), then the branded Bootstrap theme
 // layer that maps Bootstrap's components onto our brand ("custom UI over Bootstrap").
@@ -70,6 +71,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               their scripts never run. */}
           <Pointer />
           <HintLayer />
+          {/* Watches the hour of inactivity that ends a session (structure.md §8.8).
+              Renders nothing until the last minute of it. */}
+          <SessionGuard />
         </ThemeProvider>
       </body>
     </html>

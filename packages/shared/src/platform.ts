@@ -13,6 +13,8 @@ export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 export interface AdminSession {
   token: string;
   admin: { id: string; username: string; displayName: string; mustChangePassword: boolean };
+  /** Inactivity that ends the console session, in seconds (structure.md §8.8). */
+  idleTimeoutSeconds: number;
 }
 
 export const changeAdminPasswordSchema = z

@@ -319,6 +319,13 @@ mobile app's contract — no web-only shortcuts allowed.
   the `.main` encryption key source — it is **never** stored in recoverable form.
 - JWT: short-lived access token + rotating refresh token; org context re-checked server-side on
   every request via the central `can()` policy (never trust client-sent role info).
+- **Sessions end after an hour of inactivity** (`structure.md` §8.8). A `Session` row per
+  sign-in carries `lastActivityAt`; the access token names its session (`sid`), and every
+  authenticated request checks that the session is still alive. Only real user interaction
+  moves the clock — reported by the browser to `POST /auth/activity` — because the app's
+  own background polling and token refreshes would otherwise keep a forgotten tab signed
+  in for ever. Window: `SESSION_IDLE_MINUTES` (default 60); absolute cap: 30 days. The
+  staff console follows the same rule on top of its 8-hour token.
 - Supreme-access gate is rate-limited and audit-logged (gate entries only — Supreme performs no
   actions itself).
 - All uploads virus-size-type checked before hitting the storage adapter.
@@ -332,6 +339,10 @@ mobile app's contract — no web-only shortcuts allowed.
 New endpoints layered on the v1 surface (all auth-gated; see `structure.md` §8 for behavior):
 
 ```
+POST   /auth/activity                       "the user is still here" — the only thing that
+                                            moves a session's idle deadline (§8.8)
+POST   /admin/activity                      the same beat for the staff console
+POST   /admin/logout                        ends the console session server-side
 GET    /orgs/:id/events                     Server-Sent Events live channel (token in query)
 GET    /orgs/:id/structure                  visible tree slice (public branches + governed subtree)
 PATCH  /roles/:roleId                        branch visibility (isPublic)

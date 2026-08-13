@@ -604,6 +604,63 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
   nearly full width. A preview pinned to the foot of a large display reads as an overflow
   tray rather than the thing you asked to look at.
 
+### 8.8 Sessions end after an hour away ✅ DECIDED (2026-08-13)
+
+**The rule: one hour of inactivity ends a session, and the next visit asks for a password.**
+
+Until now a sign-in never really ended. The access token lasted 15 minutes but refreshed
+itself silently from a 30-day refresh token, and every refresh minted another — so a
+browser left open on a shared desk stayed signed in for a month and nobody was asked for a
+password again. On a platform holding an organization's Confidential and Secret documents,
+that is the wrong default.
+
+**What counts as activity is the person, not the program.** This is the decision the whole
+design turns on. The app polls in the background (the mailbox every two minutes, the
+request badge every minute, the console every ten seconds) and refreshes its access token
+on a timer. If any of that counted as presence, no session would ever go idle and the rule
+would be decorative. So activity means, and only means:
+
+- a click, a key, a scroll, a touch, a pointer moved across the page;
+- a page opened.
+
+The browser reports it to `POST /auth/activity` (at most once every 30 seconds), and that
+endpoint is the **only** thing that moves the clock.
+
+**Where it is enforced.** In the API, on every authenticated request — not in the browser.
+The browser's part is to notice the hour passing while nothing is being requested and to
+say so; the API's part is to refuse. A `Session` row (one per sign-in, per device) carries
+`lastActivityAt`; refresh tokens rotate underneath it and point at it. Past the window the
+session is ended, every token in its rotation chain is revoked with it, and every reply
+that mattered carries `code: "session_idle"` beside the message so the sign-in page can
+explain rather than simply demand a password.
+
+- **The window is configurable** — `SESSION_IDLE_MINUTES` on the API (default 60, clamped
+  to 5 minutes–7 days). The API reports it to every client in `tokens.idleTimeoutSeconds`,
+  so nothing hard-codes an hour of its own and one server setting changes it everywhere.
+- **The absolute cap stays**: 30 days. An idle session dies long before it.
+- **The last minute is announced.** A small card in the corner counts down with *Stay
+  signed in* beside it — never a modal, because it must not block the very interaction
+  that would keep the session alive. An idle timeout that fires without warning looks
+  like a bug; work in an open form disappears and nobody knows why.
+- **Every tab agrees.** The clock, and the reason a session ended, are shared through
+  browser storage — one window timing out signs the rest out with the same explanation.
+- **Closing the laptop counts as being away.** The deadline is re-read whenever the tab is
+  looked at again, so a session that expired while the machine was asleep ends on return
+  rather than on the next click.
+- **Signing out ends the session**, not just the token: logout, a ban from the console and
+  a reused (long-revoked) refresh token all close the whole chain.
+- **A live stream is not presence either.** The SSE channels check the session when they
+  open and on every 25-second heartbeat, and hang up on one that has ended.
+- **The staff console follows the same rule** (`/kbase`), on top of its 8-hour token cap.
+  Console sessions are held in memory rather than in a table — the same trade the rate
+  limiter makes (§8.6) — so an API restart forgets when an admin was last seen and starts
+  their hour again; the token's own 8-hour lifetime is the ceiling no restart can lift.
+- **Retention**: the nightly job closes sessions nobody came back to and deletes ended
+  ones after 15 days, so "who is signed in" stays an honest answer.
+
+*Not built (deliberately):* a "sign out everywhere" screen listing a person's devices. The
+`Session` rows now make it a small feature rather than a redesign — `docs/future.md`.
+
 ---
 
 ## 9. Organization-provided storage ✅ DECIDED (2026-08-04) — built for files

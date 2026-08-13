@@ -29,6 +29,10 @@ services:
         sync: false # your Vercel URL, e.g. https://your-app.vercel.app
       - key: JOB_SECRET
         generateValue: true # shared with the GitHub Actions nightly-job workflow
+      - key: SESSION_IDLE_MINUTES
+        # Inactivity that ends a session, for users and for the staff console alike
+        # (docs/structure.md §8.8). Clamped to 5 minutes–7 days; unset means 60.
+        value: "60"
       - key: STORAGE_KEK
         # The key that encrypts organizations' storage credentials and wraps their
         # per-org data keys (docs/structure.md §9.5). It lives HERE and never in the

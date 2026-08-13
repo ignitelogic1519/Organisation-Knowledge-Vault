@@ -807,6 +807,19 @@ select option[value=""] {
   animation: shake 350ms var(--ease);
 }
 
+/* Not a failure — an explanation. "You were signed out after an hour" is information
+   the reader needs, so it is stated calmly rather than shaken in red. */
+.form-notice {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  text-align: left;
+}
+
 @keyframes shake {
   0%,
   100% {
@@ -13233,5 +13246,66 @@ html.kv-pointer-on * {
   .guide-depth button {
     padding: 0.25rem 0.5rem;
     font-size: 0.72rem;
+  }
+}
+
+/* ── The last minute of a session (structure.md §8.8) ───────────────────────
+   An idle timeout that fires without warning looks like a bug: work in a form
+   disappears and nobody knows why. So the ending is announced while there is
+   still time to stay — a small card in the corner, never a modal, because it
+   must not block the very interaction that would keep the session alive.
+   Above the app chrome, below the dialog layer. */
+
+.kv-idle-warning {
+  position: fixed;
+  right: clamp(0.75rem, 3vw, 1.5rem);
+  bottom: clamp(0.75rem, 3vh, 1.5rem);
+  z-index: 85;
+  max-width: min(24rem, calc(100vw - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 18px 44px rgba(70, 42, 30, 0.18);
+  animation: layer-in 200ms var(--ease) both;
+}
+
+[data-theme="dark"] .kv-idle-warning {
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+.kv-idle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.kv-idle-body strong {
+  color: var(--text);
+}
+
+.kv-idle-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.kv-idle-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .kv-idle-warning {
+    left: clamp(0.75rem, 3vw, 1.5rem);
+    max-width: none;
   }
 }

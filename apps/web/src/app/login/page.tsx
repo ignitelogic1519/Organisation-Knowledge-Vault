@@ -2,15 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { loginSchema } from "@vault/shared";
-import { auth, ApiError } from "@/lib/auth-client";
+import { useEffect, useState } from "react";
+import { SESSION_ENDED, loginSchema } from "@vault/shared";
+import { auth, ApiError, takeSignOutReason } from "@/lib/auth-client";
 import { SiteNav } from "@/components/SiteNav";
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Arriving here because a session ended is not the same as arriving here to sign in.
+  // Say which it was — being asked for a password with no explanation reads as a fault.
+  useEffect(() => {
+    const reason = takeSignOutReason();
+    if (reason === SESSION_ENDED.idle) {
+      setNotice("You were signed out after an hour of inactivity. Sign in to carry on.");
+    } else if (reason === SESSION_ENDED.ended) {
+      setNotice("Your session ended. Sign in to carry on.");
+    }
+  }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -46,6 +58,11 @@ export default function LoginPage() {
             Welcome <span className="gradient-text">back</span>
           </h1>
           <p className="auth-sub mb-4">Sign in to your Knowledge Vault profile.</p>
+          {notice && (
+            <p className="form-notice mb-3" role="status">
+              {notice}
+            </p>
+          )}
           <div className="mb-3 text-start">
             <label className="form-label" htmlFor="username">
               Username

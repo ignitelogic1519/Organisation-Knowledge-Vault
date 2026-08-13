@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { verifyAccessToken } from "./auth/tokens.js";
+import { checkSession, verifyAccessToken } from "./auth/tokens.js";
 import { db } from "./db.js";
 import { env } from "./env.js";
 
@@ -59,7 +59,11 @@ export async function eventRoutes(app: FastifyInstance) {
     "/orgs/:id/events",
     async (req, reply) => {
       const claims = req.query.token ? await verifyAccessToken(req.query.token) : null;
-      if (!claims) return reply.status(401).send({ error: "Not authenticated" });
+      // A stream is a long-lived connection, so the session is checked before it opens —
+      // otherwise an idled-out tab would keep listening for hours (structure.md §8.8).
+      if (!claims?.sid || !(await checkSession(claims.sid)).ok) {
+        return reply.status(401).send({ error: "Not authenticated" });
+      }
       const membership = await db.membership.findUnique({
         where: { profileId_orgId: { profileId: claims.sub, orgId: req.params.id } },
       });
@@ -82,13 +86,22 @@ export async function eventRoutes(app: FastifyInstance) {
       set.add(client);
       channels.set(req.params.id, set);
 
-      // keep intermediaries from timing the idle stream out
+      // Keep intermediaries from timing the idle stream out — and, on the same beat,
+      // hang up on a session that has since ended. A stream opened while someone was
+      // working must not keep listening after they have been signed out.
       const heartbeat = setInterval(() => {
-        try {
-          reply.raw.write(": hb\n\n");
-        } catch {
-          /* close handler cleans up */
-        }
+        void (async () => {
+          try {
+            if (!(await checkSession(claims.sid!)).ok) {
+              clearInterval(heartbeat);
+              reply.raw.end();
+              return;
+            }
+            reply.raw.write(": hb\n\n");
+          } catch {
+            /* close handler cleans up */
+          }
+        })();
       }, 25_000);
 
       req.raw.on("close", () => {
@@ -107,7 +120,9 @@ export async function eventRoutes(app: FastifyInstance) {
   // decision) even when the reader is nowhere near an organization page.
   app.get<{ Querystring: { token?: string } }>("/me/events", async (req, reply) => {
     const claims = req.query.token ? await verifyAccessToken(req.query.token) : null;
-    if (!claims) return reply.status(401).send({ error: "Not authenticated" });
+    if (!claims?.sid || !(await checkSession(claims.sid)).ok) {
+      return reply.status(401).send({ error: "Not authenticated" });
+    }
 
     reply.raw.writeHead(200, {
       "content-type": "text/event-stream",
@@ -124,11 +139,18 @@ export async function eventRoutes(app: FastifyInstance) {
     mailChannels.set(claims.sub, set);
 
     const heartbeat = setInterval(() => {
-      try {
-        reply.raw.write(": hb\n\n");
-      } catch {
-        /* close handler cleans up */
-      }
+      void (async () => {
+        try {
+          if (!(await checkSession(claims.sid!)).ok) {
+            clearInterval(heartbeat);
+            reply.raw.end();
+            return;
+          }
+          reply.raw.write(": hb\n\n");
+        } catch {
+          /* close handler cleans up */
+        }
+      })();
     }, 25_000);
 
     req.raw.on("close", () => {
