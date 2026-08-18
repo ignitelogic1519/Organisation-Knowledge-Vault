@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { topLayerHost, type TopLayerHost } from "@/lib/top-layer";
 
 /**
  * The Knowledge Vault pointer.
@@ -31,8 +33,12 @@ import { useEffect, useRef } from "react";
  * Rules it obeys, because a custom cursor that ignores them is worse than none:
  *  · Fine pointers only, and never on a coarse pointer or a touch screen.
  *  · `prefers-reduced-motion` drops the trail, the idle scenes and every idle animation.
- *  · The native cursor is hidden only once this has mounted, so a JavaScript failure
- *    leaves the ordinary arrow exactly where it was.
+ *  · The native cursor is hidden only while this one is genuinely on screen — which is a
+ *    live question, not a fact settled at mount. A script that never runs leaves the
+ *    ordinary arrow exactly where it was; and an exam or a document viewer showing part
+ *    of the page full screen has the browser paint that element and nothing else, so the
+ *    pointer travels into it (lib/top-layer) and stands down if it cannot. Getting this
+ *    wrong is how a full-screen exam ends up with no visible cursor at all.
  *  · Nothing here ever intercepts a click — the layer is `pointer-events: none`.
  */
 
@@ -90,8 +96,21 @@ export function Pointer() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
+  /**
+   * The pointer is portalled into a host of its own, because it has to be able to move:
+   * see lib/top-layer. The host only exists after mount, so the layer is client-only —
+   * nothing about a cursor was ever meaningful before hydration.
+   */
+  const [top, setTop] = useState<TopLayerHost | null>(null);
 
   useEffect(() => {
+    const owned = topLayerHost("kv-pointer-host");
+    setTop(owned);
+    return () => owned.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!top) return;
     // A pointer this precise is only meaningful on a device that has one.
     const fine = window.matchMedia("(pointer: fine)");
     if (!fine.matches) return;
@@ -113,12 +132,35 @@ export function Pointer() {
      * real pointermove gives us a true coordinate.
      */
     let placed = false;
+
+    /**
+     * Every condition for taking the system cursor away, in one place: ours has to be
+     * mounted and positioned (`placed`), wanted by the device (`fine`), and actually
+     * painted where the mouse is (`top.painted()`). The last one is why this is a
+     * function rather than a line in `takeOver` — full screen can take our pointer off
+     * the screen at any moment, and hiding the system one anyway leaves nothing to point
+     * with.
+     */
+    const syncNative = () => {
+      root.classList.toggle("kv-pointer-on", placed && fine.matches && top.painted());
+    };
+
     const takeOver = () => {
       if (placed) return;
       placed = true;
-      root.classList.add("kv-pointer-on");
+      syncNative();
       dot.dataset.hidden = "false";
       ring.dataset.hidden = "false";
+    };
+
+    /**
+     * Something went full screen, or came back. Carry the pointer into the top layer —
+     * and if it could not go, give the system cursor back rather than leave the reader
+     * pointing at an exam they cannot see their mouse on.
+     */
+    const onFullscreen = () => {
+      top.reseat();
+      syncNative();
     };
 
     /**
@@ -217,6 +259,11 @@ export function Pointer() {
 
     // ── Movement ─────────────────────────────────────────────────────────────
     const onMove = (e: PointerEvent) => {
+      // The host rides inside whatever is full screen. If React tore that element down —
+      // an exam handed in, a viewer closed — the host went with it, and no
+      // `fullscreenchange` we have already handled will bring it back. Notice on the next
+      // movement, which is the first moment it would matter.
+      if (!top.host.isConnected) onFullscreen();
       x = e.clientX;
       y = e.clientY;
       hovered = e.target;
@@ -358,11 +405,10 @@ export function Pointer() {
     document.addEventListener("pointerleave", onLeave);
     document.addEventListener("pointerenter", onEnter);
     window.addEventListener("blur", onLeave);
+    document.addEventListener("fullscreenchange", onFullscreen);
 
     // A pointing device can be unplugged, or the window dragged to a touch screen.
-    const onPointerKind = (e: MediaQueryListEvent) => {
-      root.classList.toggle("kv-pointer-on", e.matches && placed);
-    };
+    const onPointerKind = () => syncNative();
     fine.addEventListener("change", onPointerKind);
 
     // Appearance → Animation was toggled: drop out of any scene at once and re-arm (or
@@ -383,9 +429,11 @@ export function Pointer() {
     calm.addEventListener("change", onMotionChange);
 
     wake(); // arm the first idle countdown
+    onFullscreen(); // the page may already be full screen — a reader navigating inside one
 
     return () => {
       root.classList.remove("kv-pointer-on");
+      document.removeEventListener("fullscreenchange", onFullscreen);
       cancelAnimationFrame(frame);
       window.clearTimeout(idleTimer);
       window.clearTimeout(transientTimer);
@@ -404,9 +452,9 @@ export function Pointer() {
       calm.removeEventListener("change", onMotionChange);
       fine.removeEventListener("change", onPointerKind);
     };
-  }, []);
+  }, [top]);
 
-  return (
+  const overlay = (
     <div className="kv-pointer-layer" ref={layerRef} aria-hidden>
       {/* The trailing ring — behind the glyph, so the glyph always reads first. */}
       <div ref={ringRef} className="kv-pointer-ring" data-state="default" data-hidden="true" />
@@ -711,4 +759,6 @@ export function Pointer() {
       </div>
     </div>
   );
+
+  return top ? createPortal(overlay, top.host) : null;
 }

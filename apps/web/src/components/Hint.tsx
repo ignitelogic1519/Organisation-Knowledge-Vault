@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { topLayerHost, type TopLayerHost } from "@/lib/top-layer";
 
 /**
  * The hint layer — the platform's tooltip.
@@ -25,6 +27,9 @@ import { useEffect, useRef } from "react";
  *  · It flips to the other side of the pointer near a screen edge rather than being cut off.
  *  · Keyboard focus opens it too, anchored to the element instead of the pointer, so it is
  *    not a mouse-only affordance.
+ *  · It follows the page into full screen (lib/top-layer), because a card left behind in
+ *    the page is painted nowhere — and having already taken `title` away, that would mean
+ *    no tooltip at all. Where it cannot follow, `title` is left alone instead.
  *  · Fine pointers only, and `prefers-reduced-motion` removes the travel, never the card.
  */
 
@@ -37,8 +42,16 @@ const MARGIN = 10;
 
 export function HintLayer() {
   const cardRef = useRef<HTMLDivElement>(null);
+  const [top, setTop] = useState<TopLayerHost | null>(null);
 
   useEffect(() => {
+    const owned = topLayerHost("kv-hint-host");
+    setTop(owned);
+    return () => owned.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!top) return;
     if (!window.matchMedia("(pointer: fine)").matches) return;
     const card = cardRef.current;
     if (!card) return;
@@ -101,6 +114,9 @@ export function HintLayer() {
 
     /** The nearest ancestor carrying a hint — and the moment `title` becomes one. */
     const hintTarget = (from: EventTarget | null): HTMLElement | null => {
+      // Nowhere to draw (something is full screen and the card could not be carried into
+      // it): take nothing away, so the browser's own tooltip still explains the control.
+      if (!top.painted()) return null;
       let el = from instanceof Element ? (from as HTMLElement) : null;
       while (el) {
         if (el.dataset?.hint) return el;
@@ -153,8 +169,16 @@ export function HintLayer() {
       if (e.key === "Escape") hide();
     };
 
+    // Full screen changed: follow the page in or out of the top layer, and drop any card
+    // still open — it was measured against a viewport that no longer exists.
+    const onFullscreen = () => {
+      top.reseat();
+      hide();
+    };
+
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", hide, { passive: true });
+    document.addEventListener("fullscreenchange", onFullscreen);
     window.addEventListener("scroll", onScroll, { passive: true, capture: true });
     window.addEventListener("blur", hide);
     window.addEventListener("keydown", onKey);
@@ -170,14 +194,17 @@ export function HintLayer() {
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("focusin", onFocus);
       document.removeEventListener("focusout", onBlur);
+      document.removeEventListener("fullscreenchange", onFullscreen);
     };
-  }, []);
+  }, [top]);
 
-  return (
+  const overlay = (
     <div ref={cardRef} className="kv-hint" role="tooltip" data-open="false" data-tone="info">
       <span className="kv-hint-rail" aria-hidden />
       <strong className="kv-hint-title" hidden />
       <span className="kv-hint-body" />
     </div>
   );
+
+  return top ? createPortal(overlay, top.host) : null;
 }
