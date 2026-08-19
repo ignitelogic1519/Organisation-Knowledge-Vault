@@ -249,7 +249,7 @@ Hover the chip for the **exact date**. The chip counts in months and years rathe
 thousands of days on purpose: *9.9 years left* is a fact somebody can act on, and
 *3,643d 14h left* is a number nobody reads twice.
 
-![The plan chip, on the organization's card](images/org-plan-timer.png)
+![Four plans, four remaining times, on the dashboard](images/org-plan-timer.png)
 
 ### When a plan expires
 

@@ -116,6 +116,8 @@ test, and the same gate: an organization will not accept storage it cannot reach
 
 ![Storage settings, in the root branch's Group configuration](images/storage-settings.png)
 
+![The encryption choice, in the organization's storage settings](images/storage-encryption.png)
+
 The one thing that cannot be changed here is the **encryption posture**. Whether documents are
 written encrypted or readable is fixed for the life of the organization, because changing it
 would mean re-encrypting everything already stored.

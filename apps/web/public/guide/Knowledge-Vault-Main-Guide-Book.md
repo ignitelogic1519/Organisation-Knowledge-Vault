@@ -776,6 +776,13 @@ functional: this single screen is where owners do almost everything.
 
 ---
 
+Every page inside an organization carries its **badge, its name and its number** at the top,
+with the positions you hold beneath them:
+
+![The organization's header, on every page it owns](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/org-header.png)
+
+---
+
 ## Reading the map
 
 - **The diamond at the top** is your root role. Bigger, brighter stars sit higher in the
@@ -2017,9 +2024,13 @@ nobody submits a paper with a question they never saw.
 
 ![A paper part-way through](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/exam-in-progress.png)
 
-When the paper is handed in, marking happens on the server and the result comes straight
-back — the score, the verdict, and (depending on the author's reveal settings) which answers
-were right and why.
+Handing it in asks once, because there is no undo:
+
+![The confirmation before a paper is marked](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/exam-submit-confirm.png)
+
+Then marking happens on the server and the result comes straight back — the score, the
+verdict, how many attempts remain, and (depending on the author's reveal settings) which
+answers were right and why:
 
 ![The marked result](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/exam-result.png)
 
@@ -3494,7 +3505,7 @@ Hover the chip for the **exact date**. The chip counts in months and years rathe
 thousands of days on purpose: *9.9 years left* is a fact somebody can act on, and
 *3,643d 14h left* is a number nobody reads twice.
 
-![The plan chip, on the organization's card](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/org-plan-timer.png)
+![Four plans, four remaining times, on the dashboard](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/org-plan-timer.png)
 
 ### When a plan expires
 
@@ -4491,7 +4502,7 @@ flowchart TD
     G --> H["Restore code -> restore on the new plan"]
 ```
 
-![The plan chip on an organization's card](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/org-plan-timer.png)
+![Four plans, four remaining times, on the dashboard](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/org-plan-timer.png)
 
 ### D6 · The staff side
 
@@ -4883,6 +4894,8 @@ configuration** carries a **Connect your storage** panel — the same fields, th
 test, and the same gate: an organization will not accept storage it cannot reach.
 
 ![Storage settings, in the root branch's Group configuration](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/storage-settings.png)
+
+![The encryption choice, in the organization's storage settings](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/storage-encryption.png)
 
 The one thing that cannot be changed here is the **encryption posture**. Whether documents are
 written encrypted or readable is fixed for the life of the organization, because changing it

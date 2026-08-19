@@ -23,6 +23,13 @@ functional: this single screen is where owners do almost everything.
 
 ---
 
+Every page inside an organization carries its **badge, its name and its number** at the top,
+with the positions you hold beneath them:
+
+![The organization's header, on every page it owns](images/org-header.png)
+
+---
+
 ## Reading the map
 
 - **The diamond at the top** is your root role. Bigger, brighter stars sit higher in the

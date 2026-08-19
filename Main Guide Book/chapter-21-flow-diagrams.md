@@ -369,7 +369,7 @@ flowchart TD
     G --> H["Restore code -> restore on the new plan"]
 ```
 
-![The plan chip on an organization's card](images/org-plan-timer.png)
+![Four plans, four remaining times, on the dashboard](images/org-plan-timer.png)
 
 ### D6 · The staff side
 

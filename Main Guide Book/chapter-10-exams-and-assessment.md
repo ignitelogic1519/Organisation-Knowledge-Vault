@@ -111,9 +111,13 @@ nobody submits a paper with a question they never saw.
 
 ![A paper part-way through](images/exam-in-progress.png)
 
-When the paper is handed in, marking happens on the server and the result comes straight
-back — the score, the verdict, and (depending on the author's reveal settings) which answers
-were right and why.
+Handing it in asks once, because there is no undo:
+
+![The confirmation before a paper is marked](images/exam-submit-confirm.png)
+
+Then marking happens on the server and the result comes straight back — the score, the
+verdict, how many attempts remain, and (depending on the author's reveal settings) which
+answers were right and why:
 
 ![The marked result](images/exam-result.png)
 
