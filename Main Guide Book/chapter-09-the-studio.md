@@ -276,7 +276,7 @@ answer options with the right one(s) ticked:
 The card tells you what is still missing ("no correct answer marked"), and the left rail
 lists every question so you can jump around and reorder.
 
-![The exam builder — questions on the page, rules in the inspector](images/studio-exam-builder.png)
+![The exam builder — a question on the page, its settings in the inspector](images/studio-exam-builder.png)
 
 **The rules** (inspector → **Exam**):
 

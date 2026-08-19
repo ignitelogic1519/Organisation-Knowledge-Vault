@@ -50,7 +50,9 @@ Each question can carry:
 
 ## 2. The settings that matter
 
-The Inspector's **Rules** tab is where a paper becomes an assessment rather than a quiz.
+The Inspector's **Exam** tab is where a paper becomes an assessment rather than a quiz.
+
+![The exam's rules: marking, pass mark, and what the candidate is told](images/studio-exam-rules.png)
 
 | Setting | What it does |
 |---------|--------------|

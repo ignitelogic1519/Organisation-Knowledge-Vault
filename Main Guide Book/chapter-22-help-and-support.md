@@ -13,6 +13,18 @@ the app).
 
 ---
 
+## Why it matters
+
+| Parameter | What changes |
+|-----------|--------------|
+| **Time** | The answer is one click from wherever the question came up, and it is always the version of the answer that matches the running app. |
+| **Risk & compliance** | The Help page serves the current PDF of this book, so an auditor or a new manager can be given the whole documented product rather than a summary. |
+| **Security & custody** | It is public and needs no account, so nobody has to be given access to a system in order to read about it first. |
+| **Cost** | Self-service documentation is the cheapest support channel there is, and this one ships with the product. |
+| **Adoption** | Newcomers can read the tour before their profile exists, which shortens the first day considerably. |
+
+---
+
 ## What Help covers
 
 The page walks through each component of the platform in short, friendly topics, including:
@@ -69,5 +81,20 @@ useful for showing someone what the platform does before they have an account:
   walkthrough with real screenshots.
 - **The Help page serves this book.** The current PDF and a single-file Markdown copy are both
   downloadable from it, so a colleague without an account can still read the whole thing.
+
+---
+
+## 🎬 Make a video of this
+
+**Length:** ~60 seconds. **Working title:** *"Where the answers live."*
+
+| # | Shot | Say |
+|---|------|-----|
+| 1 | The Help link in the navigation, on a signed-out page | "Public, so you can read it before you have an account." |
+| 2 | Scroll the topics | "Every part of the product, in plain language." |
+| 3 | The guide-book download buttons | "And the whole guide book — this book — as a PDF or a single Markdown file." |
+| 4 | Cut to the Features page | "If you want the tour rather than the manual, that's next door." |
+
+**Script beat to close on:** *"Two pages, no login, always current with the running app."*
 
 **Next:** [Chapter 23 — Where your documents live →](chapter-23-where-your-documents-live.md)

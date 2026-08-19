@@ -202,6 +202,11 @@ to any organization. These messages stay for **30 days**.
 
 ![Your access code on the Account page](images/account-admin-messages.png)
 
+In the Mailbox itself it arrives as a high-priority message with the code in a box and a
+**Copy** button, so you never retype eight case-sensitive characters:
+
+![The access code in the Mailbox](images/mailbox-reading-pane.png)
+
 ---
 
 ## 6. Creating the organization with your code

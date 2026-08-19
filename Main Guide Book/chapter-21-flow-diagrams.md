@@ -506,7 +506,7 @@ flowchart LR
 | Build an exam & set its attempt limit | Owner | 10 | `studio-exam-builder.png` |
 | Sit an exam | Member | 10 | `exam-runner.png` |
 | Revise something already published | Owner | 11 | `studio-revise.png` |
-| Read the edition log | Anyone | 11 | `course-editions.png` |
+| Read the edition log | Anyone | 11 | `course-properties.png` |
 | Edit properties without a new edition | Owner | 11 | `course-properties.png` |
 | Review a member's document | Manager | 11 | `review-channel.png` |
 | Browse and filter the library | Anyone | 12 | `library.png` |
@@ -535,5 +535,6 @@ flowchart LR
 
 ---
 
+**Next:** [Chapter 22 — Help & support →](chapter-22-help-and-support.md) ·
 **Back to:** [Table of contents](README.md) · **Reference:**
 [Appendix — Glossary & quick reference](appendix-glossary-and-reference.md)

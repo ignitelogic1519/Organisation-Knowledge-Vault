@@ -55,6 +55,17 @@ and the reason beside each one.
 
 ![One course, expanded: who is behind, and why](images/compliance-course.png)
 
+Three rows, three different situations, and the screenshot above has all of them:
+
+| Person | Reason | Flagged overdue? |
+|--------|--------|------------------|
+| **Priya Raman** | *Completed earlier — the record has since expired and must be redone* | **Yes** — her annual completion lapsed over a month ago, so the new deadline has passed too |
+| **Leo Fernandes** | *Past the deadline* | **Yes** — assigned weeks ago, never opened |
+| **Ravi Shah** | *Has not opened this yet* | **No** — he joined this branch this morning; his fourteen days start today |
+
+Below the list sits the **reminder message** box and **🔔 Send reminder**, which acts on
+whoever you tick.
+
 ---
 
 ## Looking one person up

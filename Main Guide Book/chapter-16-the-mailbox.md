@@ -124,6 +124,8 @@ If you are holding more than forty messages, the mailbox says so once, in a **Sy
 An access code arrives with the code in a box in the reading pane and a **Copy** button beside
 it — you never need to retype it.
 
+![The reading pane, on an access code](images/mailbox-reading-pane.png)
+
 ---
 
 ## 6. Live delivery

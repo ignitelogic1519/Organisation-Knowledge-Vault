@@ -57,7 +57,10 @@ with the button to withdraw it right there. You can also take a course out and s
 Every publication writes a line: the **version**, the **note** the author wrote about what
 changed, **who** published it, and whether it **expired existing completions**.
 
-![The edition log in a course's properties](images/course-editions.png)
+You read it from the course's **⚙ Properties** sheet, on its **Version history** tab — the
+number beside the tab is how many editions there have been:
+
+![A course's properties, with the Version history tab beside them](images/course-properties.png)
 
 - Edition 1 is written when the course is created; every content republish adds another.
 - A **metadata-only** edit — fixing a shelf tag, correcting a description — is deliberately
@@ -77,8 +80,6 @@ changed, **who** published it, and whether it **expired existing completions**.
 Some things are *what the organization says about* a document rather than the document
 itself: its shelf, its description, its scope, its deadline, its recurrence, whether it may be
 downloaded, its prerequisites.
-
-![A course's properties, editable at any time](images/course-properties.png)
 
 These are editable at any time by anyone who may manage the course, from the branch's course
 list → **⚙ Properties**. Changing them causes **no version bump, no deployment pause, and no

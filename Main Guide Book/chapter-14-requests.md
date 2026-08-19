@@ -30,8 +30,9 @@ your attention, so you never miss one.
 The page is split in two:
 
 ### Inbox — waiting on you
-Requests **you have the authority to decide**. In the sample, *Avery Stone* sees *Ravi
-Shah's* request to join the *Firmware Team* as a member, complete with his message. Each inbox
+Requests **you have the authority to decide**. In the sample, *Priya Raman* — who owns *Engineering* — has three waiting: *Ravi Shah* asking
+to join the *Firmware Team*, *Hana Oyelaran* asking for the cell-safety course to be placed on
+it, and *Noah Kim's* document waiting for review. Each card carries the asker's own words. Each inbox
 card lets you **Approve**, **Reject**, or **Delete** it.
 
 ### My requests
@@ -53,7 +54,12 @@ Everything **you've** asked for, with its live status (**pending**, **approved**
 Course requests are special: because the decider configures placement at approval time, the
 course arrives on the branch correctly set up, not as a raw drop-in.
 
-**Document reviews are the other special case**, because they carry a **conversation**. The
+![Configuring a request before approving it](images/review-configure.png)
+
+**Document reviews are the other special case**, because they carry a **conversation**.
+
+![A document review, with all of its outcomes](images/review-channel.png)
+ The
 reviewer opens the draft full screen, then chooses one of three outcomes — *approve and
 publish*, *send back with changes* (with a compulsory reason, and the draft survives), or
 *decline*. The thread stays on the request, so the whole exchange is in one place when the

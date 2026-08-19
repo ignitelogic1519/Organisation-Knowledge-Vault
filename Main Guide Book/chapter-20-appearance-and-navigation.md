@@ -117,10 +117,15 @@ browser, come back next week: you get exactly the look you left.
 > are sitting at, not about you. The same person may want night mode on the laptop in the
 > workshop and the day theme on the office monitor, and the platform should not argue.
 
-### Reduced motion
+### Motion
 
-If your operating system is set to reduce motion, the platform obeys: the navigation rail
-stops sliding, transitions shorten, and the background animation settles.
+The palette menu's third section is **Motion**, with a single **Animation** switch. Turn it
+off and the ambient movement stops — the drifting star field behind the page, the float on the
+constellation's stars. It starts **off** and stays wherever you last set it, per device.
+
+If your operating system is set to reduce motion, the platform obeys that too, without being
+asked: the navigation rail stops sliding, transitions shorten, and the background animation
+settles.
 
 ---
 

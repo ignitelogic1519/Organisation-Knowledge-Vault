@@ -5,6 +5,21 @@ is built on. Everything else in this book is an application of these.
 
 ---
 
+## Why it matters
+
+These six ideas are not architecture trivia — each one removes a job somebody would otherwise
+be doing by hand:
+
+| Parameter | What the model buys you |
+|-----------|-------------------------|
+| **Time** | The tree *is* the assignment rule. Nobody maintains a training matrix, and a new team inherits the company's mandatory material the moment it exists. |
+| **Risk & compliance** | Classification is compulsory, completions are records, and editions are dated — so "which version were they trained on?" has an answer that nobody had to write down. |
+| **Security & custody** | Least privilege is structural (you cannot grant what you do not hold), and the Supreme password is held by you alone. |
+| **Cost** | One platform covers structure, authoring, delivery, assessment and reporting. The parts do not need to be integrated because they were never separate. |
+| **Adoption** | People see their own company on the screen — their branch, their courses, their deadline — rather than a generic course catalogue. |
+
+---
+
 ## 1. An organization is a tree of roles
 
 A Knowledge Vault organization isn't a flat list of employees — it's a **structure of

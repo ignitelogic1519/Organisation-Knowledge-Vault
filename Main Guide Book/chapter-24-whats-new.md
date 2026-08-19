@@ -270,3 +270,8 @@ mixed with things already dealt with.
 
 The plan allowance now sits at the **foot** of the courses panel as a quiet footnote, and an
 organization already on a paid plan is no longer told to go and buy one.
+
+---
+
+**Next:** [Appendix — Glossary & quick reference →](appendix-glossary-and-reference.md) ·
+**Back to:** [Table of contents](README.md)

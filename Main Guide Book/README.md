@@ -21,7 +21,7 @@ so you can follow along and recognise exactly what you'll see.
 
 ## How this book is built
 
-Every chapter has the same five parts, so you always know where to look:
+Every feature chapter has the same five parts, so you always know where to look (the two reference chapters — 21, the diagram atlas, and 24, the change log — are laid out as references instead):
 
 | Part | What it gives you |
 |------|-------------------|
