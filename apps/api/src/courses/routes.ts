@@ -30,6 +30,11 @@ import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import {
   courseHandlerNodeId,
   coursesReaching,
+  deadlineStartsAt,
+  effectiveStatus,
+  isCompliant,
+  isPastDeadline,
+  laterOf,
   nextCourseCode,
   notify,
   recordCompletion,
@@ -1412,7 +1417,16 @@ export async function courseRoutes(app: FastifyInstance) {
         include: { membership: { include: { profile: true } }, roleNode: true },
       });
       const mandatory = placements.some((cp) => cp.mandatory);
-      const audience = new Map<string, { profile: (typeof occupants)[number]["membership"]["profile"]; viaRoleName: string }>();
+      const audience = new Map<
+        string,
+        {
+          profile: (typeof occupants)[number]["membership"]["profile"];
+          viaRoleName: string;
+          /** When it reached them, and the deadline it reached them under. */
+          reachedAt: Date;
+          deadlineDays: number | null;
+        }
+      >();
       for (const cp of placements) {
         const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
         if (!cpNode) continue;
@@ -1424,19 +1438,26 @@ export async function courseRoutes(app: FastifyInstance) {
             audience.set(o.membership.profileId, {
               profile: o.membership.profile,
               viaRoleName: cpNode.name,
+              // Both have to be true before the clock starts: the course on the branch,
+              // and the person in it.
+              reachedAt: laterOf(cp.createdAt, o.createdAt),
+              deadlineDays: cp.mandatory ? cp.deadlineDays ?? course.deadlineDays : null,
             });
           }
         }
       }
 
       const records = await db.completionRecord.findMany({ where: { courseId: course.id } });
+      const resetEditions = await db.courseEdition.findMany({
+        where: { courseId: course.id, resetCompletions: true },
+        select: { publishedAt: true },
+      });
+      const now = new Date();
       const compliantMembers: CourseComplianceView["compliantMembers"] = [];
       const nonCompliantMembers: CourseComplianceView["nonCompliantMembers"] = [];
-      for (const [profileId, { profile, viaRoleName }] of audience) {
-        const rec = records.find((r) => r.profileId === profileId);
-        const done =
-          rec?.status === "COMPLETED" && (!rec.validUntil || rec.validUntil > new Date());
-        if (done) {
+      for (const [profileId, { profile, viaRoleName, reachedAt, deadlineDays }] of audience) {
+        const rec = records.find((r) => r.profileId === profileId) ?? null;
+        if (isCompliant(rec, now)) {
           compliantMembers.push({
             profileId,
             displayName: profile.displayName,
@@ -1450,8 +1471,14 @@ export async function courseRoutes(app: FastifyInstance) {
             displayName: profile.displayName,
             username: profile.username,
             viaRoleName,
-            status: rec?.status ?? (mandatory ? "ASSIGNED" : "AVAILABLE"),
-            overdue: false,
+            status: effectiveStatus(rec, mandatory, now),
+            // The same deadline arithmetic the compliance report uses — this view used
+            // to say "never overdue" and quietly disagree with it.
+            overdue: isPastDeadline(
+              deadlineStartsAt({ reachedAt, record: rec, resetEditions, now }),
+              deadlineDays,
+              now,
+            ),
           });
         }
       }

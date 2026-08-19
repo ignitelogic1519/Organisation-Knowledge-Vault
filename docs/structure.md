@@ -128,9 +128,14 @@ A course is an **org-level entity**; branches receive **placements**, never copi
   page access onward. Chain controlled at the Owner/Admin/Principal level.
 
 ### 3.4 Scheduling & compliance fields (set on the course at upload)
-- `deadline` — optional; some courses have none.
+- `deadline` — optional; some courses have none. It is measured **from the moment the course
+  reaches that person**, never from the day it was placed on the branch: the later of the
+  placement and the person's arrival in it, and — when their completion stops counting
+  (a recurrence lapsing, or a reset-on-update edition) — from the moment the next cycle
+  opened. Anyone else would be reported overdue for days they never had. ✅ DECIDED
 - `retake_every_n_days` — recurrence (e.g., security training every 365 days); course-level,
-  not per individual.
+  not per individual. A lapsed completion reads **expired** in every view from the instant it
+  lapses, without waiting for the nightly sweep to rewrite the row.
 - `resets_completion_on_update` — flag chosen by the creator when modifying content.
 - Escalation target for overdue/failure: **the person who added the user to the group /
   tagged the role on them**, with a **fallback chain** if that person has left the org:

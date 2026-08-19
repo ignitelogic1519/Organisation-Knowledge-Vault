@@ -11,7 +11,17 @@ import {
 } from "@vault/shared";
 import { db } from "../db.js";
 import { env } from "../env.js";
-import { coursesReaching, escalationTargets, notify, toLearningItem } from "../courses/helpers.js";
+import {
+  coursesReaching,
+  deadlineStartsAt,
+  effectiveStatus,
+  escalationTargets,
+  isCompliant,
+  isPastDeadline,
+  laterOf,
+  notify,
+  toLearningItem,
+} from "../courses/helpers.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { purgeOrganization } from "../orgs/purge.js";
 import { orgOwnerProfileIds } from "../orgs/owners.js";
@@ -58,6 +68,32 @@ interface BranchCourse {
 }
 
 /**
+ * The audience of one course: who it reaches, and WHEN it reached each of them —
+ * the later of "placed on the branch" and "person joined the branch", which is where
+ * their deadline starts. `mandatoryAt` is the same instant measured on the mandatory
+ * placement alone, so an opt-in placement from years ago can never start somebody's
+ * mandatory clock.
+ */
+type Audience = Map<string, { at: Date; mandatoryAt: Date | null }>;
+
+/** Fold one more sighting of a person into an audience, keeping the earliest of each. */
+function rememberReach(
+  audience: Audience,
+  profileId: string,
+  reach: { at: Date; mandatoryAt: Date | null },
+) {
+  const seen = audience.get(profileId);
+  if (!seen) {
+    audience.set(profileId, { ...reach });
+    return;
+  }
+  if (reach.at < seen.at) seen.at = reach.at;
+  if (reach.mandatoryAt && (!seen.mandatoryAt || reach.mandatoryAt < seen.mandatoryAt)) {
+    seen.mandatoryAt = reach.mandatoryAt;
+  }
+}
+
+/**
  * Compliance for a branch, computed once and shaped twice.
  *
  * The branch report shows a course and the people behind on it; the per-person card shows
@@ -99,25 +135,27 @@ async function branchCompliance(node: { id: string; orgId: string; path: string 
   });
   const peopleCount = new Set(occupants.map((o) => o.membership.profileId)).size;
 
-  const byCourse = new Map<string, { cp: (typeof relevant)[number]; audience: Set<string> }>();
+  const byCourse = new Map<string, { cp: (typeof relevant)[number]; audience: Audience }>();
   for (const cp of relevant) {
     const cpNode = allNodes.find((n) => n.id === cp.roleNodeId);
     if (!cpNode) continue;
     // Audience within this branch: occupants of the exact placement node, or —
     // when the placement inherits — every subtree occupant the placement reaches.
     // (`occupants` already holds only this branch's subtree.)
-    const audience = new Set(
-      occupants
-        .filter((o) =>
-          cp.inheritToDescendants
-            ? isSelfOrAncestor(cpNode.path, o.roleNode.path)
-            : o.roleNodeId === cp.roleNodeId,
-        )
-        .map((o) => o.membership.profileId),
-    );
+    const audience: Audience = new Map();
+    for (const o of occupants) {
+      const reaches = cp.inheritToDescendants
+        ? isSelfOrAncestor(cpNode.path, o.roleNode.path)
+        : o.roleNodeId === cp.roleNodeId;
+      if (!reaches) continue;
+      // It reached them once both were in place — the course on the branch, and them
+      // in it. Whichever happened last is when their deadline started running.
+      const at = laterOf(cp.createdAt, o.createdAt);
+      rememberReach(audience, o.membership.profileId, { at, mandatoryAt: cp.mandatory ? at : null });
+    }
     const existing = byCourse.get(cp.courseId);
     if (existing) {
-      for (const a of audience) existing.audience.add(a);
+      for (const [profileId, seen] of audience) rememberReach(existing.audience, profileId, seen);
       if (cp.mandatory && !existing.cp.mandatory) existing.cp = cp;
     } else {
       byCourse.set(cp.courseId, { cp, audience });
@@ -126,6 +164,12 @@ async function branchCompliance(node: { id: string; orgId: string; path: string 
 
   const records = await db.completionRecord.findMany({
     where: { courseId: { in: [...byCourse.keys()] } },
+  });
+  // Editions that expired everyone's completion when they landed: for whoever had
+  // completed the old edition, that is the day the course reached them again.
+  const resetEditions = await db.courseEdition.findMany({
+    where: { courseId: { in: [...byCourse.keys()] }, resetCompletions: true },
+    select: { courseId: true, publishedAt: true },
   });
   const profileOf = new Map(
     occupants.map((o) => [o.membership.profileId, o.membership.profile]),
@@ -158,21 +202,36 @@ async function branchCompliance(node: { id: string; orgId: string; path: string 
     examLimits.set(courseId, await examMaxAttempts(cp.course));
   }
 
+  const now = new Date();
   const courses: BranchCourse[] = [...byCourse.values()].map(({ cp, audience }) => {
     const entries: Entry[] = [];
     const deadlineDays = cp.deadlineDays ?? cp.course.deadlineDays;
     const isExam = cp.course.kind === "EXAM";
     const maxAttempts = isExam ? examLimits.get(cp.courseId) ?? null : null;
-    for (const profileId of audience) {
-      const rec = records.find((r) => r.courseId === cp.courseId && r.profileId === profileId);
-      const done =
-        rec?.status === "COMPLETED" && (!rec.validUntil || rec.validUntil > new Date());
+    const resets = resetEditions.filter((e) => e.courseId === cp.courseId);
+    for (const [profileId, reach] of audience) {
+      const rec =
+        records.find((r) => r.courseId === cp.courseId && r.profileId === profileId) ?? null;
+      const done = isCompliant(rec, now);
       const profile = profileOf.get(profileId);
+      // The deadline runs from the day the course reached THEM — and from the day it
+      // reached them again, when a lapsed recurrence or a reset-on-update edition
+      // re-opened it. Somebody who completed it last cycle is not late the moment the
+      // next one opens, and somebody who joined the branch today is not late already.
+      const status = effectiveStatus(rec, cp.mandatory, now);
       const overdue =
         !done &&
         cp.mandatory &&
-        deadlineDays !== null &&
-        new Date(cp.createdAt.getTime() + deadlineDays * 86400_000) < new Date();
+        isPastDeadline(
+          deadlineStartsAt({
+            reachedAt: reach.mandatoryAt ?? reach.at,
+            record: rec,
+            resetEditions: resets,
+            now,
+          }),
+          deadlineDays,
+          now,
+        );
       const stat = isExam ? attemptsBy.get(`${cp.courseId}:${profileId}`) : undefined;
       const exhausted =
         !done && isExam && maxAttempts != null && (stat?.count ?? 0) >= maxAttempts && !stat?.passed;
@@ -183,11 +242,11 @@ async function branchCompliance(node: { id: string; orgId: string; path: string 
         ? "EXAM_ATTEMPTS_EXHAUSTED"
         : isExam && (stat?.count ?? 0) > 0
           ? "EXAM_FAILED"
-          : rec?.status === "EXPIRED"
+          : status === "EXPIRED"
             ? "EXPIRED"
             : overdue
               ? "OVERDUE"
-              : rec?.status === "IN_PROGRESS"
+              : status === "IN_PROGRESS"
                 ? "IN_PROGRESS"
                 : "NOT_STARTED";
 
@@ -195,7 +254,7 @@ async function branchCompliance(node: { id: string; orgId: string; path: string 
         profileId,
         displayName: profile?.displayName ?? "Unknown",
         username: profile?.username ?? "unknown",
-        status: done ? "COMPLETED" : rec?.status ?? (cp.mandatory ? "ASSIGNED" : "AVAILABLE"),
+        status,
         overdue,
         reason,
         compliant: done,
