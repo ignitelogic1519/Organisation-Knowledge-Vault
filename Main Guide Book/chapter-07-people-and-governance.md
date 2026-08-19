@@ -75,7 +75,7 @@ the **review channel** ([Chapter 11](chapter-11-editions-and-review.md)). In the
 *Noah Kim* is a Firmware member with this content-creation grant — and the rig notes he
 proposed are waiting for Priya to approve.
 
-![Adding a member, with the optional "may create content" right](images/add-member-form.png)
+![Adding a member — two characters in, and the field is already suggesting people](images/add-member-form.png)
 
 ### Owners (and co-owners)
 Owners manage the branch. When you appoint a co-owner, you choose which rights they get —

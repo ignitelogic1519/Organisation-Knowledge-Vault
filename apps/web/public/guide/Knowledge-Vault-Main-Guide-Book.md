@@ -1171,7 +1171,7 @@ the **review channel** (Chapter 11). In the sample,
 *Noah Kim* is a Firmware member with this content-creation grant — and the rig notes he
 proposed are waiting for Priya to approve.
 
-![Adding a member, with the optional "may create content" right](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/add-member-form.png)
+![Adding a member — two characters in, and the field is already suggesting people](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/add-member-form.png)
 
 ### Owners (and co-owners)
 Owners manage the branch. When you appoint a co-owner, you choose which rights they get —
@@ -4229,7 +4229,7 @@ flowchart LR
     C -->|Owner rejects| E["Stays draft"]
 ```
 
-![Member form with "may create content"](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/add-member-form.png)
+![The member form, suggesting people as you type](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/add-member-form.png)
 
 ### A7 · Publish a course
 *Where: Courses → + Upload course / Create in Studio · Chapter 8*

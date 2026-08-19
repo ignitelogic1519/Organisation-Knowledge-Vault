@@ -96,7 +96,7 @@ flowchart LR
     C -->|Owner rejects| E["Stays draft"]
 ```
 
-![Member form with "may create content"](images/add-member-form.png)
+![The member form, suggesting people as you type](images/add-member-form.png)
 
 ### A7 · Publish a course
 *Where: Courses → + Upload course / Create in Studio · [Chapter 8](chapter-08-courses.md)*
