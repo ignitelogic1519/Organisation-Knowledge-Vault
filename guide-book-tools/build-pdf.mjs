@@ -102,7 +102,11 @@ const css = (t) => `
   a { color: ${t.accent}; text-decoration: none; }
   hr { border: 0; border-top: 1px solid #dcdcea; margin: 6mm 0; }
 
-  img { max-width: 100%; height: auto; display: block; margin: 4mm auto; border: 1px solid #dfe0ec; border-radius: 6px; page-break-inside: avoid; }
+  /* A screenshot never taller than the page it has to fit on: a portrait phone shot at
+     full width would be 250mm tall, which pushes it to the next page and leaves the one
+     before it half empty. Capping the height (and letting the width follow) keeps the
+     text flowing around it. */
+  img { max-width: 100%; max-height: 165mm; width: auto; height: auto; display: block; margin: 4mm auto; border: 1px solid #dfe0ec; border-radius: 6px; page-break-inside: avoid; }
 
   table { border-collapse: collapse; width: 100%; margin: 3mm 0; font-size: 9.5pt; page-break-inside: avoid; }
   th, td { border: 1px solid #dcdcea; padding: 1.6mm 2.4mm; text-align: left; vertical-align: top; }

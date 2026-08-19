@@ -19,26 +19,48 @@ so you can follow along and recognise exactly what you'll see.
 
 ---
 
+## How this book is built
+
+Every chapter has the same five parts, so you always know where to look:
+
+| Part | What it gives you |
+|------|-------------------|
+| **What it is** | The feature in a paragraph, in plain words. |
+| **Why it matters** | The benefit, measured on five parameters — time, risk & compliance, security & custody, cost, and adoption. |
+| **How to do it** | Numbered steps you can follow with the product open, with the screen beside them. |
+| **Tips & pitfalls** | What experienced owners do, and the mistakes worth skipping. |
+| **🎬 Make a video of this** | A ready-made shot list and script beats, if you're recording a walk-through for your own people. |
+
+The **five parameters** are the same in every chapter, so you can compare features honestly:
+
+- **Time** — minutes saved, or spent, per person per month.
+- **Risk & compliance** — what an auditor can now see, and what can no longer go wrong quietly.
+- **Security & custody** — who can reach what, and where the bytes actually live.
+- **Cost** — Knowledge Coins, storage, and the licences you no longer need.
+- **Adoption** — whether ordinary people will actually use it without training.
+
+---
+
 ## How to read this book
 
-- **New to the platform?** Read Chapters 1–4 in order — they take you from creating a profile
-  to understanding the constellation.
-- **Setting up your company?** Chapters 3, 5, 6 and 16 cover founding an organization, building
-  its structure, placing people, and safeguarding it.
-- **Publishing knowledge?** Chapters 7, 8, 9 and 10 cover courses, the Studio, exams and the
-  library.
-- **A learner or team member?** Chapters 11 and 14 are for you — My Learning and the Mailbox.
-- **A manager?** Chapters 12 and 13 cover Requests and Compliance — including why someone is
-  not compliant, and how to reset an exam for them.
-- **Paying for it — or just starting out?** Chapter 15 explains Knowledge Coins, the plan
+- **New to the platform?** Read Chapters 1–5 in order — profile, concepts, founding an
+  organization, your dashboard, and the constellation.
+- **Setting up your company?** Chapters 3, 4, 6, 7 and 18 cover founding an organization,
+  its identity, building its structure, placing people, and safeguarding it.
+- **Publishing knowledge?** Chapters 8, 9, 10, 11 and 12 cover courses, the Studio, exams,
+  editions & review, and the library.
+- **A learner or team member?** Chapters 13 and 16 are for you — My Learning and the Mailbox.
+- **A manager?** Chapters 14 and 15 cover Requests and Compliance — including why someone is
+  not compliant, how to look one person up, and how to reset an exam for them.
+- **Paying for it — or just starting out?** Chapter 17 explains Knowledge Coins, the plan
   ladder, what the free plan includes, and how upgrading works.
-- **Just want it to look right?** Chapter 17 covers themes and the navigation bar.
-- **Wondering where the files actually go?** Chapter 20 walks through every storage
+- **Responsible for security?** Chapters 18 and 19 cover custody, backups, recovery, and the
+  session rules that decide how long a signed-in browser stays signed in.
+- **Just want it to look right?** Chapter 20 covers themes, the pointer, hints and the
+  navigation bar.
+- **Wondering where the files actually go?** Chapter 23 walks through every storage
   arrangement end to end — NAS on your own hardware, the KVEP perk, and what is coming after.
-- **Coming back after a while?** Chapter 21 is the dated record of what changed.
-
-Each chapter is self-contained, with a short **"What it is"**, a step-by-step **"How to use
-it"**, and **Tips** at the end.
+- **Coming back after a while?** Chapter 24 is the dated record of what changed.
 
 ---
 
@@ -46,27 +68,30 @@ it"**, and **Tips** at the end.
 
 | # | Chapter | What you'll learn |
 |---|---------|-------------------|
-| 1 | [Getting started — your profile](chapter-01-getting-started.md) | Register, sign in, manage your account |
+| 1 | [Getting started — your profile](chapter-01-getting-started.md) | Register, sign in, manage your account, read your coins |
 | 2 | [The big idea — core concepts](chapter-02-core-concepts.md) | Constellation, roles, custody, classifications |
-| 3 | [Founding an organization](chapter-03-founding-an-organization.md) | Create an org and set the Supreme password |
-| 4 | [The Constellation — your org map](chapter-04-the-constellation.md) | Read, navigate and act on the star map |
-| 5 | [Building your structure](chapter-05-building-your-structure.md) | Roles, sub-groups, visibility |
-| 6 | [People & governance](chapter-06-people-and-governance.md) | Owners, members, least-privilege rights, username suggestions |
-| 7 | [Courses — publishing knowledge](chapter-07-courses.md) | Publish, classify and assign courses |
-| 8 | [The Document Studio](chapter-08-the-studio.md) | Build documents visually, block by block |
-| 9 | [Exams & assessment](chapter-09-exams-and-assessment.md) | Build a paper, set attempts, mark, and reset |
-| 10 | [The Library](chapter-10-the-library.md) | Browse, filter and request courses |
-| 11 | [My Learning & the viewer](chapter-11-my-learning.md) | Complete your assigned courses; PDF zoom |
-| 12 | [Requests — ask & approve](chapter-12-requests.md) | The ask-and-approve centre |
-| 13 | [Compliance tracking](chapter-13-compliance.md) | Who's done what, why they haven't, and how to nudge |
-| 14 | [The Mailbox](chapter-14-the-mailbox.md) | Folders, labels, priority, expiry and the chime |
-| 15 | [Plans, pricing & Knowledge Coins](chapter-15-plans-and-access.md) | Coins, the plan ladder, the free plan, access codes, upgrades |
-| 16 | [The Supreme zone — custody & recovery](chapter-16-supreme-and-custody.md) | Backups, `.main`, `.bkp`, the Recovery |
-| 17 | [Appearance & navigation](chapter-17-appearance-and-navigation.md) | Themes, accents, and the icon-first nav bar |
-| 18 | [Flow diagrams — every setting at a glance](chapter-18-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
-| 19 | [Help & support](chapter-19-help-and-support.md) | Where to find answers in-app |
-| 20 | [Where your documents live](chapter-20-where-your-documents-live.md) | NAS, the KVEP perk, and the storage backends still to come |
-| 21 | [What's new](chapter-21-whats-new.md) | A dated record of what changed |
+| 3 | [Founding an organization](chapter-03-founding-an-organization.md) | Create an org, set the Supreme password, choose storage |
+| 4 | [Your organizations — the dashboard](chapter-04-your-organizations.md) | Cards, logos, plan timers, filters, search and Recovery |
+| 5 | [The Constellation — your org map](chapter-05-the-constellation.md) | Read, navigate and act on the star map |
+| 6 | [Building your structure](chapter-06-building-your-structure.md) | Roles, sub-groups, visibility |
+| 7 | [People & governance](chapter-07-people-and-governance.md) | Owners, members, least-privilege rights, username suggestions |
+| 8 | [Courses — publishing knowledge](chapter-08-courses.md) | Publish, classify, schedule and assign courses |
+| 9 | [The Document Studio](chapter-09-the-studio.md) | Build documents visually, block by block |
+| 10 | [Exams & assessment](chapter-10-exams-and-assessment.md) | Build a paper, set attempts, sit it, mark it, reset it |
+| 11 | [Editions, versions & the review channel](chapter-11-editions-and-review.md) | Revise safely, replace or coexist, and review what members write |
+| 12 | [The Library](chapter-12-the-library.md) | Browse, filter and request courses |
+| 13 | [My Learning & the reader](chapter-13-my-learning.md) | Complete your courses; zoom, reading size, full screen |
+| 14 | [Requests — ask & approve](chapter-14-requests.md) | The ask-and-approve centre |
+| 15 | [Compliance tracking](chapter-15-compliance.md) | Who's done what, why they haven't, one person at a time |
+| 16 | [The Mailbox](chapter-16-the-mailbox.md) | Folders, labels, priority, expiry and the chime |
+| 17 | [Plans, pricing & Knowledge Coins](chapter-17-plans-and-access.md) | Coins, the plan ladder, the free plan, access codes, upgrades |
+| 18 | [The Supreme zone — custody & recovery](chapter-18-supreme-and-custody.md) | Backups, `.main`, `.bkp`, the Recovery |
+| 19 | [Staying signed in — sessions & security](chapter-19-sessions-and-security.md) | The one-hour rule, the warning card, and what ends a session |
+| 20 | [Appearance & navigation](chapter-20-appearance-and-navigation.md) | Themes, accents, the pointer, hints, and the icon-first nav bar |
+| 21 | [Flow diagrams — every setting at a glance](chapter-21-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
+| 22 | [Help & support](chapter-22-help-and-support.md) | Where to find answers in-app |
+| 23 | [Where your documents live](chapter-23-where-your-documents-live.md) | NAS, the KVEP perk, and the storage backends still to come |
+| 24 | [What's new](chapter-24-whats-new.md) | A dated record of what changed |
 | A | [Appendix — Glossary & quick reference](appendix-glossary-and-reference.md) | Every term and code, at a glance |
 
 ---
@@ -77,12 +102,16 @@ it"**, and **Tips** at the end.
 |--------------|-------|
 | Create a profile | **Register** — a username and password, no email |
 | Found an organization | **Pricing** → request a plan → **Create organization** with your code |
+| Find an organization among many | **Organizations** → the **All / Owner / Member** filter, or search |
+| Give your organization a face | Root branch → **Group configuration** → **Logo** |
 | See your company's shape | **Constellation** |
 | Add someone | Click their branch → **People** → **+ Add person** (type to see who exists) |
 | Publish a document | Click a branch → **Courses** → **Upload** or **✍ Create in Studio** |
 | Set an exam | **✍ Create in Studio** → *exam* |
+| Revise something already published | **Courses** → **✎ Revise** → publish the next edition |
 | Do your training | **My Learning** |
 | See who's behind | **Compliance** |
+| Check one person | **Compliance** → **Look up a person** |
 | Read what the platform told you | The **bell** — your Mailbox |
 | Get your organization back | **Organizations** → **Recovery**, bottom-left |
 | Change how it looks | The **palette** button, top right |
@@ -99,10 +128,13 @@ The whole book is published as a single PDF —
 To rebuild the PDF after editing a chapter:
 
 ```bash
-cd "Main Guide Book/tools"
+cd guide-book-tools
 npm install      # one-off: markdown-it, mermaid, sharp, playwright
-node build-pdf.mjs
+node build-pdf.mjs main
 ```
+
+Adding a chapter means adding its filename to the `files` list in `guide-book-tools/books.mjs` —
+the build script reads nothing else, so a file left out of that list simply isn't in the PDF.
 
 ---
 
