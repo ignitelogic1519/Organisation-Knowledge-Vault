@@ -124,8 +124,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       },
       {
         icon: "📊",
-        title: "Compliance, per branch",
-        text: "For every course reaching a branch you govern: who is compliant, who isn't, and — in plain words — why. Not started, overdue, expired, or out of exam attempts.",
+        title: "Compliance, per branch and per person",
+        text: "For every course reaching a branch you govern: who is compliant, who isn't, and — in plain words — why. Not started, overdue, expired, or out of exam attempts. Look one person up and get every course that reaches them, in one card.",
         href: "/orgs",
         gated: true,
       },
@@ -136,8 +136,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       },
       {
         icon: "⏰",
-        title: "Deadlines that escalate",
-        text: "An overdue mandatory course notifies the learner and the person who placed them — nothing quietly rots.",
+        title: "Deadlines that escalate — and are fair",
+        text: "An overdue mandatory course notifies the learner and the person who placed them. A deadline runs from the day the course reached that person, so a new starter is never instantly late for something placed a year ago.",
       },
       {
         icon: "🔔",
@@ -197,15 +197,27 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         text: "Export an encrypted backup of the whole organization, or of a single branch, and keep it yourself. It is the one way back after a purge — and it works.",
       },
       {
-        icon: "🗑",
-        title: "A recycle bin, not a cliff",
-        text: "A deleted organization waits 30 days in the bin, restorable in one click, before anything is actually purged.",
+        icon: "↩",
+        title: "Recovery, not a cliff",
+        text: "A deleted organization waits 30 days, restorable with the Supreme password in one click. After the purge, your .main file still brings it back — both routes live behind one Recovery button on your organizations page.",
+      },
+      {
+        icon: "⏳",
+        title: "Sessions that actually end",
+        text: "An hour away from the keyboard ends a session, and the next visit is told why. Background polling doesn't count as presence — only a click, a key, a scroll or a page opened does, and the last minute is announced.",
       },
       {
         icon: "🪙",
         title: "Knowledge Coins & plans",
         text: "Plans are paid in coins. Only the free plan is metered — every paid plan carries unlimited documents and uploads.",
         href: "/pricing",
+      },
+      {
+        icon: "🗂",
+        title: "A dashboard that scales",
+        text: "Every organization as a card — its logo, its number, its plan in months rather than thousands of days, and the positions you hold. Past five, a filter and a search that knows your own role names.",
+        href: "/orgs",
+        gated: true,
       },
       {
         icon: "🎨",

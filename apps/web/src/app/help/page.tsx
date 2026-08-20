@@ -10,7 +10,7 @@ export const metadata = {
 /** The published guide book, served from the app's own public folder. */
 const GUIDE_PDF = "/guide/Knowledge-Vault-Main-Guide-Book.pdf";
 const GUIDE_MD = "/guide/Knowledge-Vault-Main-Guide-Book.md";
-const GUIDE_CHAPTERS = 21;
+const GUIDE_CHAPTERS = 24;
 
 // Help — a plain-language guide to every component of the platform, public so both
 // prospective and signed-in users can read it (linked from the app sidebar too).
@@ -31,7 +31,12 @@ const TOPICS = [
             <strong>Register</strong> once, then join or found any number of organizations.
           </li>
           <li>
-            Manage or delete your profile from the <strong>Account</strong> page.
+            Manage or delete your profile, and read your Knowledge Coin balance, from the{" "}
+            <strong>Account</strong> page.
+          </li>
+          <li>
+            A session ends after <strong>an hour away from the keyboard</strong>, with a
+            warning in the last minute — see <em>Staying signed in</em> below.
           </li>
         </ul>
       </>
@@ -55,6 +60,40 @@ const TOPICS = [
           <li>
             It gates owner management, organization deletion, and encrypts the{" "}
             <code>.main</code> file.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "🗂",
+    title: "Your organizations",
+    body: (
+      <>
+        <p>
+          The page you land on after signing in holds every organization you belong to, each
+          as a <strong>card</strong>: its badge, its number, how long its plan has left, and
+          the positions you hold inside it.
+        </p>
+        <ul>
+          <li>
+            The <strong>plan chip</strong> counts in the largest unit that still means
+            something — <em>14 months left</em>, <em>12 days left</em>, <em>20h left</em> —
+            with a dot that darkens as the end approaches. Hover it for the exact date.
+          </li>
+          <li>
+            Past five organizations the page grows a <strong>filter bar</strong> (All /
+            Owner / Member) and a <strong>search</strong> that covers the name, the number
+            and <em>your own role names</em>.
+          </li>
+          <li>
+            Give an organization a <strong>logo</strong> from its root branch&apos;s Group
+            configuration — it then appears on the card, beside the name on every page, and
+            on the documents you publish.
+          </li>
+          <li>
+            <strong>Recovery</strong>, bottom-left, holds both ways back from a deletion:
+            the 30-day list, and a <code>.main</code> revival for anything already purged.
           </li>
         </ul>
       </>
@@ -117,6 +156,12 @@ const TOPICS = [
             branches offer a join request instead.
           </li>
           <li>Stars where you are placed glow with your accent color.</li>
+          <li>
+            Role names are <strong>laid out like place-names on a map</strong> — placed in
+            the first free space, ranked by how much you need them, and left off entirely
+            rather than printed on top of a neighbour. Zoom in and a missing name comes
+            back.
+          </li>
         </ul>
       </>
     ),
@@ -127,9 +172,9 @@ const TOPICS = [
     body: (
       <>
         <p>
-          Courses (documents, books, links, audio, video) are published onto roles and can{" "}
-          <strong>inherit down</strong> the branch. Your <strong>Overview</strong> tab
-          collects everything that reaches your position.
+          Courses (documents, books, links, audio, video and exams) are published onto roles
+          and can <strong>inherit down</strong> the branch. Your{" "}
+          <strong>My Learning</strong> tab collects everything that reaches your position.
         </p>
         <ul>
           <li>
@@ -142,6 +187,82 @@ const TOPICS = [
           </li>
           <li>
             <strong>Prerequisites</strong> lock a course until earlier ones are completed.
+          </li>
+          <li>
+            Everything opens in the <strong>reader</strong>, inside the app: the standard
+            cover page first, then scope, then the document. Zoom with{" "}
+            <strong>Ctrl/⌘ + scroll</strong>, a pinch, or the reading-size pill — text
+            re-wraps rather than forcing you to scroll sideways, and PDFs re-render sharp.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "✍",
+    title: "The Document Studio",
+    body: (
+      <>
+        <p>
+          Instead of uploading a file, you can <strong>compose the document here</strong> —
+          headings, rich text, tables, checklists, callouts, images, audio, video, embeds,
+          columns and page breaks — and watch it render in your organization&apos;s standard
+          frame as you write.
+        </p>
+        <ul>
+          <li>
+            The Studio asks one question first: a <strong>document</strong>, or an{" "}
+            <strong>exam</strong>. Both carry the same classification, description, shelf and
+            placement settings.
+          </li>
+          <li>
+            Your browser keeps a copy <strong>as you type</strong>, on every plan. Parking a
+            draft on the server — to pick it up on another device — is a paid capability.
+          </li>
+          <li>
+            A chip beside the publish button reads <strong>Ready to publish</strong>, or
+            names exactly what is missing. Hover anything compulsory and a hint says why it
+            is compulsory.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "🔁",
+    title: "Editions & the review channel",
+    body: (
+      <>
+        <p>
+          Nothing published is quietly overwritten. Revising something produces a{" "}
+          <strong>new edition</strong> — v1.0 becomes v2.0 — with a dated note saying what
+          changed and who changed it.
+        </p>
+        <ul>
+          <li>
+            The order is fixed, because readers are on the current edition:{" "}
+            <strong>take it out of deployment</strong>, revise it (or replace the file),
+            then <strong>publish the next edition</strong>. Placements are kept untouched.
+          </li>
+          <li>
+            Switch on <em>updates reset completion</em> and publishing a new edition asks
+            everyone to read it again. Leave it off and completions stand.
+          </li>
+          <li>
+            Editing what the organization <em>says</em> about a document — its shelf,
+            description, deadline, prerequisites — is <strong>not</strong> an edition. No
+            version bump, no re-read.
+          </li>
+          <li>
+            A new document can <strong>coexist</strong> with the one it replaces or{" "}
+            <strong>supersede</strong> it, inheriting every branch the old one reached on
+            the same terms. The retired code still resolves, and forwards.
+          </li>
+          <li>
+            A member with the <strong>create content</strong> right proposes rather than
+            publishes. The reviewer previews it full screen and either approves it, declines
+            it, or <strong>sends it back with a note</strong> — with a conversation attached
+            to the review.
           </li>
         </ul>
       </>
@@ -162,8 +283,9 @@ const TOPICS = [
             it — then <strong>request it</strong> for your branch.
           </li>
           <li>
-            Requests carry clear categories: <strong>Course request</strong>,{" "}
-            <strong>Join request</strong>, <strong>Deletion request</strong>.
+            Requests carry clear categories: <strong>Course</strong>, <strong>Join</strong>,{" "}
+            <strong>Deletion</strong>, <strong>Visibility</strong>, and{" "}
+            <strong>Document review</strong> — each with its own label in your mailbox.
           </li>
           <li>
             Approving a course request means <strong>configuring it first</strong> —
@@ -172,6 +294,144 @@ const TOPICS = [
           <li>
             Deleting a branch always needs the level above: its own owners file a
             Deletion request; approval executes it.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "📊",
+    title: "Compliance — and honest deadlines",
+    body: (
+      <>
+        <p>
+          For any branch you govern, <strong>Compliance</strong> shows per-course completion
+          across the whole subtree, and says <strong>why</strong> each person is not
+          compliant in plain words rather than a bare &ldquo;not completed&rdquo;.
+        </p>
+        <ul>
+          <li>
+            <strong>Look up a person</strong> answers the other question managers ask:
+            every course that reaches them, each with a status and a reason, in one card.
+          </li>
+          <li>
+            A deadline is <strong>how long someone has after the course reaches them</strong>
+            . The clock starts at the later of the day it was placed and the day they joined
+            the branch — so a new starter is never instantly late for a course that has been
+            there for a year.
+          </li>
+          <li>
+            A recurring course that lapses opens a <strong>new cycle</strong>, dated from the
+            lapse; a republished edition that resets completions dates the new obligation to
+            the republish. Genuinely late people are still late.
+          </li>
+          <li>
+            Tick the people who are behind and <strong>send a reminder</strong>, deep-linked
+            to the exact course.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "🧪",
+    title: "Exams, attempts & resets",
+    body: (
+      <>
+        <p>
+          An exam is built in the same Studio as a document, and is marked on the server —
+          the answer key never reaches the browser.
+        </p>
+        <ul>
+          <li>
+            In My Learning an exam reads <strong>&ldquo;Complete the exam&rdquo;</strong>;
+            passing it completes the course, exactly as finishing a document does.
+          </li>
+          <li>
+            The author can cap the <strong>number of attempts</strong>. Spend them all
+            without passing and the exam locks.
+          </li>
+          <li>
+            The branch&apos;s <strong>Compliance</strong> view then says so in plain words —
+            &ldquo;has used every attempt&rdquo; rather than a bare &ldquo;not
+            completed&rdquo; — beside the attempts used and the best score.
+          </li>
+          <li>
+            A <strong>manager or higher can reset</strong> the allowance in one click. The
+            sittings stay on record; only the count goes back to zero, and the candidate is
+            told they can try again.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "📥",
+    title: "The Mailbox",
+    body: (
+      <>
+        <p>
+          Everything the platform has to tell you arrives in one <strong>mailbox</strong>,
+          reachable from the bell on every page. It works like a mail client: folders down
+          the side, a message list in the middle, and a reading pane.
+        </p>
+        <ul>
+          <li>
+            <strong>Folders by category</strong> — Knowledge Base, Requests, Publishing,
+            Learning, Plans &amp; Coins, People, System — plus a{" "}
+            <strong>label per organization</strong>, so you can read one organization at a
+            time.
+          </li>
+          <li>
+            <strong>Sub-labels</strong> tell request kinds apart at a glance: document
+            publishing, a course for your path, a join request, a branch deletion, a
+            visibility request.
+          </li>
+          <li>
+            Messages from the <strong>Knowledge Base team</strong> — access codes, plan
+            decisions, coin adjustments — arrive flagged <strong>high priority</strong> and
+            pinned to the top.
+          </li>
+          <li>
+            <strong>Everything expires.</strong> Each message shows how long it has left,
+            and deletes itself when it gets there. Knowledge Base mail lives 30 days;
+            routine notices go sooner.
+          </li>
+          <li>
+            Select several messages to mark or delete them together, search the lot, and
+            turn the arrival <strong>chime</strong> on or off.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    icon: "⏳",
+    title: "Staying signed in",
+    body: (
+      <>
+        <p>
+          A session ends after <strong>one hour of inactivity</strong>, and the next visit
+          asks for your password — with the reason on the screen rather than a bare prompt.
+        </p>
+        <ul>
+          <li>
+            What counts as activity is <strong>the person, not the program</strong>: a
+            click, a key, a scroll, a touch, a page opened. Background polling and token
+            refreshes do not keep a session alive.
+          </li>
+          <li>
+            The last minute is announced by a <strong>&ldquo;Still there?&rdquo;</strong>{" "}
+            card with <strong>Stay signed in</strong> beside it — never a modal, because a
+            dialog would block the very movement that keeps you signed in.
+          </li>
+          <li>
+            Every tab agrees: one window timing out signs the rest out with the same
+            explanation. Closing the laptop counts as being away.
+          </li>
+          <li>
+            Signing out ends the <strong>session</strong>, not just this tab — which is the
+            right default on a shared machine.
           </li>
         </ul>
       </>
@@ -187,7 +447,8 @@ const TOPICS = [
           <li>
             <code>.main</code> — the organization&apos;s <strong>existence backup</strong>,
             encrypted with the Supreme password. After deletion and the 30-day retention it
-            is the <em>only</em> way to revive the organization.
+            is the <em>only</em> way to revive the organization. Both routes back live behind{" "}
+            <strong>Recovery</strong>, in the bottom-left of your Organizations page.
           </li>
           <li>
             <code>.bkp</code> — an encrypted backup of a single branch, exportable by that
@@ -249,79 +510,22 @@ const TOPICS = [
             back exactly the look you left.
           </li>
           <li>
+            A third section, <strong>Motion</strong>, has an <strong>Animation</strong>{" "}
+            switch for the ambient movement — off by default, and remembered per device.
+          </li>
+          <li>
+            On a device with a real pointer the app draws <strong>its own cursor</strong>: a
+            star over anything clickable, a turning book while it fetches, a nib over text.
+            It follows a document or an exam into full screen, and hands the ordinary arrow
+            back if it ever cannot draw.
+          </li>
+          <li>
+            <strong>Hints</strong> replace the browser&apos;s tooltip — a card beside the
+            pointer that explains not just what a control is, but why a compulsory field is
+            compulsory.
+          </li>
+          <li>
             All motion respects your <em>reduced motion</em> preference.
-          </li>
-        </ul>
-      </>
-    ),
-  },
-  {
-    icon: "📥",
-    title: "The Mailbox",
-    body: (
-      <>
-        <p>
-          Everything the platform has to tell you arrives in one <strong>mailbox</strong>,
-          reachable from the bell on every page. It works like a mail client: folders down
-          the side, a message list in the middle, and a reading pane.
-        </p>
-        <ul>
-          <li>
-            <strong>Folders by category</strong> — Knowledge Base, Requests, Publishing,
-            Learning, Plans &amp; Coins, People, System — plus a{" "}
-            <strong>label per organization</strong>, so you can read one organization at a
-            time.
-          </li>
-          <li>
-            <strong>Sub-labels</strong> tell request kinds apart at a glance: document
-            publishing, a course for your path, a join request, a branch deletion, a
-            visibility request.
-          </li>
-          <li>
-            Messages from the <strong>Knowledge Base team</strong> — access codes, plan
-            decisions, coin adjustments — arrive flagged <strong>high priority</strong> and
-            pinned to the top.
-          </li>
-          <li>
-            <strong>Everything expires.</strong> Each message shows how long it has left,
-            and deletes itself when it gets there. Knowledge Base mail lives 30 days;
-            routine notices go sooner.
-          </li>
-          <li>
-            Select several messages to mark or delete them together, search the lot, and
-            turn the arrival <strong>chime</strong> on or off.
-          </li>
-        </ul>
-      </>
-    ),
-  },
-  {
-    icon: "🧪",
-    title: "Exams, attempts & resets",
-    body: (
-      <>
-        <p>
-          An exam is built in the same Studio as a document, and is marked on the server —
-          the answer key never reaches the browser.
-        </p>
-        <ul>
-          <li>
-            In My Learning an exam reads <strong>&ldquo;Complete the exam&rdquo;</strong>;
-            passing it completes the course, exactly as finishing a document does.
-          </li>
-          <li>
-            The author can cap the <strong>number of attempts</strong>. Spend them all
-            without passing and the exam locks.
-          </li>
-          <li>
-            The branch&apos;s <strong>Compliance</strong> view then says so in plain words —
-            &ldquo;has used every attempt&rdquo; rather than a bare &ldquo;not
-            completed&rdquo; — beside the attempts used and the best score.
-          </li>
-          <li>
-            A <strong>manager or higher can reset</strong> the allowance in one click. The
-            sittings stay on record; only the count goes back to zero, and the candidate is
-            told they can try again.
           </li>
         </ul>
       </>
@@ -356,9 +560,16 @@ export default function HelpPage() {
             <p>
               Every screen in the product, explained in plain language and in the order you
               actually meet it — founding an organization, building the structure, placing
-              people, authoring in the Studio, running exams, tracking compliance, reading
-              the mailbox, and keeping custody of it all. Written for the people who use
-              Knowledge Vault, not for the people who build it.
+              people, authoring in the Studio, running exams, revising what you published,
+              tracking compliance, reading the mailbox, and keeping custody of it all.
+              Written for the people who use Knowledge Vault, not for the people who build
+              it.
+            </p>
+            <p>
+              Every chapter carries a <strong>why it matters</strong> table — the benefit
+              measured on time, risk &amp; compliance, security &amp; custody, cost and
+              adoption — and a ready-made <strong>shot list</strong>, if you are recording a
+              walk-through for your own people.
             </p>
             <div className="guidebook-actions">
               <a className="btn btn-primary" href={GUIDE_PDF} download>

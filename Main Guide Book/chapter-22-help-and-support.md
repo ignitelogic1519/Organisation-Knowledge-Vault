@@ -25,21 +25,42 @@ the app).
 
 ---
 
+## The guide book, at the top of the page
+
+The first thing on the page is this book. The panel offers it three ways — **download the
+PDF**, **download the Markdown**, or **read it in the browser** — and it is republished
+whenever the product changes, so the copy the Help page serves is always the current edition.
+
+---
+
 ## What Help covers
 
-The page walks through each component of the platform in short, friendly topics, including:
+Below the book, the page walks through every component of the platform in short, friendly
+topics — sixteen of them, in the order you meet them:
 
-- **Profile & signing in** — your one global username-and-password identity, and how admins
-  add you by username.
-- **Organizations & the Supreme** — what an organization is, and the Supreme password that
-  protects its root.
-- **The constellation, roles and people** — how the tree works and how positions are placed.
-- **Courses, the library and learning** — publishing, browsing and completing knowledge.
-- **Requests, compliance and notifications** — the day-to-day flows for managers and
-  learners.
+| Topic | What it answers |
+|-------|-----------------|
+| **Profile & signing in** | One username, no email — and how long a session lasts |
+| **Organizations & the Supreme** | What an organization is, and the password that guards its root |
+| **Your organizations** | The dashboard: badges, plan chips, the filter and search, Recovery |
+| **Roles, owners & members** | The tree, the two kinds of person, and public vs hidden |
+| **The Constellation tab** | Panning, zooming, clicking a star — and how names are laid out |
+| **Courses & My Learning** | Publishing, inheritance, deadlines, and the reader's zoom |
+| **The Document Studio** | Composing a document or an exam, and what "ready to publish" means |
+| **Editions & the review channel** | Revising without overwriting; coexist or supersede; member proposals |
+| **Library & Requests** | Browsing by subject, and the five kinds of request |
+| **Compliance — and honest deadlines** | Per branch, per person, and what "overdue" actually measures |
+| **Exams, attempts & resets** | Server-side marking, attempt limits, and handing an allowance back |
+| **The Mailbox** | Folders, labels, priority, expiry, the chime |
+| **Staying signed in** | The one-hour rule, and what counts as activity |
+| **`.main` & `.bkp` files** | Custody, and both routes back from a deletion |
+| **Where your documents live** | NAS, encryption posture, KVEP |
+| **Themes & appearance** | Day/night, accents, motion, the pointer and its hints |
+
+![The topic cards, in the order you meet them](images/help-topics.png)
 
 Each topic is written for people, not engineers — no setup or code, just how to use the
-product.
+product. Every one of them corresponds to a chapter here, in more depth.
 
 ---
 
@@ -91,8 +112,8 @@ useful for showing someone what the platform does before they have an account:
 | # | Shot | Say |
 |---|------|-----|
 | 1 | The Help link in the navigation, on a signed-out page | "Public, so you can read it before you have an account." |
-| 2 | Scroll the topics | "Every part of the product, in plain language." |
-| 3 | The guide-book download buttons | "And the whole guide book — this book — as a PDF or a single Markdown file." |
+| 2 | The guide-book panel at the top | "The whole book, first: a PDF, a Markdown file, or read it in the browser." |
+| 3 | Scroll the sixteen topic cards | "Then every part of the product, in plain language — one card per idea." |
 | 4 | Cut to the Features page | "If you want the tour rather than the manual, that's next door." |
 
 **Script beat to close on:** *"Two pages, no login, always current with the running app."*
