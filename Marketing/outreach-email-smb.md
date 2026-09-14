@@ -1,206 +1,210 @@
 # Outreach email — small & mid-sized organizations
 
 The cold-outreach mail for Knowledge Vault, written for an organization of roughly
-**20–500 people** that trains its staff, has to prove it, and is tired of being billed
-per head.
+**20–500 people** that trains its staff, has to prove it, and is billed per head for the
+privilege.
 
-Everything in square brackets is a placeholder to fill in before sending. Prices are the
-proposed INR ladder in [README.md](README.md) — change them there and here together.
+Formal register, deliberately specific about architecture — the buyer here is usually an
+operations, HR or quality head who will forward it to someone technical. Everything in
+square brackets is a placeholder. Fees are the ladder in [README.md](README.md); change
+them there and in both mail files together.
 
 ---
 
 ## Subject lines
 
-Pick one. The first is the workhorse; the others are for a second attempt at a cold list.
+1. **Organization-wide training and compliance at a flat annual fee**
+2. **[Organization name]: unlimited users, ₹43,999 a year, your files on your own storage**
+3. **An alternative to per-seat training software**
 
-1. **Train your entire organization for under ₹3,000 a month — unlimited people**
-2. **Your training records, on your own storage, at a flat price**
-3. **[Organization name]: unlimited users, ₹4,999/month, nothing to install**
-4. **Stop paying per employee for compliance training**
-
-**Preheader** (the grey line after the subject in most inboxes):
-> Flat price per organization. Unlimited people. Your documents stay on your storage.
+**Preheader:** One fee per organization. No per-user billing. Documents remain on your storage.
 
 ---
 
 ## The main email
 
-> Send as plain text or paste `outreach-email-smb.html` for the formatted version.
+> Send as plain text, or paste `outreach-email-smb.html` for the formatted version.
 
 ---
 
-Subject: **Train your entire organization for under ₹3,000 a month — unlimited people**
+Subject: **Organization-wide training and compliance at a flat annual fee**
 
-Hello [Contact name],
+Dear [Contact name],
 
-Most training and compliance platforms charge you per employee. Hire twenty people and the
-software bill goes up — which is a strange way to price a tool whose whole job is to make
-sure everybody is trained.
+I am writing to introduce **Knowledge Vault**, a training and compliance platform for
+organizations that must train their people and prove afterwards that they did.
 
-**Knowledge Vault** charges one flat price per organization. Unlimited people, on every
-paid plan.
+Software in this category is billed per employee — ₹80 to ₹250 per user per month in this
+market at your size — so proving your workforce is trained costs more every time you hire.
+Knowledge Vault is licensed at a flat fee per organization, with no limit on headcount.
 
-**What it does**
+**The platform**
 
-Knowledge Vault is a training and compliance platform built around how your organization
-actually works — as a tree of roles, not a list of names.
+- **Role-based distribution.** Your organization is modelled as a tree of roles. A course
+  published to *Plant → Shift B → Operators* reaches everyone holding that role, including
+  anyone who joins next month. Mandatory status, deadlines, recurrence, prerequisites and
+  escalation are set per branch and inherited down the subtree.
+- **Authoring included.** The Document Studio produces the material itself — structured
+  documents with tables, images, audio and video, versioned editions, and a review step
+  before publication. No separate authoring licence is required.
+- **Assessment.** Single-choice, multiple-choice and true/false papers with pass marks,
+  weighted questions, randomised order, time limits and attempt caps, marked server-side —
+  the answer key is never transmitted to the candidate's browser.
+- **Evidence.** Compliance is reported per course and per person, with the reason on every
+  row and reminders issued in one click. Every document carries a compulsory
+  classification — Public, Confidential, Private or Secret — an auto-generated cover and
+  scope page, and a versioned header and footer.
 
-- **Courses attach to roles, not people.** Publish the safety induction to *Plant → Shift
-  B → Operators* once. Everyone in that role gets it, and anyone who joins it next month
-  gets it automatically. Nobody assigns training person by person again.
-- **Build the material inside the product.** The Document Studio is a real editor —
-  formatting ribbon, drag-and-drop blocks, spreadsheet-style tables, audio and video with
-  non-skippable playback, page-turn animations and a present mode. No separate authoring
-  licence, no template pack, no design agency.
-- **Set exams and have them marked for you.** Multiple choice, single choice, true/false,
-  pass marks, randomised questions, time limits and attempt caps. Marking happens on our
-  server, so the answer key never reaches the candidate's browser. A hundred candidates
-  cost the same as one.
-- **Prove it afterwards.** The Compliance view answers both questions managers actually
-  ask — *who is behind on this course?* and *where does this person stand?* — and sends
-  reminders in one click. "They attended the briefing" becomes "they scored 88% on the
-  paper, on their first attempt, at 14:02 on the 9th".
-- **Every document is classified and covered.** Public, Confidential, Private or Secret is
-  compulsory on every item, and each document gets an auto-generated cover page, scope
-  page and versioned header/footer. Audit-ready by default, not by discipline.
-- **Approvals are built in.** Members with content rights *propose* documents; they
-  publish only after a manager's review. Joining, course requests, branch deletion and
-  visibility changes all run through the same ask-and-approve centre.
+**Services included**
 
-**What it costs**
-
-Flat, per organization. Unlimited people on every paid plan.
-
-| Plan | You get | Price | Works out at |
+| | Monthly | Quarterly | Yearly |
 |---|---|---|---|
-| **Free trial** | 30 days, up to 10 people, 150 GB | **₹0** | — |
-| **Monthly** | 30 days | **₹4,999** | ₹4,999 / month |
-| **Quarterly** | **130 days** — a full quarter plus 40 days | **₹13,999** | ₹3,231 / month — *save 35%* |
-| **Yearly** | **425 days** — 12 months plus 2 free | **₹41,999** | ₹2,965 / month — *save 41%* |
-| **Custom** | You state the days and the people | By agreement | — |
+| Platform — unlimited people, documents, uploads | ✓ | ✓ | ✓ |
+| Role-structure design | Self-serve | Included | Included |
+| Storage connection and verification | Guided | Included | Included |
+| Migration of existing material | — | Up to 50 documents | Up to 200 documents |
+| Administrator training | — | One session | Two sessions |
+| Compliance configuration | Guided | Included | Included |
+| Custody and backup drill | Self-serve | Included | Included, reviewed quarterly |
+| Support | Next business day | Next business day | Priority |
+| Updates, monitoring, guide book | ✓ | ✓ | ✓ |
 
-*Prices are per organization and exclusive of GST. Onboarding, structure setup and admin
-training are included at no extra cost on the quarterly and yearly plans.*
+**Commercials**
 
-Put the yearly plan against your headcount and it reads like this:
+| Plan | Term | Fee (ex-GST) | Effective monthly |
+|---|---|---|---|
+| Evaluation | 30 days · 10 people · 150 GB | Nil | — |
+| **Monthly** | 30 days | **₹6,999** | ₹6,999 |
+| **Quarterly** | **130 days** | **₹15,999** | ₹3,692 — *47% lower* |
+| **Yearly** | **425 days** | **₹43,999** | ₹3,106 — *56% lower* |
+| Custom | Term and scale by agreement | On application | — |
 
-| Your team | What Knowledge Vault costs per person, per month |
-|---|---|
-| 50 people | **₹59** |
-| 100 people | **₹30** |
-| 250 people | **₹12** |
-| 500 people | **₹6** |
+Fees are per organization, exclusive of GST. Both longer terms run past their names: 130
+days is a quarter plus forty, 425 days a year plus two months.
 
-Add another two hundred people next year and that bill does not move.
+**The cost in practice**
 
-**Four things you will not find elsewhere at this price**
+Independent 2026 surveys place Indian LMS pricing at ₹80–250 per user per month at this
+size, and first-year cost of ownership at 1.5 to 3 times the subscription once
+implementation, content production and training are added. On the yearly plan those
+services are in the fee, so that multiplier does not apply.
 
-1. **Your documents live on your storage, not ours.** Point Knowledge Vault at your own
-   NAS and the files stay in your building, under your backup policy, on hardware you
-   already paid for. We keep the roles, the records and the reading experience; the bytes
-   stay yours. That is data residency without an enterprise contract — and it is why the
-   price can be flat, because the expensive part isn't on our bill.
-2. **Your organization's existence belongs to you.** Every organization has a `.main`
-   custody file, encrypted under a Supreme password only you know. Hold that file and you
-   can revive your organization yourself. There is no version of this where your training
-   history is hostage to a renewal conversation.
-3. **No email addresses required.** Identity is a username, not a mailbox. If half your
-   people are on a shop floor, a site or a route and have never had a company email
-   address, they are still fully in the system on day one — which is the point where most
-   rollouts of this kind quietly stall.
-4. **Exams without a proctoring service.** Full-screen sitting with warnings when a
-   candidate leaves the paper, server-side marking, one record per attempt. The
-   invigilator is built in.
+| Your size | Per-seat, 12 months | Knowledge Vault | Per person / month | Difference |
+|---|---|---|---|---|
+| 80 people at ₹150 | ₹1,44,000 | ₹43,999 | **₹46** | ₹1,00,001 |
+| 250 people at ₹100 | ₹3,00,000 | ₹43,999 | **₹15** | ₹2,56,001 |
+| 500 people at ₹70 | ₹4,20,000 | ₹43,999 | **₹7** | ₹3,76,001 |
 
-Plus the things you would expect and often don't get: live updates across every screen,
-an inbox that deep-links to the exact item needing a decision, sessions that end after an
-hour of inactivity, and a 220-page guide book that ships with the product.
+Charged against twelve months the yearly fee is ₹3,667 a month: below the cheapest rate in
+that band from about 46 people upward, and below the middle of it from about 25. Beyond
+that, every additional employee is free — and the table is conservative, since ₹43,999 buys
+425 days rather than 365.
 
-**Try it before you decide anything**
+**Why the fee can be flat**
 
-The free plan is a complete product for 30 days — up to 10 people and 150 GB — not a
-crippled demo. Build a branch, publish a real course, set a real exam, and see your first
-compliance report before any money is discussed.
+Document bytes never reside on our infrastructure. They stream through a storage adapter to
+S3-compatible storage you own — a NAS in your own building — with a manifest alongside
+them describing structure and permissions. We hold the roles, the records and the
+reading experience; the files stay on hardware you have already paid for, under your own
+backup policy. The storage cost that forces per-gigabyte billing elsewhere is not on our
+bill at all.
 
-Reply to this mail and I will set up your trial organization, or pick a 20-minute slot
-here: [demo link]
+The rest is conventional and auditable: a TypeScript monorepo, a Next.js application and a
+separate Fastify and Prisma API over PostgreSQL; Argon2id password hashing with JWT access
+and refresh tokens; sessions that end after sixty minutes of inactivity, enforced by the API
+on every request; and one authorization function shared by both applications, so permissions
+are decided in a single place rather than across thirty screens. Each organization also holds
+an encrypted, server-signed custody file with which it can restore its own existence.
 
-Warm regards,
+**Next step**
+
+The evaluation plan is the complete product for 30 days — up to 10 people and 150 GB — not a
+restricted demonstration. I would be glad to configure it around your own structure and one
+of your existing documents, so that you assess your material rather than a sample.
+
+I can be reached at [Phone] or [Email], and a twenty-minute walkthrough booked at
+[demo link].
+
+Yours sincerely,
 
 [Your name]
-[Designation] · Knowledge Vault
+[Designation], Knowledge Vault
 [Phone] · [Email] · [Website]
 
 ---
 
 ## The short version
 
-For a cold list, a LinkedIn message, or a second touch — roughly 120 words.
+For a cold list or a second touch — roughly 130 words.
 
 ---
 
-Subject: **Unlimited users, ₹4,999/month, nothing to install**
+Subject: **An alternative to per-seat training software**
 
-Hello [Contact name],
+Dear [Contact name],
 
-Quick one. Most training and compliance platforms bill you per employee. **Knowledge
-Vault** charges one flat price per organization — unlimited people.
+Training and compliance software is normally billed per employee — ₹80 to ₹250 per user per
+month in this market. **Knowledge Vault** is licensed at a flat fee per organization, with
+no limit on headcount: **₹6,999 a month, ₹15,999 for 130 days, or ₹43,999 for 425 days,
+exclusive of GST.** For an organization of 250 people that is ₹15 per person per month
+against roughly ₹3,00,000 a year on a per-seat licence.
 
-Courses attach to roles rather than names, so anyone joining a role inherits everything
-mandatory to it. You build the material in the product, set exams that are marked on our
-server, and get a compliance report that stands up as evidence.
+Courses attach to roles rather than to names, the material is authored and examined inside
+the platform, and your documents remain on storage you own — a NAS in your own building —
+rather than on ours. Structure design, migration and administrator training are included in
+the fee.
 
-The unusual part: your documents sit on **your own storage**, so the files never leave
-your building.
+The 30-day evaluation is the full product. I would be glad to set it up for you.
 
-**₹4,999/month, ₹13,999 for 130 days, or ₹41,999 for 425 days.** At 100 people that is
-under ₹30 per person per month.
-
-Free 30-day trial — say the word and I will set it up.
-
-[Your name] · [Phone]
+[Your name] · [Phone] · [Email]
 
 ---
 
 ## Follow-ups
 
-**Follow-up 1 — five working days later.** Keep it in the same thread.
+**Follow-up 1 — five working days later, in the same thread.**
 
-> Hello [Contact name], bringing this back to the top of your inbox.
+> Dear [Contact name],
 >
-> The quickest way to judge Knowledge Vault is to use it: the 30-day trial takes about ten
-> minutes to set up and needs nothing installed. If it helps, I will build your first
-> branch and publish one of your existing documents into it myself, so you are looking at
-> your own material rather than a sample.
+> May I return this to the top of your inbox. The quickest way to judge Knowledge Vault is
+> to use it: the evaluation plan takes about ten minutes to provision and requires nothing
+> to be installed. If it is helpful, I will build your first role branch and publish one of
+> your existing documents into it, so that the assessment is made on your own material.
 >
-> Worth twenty minutes? — [Your name]
+> Would twenty minutes this week or next be convenient?
+>
+> Kind regards, [Your name]
 
 **Follow-up 2 — two weeks later. The close-the-loop mail.**
 
-> Hello [Contact name], I will stop here so I am not cluttering your inbox.
+> Dear [Contact name],
 >
-> If training records are on somebody's plate this quarter, the offer stands: a 30-day
-> trial, no card, and your files on your own storage. If it is a next-year problem, I will
-> check back then.
+> I will leave it here so as not to crowd your inbox. Should training records come onto the
+> agenda this quarter, the offer stands: a 30-day evaluation, no payment details, and your
+> files on your own storage throughout. If it is a matter for next year, I will write again
+> then.
 >
-> Either way, thank you for the time. — [Your name]
+> Thank you for your time. Kind regards, [Your name]
 
 ---
 
 ## Notes before you send
 
-- **Pricing is proposed, not live.** The product prices plans in Knowledge Coins and the
-  payment gateway is not live yet, so today a plan is invoiced directly and activated by
-  the Knowledge Base team. Practically, that is fine for this pitch — but do not promise a
-  self-serve card payment. See [README.md](README.md).
-- **Do not promise email reminders.** Notifications, expiry reminders and compliance nudges
-  are delivered **in-app**; email delivery is deferred. The mail above says "reminders in
-  one click" without saying where they land.
-- **Do not promise cloud storage.** NAS (S3-compatible) and KVEP are live today. Cloud
-  object storage is planned; cloud drives are being examined. If a prospect asks for Google
-  Drive or OneDrive, that is a roadmap answer, not a today answer.
-- **Do not promise a mobile app.** The product is browser-based. The API is built so a
-  mobile app can come later, which is a roadmap answer too.
-- **Headcount claims.** The per-person table assumes the yearly plan. If you discount,
-  regenerate it — a prospect who checks the arithmetic and finds it wrong will not check
-  anything else.
+- **The fees are proposed, not live.** The product prices plans in Knowledge Coins and the
+  payment gateway is not built, so a plan is invoiced directly and applied by the Knowledge
+  Base team. Rupee figures may be quoted; a self-serve card payment may not be promised.
+  See [README.md](README.md).
+- **The included services are a commitment.** Migration counts, training sessions and the
+  priority-support line are promises someone has to keep. Confirm the capacity before the
+  mail goes to a list.
+- **Sign-in.** Identity is username-based today and email sign-in is planned. The mail
+  raises neither, which is correct — do not volunteer it, and if asked, describe email
+  sign-in as on the roadmap.
+- **Do not promise in-product email.** Notifications, expiry reminders and compliance nudges
+  are delivered **in-app**; email delivery is deferred.
+- **Do not promise cloud storage or a mobile application.** NAS (S3-compatible) and KVEP are
+  live. Cloud object storage is planned, cloud drives are under examination, and the mobile
+  client is a roadmap answer.
+- **The market band is sourced, and it moves.** The ₹80–250 figure and the 1.5–3× first-year
+  multiplier come from the 2026 surveys cited in [README.md](README.md). Re-check them
+  before a large send; a prospect who finds one number wrong will check the rest.
