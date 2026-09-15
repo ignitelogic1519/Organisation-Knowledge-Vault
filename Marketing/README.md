@@ -7,15 +7,34 @@ where a claim would outrun what ships today, the note saying so sits in the file
 |------|------------|
 | [outreach-email-smb.md](outreach-email-smb.md) | The cold-outreach mail for small & mid-sized organizations: subject lines, the full mail, a short version, two follow-ups, and what not to claim |
 | [outreach-email-smb.html](outreach-email-smb.html) | The same mail as a branded HTML email, ready to paste into Gmail or Outlook |
-| [proposal-shish.md](proposal-shish.md) | The **Shish** proposal, written to Nitesh's structure: features, a four-week roadmap, the client-facing commercial break-up, add-ons, and the Paywell question |
+| [proposal-shish.md](proposal-shish.md) | The **Shish** proposal: solution capability, a 45-day roadmap, the commercial break-up, optional scope, and the Paywell integration |
 | [proposal-shish.html](proposal-shish.html) | The same proposal as a branded HTML mail |
 | [internal-commercial-breakup.md](internal-commercial-breakup.md) | **Internal only.** Cost structure, margin, negotiation floor and add-on revenue behind the Shish proposal — never sent to the client |
 | [assets/](assets/) | The logo lockup and mark, in SVG and PNG |
 
-> **The two commercial views are deliberately in different files.** Nitesh asked for a
-> client-facing break-up (3A) and an internal one (3B) in a single mail; the client-facing
-> proposal carries 3A only, and 3B lives in its own file marked internal. Check the thread
+> **The two commercial views are deliberately in different files.** The original request asked
+> for a client-facing break-up and an internal one in a single mail; the client proposal carries
+> the client view only, and the internal one is kept out of this repository. Check the thread
 > before forwarding anything.
+
+### The two price points
+
+The cold-outreach mail sells the published plan at **₹6,999 a month**. The Shish proposal
+quotes **₹23,999 a month**. Both are correct and the difference has to be explainable, because
+the pricing page is public:
+
+| | Published plan | Shish engagement |
+|---|---|---|
+| What it is | Self-serve platform access | Managed engagement |
+| Setup | The customer provisions and configures it | Structure design, policy workshops, NAS integration and security validation, content loading |
+| Storage | Customer connects their own | We connect and verify it |
+| Integrations | None | Paywell HRMS |
+| Enablement | Guide book and in-app help | Nine knowledge-transfer sessions across five audiences, attended go-live |
+| Support | Next business day, by mail | Named route, escalation matrix |
+| One-time | Nil | ₹20,000 — against roughly ₹2.8 lakh of delivery |
+
+If a prospect asks for the published rate, it is available to them — without any of the second
+column. Do not improvise a different answer in a meeting.
 
 ## Brand assets
 

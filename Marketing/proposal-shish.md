@@ -1,232 +1,299 @@
 # Client proposal mail — Shish
 
 The organizational proposal for **Shish**, written to the structure Nitesh circulated:
-solution features, implementation roadmap, commercial break-up, and future add-ons, with
-the Paywell HRMS question answered at the end.
+solution capability, implementation roadmap, commercial break-up, optional scope, and the
+Paywell integration.
 
-> **This file is section 3A only — the client-facing commercial view.**
-> The internal cost structure, margin and negotiation floor Nitesh asked for as section 3B
-> live in **[internal-commercial-breakup.md](internal-commercial-breakup.md)**, which is
-> marked internal and must not be sent to Shish or pasted into this thread.
+> **This file is the client-facing commercial view only.** The internal cost structure,
+> margin and negotiation position live in `internal-commercial-breakup.md`, which is kept
+> out of this repository and must not be sent to Shish.
 
-**Timeline:** the whole roadmap is four calendar weeks — 20 working days, kickoff Monday
-21 September 2026, handover Friday 16 October 2026.
+**Timeline:** one month and fifteen days — 45 calendar days, kickoff Monday 21 September
+2026, handover Wednesday 4 November 2026.
 
-**Figures:** indicative minimum–expected–maximum brackets, as requested, pending confirmation
-of the NAS specification. They are modelled from the delivery plan below, not quoted from a
-published rate card — see [README.md](README.md).
+**Commercials:** one-time setup and knowledge transfer ₹15,000; Paywell integration ₹5,000;
+subscription monthly, quarterly or yearly. Single figures, not brackets — the detail is
+settled in discussion.
 
 ---
 
 ## The mail
 
-> Paste `proposal-shish.html` for the branded version. The logo lockup is
-> `assets/knowledge-vault-logo-email.png`.
+> Paste `proposal-shish.html` for the branded version.
 
 ---
 
 **To:** [Shish contact], [Designation], Shish
 **Cc:** Nitesh, Sumit, Kinshuk
-**Subject:** Knowledge Vault — solution overview, implementation roadmap and commercial proposal
+**Subject:** Knowledge Vault — solution, implementation plan and commercial proposal
 
 Dear [Shish contact],
 
-Further to our discussions and the NAS configuration details currently being confirmed,
-please find below the consolidated overview of the **Knowledge Vault** solution, the
-implementation roadmap through to production, and the commercial proposition.
+Further to our discussions and the NAS configuration details being confirmed, this note sets
+out the Knowledge Vault solution, the plan to take it into production at Shish, and the
+commercial terms.
 
-Knowledge Vault is a multi-tenant knowledge, training and compliance platform in which an
-organization is modelled as a **tree of roles** rather than a list of names, and in which
-**document bytes reside on storage the organization owns** — for Shish, your own NAS — while
-the platform holds the structure, the entitlements, the records and the reading experience.
-
----
-
-### 1. Solution features and capabilities
-
-**Core knowledge management.** An organization-wide Library, shelved by dynamic category
-tags and filterable by type, shelf, classification and rating. Knowledge is attached to
-**roles, not people**: material published to a branch reaches everyone holding that position,
-including anyone who joins it later, with mandatory status, deadlines, recurrence,
-prerequisites and escalation configured per branch and inherited down the subtree. Content
-opens in an in-app viewer with related documents, rating and review — never a second tab.
-
-**User and access management.** Global profiles with password-based sign-in (Argon2id
-hashing), JWT access and refresh tokens, and sessions that end after sixty minutes of
-inactivity, enforced by the API on every request. Positions are owner, sub-owner and member,
-and one person may hold several positions at different levels. Governance is structural: an
-owner holds only the rights granted to them and **can never grant a right they do not hold**;
-branch deletion requires the level above; branches are public by default with hidden
-cascading down the subtree. Every authorization decision in both the web application and the
-API goes through a **single policy function**, so entitlements are audited in one place.
-
-**Search and knowledge discovery.** Catalogue search across title, code and description, with
-combined filters on document type, shelf, classification, rating, scope and archive state,
-and sort in either direction. Related documents surface inside the viewer. *Full-text search
-within document bodies and semantic/AI-assisted retrieval are not in the base solution — they
-are covered under section 4.*
-
-**AI / GenAI capabilities.** **Not part of the base solution today.** An AI library assistant
-and AI-assisted conversion of uploaded documents into standardised documentation are on the
-product roadmap, and we would rather position them as a priced add-on with a real delivery
-plan than imply they ship today. See section 4.
-
-**Document and content ingestion and management.** Two paths. Existing files and external
-links are **uploaded**; new material is **authored in the Document Studio** — a three-pane
-editor with a formatting ribbon, drag-and-drop blocks, a spreadsheet-style table editor,
-audio and video with speed, quality ladder and non-skippable playback, live preview and a
-present mode. Every document carries an auto-generated cover page, scope page and versioned
-header and footer. Editions may be revised and republished, with completions reset where the
-change is material. Members with content rights **propose**; publication requires a manager's
-document review.
-
-**Knowledge categorization and tagging.** Dynamic category tags (shelves) assigned at
-publication, a compulsory four-level **classification** on every document — Public,
-Confidential, Private, Secret — structured course codes, branch placement and scope, and
-prerequisite chains between items.
-
-**Admin capabilities and reporting.** A compliance view answering both questions that matter:
-*who is behind on this course* and *where does this person stand*, with the reason stated on
-every row and reminders issued in one click, default or custom. Deadline arithmetic is
-computed in one place and shared by the branch report, the per-person card, the learner's own
-view and the nightly sweep, so no two can disagree. Examination attempts are recorded per
-sitting with score and timestamp. A labelled request centre covers course, join, deletion and
-visibility approvals with live counts, and notifications deep-link to the exact item awaiting
-a decision.
-
-**Security and compliance.** Documents are held on your NAS, addressed through a storage
-adapter, with a manifest written alongside them describing structure and permissions.
-Classification is compulsory and enforced at the point of publication. Each organization holds
-an encrypted, **server-signed custody file** with which it can restore its own existence,
-alongside 30-day soft-delete retention and per-branch backups. Examination answer keys are
-never transmitted to the candidate's browser; marking is server-side. Administrative actions
-are written to an append-only audit log.
-
-**Integration capabilities and APIs.** The platform is API-first by construction: a Fastify
-REST service deployed independently of the web application, with request and response
-contracts validated by schemas shared between client and server, and live updates pushed over
-server-sent events. **To be explicit:** a documented partner API surface and the Paywell HRMS
-connector are **delivery items within this engagement**, scoped in section 2 and priced in
-section 3 — they are not features already shipped.
-
-**Also worth highlighting.** Unlimited users on every paid plan; a complete guide book
-delivered with the product and served from in-app Help; live updating across every screen;
-and appearance controls including your own organization logo.
+Knowledge Vault is a knowledge, training and compliance platform built around a principle
+that matters for an organization of your kind: the structure of the business is the structure
+of the system. Your organization is modelled as a tree of roles rather than a list of names,
+knowledge is attached to positions rather than to individuals, and the documents themselves
+remain on storage Shish owns and controls.
 
 ---
 
-### 2. Implementation and production roadmap
+### 1. Solution capability
 
-**Four calendar weeks — 20 working days.** Indicative dates assume a kickoff on Monday 21
-September 2026.
+**1.1 Organization structure and governance**
 
-| # | Activity | Days | Indicative dates | Milestone output |
-|---|----------|------|------------------|------------------|
-| 1 | Initial environment and setup | D1–D2 | 21–22 Sep | Tenant provisioned, plan activated, access codes issued, SPOCs confirmed |
-| 2 | NAS integration and configuration | D2–D4 | 22–24 Sep | Endpoint, bucket and credentials configured; connectivity and write tests passed; manifest written; encryption verified |
-| 3 | Knowledge Vault onboarding | D5 | 25 Sep | Owner accounts created, Supreme password custody handed over, custody file issued and revival drill completed |
-| 4 | Shish organization setup | D6–D8 | 28–30 Sep | Role tree built — branches, positions, visibility and governance rights |
-| 5 | Configuration and customization | D8–D9 | 30 Sep–1 Oct | Logo and appearance, classification policy, library shelves and tags, request routing, compliance rules |
-| 6 | Content ingestion and migration | D9–D10 | 1–2 Oct | Existing material uploaded, classified and shelved; authoring workshop delivered |
-| 7 | User onboarding | D11–D12 | 5–6 Oct | Profiles created and placed on roles; joining communications issued |
-| 8 | Integration activities | D12–D13 | 6–7 Oct | Paywell HRMS discovery and user-synchronisation harness; SSO and MFA discovery |
-| 9 | Testing and UAT — cycle 1 | D14–D15 | 8–9 Oct | Functional pass, permission matrix, storage failover, examination sitting, compliance report validation |
-| 10 | UAT cycle 2 and defect closure | D16–D17 | 12–13 Oct | Defects closed, UAT sign-off |
-| 11 | Production deployment | D18 | 14 Oct | Go-live on the production tenant |
-| 12 | Knowledge transfer and documentation | D18–D19 | 14–15 Oct | Two administrator sessions, guide book, operations runbook, administrator SOP |
-| 13 | Handover, BAU and support readiness | D20 | 16 Oct | Support channel, SLA, escalation matrix and first compliance review scheduled |
+The platform holds your organization as a hierarchy of roles — divisions, departments, sites,
+shifts, functions — to whatever depth reflects how Shish actually runs. Every position in that
+hierarchy carries its own people, its own knowledge and its own governance.
 
-**Assumptions that hold this timeline.** NAS specification — endpoint, credentials, capacity
-and reachability — confirmed before Day 1; a Shish single point of contact available
-approximately two hours daily; source documents and the role list supplied by Day 6; UAT
-sign-off within two working days of cycle 2. NAS reachability is the single dependency
-capable of moving the plan, which is why it sits in week one.
+- A person may hold several positions at different levels of the hierarchy, which is how
+  supervisory and functional reporting are represented without duplicating records.
+- Rights are delegated downward and never sideways: a role owner holds only the rights granted
+  to them, and cannot grant a right they do not themselves hold.
+- Deletion or restructuring of a branch requires authority from the level above, so no single
+  manager can remove a part of the organization unilaterally.
+- Branches are visible by default, and a branch marked private conceals itself and everything
+  beneath it, while remaining visible to the levels above.
+
+**1.2 Knowledge and document management**
+
+An organization-wide library holds every document, file, recording and external reference, and
+presents it according to who is asking.
+
+- Material is shelved by category tags defined by Shish, and filtered by document type, shelf,
+  classification, rating and scope.
+- Every document carries a mandatory classification — Public, Confidential, Private or Secret
+  — applied at the point of publication and enforced by the platform thereafter.
+- Each document is issued with a generated cover page, a scope page stating who it applies to,
+  and a header and footer carrying version and date.
+- Documents open inside the application, with related material alongside, so reading is
+  recorded rather than merely permitted.
+- Download is available or withheld per document, at the owner's discretion.
+
+**1.3 Content authoring and publication control**
+
+Material may be uploaded, linked, or written inside the platform.
+
+- The authoring studio produces structured documents with headings, tables, images, audio and
+  video, with playback controls that prevent skipping where completion must be genuine.
+- Revisions are issued as editions; where a change is material, prior completions are reset so
+  that the record reflects the current version.
+- Staff granted authoring rights submit work for approval rather than publishing directly, and
+  a nominated manager reviews before anything reaches an audience.
+- Distribution is set per branch: whether the item is mandatory, its deadline, whether it
+  recurs, what must be completed first, and how it inherits down the subtree.
+
+**1.4 Assessment**
+
+Where reading is not sufficient evidence, the platform sets and marks papers.
+
+- Single-answer, multiple-answer and true/false questions, with pass marks, question weighting,
+  randomised order, time limits and a cap on attempts.
+- Marking is performed on the server; the answer key is never sent to the candidate's device.
+- A pass writes the same completion record as any other item, so assessed and unassessed
+  learning report through one channel.
+- Each sitting is recorded separately with score and timestamp, which converts attendance into
+  evidence.
+
+**1.5 Compliance monitoring and reporting**
+
+- Reporting answers both operational questions: which people are behind on a given item, and
+  where a named individual stands across everything that reaches them.
+- Every row states the reason for its status, so a report can be acted on without
+  interpretation.
+- The deadline clock starts when an item actually reaches a person — the later of the date it
+  was placed on their branch and the date they joined it — so nobody is recorded as overdue for
+  a period during which they could not have complied.
+- Reminders are issued in one action, with a standard or custom message, to those behind.
+- The same calculation serves the branch report, the individual record, the learner's own view
+  and the overnight sweep, so no two views of the organization can disagree.
+
+**1.6 Identity, access and session control**
+
+- Sign-in is password-based, with credentials stored using Argon2id hashing.
+- Sessions are held by short-lived access tokens with refresh, and end after sixty minutes of
+  inactivity — enforced by the server on every request, not by the browser.
+- The last minute of a session is announced, so work is not lost to a timeout.
+- Every authorization decision, in the interface and in the API alike, passes through a single
+  policy function, which means access rules are reviewed and audited in one place.
+
+**1.7 Data custody and security**
+
+- Document contents are held on storage that Shish provides and controls. The platform writes a
+  manifest alongside them describing structure and permissions.
+- The organization holds an encrypted custody file, signed by the server, with which Shish can
+  restore its own organization independently.
+- Deleted organizations are retained for thirty days before removal, and individual branches
+  can be backed up separately.
+- Administrative actions are written to an append-only log.
+- Access to a position that a person does not hold is refused and reported as refused, rather
+  than quietly hidden.
+
+**1.8 Requests, approvals and notifications**
+
+- Joining a branch, requesting a course, removing a branch and changing visibility all run
+  through a labelled approvals centre, with the pending count visible to whoever must decide.
+- Approvals and refusals carry a written reason, and the decision reaches the requester.
+- Notifications are categorised and link directly to the item awaiting action rather than to a
+  general inbox.
+- Updates appear across every open screen as they happen.
+
+**1.9 Architecture and integration**
+
+- The interface and the application programming interface are deployed as separate services, so
+  integrations are built against a stable contract rather than against screens.
+- Request and response formats are validated against shared schemas on both sides.
+- The Paywell integration delivered under this proposal reads employee records and keeps
+  platform profiles aligned with them.
+
+**1.10 Documentation and enablement**
+
+- A complete user guide is delivered with the platform and served from within it.
+- Administrators additionally receive an operations runbook and a standard operating procedure
+  written against Shish's own configuration.
 
 ---
 
-### 3. Commercial break-up
+### 2. Implementation roadmap
 
-All figures are in INR and **exclusive of GST**. Brackets are given as
-minimum–expected–maximum, to be firmed once the NAS specification is confirmed.
+**One month and fifteen days — 45 calendar days.** Dates assume a kickoff on Monday 21
+September 2026. The plan is deliberately weighted towards two things: getting the organization
+structure right before anything is built on it, and leaving Shish able to operate the platform
+without us.
 
-**One-time — implementation**
+| Phase | Activity | Dates | Outcome |
+|-------|----------|-------|---------|
+| 1 | Organization study and structure design | 21–27 Sep | Shish's reporting structure mapped to the role hierarchy; positions, ownership and delegation agreed on paper before configuration begins |
+| 1 | Classification and access policy workshop | 24–27 Sep | Four-level classification agreed against Shish's document types; who may see, publish and approve what, recorded as a policy |
+| 2 | Environment provisioning | 28 Sep–1 Oct | Tenant created, administrators enrolled, custody file issued and held by Shish |
+| 2 | NAS integration and storage security | 29 Sep–4 Oct | Storage connected, credentials restricted to least privilege, write and read verified, encryption confirmed, manifest established |
+| 3 | Role hierarchy build | 5–11 Oct | The agreed structure built and reviewed branch by branch with the managers who own each one |
+| 3 | Library, shelves and compliance rules | 8–11 Oct | Category tags, mandatory items, deadlines, recurrence and escalation configured to the policy agreed in phase 1 |
+| 4 | Content loading | 12–18 Oct | Existing material loaded, classified and shelved; authoring workshop for the teams who will maintain it |
+| 4 | Paywell integration | 15–18 Oct | Employee records read from Paywell and reconciled against platform profiles |
+| 5 | Phased user onboarding | 19–25 Oct | People enrolled and placed on roles in waves, so that no group receives a backlog of overdue items on its first day |
+| 5 | Security validation and custody drill | 22–25 Oct | Access rights tested against the policy, audit log reviewed, and a full restore rehearsed from the custody file |
+| 6 | Testing and user acceptance | 26 Oct–1 Nov | Functional testing, permission matrix verification, assessment sittings, and compliance reports validated against known data, with defects closed |
+| 6 | Knowledge transfer | 26 Oct–1 Nov | The programme set out below, delivered and recorded |
+| 7 | Production release | 2–3 Nov | Live operation, with our team present throughout the first two working days |
+| 7 | Handover and support readiness | 4 Nov | Runbook, standard operating procedure, escalation route and first compliance review scheduled |
 
-| Component | Minimum | Expected | Maximum |
-|-----------|--------:|---------:|--------:|
-| Implementation and setup — environment, organization structure, configuration | 95,000 | **1,25,000** | 1,60,000 |
-| NAS integration and storage configuration | 30,000 | **45,000** | 70,000 |
-| Content migration and classification — up to 200 documents | 40,000 | **60,000** | 95,000 |
-| HRMS / user-provisioning integration (Paywell) | 55,000 | **75,000** | 1,20,000 |
-| Training, knowledge transfer and documentation | 25,000 | **35,000** | 50,000 |
-| UAT support and production cutover | 20,000 | **30,000** | 45,000 |
-| **Total one-time** | **2,65,000** | **3,70,000** | **5,40,000** |
+**Knowledge transfer programme.** Knowledge transfer is treated as a deliverable rather than a
+closing formality, and is delivered by audience:
 
-**Recurring — annual**
+| Audience | Sessions | Covered |
+|----------|----------|---------|
+| Executive sponsor and custodian | 2 | Custody file and its safekeeping, the recovery procedure, what only they can authorise |
+| Branch and department managers | 2 | Placing material, setting deadlines and recurrence, reading compliance, issuing reminders |
+| Content authors and reviewers | 2 | Authoring, classification, the review and approval route, issuing revisions |
+| Platform administrators | 2 | Enrolment and departure, approvals, storage health, backups, routine checks |
+| Help desk and BAU | 1 | Common queries, triage, escalation route |
 
-| Component | Minimum | Expected | Maximum |
-|-----------|--------:|---------:|--------:|
-| Knowledge Vault platform licence — unlimited users | 88,000 | **1,10,000** | 1,45,000 |
-| Application hosting and infrastructure | 14,000 | **18,000** | 26,000 |
-| Document storage | Nil | **Nil** | Nil |
-| Third-party licensing and components | Nil | **Nil** | Nil |
-| Support and maintenance — standard, next business day | Included | **Included** | Included |
-| **Total recurring, per annum** | **1,02,000** | **1,28,000** | **1,71,000** |
+Sessions are recorded and handed over. The final week is run as supervised operation: your
+administrators perform the work and we observe, rather than the reverse.
 
-Document storage carries no charge from us because the bytes reside on your NAS. There are
-no third-party licences embedded in the base solution.
+**Welfare of your people.** Two aspects of the rollout are designed around the staff rather
+than the administrator. Onboarding is phased so that no group is enrolled into a backlog of
+items already past their date, and the deadline calculation begins when an item reaches a
+person, so an employee who joins a department in November is not reported as delinquent
+against a requirement issued in September.
 
-**Optional, priced separately**
+**What holds the dates.** Confirmation of the NAS specification before kickoff; a Shish point
+of contact available through the engagement; the organization chart and the list of existing
+documents available in week one; and acceptance sign-off within two working days of testing
+completion.
 
-| Option | Minimum | Expected | Maximum |
-|--------|--------:|---------:|--------:|
-| Premium support SLA — four-hour response, named engineer (per annum) | 1,10,000 | **1,44,000** | 1,95,000 |
-| Dedicated isolated environment (per annum) | 60,000 | **72,000** | 95,000 |
+---
 
-**Summary**
+### 3. Commercial proposal
 
-| | Expected |
-|---|---|
-| Year one — one-time plus recurring | **₹4,98,000** |
-| Year two onward — recurring only | **₹1,28,000** |
+All figures are in Indian Rupees and exclusive of GST.
 
-At an indicative 250 users that is approximately **₹166 per user per month in year one** and
-**₹43 per user per month thereafter**, against a published Indian market band of ₹80–250 per
-user per month for organizations of this size — and, unlike a per-seat licence, the figure
+**One-time charges**
+
+| Item | Amount |
+|------|-------:|
+| Setup, configuration and knowledge transfer | **₹15,000** |
+| Paywell HRMS integration | **₹5,000** |
+| **Total one-time** | **₹20,000** |
+
+Setup covers the full implementation described above — structure design, environment,
+storage integration, configuration, content loading, testing and the knowledge transfer
+programme. Loading your existing documents is part of it; there is no charge per document and
+no limit on how many you bring.
+
+**Subscription**
+
+| Term | Access period | Amount | Works out at |
+|------|---------------|-------:|-------------:|
+| **Monthly** | 30 days | **₹23,999** | ₹23,999 per month |
+| **Quarterly** | **110 days** — 90 days plus 20 days added | **₹71,999** | ₹19,636 per month |
+| **Yearly** | **425 days** — 365 days plus 2 months added | **₹2,75,999** | ₹19,482 per month |
+
+The quarterly term is charged as three months and runs for 110 days. The yearly term runs for
+425 days, and is extended by a further month — to 455 days — where platform usage over the year
+supports it, which we assess and confirm at renewal. Against paying monthly for the same span,
+the quarterly term saves ₹15,997 and the yearly term ₹63,987, rising to ₹87,986 with the
+additional month.
+
+The subscription is for the organization and is not counted per user. Adding people, branches
+or documents does not change it.
+
+Nothing else recurs. Document storage sits on your NAS and carries no charge from us. No
+third-party licences are embedded in the solution.
+
+**Year one, on the yearly term**
+
+| | Amount |
+|---|-------:|
+| Setup, configuration and knowledge transfer | ₹15,000 |
+| Paywell integration | ₹5,000 |
+| Subscription, 425 days | ₹2,75,999 |
+| **Total** | **₹2,95,999** |
+
+For an organization of about 250 people that is approximately ₹78 per person per month, and it
 does not rise as Shish grows.
 
+**Price transparency.** The amount contracted is fixed to the subscription term you select and
+will not change within it. If our pricing changes during your contract, in either direction, we
+will tell you in writing at the time and the revision applies only from your next renewal —
+and where the revision is a reduction, the reduced rate is the rate you renew at. We would
+rather you heard it from us than discovered it at renewal.
+
 ---
 
-### 4. Potential add-ons and future scope
+### 4. Optional scope
 
-Not part of the base solution, available as scoped engagements.
+Available as separately scoped engagements, at any point during or after implementation.
 
-| Add-on | Status today | One-time | Recurring, per annum |
-|--------|--------------|---------:|---------------------:|
-| Advanced AI / GenAI — library assistant, semantic retrieval, AI document conversion | Roadmap | 2,00,000–4,50,000 | 60,000–1,50,000 |
-| SSO (SAML / OIDC) and MFA | Scaffolding present, inactive | 85,000–1,75,000 | 24,000–48,000 |
-| HRMS-driven user lifecycle — automated joiner, mover, leaver | Subject to Paywell APIs | 1,10,000–2,25,000 | 36,000–72,000 |
-| Advanced analytics and reporting — item analysis, score distribution, board pack | Partly roadmap | 90,000–1,80,000 | 30,000–60,000 |
-| Additional integrations — ticketing, directory, intranet | Per connector | 65,000–1,50,000 each | — |
-| Enhanced security and compliance — audit export, retention policy, signed acknowledgement | Partly present | 75,000–1,60,000 | 24,000–60,000 |
-| Additional automation — auto-enrolment, escalation workflows | Partly present | 55,000–1,20,000 | — |
-| Migration beyond 200 documents | Available | ₹250–400 per document | — |
-| Premium support and SLA options | Available | — | 1,10,000–1,95,000 |
-| **Additional user or device capacity** | **Unlimited users already included** | **Nil** | **Nil** |
+| Item | One-time | Recurring |
+|------|---------:|----------:|
+| Single sign-on and multi-factor authentication | ₹45,000 | ₹9,000 per year |
+| Automated joiner, mover and leaver processing from Paywell | ₹35,000 | ₹6,000 per year |
+| Additional system integrations, per system | ₹25,000 | — |
+| Extended analytics — question-level assessment analysis and management reporting | ₹30,000 | ₹6,000 per year |
+| Audit export, retention scheduling and signed acknowledgement of reading | ₹28,000 | ₹6,000 per year |
+| Priority support — four-hour response with a named engineer | — | ₹48,000 per year |
+| Dedicated isolated environment | — | ₹72,000 per year |
+| Additional users, branches or documents | Nil | Nil |
 
 ---
 
 ### 5. Paywell HRMS integration
 
-We would welcome a joint session with the Paywell team to establish how employee data can be
-fetched in real time — the available APIs, authentication mechanism, data fields,
-synchronisation approach and any limitations. Our interest is in using that integration as
-the foundation for **automated user lifecycle management** and, subsequently, **MFA**. Please
-advise a convenient date and we will coordinate.
+The integration quoted above reads employee records from Paywell and keeps platform profiles
+aligned with them. We would welcome a joint session with the Paywell team to confirm the
+available interfaces, the authentication method, the fields exposed, how often synchronisation
+may run, and any limits that apply. Please suggest a date convenient to you and we will
+coordinate.
 
 ---
 
-We are ready to begin on confirmation of the NAS specification, and can hold the kickoff date
-of 21 September against this proposal. I am glad to walk through any section in detail.
+We are ready to begin on confirmation of the NAS specification and can hold the kickoff date of
+21 September. I am happy to take any part of this in more detail, in writing or in a call.
 
 Yours sincerely,
 
@@ -238,17 +305,16 @@ Yours sincerely,
 
 ## Notes before sending
 
-- **Never attach or paste the internal break-up.** Section 3B lives in
-  [internal-commercial-breakup.md](internal-commercial-breakup.md). Check the thread before
-  forwarding — Nitesh's original mail contains both requests in one message.
-- **AI/GenAI is stated as absent.** That is deliberate and should not be softened. The
-  product's own future register carries the AI library assistant as deferred; a proposal that
-  implies it ships today creates a delivery obligation nobody has scoped.
-- **The API and the HRMS connector are delivery items, not features.** Section 1 says so
-  plainly. Keep it that way.
-- **Full-text search inside documents is not claimed.** Catalogue search is. If Shish asks
-  for in-document search, it belongs in section 4, not section 1.
-- **The timeline depends on NAS confirmation.** If NAS details slip, every date slips with
-  them. Say so when the date is challenged rather than compressing UAT.
-- **Figures are modelled brackets.** Firm them once the NAS specification lands, and
-  regenerate the ₹166 and ₹43 per-user figures if the user count moves from 250.
+- **Never attach the internal break-up.** It is kept outside this repository. Check the thread
+  before forwarding — the original request asked for both views in one message.
+- **One-time is ₹20,000 in total and covers everything.** Do not reintroduce per-document or
+  per-milestone charges; the recovery sits in the subscription.
+- **The subscription figures assume we clear about ₹12,000 a month.** If that assumption is
+  wrong, every figure in section 3 moves; confirm it before quoting.
+- **Do not describe anything as forthcoming.** The proposal states what the platform does.
+  Items not yet built are absent from section 1 and appear in section 4 as scoped work with a
+  price, which is what they are.
+- **The transparency clause is a commitment.** It binds us to notify a price change in writing
+  and to honour reductions at renewal. Confirm it is acceptable before it goes out.
+- **The 45-day plan depends on the NAS confirmation.** If that slips, the dates slip with it.
+  Say so rather than compressing testing or knowledge transfer.
