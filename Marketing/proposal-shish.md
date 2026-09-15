@@ -23,11 +23,10 @@ settled in discussion.
 
 ---
 
-**To:** [Shish contact], [Designation], Shish
-**Cc:** Nitesh, Sumit, Kinshuk
+**To:** Shish Industries Limited
 **Subject:** Knowledge Vault — solution, implementation plan and commercial proposal
 
-Dear [Shish contact],
+Dear Shish Industries Limited,
 
 Further to our discussions and the NAS configuration details being confirmed, this note sets
 out the Knowledge Vault solution, the plan to take it into production at Shish, and the
@@ -297,9 +296,9 @@ We are ready to begin on confirmation of the NAS specification and can hold the 
 
 Yours sincerely,
 
-[Your name]
-[Designation], Knowledge Vault
-[Phone] · [Email] · [Website]
+Nitesh Tiwari
+Knowledge Vault
+9624858505 · t.nitesh423@gmail.com
 
 ---
 

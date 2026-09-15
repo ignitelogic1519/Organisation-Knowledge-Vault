@@ -41,16 +41,25 @@ column. Do not improvise a different answer in a meeting.
 | File | Use |
 |------|-----|
 | `assets/knowledge-vault-logo.svg` / `.png` | Horizontal lockup for dark grounds (1040×256) |
-| `assets/knowledge-vault-logo-light.svg` / `.png` | The same lockup with dark wordmark, for cream or white grounds |
+| `assets/knowledge-vault-logo-light.svg` / `.png` | The same lockup with a dark wordmark, for cream or white grounds |
 | `assets/knowledge-vault-logo-email.png` | 520×128 raster, embedded as a data URI in both HTML mails |
-| `assets/knowledge-vault-mark.svg` / `.png` | Square mark alone (256×256) — avatar, favicon, letterhead |
+| `assets/knowledge-vault-mark.svg` / `.png` | The star alone (256×256) — avatar, favicon, letterhead |
+| `assets/knowledge-vault-appicon.svg` / `.png` | The star on a rounded violet tile (512×512) — application icon |
 
-The mark is the product's own metaphor: a role tree drawn as a constellation, anchor star
-above and branches descending. Colours are the application's live tokens — ground `#0a0d17`,
-surface `#151a2c`, starlight `#eef1fa`, accent `#e2673f` (the default *peach* accent), with
-cream `#fdf3ec` and ink `#241a16` on the light side. Both HTML mails use only these, so the
-mail and the product read as one thing. For text on a light ground use `#a8431f` rather than
-the accent itself — `#e2673f` is for fills and rules.
+The mark is a four-pointed star with two companions, in the application's **aurora** accent —
+`#7c7cff` through `#c06bff`, the same purple the product itself offers — over a soft glow. It
+carries the constellation idea the platform is built on without drawing a diagram at logo size.
+
+The wordmark is **Comfortaa Light**, with *Vault* in Comfortaa Medium and the accent colour.
+Comfortaa is a Google font; the rasters in this folder are already rendered, so nothing needs
+the font installed to use them. If you re-render the SVGs, install Comfortaa first or the text
+falls back to a default sans and the lockup stops looking like itself.
+
+Colours across both mails are the application's live tokens: ground `#0a0d17`, surface
+`#151a2c`, starlight `#eef1fa`, cream `#fdf3ec` and ink `#241a16`. Accent use follows the
+contrast rule — `#5b5bf0` for fills and rules, `#4f36c9` for text on a light ground, `#a78bff`
+for text on the dark ground. Never set the light-ground text in `#7c7cff`; it does not hold up
+against cream.
 
 ---
 

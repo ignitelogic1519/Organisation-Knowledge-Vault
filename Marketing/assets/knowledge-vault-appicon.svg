@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Knowledge Vault">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1636"/><stop offset="1" stop-color="#0d0b1c"/>
+    </linearGradient>
+    <linearGradient id="g" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#9d9dff"/><stop offset="0.5" stop-color="#7c7cff"/><stop offset="1" stop-color="#c06bff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#a24bf5" stop-opacity=".75"/>
+      <stop offset="0.55" stop-color="#7c7cff" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#7c7cff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="29" fill="url(#tile)"/>
+  <circle cx="64" cy="64" r="56" fill="url(#glow)"/>
+  <path d="M 64 22 C 69.4096 44.68 83.32 58.5904 106 64 C 83.32 69.4096 69.4096 83.32 64 106 C 58.5904 83.32 44.68 69.4096 22 64 C 44.68 58.5904 58.5904 44.68 64 22 Z" fill="url(#g)" opacity="1.0"/>
+  <path d="M 99 18 C 100.3552 24.16 103.84 27.6448 110 29 C 103.84 30.3552 100.3552 33.84 99 40 C 97.6448 33.84 94.16 30.3552 88 29 C 94.16 27.6448 97.6448 24.16 99 18 Z" fill="url(#g)" opacity="0.9"/>
+  <path d="M 30 90 C 30.8624 93.92 33.08 96.1376 37 97 C 33.08 97.8624 30.8624 100.08 30 104 C 29.1376 100.08 26.92 97.8624 23 97 C 26.92 96.1376 29.1376 93.92 30 90 Z" fill="url(#g)" opacity="0.7"/>
+</svg>
