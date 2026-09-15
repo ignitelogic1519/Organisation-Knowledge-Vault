@@ -44,7 +44,8 @@ column. Do not improvise a different answer in a meeting.
 | `assets/knowledge-vault-logo-light.svg` / `.png` | The same lockup with a dark wordmark, for cream or white grounds |
 | `assets/knowledge-vault-logo-email.png` | 520×128 raster, embedded as a data URI in both HTML mails |
 | `assets/knowledge-vault-mark.svg` / `.png` | The star alone (256×256) — avatar, favicon, letterhead |
-| `assets/knowledge-vault-appicon.svg` / `.png` | The star on a rounded violet tile (512×512) — application icon |
+| `assets/knowledge-vault-appicon.svg` / `.png` | The star on a frosted tile (512×512) — application icon |
+| `assets/knowledge-vault-appicon-dark.svg` / `.png` | The same icon on a dark tile, for a dark home screen |
 
 The mark is a four-pointed star with two companions, in the application's **aurora** accent —
 `#7c7cff` through `#c06bff`, the same purple the product itself offers — over a soft glow. It
@@ -55,11 +56,17 @@ Comfortaa is a Google font; the rasters in this folder are already rendered, so 
 the font installed to use them. If you re-render the SVGs, install Comfortaa first or the text
 falls back to a default sans and the lockup stops looking like itself.
 
-Colours across both mails are the application's live tokens: ground `#0a0d17`, surface
-`#151a2c`, starlight `#eef1fa`, cream `#fdf3ec` and ink `#241a16`. Accent use follows the
-contrast rule — `#5b5bf0` for fills and rules, `#4f36c9` for text on a light ground, `#a78bff`
-for text on the dark ground. Never set the light-ground text in `#7c7cff`; it does not hold up
-against cream.
+Both mails are **glass, not slab**: a tinted ground (`#ece5f8`) under a translucent white
+panel with a light border and a soft shadow, mastheads on a lavender-to-cream gradient, and
+table headers in a frosted `#e9e1f8` rather than a black bar. Ink stays `#241a16`. Accent use
+follows the contrast rule — `#5b5bf0` for fills and rules, `#4f36c9` for text on a light
+ground. Never set light-ground text in `#7c7cff`; it does not hold up against cream.
+
+One honest limitation: **`backdrop-filter` does not work in any mail client**, so the real
+blur behind the app's glass panels cannot be reproduced in an email. What is here is the same
+read achieved with translucency, a light border and a soft shadow over a tinted gradient. Each
+gradient carries a solid `bgcolor` beneath it, so Outlook — which ignores CSS gradients —
+falls back to a flat lavender rather than to nothing.
 
 ---
 

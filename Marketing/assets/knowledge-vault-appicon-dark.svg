@@ -14,12 +14,8 @@
     </radialGradient>
     <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="17"/></filter>
   </defs>
-  <rect width="128" height="128" rx="29" fill="#f4eefc"/>  <g filter="url(#soft)">
-    <circle cx="34" cy="30" r="30" fill="#7c7cff" opacity=".42"/>
-    <circle cx="100" cy="44" r="26" fill="#c06bff" opacity=".38"/>
-    <circle cx="70" cy="106" r="30" fill="#e07ad0" opacity=".26"/>
-  </g><rect width="128" height="128" rx="29" fill="#ffffff" opacity=".46"/><rect x="1" y="1" width="126" height="126" rx="28" fill="none" stroke="#ffffff" stroke-opacity=".9" stroke-width="2"/>
-  <circle cx="64" cy="64" r="60" fill="url(#glow)" opacity=".7"/>
+  <rect width="128" height="128" rx="29" fill="url(#tile)"/>
+  <circle cx="64" cy="64" r="60" fill="url(#glow)"/>
   <path d="M 64 22 C 69.4096 44.68 83.32 58.5904 106 64 C 83.32 69.4096 69.4096 83.32 64 106 C 58.5904 83.32 44.68 69.4096 22 64 C 44.68 58.5904 58.5904 44.68 64 22 Z" fill="url(#g)" opacity="1.0"/>
   <path d="M 99 18 C 100.3552 24.16 103.84 27.6448 110 29 C 103.84 30.3552 100.3552 33.84 99 40 C 97.6448 33.84 94.16 30.3552 88 29 C 94.16 27.6448 97.6448 24.16 99 18 Z" fill="url(#g)" opacity="0.9"/>
   <path d="M 30 90 C 30.8624 93.92 33.08 96.1376 37 97 C 33.08 97.8624 30.8624 100.08 30 104 C 29.1376 100.08 26.92 97.8624 23 97 C 26.92 96.1376 29.1376 93.92 30 90 Z" fill="url(#g)" opacity="0.7"/>
