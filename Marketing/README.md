@@ -6,7 +6,32 @@ where a claim would outrun what ships today, the note saying so sits in the file
 | File | What it is |
 |------|------------|
 | [outreach-email-smb.md](outreach-email-smb.md) | The cold-outreach mail for small & mid-sized organizations: subject lines, the full mail, a short version, two follow-ups, and what not to claim |
-| [outreach-email-smb.html](outreach-email-smb.html) | The same mail as a formatted HTML email, ready to paste into Gmail or Outlook |
+| [outreach-email-smb.html](outreach-email-smb.html) | The same mail as a branded HTML email, ready to paste into Gmail or Outlook |
+| [proposal-shish.md](proposal-shish.md) | The **Shish** proposal, written to Nitesh's structure: features, a four-week roadmap, the client-facing commercial break-up, add-ons, and the Paywell question |
+| [proposal-shish.html](proposal-shish.html) | The same proposal as a branded HTML mail |
+| [internal-commercial-breakup.md](internal-commercial-breakup.md) | **Internal only.** Cost structure, margin, negotiation floor and add-on revenue behind the Shish proposal — never sent to the client |
+| [assets/](assets/) | The logo lockup and mark, in SVG and PNG |
+
+> **The two commercial views are deliberately in different files.** Nitesh asked for a
+> client-facing break-up (3A) and an internal one (3B) in a single mail; the client-facing
+> proposal carries 3A only, and 3B lives in its own file marked internal. Check the thread
+> before forwarding anything.
+
+## Brand assets
+
+| File | Use |
+|------|-----|
+| `assets/knowledge-vault-logo.svg` / `.png` | Horizontal lockup for dark grounds (1040×256) |
+| `assets/knowledge-vault-logo-light.svg` / `.png` | The same lockup with dark wordmark, for cream or white grounds |
+| `assets/knowledge-vault-logo-email.png` | 520×128 raster, embedded as a data URI in both HTML mails |
+| `assets/knowledge-vault-mark.svg` / `.png` | Square mark alone (256×256) — avatar, favicon, letterhead |
+
+The mark is the product's own metaphor: a role tree drawn as a constellation, anchor star
+above and branches descending. Colours are the application's live tokens — ground `#0a0d17`,
+surface `#151a2c`, starlight `#eef1fa`, accent `#e2673f` (the default *peach* accent), with
+cream `#fdf3ec` and ink `#241a16` on the light side. Both HTML mails use only these, so the
+mail and the product read as one thing. For text on a light ground use `#a8431f` rather than
+the accent itself — `#e2673f` is for fills and rules.
 
 ---
 
