@@ -88,6 +88,51 @@ Touch (`hover: none`) gets a 44 px minimum height and no sticky hover state.
 > a secondary action rendered as bare text — "Upload a logo", "Check credentials", "Test
 > connection". That is what a variant-less button must never do again.
 
+### 3.1a Long lists: the catalogue, and the action menu
+
+A list of a hundred rows is not read the way a list of five is, and a row that wears its
+actions as buttons stops being readable long before that. Two components carry this, and
+every list of courses, documents or people on the platform is built from them.
+
+**`components/Catalogue.tsx`** — the shell:
+
+| Piece | What it is |
+|-------|------------|
+| `CatalogueBar` | Pill search field + live "7 of 42 courses" count, with room for the screen's own selects (group-by, type filter) |
+| `CatalogueSection` | One collapsible section per shelf / type / status, with a count chip. A running search force-opens every section — a hit never hides behind a header |
+| `CatalogueRow` | A compact row: kind glyph, title (2-line clamp), one meta line, chips |
+
+Sections come from the data, not from a fixed list: a branch's courses section by **shelf**
+(the library's `category` tag, `Uncategorised` pinned last), and the reader can re-cut them
+by **type** or **status** instead.
+
+**`components/ActionMenu.tsx`** — what a row can do. A row carries **no buttons**. There
+are exactly two shapes, and which one a screen uses says what kind of screen it is:
+
+- **`onOpen` alone** — the row *is* the menu (a management panel, where no single action is
+  the obvious one). The `⋯` inside the row says so.
+- **`onOpen` + `onMore`** — the row does the obvious thing (opens the document) and the `⋯`
+  beside it holds the rest. A reader never needs two clicks to start reading.
+
+The menu itself is a portalled sheet of **named options, not buttons**: glyph, label, and
+the sentence that says what choosing it does — the hover hints that used to hang off eight
+identical buttons are now always-visible descriptions. Options are **grouped by what the
+choice touches** ("On <branch>" vs "The document itself"), which is how the platform's
+hardest distinction — unplace here / out of deployment everywhere / archive org-wide — is
+taught by the shape of the menu instead of a paragraph of small print above the list.
+
+Rules it keeps:
+
+1. It opens focused on the first option; ↑/↓/Home/End walk the list; Escape, the scrim and
+   Close all dismiss it, and **focus returns to the row** that opened it.
+2. A setting that is currently on is ticked and keeps an accent rail down its left edge, so
+   the menu doubles as a statement of how the thing stands.
+3. A destructive option is separated into its own group, tinted `--danger`, and never first.
+4. An async option holds the menu open with a spinner on its row and closes only on success:
+   a failure leaves the menu standing beside the error it caused.
+5. Its layer sits at `z-index: 88`, one below the dialog layer, so a confirmation opens **on
+   top of** the menu that asked for it.
+
 ### 3.2 Definitions on hover (`components/Define.tsx`)
 
 Any term whose meaning is not obvious from its label wraps in `<Define>`. The term keeps a
@@ -173,11 +218,13 @@ even when the geometry deliberately does.
   twinkle (the 4th dimension).
 - **Click behavior:** clicking a star you govern opens the glass **node drawer** —
   quick structure actions (+ sub-role, terminal flag, delete) plus three owner action
-  panels: **People** (add form on top with the co-owner choice; owners marked ★;
-  delegation + remove), **Courses** (publish with full properties, toggle
-  mandatory/inheritance, unplace, delete), **Backup** (.bkp export & restore in place).
-  Clicking a star you do NOT govern routes a plain member to `/orgs/[id]/learning` —
-  their pending/completed courses.
+  panels: **People** (add form on top with the co-owner choice; owners and members in
+  searchable sections), **Courses** (upload / Studio on top, then the whole shelf:
+  search, sections by shelf / type / status, and a row per document), **Backup** (.bkp
+  export & restore in place). Both lists are built from the catalogue and the action
+  menu (§3.1a): the row is the control, and choosing it opens preview, placement,
+  edition and retirement as named options. Clicking a star you do NOT govern routes a
+  plain member to `/orgs/[id]/learning` — their pending/completed courses.
 - **Tech:** hand-rolled canvas 2D (no heavy deps), radial tidy-tree layout, theme-token
   colors re-read on `data-theme`/`data-accent` changes; static sky under reduced motion.
 - Zoom controls and a hint chip are always visible; the drawer becomes a bottom sheet on

@@ -2444,24 +2444,9 @@ select option[value=""] {
     padding-right: 0.4rem;
     scrollbar-width: thin;
   }
-  .learning-scroll > .learning-h:first-child {
+  .learning-scroll > .cat-section:first-child {
     margin-top: 0.2rem;
   }
-}
-
-.learning-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 0;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.learning-main {
-  flex: 1;
-  min-width: min(240px, 100%);
 }
 
 /* The old bell's styles: the Account page still reuses .bell-item for the mirror of
@@ -3164,12 +3149,6 @@ select option[value=""] {
   margin-top: 0.2rem;
 }
 
-.person-actions {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-left: auto;
-}
 
 .add-person-form {
   display: flex;
@@ -3182,21 +3161,6 @@ select option[value=""] {
   animation: fade-up 240ms var(--ease) both;
 }
 
-/* ── Course cards in the drawer ────────────────────────────────────────── */
-
-.course-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--glass);
-  animation: fade-up 260ms var(--ease) both;
-}
-.course-card[data-archived="true"] {
-  opacity: 0.66;
-}
 
 /* Plan allowance strip above the upload form — how much of the plan is left */
 /* Plan allowance — a quiet footnote at the foot of the courses panel. It was a pill
@@ -3311,12 +3275,6 @@ select option[value=""] {
   font-size: 0.85rem;
 }
 
-.course-card-head {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
 
 /* ── Library ───────────────────────────────────────────────────────────── */
 
@@ -11598,16 +11556,6 @@ html.kv-pointer-on * {
   margin-top: 0.1rem;
 }
 
-.course-legend {
-  margin: 0.3rem 0 0.6rem;
-  font-size: 0.82rem;
-  line-height: 1.55;
-}
-
-.course-legend strong {
-  color: var(--text);
-  border-bottom: 1px dotted color-mix(in srgb, var(--accent) 60%, transparent);
-}
 
 /* A publish button that cannot yet publish should look like it. */
 .btn[data-pending="true"] {
@@ -13320,5 +13268,580 @@ html.kv-pointer-on * {
   .kv-idle-warning {
     left: clamp(0.75rem, 3vw, 1.5rem);
     max-width: none;
+  }
+}
+
+/* ── The catalogue: search, sections, rows ─────────────────────────────────
+   Every long list on the platform — a branch's courses, its people — is read
+   through these. The row is the whole control: it carries no buttons, because a
+   list of a hundred rows each wearing eight of them is not a list anybody can
+   read. Choosing a row opens the action menu below. */
+
+.cat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.7rem;
+  margin: 0.2rem 0 0.4rem;
+}
+
+.cat-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.cat-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.cat-search-input {
+  font: inherit;
+  font-size: 0.88rem;
+  width: 100%;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  padding: 0.5rem 2rem 0.5rem 2.1rem;
+  box-shadow:
+    inset -2px -2px 6px var(--neu-hi),
+    inset 2px 2px 6px var(--neu-lo);
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease);
+  min-width: 0;
+}
+
+.cat-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    inset -2px -2px 6px var(--neu-hi),
+    inset 2px 2px 6px var(--neu-lo),
+    0 0 0 3px var(--accent-soft);
+}
+
+/* The browser's own clear affordance is a different shape on every engine. */
+.cat-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.cat-search-clear {
+  position: absolute;
+  right: 0.45rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.cat-search-clear:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.cat-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Compact versions of the standard field, sized for a 340px drawer. */
+.cat-field {
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  min-width: 7rem;
+  flex: 1 1 7rem;
+}
+
+.cat-field span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cat-field select {
+  font-size: 0.82rem;
+  padding: 0.38rem 0.6rem;
+  border-radius: 980px;
+}
+
+.cat-count {
+  flex: 1 0 100%;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.cat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.cat-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.3rem 0.1rem 0.4rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  cursor: pointer;
+}
+
+.cat-section[data-tone="warn"] .cat-section-head {
+  border-bottom-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+}
+
+.cat-section[data-tone="muted"] .cat-section-head {
+  border-bottom-color: var(--border);
+  opacity: 0.75;
+}
+
+.cat-section-caret {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  line-height: 1;
+  transition: transform var(--dur-micro) var(--ease);
+}
+
+.cat-section-caret[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.cat-section-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-section-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 980px;
+  padding: 0.05rem 0.45rem;
+}
+
+.cat-section-sub {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.cat-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cat-item {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+
+.cat-item[data-dim] {
+  opacity: 0.62;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  cursor: pointer;
+  animation: fade-up 220ms var(--ease) both;
+  transition:
+    transform var(--dur-micro) var(--spring),
+    border-color var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease);
+}
+
+.cat-row:hover,
+.cat-row:focus-visible {
+  transform: translateX(3px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.cat-row-lead {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* An avatar brings its own shape and fill — the tile must not draw a box around it. */
+.cat-row-lead:has(.avatar) {
+  background: none;
+  width: auto;
+  height: auto;
+}
+
+.cat-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.cat-row-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cat-row-meta {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-row-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.1rem;
+}
+
+.cat-row-chips .badge {
+  font-size: 0.68rem;
+  padding: 0.05rem 0.4rem;
+}
+
+.cat-row-go {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+}
+
+.cat-row:hover .cat-row-go,
+.cat-row:focus-visible .cat-row-go {
+  color: var(--accent);
+}
+
+/* The ⋯ beside a row that already does something when you click it. */
+.cat-row-more {
+  flex: none;
+  width: 2.1rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
+}
+
+.cat-row-more:hover,
+.cat-row-more:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  outline: none;
+}
+
+.cat-empty {
+  font-size: 0.82rem;
+  padding: 0.3rem 0.1rem;
+}
+
+@media (hover: none) {
+  .cat-row {
+    min-height: 2.9rem;
+  }
+  .cat-row:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-row {
+    animation: none;
+    transition: border-color var(--dur-micro) var(--ease);
+  }
+  .cat-row:hover,
+  .cat-row:focus-visible {
+    transform: none;
+  }
+  .cat-section-caret {
+    transition: none;
+  }
+}
+
+/* ── The action menu ───────────────────────────────────────────────────────
+   What a row can do, listed in full words and grouped by what the choice
+   touches. It sits one layer BELOW the dialog layer, so a confirmation opens on
+   top of the menu that asked for it. */
+
+.action-layer {
+  z-index: 88;
+}
+
+.action-sheet {
+  width: min(30rem, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  border-radius: calc(var(--radius) + 6px);
+  padding: 1rem 1.2rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  animation: sheet-in 320ms var(--spring) both;
+}
+
+@media (max-width: 640px) {
+  .action-sheet {
+    margin-bottom: max(0.4rem, env(safe-area-inset-bottom));
+    animation-name: sheet-up;
+  }
+}
+
+.action-head h3 {
+  font-size: 1.08rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.action-head .auth-sub {
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.action-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.action-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.action-group-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+}
+
+.action-group-note {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.1rem;
+}
+
+/* One option. It reads as a choice in a list, not as a button in a toolbar:
+   full width, a glyph, a name, and the sentence that says what it does. */
+.action-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  cursor: pointer;
+  animation: action-option-in 260ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+  transition:
+    transform var(--dur-micro) var(--spring),
+    border-color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease);
+}
+
+@keyframes action-option-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+.action-option:hover:not(:disabled),
+.action-option:focus-visible {
+  transform: translateX(3px);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+  outline: none;
+}
+
+.action-option:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.action-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* A setting that is currently on keeps an accent rail, so the menu doubles as a
+   statement of how this document stands on this branch. */
+.action-option[data-on="true"] {
+  border-left: 3px solid var(--accent);
+}
+
+.action-option[data-tone="primary"] .action-option-glyph {
+  color: var(--accent-contrast);
+  background: var(--grad-accent);
+}
+
+.action-option[data-tone="danger"] .action-option-glyph {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.action-option[data-tone="danger"]:hover:not(:disabled),
+.action-option[data-tone="danger"]:focus-visible {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.action-option[data-tone="danger"] .action-option-label {
+  color: var(--danger);
+}
+
+.action-option-glyph {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.action-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.action-option-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.action-option-tick {
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.action-option-desc {
+  font-size: 0.76rem;
+  line-height: 1.38;
+  color: var(--text-secondary);
+}
+
+.action-option-arrow {
+  margin-left: auto;
+  align-self: center;
+  color: var(--text-secondary);
+  font-size: 1.15rem;
+}
+
+.action-spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-top-color: var(--accent);
+  animation: action-spin 620ms linear infinite;
+}
+
+@keyframes action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.action-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (hover: none) {
+  .action-option {
+    min-height: 2.9rem;
+  }
+  .action-option:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-sheet,
+  .action-option {
+    animation: none;
+  }
+  .action-option:hover:not(:disabled),
+  .action-option:focus-visible {
+    transform: none;
+  }
+  .action-spinner {
+    animation-duration: 2s;
   }
 }

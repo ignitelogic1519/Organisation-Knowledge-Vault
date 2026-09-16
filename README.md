@@ -29,6 +29,12 @@ The platform is live end-to-end. What works today:
   inheritance, deadline, recurrence), prerequisites, manual completion, recurrence
   expiry, overdue escalation. Content opens in the **in-app viewer** (complete,
   fullscreen, related documents, rate & review) — never a second tab.
+- **Long lists that stay readable** — every list of courses or people (a branch's Courses
+  and People panels, My Learning, Compliance) is a **catalogue**: a search field, collapsible
+  sections by shelf / type / status, and compact rows that carry no buttons. Choosing a row
+  opens an **action menu** — preview, placement, new edition, retirement and deletion as
+  named options with a sentence each, grouped by whether the choice touches this branch or
+  the document everywhere.
 - **Library & documents** — an org-wide catalog shelved by dynamic **category tags**,
   filterable by type / shelf / classification / rating; every document carries a compulsory
   **classification** (Public/Confidential/Private/Secret), a standard auto-generated cover

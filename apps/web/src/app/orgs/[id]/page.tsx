@@ -3,12 +3,29 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { versionLabel, type OrgPlanLimitsView, type StorageView, type TreeNode } from "@vault/shared";
+import {
+  versionLabel,
+  type OrgPlanLimitsView,
+  type RolePerson,
+  type StorageView,
+  type TreeNode,
+} from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { orgs, requests, roles } from "@/lib/orgs-client";
 import { courses, downloadBlob, fileToBase64, vaultFiles } from "@/lib/courses-client";
 import { studio } from "@/lib/studio-client";
 import { storageApi } from "@/lib/storage-client";
+import { classLabel, kindLabel, UNSHELVED } from "@/lib/course-labels";
+import { openInWindow } from "@/lib/reader-window";
+import { ActionMenu, type ActionGroup, type ActionOption } from "@/components/ActionMenu";
+import {
+  CatalogueBar,
+  CatalogueEmpty,
+  CatalogueRow,
+  CatalogueSection,
+  groupItems,
+  kindGlyph,
+} from "@/components/Catalogue";
 import { StoragePanel } from "@/components/StoragePanel";
 import { PropertiesEditor } from "@/components/studio/PropertiesEditor";
 import { ReplaceFileSheet } from "@/components/studio/ReplaceFileSheet";
@@ -23,7 +40,19 @@ import { OrgLogoField } from "@/components/OrgLogoField";
 import {
   IconArchive,
   IconBook,
+  IconBranchDown,
+  IconEye,
+  IconFlag,
+  IconKey,
+  IconMinusUser,
+  IconPause,
+  IconPencil,
+  IconPlay,
   IconSettings,
+  IconSliders,
+  IconTrash,
+  IconUnlink,
+  IconUpload,
   IconUser,
   IconUsers,
 } from "@/components/icons";
@@ -34,7 +63,22 @@ import {
 // Clicking a node you have no access to says so instead of navigating anywhere.
 
 type RoleCourses = Awaited<ReturnType<typeof courses.listForRole>>["courses"];
+type RoleCourse = RoleCourses[number];
 type Section = "config" | "people" | "courses" | "backup";
+
+/** How the courses on a branch are cut into sections — the reader chooses. */
+type CourseGrouping = "shelf" | "type" | "status";
+
+const STATUS_SECTIONS = ["Mandatory", "Opt-in", "Out of deployment", "Archived"];
+
+const statusOf = (c: RoleCourse): string =>
+  c.archived
+    ? "Archived"
+    : c.withdrawn
+      ? "Out of deployment"
+      : c.mandatory
+        ? "Mandatory"
+        : "Opt-in";
 
 const governs = (n: TreeNode) =>
   n.my.canAddPeople || n.my.canCreateSubRole || n.my.canManageFlags || n.my.canDelete;
@@ -463,8 +507,110 @@ function PeoplePanel({
   // Button-inside-button flow: "+ Add person" → choose member OR co-owner → the
   // tailored form. Owner-only options never appear on the member form.
   const [addStep, setAddStep] = useState<"closed" | "choose" | "MEMBER" | "OWNER">("closed");
-  const owners = node.people?.filter((p) => p.kind === "OWNER") ?? [];
-  const members = node.people?.filter((p) => p.kind === "MEMBER") ?? [];
+  /** The person whose action menu is open — their name is what opens it. */
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const people = node.people ?? [];
+  const searching = query.trim().length > 0;
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return people;
+    return people.filter((p) =>
+      `${p.displayName} ${p.username}`.toLowerCase().includes(q),
+    );
+  }, [people, query]);
+  const owners = matches.filter((p) => p.kind === "OWNER");
+  const members = matches.filter((p) => p.kind === "MEMBER");
+  const openPerson = people.find((p) => p.profileId === openId) ?? null;
+
+  /** A failure keeps the menu open beside the reason it gives. */
+  const runInMenu = async (fn: () => Promise<unknown>) => {
+    if (!(await act(fn))) throw new Error("action failed");
+  };
+
+  const personActions = (p: RolePerson): ActionGroup[] => {
+    const isOwner = p.kind === "OWNER";
+    const rights: ActionOption[] = [];
+    if (isOwner && node.my.canManageFlags) {
+      rights.push(
+        {
+          key: "subgroups",
+          label: p.canCreateSubgroups ? "May create sub-groups" : "Cannot create sub-groups",
+          glyph: <IconBranchDown size={16} />,
+          on: p.canCreateSubgroups,
+          keepOpen: true,
+          desc: p.canCreateSubgroups
+            ? "They can grow this branch downward with new sub-roles. Choose it to withdraw that right."
+            : "They manage this branch but cannot grow it. Choose it to let them create sub-roles.",
+          run: () =>
+            runInMenu(() =>
+              roles.setPersonFlags(node.id, p.profileId, {
+                canCreateSubgroups: !p.canCreateSubgroups,
+              }),
+            ),
+        },
+        {
+          key: "coowners",
+          label: p.canAddCoOwners ? "May appoint co-owners" : "Cannot appoint co-owners",
+          glyph: <IconKey size={16} />,
+          on: p.canAddCoOwners,
+          keepOpen: true,
+          desc: p.canAddCoOwners
+            ? "They can bring further owners onto this branch. Choose it to withdraw that right."
+            : "Only you and the levels above can appoint owners here. Choose it to let them do it too.",
+          run: () =>
+            runInMenu(() =>
+              roles.setPersonFlags(node.id, p.profileId, { canAddCoOwners: !p.canAddCoOwners }),
+            ),
+        },
+      );
+    }
+    if (!isOwner) {
+      rights.push({
+        key: "content",
+        label: p.canCreateContent ? "May create content" : "Cannot create content",
+        glyph: <IconPencil size={16} />,
+        on: p.canCreateContent,
+        keepOpen: true,
+        desc: p.canCreateContent
+          ? "They can propose documents for this branch; each one publishes after your review. Choose it to withdraw that right."
+          : "They only learn from this branch. Choose it to let them propose documents, which publish after your review.",
+        run: () =>
+          runInMenu(() =>
+            roles.setPersonFlags(node.id, p.profileId, {
+              canCreateContent: !p.canCreateContent,
+            }),
+          ),
+      });
+    }
+
+    return [
+      { title: "Rights on this branch", options: rights },
+      {
+        title: "Placement",
+        options: [
+          {
+            key: "remove",
+            label: "Remove from this branch",
+            glyph: <IconMinusUser size={16} />,
+            tone: "danger",
+            desc: `They lose ${isOwner ? "their ownership of" : "the courses that reach them through"} ${node.name}. Their profile and every other position they hold are untouched.`,
+            run: async () => {
+              const ok = await dialogs.confirm({
+                title: isOwner ? "Remove owner" : "Remove member",
+                message: `Remove ${p.displayName} (@${p.username}) from "${node.name}"?`,
+                confirmLabel: "Remove",
+                danger: true,
+              });
+              if (!ok) throw new Error("cancelled");
+              await runInMenu(() => roles.removePerson(node.id, p.profileId));
+            },
+          },
+        ],
+      },
+    ];
+  };
 
   return (
     <div className="drawer-section">
@@ -578,134 +724,82 @@ function PeoplePanel({
         </form>
       )}
 
-      {(!node.people || node.people.length === 0) && (
+      {people.length === 0 && (
         <p className="auth-sub">Nobody placed here yet — add the first person above.</p>
       )}
 
+      {/* A handful of people is a list you read; a department is one you search. */}
+      {people.length > 5 && (
+        <CatalogueBar
+          value={query}
+          onChange={setQuery}
+          label="Search the people on this branch"
+          placeholder="Search name or @username…"
+          shown={matches.length}
+          total={people.length}
+          noun="person"
+        />
+      )}
+
+      {people.length > 0 && matches.length === 0 && (
+        <CatalogueEmpty>Nobody on this branch matches that search.</CatalogueEmpty>
+      )}
+
       {owners.length > 0 && (
-        <>
-          <h3 className="learning-h">Owners · {owners.length}</h3>
-          <ul className="people-list">
-            {owners.map((p) => (
-              <li key={p.profileId} className="person-card">
-                <span className="avatar avatar-owner" aria-hidden>
-                  {initialsOf(p.displayName)}
-                </span>
-                <span className="person-main">
-                  <span className="person-name">{p.displayName}</span>
-                  <span className="person-sub">@{p.username}</span>
-                  <span className="person-chips">
-                    {p.canCreateSubgroups && <span className="badge badge-ok">sub-groups</span>}
-                    {p.canAddCoOwners && <span className="badge badge-ok">appoints co-owners</span>}
-                  </span>
-                </span>
-                <span className="person-actions">
-                  {node.my.canManageFlags && (
-                    <>
-                      <button
-                        className="btn btn-quiet btn-small"
-                        title="Toggle whether this owner can create sub-groups"
-                        onClick={() =>
-                          act(() =>
-                            roles.setPersonFlags(node.id, p.profileId, {
-                              canCreateSubgroups: !p.canCreateSubgroups,
-                            }),
-                          )
-                        }
-                      >
-                        {p.canCreateSubgroups ? "Revoke sub-groups" : "Allow sub-groups"}
-                      </button>
-                      <button
-                        className="btn btn-quiet btn-small"
-                        title="Toggle whether this owner can appoint co-owners"
-                        onClick={() =>
-                          act(() =>
-                            roles.setPersonFlags(node.id, p.profileId, {
-                              canAddCoOwners: !p.canAddCoOwners,
-                            }),
-                          )
-                        }
-                      >
-                        {p.canAddCoOwners ? "Revoke co-owner rights" : "Allow co-owner rights"}
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className="btn btn-danger btn-small"
-                    onClick={async () => {
-                      if (
-                        await dialogs.confirm({
-                          title: "Remove owner",
-                          message: `Remove ${p.displayName} (@${p.username}) from "${node.name}"?`,
-                          confirmLabel: "Remove",
-                          danger: true,
-                        })
-                      )
-                        act(() => roles.removePerson(node.id, p.profileId));
-                    }}
-                  >
-                    Remove
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
+        <CatalogueSection title="Owners" count={owners.length} forceOpen={searching}>
+          {owners.map((p) => (
+            <CatalogueRow
+              key={p.profileId}
+              leading={
+                <span className="avatar avatar-owner">{initialsOf(p.displayName)}</span>
+              }
+              title={p.displayName}
+              meta={`@${p.username}`}
+              chips={
+                <>
+                  {p.canCreateSubgroups && <span className="badge badge-ok">sub-groups</span>}
+                  {p.canAddCoOwners && <span className="badge badge-ok">appoints co-owners</span>}
+                </>
+              }
+              hint="What this owner may do here, and the door out of the branch."
+              hintTitle={p.displayName}
+              onOpen={() => setOpenId(p.profileId)}
+            />
+          ))}
+        </CatalogueSection>
       )}
 
       {members.length > 0 && (
-        <>
-          <h3 className="learning-h">Members · {members.length}</h3>
-          <ul className="people-list">
-            {members.map((p) => (
-              <li key={p.profileId} className="person-card">
-                <span className="avatar" aria-hidden>
-                  {initialsOf(p.displayName)}
-                </span>
-                <span className="person-main">
-                  <span className="person-name">{p.displayName}</span>
-                  <span className="person-sub">@{p.username}</span>
-                  {p.canCreateContent && (
-                    <span className="person-chips">
-                      <span className="badge badge-ok">creates content</span>
-                    </span>
-                  )}
-                </span>
-                <span className="person-actions">
-                  <button
-                    className="btn btn-quiet btn-small"
-                    title="Toggle whether this member may propose documents (published after your review)"
-                    onClick={() =>
-                      act(() =>
-                        roles.setPersonFlags(node.id, p.profileId, {
-                          canCreateContent: !p.canCreateContent,
-                        }),
-                      )
-                    }
-                  >
-                    {p.canCreateContent ? "Revoke content" : "Allow content"}
-                  </button>
-                  <button
-                    className="btn btn-danger btn-small"
-                    onClick={async () => {
-                      if (
-                        await dialogs.confirm({
-                          title: "Remove member",
-                          message: `Remove ${p.displayName} (@${p.username}) from "${node.name}"?`,
-                          confirmLabel: "Remove",
-                          danger: true,
-                        })
-                      )
-                        act(() => roles.removePerson(node.id, p.profileId));
-                    }}
-                  >
-                    Remove
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
+        <CatalogueSection title="Members" count={members.length} forceOpen={searching}>
+          {members.map((p) => (
+            <CatalogueRow
+              key={p.profileId}
+              leading={<span className="avatar">{initialsOf(p.displayName)}</span>}
+              title={p.displayName}
+              meta={`@${p.username}`}
+              chips={
+                p.canCreateContent ? <span className="badge badge-ok">creates content</span> : null
+              }
+              hint="What this member may do here, and the door out of the branch."
+              hintTitle={p.displayName}
+              onOpen={() => setOpenId(p.profileId)}
+            />
+          ))}
+        </CatalogueSection>
+      )}
+
+      {openPerson && (
+        <ActionMenu
+          title={openPerson.displayName}
+          subtitle={
+            <>
+              @{openPerson.username} · {openPerson.kind === "OWNER" ? "owner" : "member"} of{" "}
+              {node.name}
+            </>
+          }
+          groups={personActions(openPerson)}
+          onClose={() => setOpenId(null)}
+        />
       )}
     </div>
   );
@@ -746,9 +840,15 @@ function CoursesPanel({
   const [editingProps, setEditingProps] = useState<string | null>(null);
   /** Uploaded course whose file is being swapped for a new edition. */
   const [replacing, setReplacing] = useState<string | null>(null);
+  /** The course whose action menu is open. A row's title is what opens it. */
+  const [openCode, setOpenCode] = useState<string | null>(null);
+  // Finding one document among a hundred: search first, then sections, then the row.
+  const [query, setQuery] = useState("");
+  const [grouping, setGrouping] = useState<CourseGrouping>("shelf");
+  const [kindFilter, setKindFilter] = useState("all");
 
   const load = useCallback(() => {
-    courses
+    const listed = courses
       .listForRole(node.id)
       .then((r) => setList(r.courses))
       .catch((e) => onError(e instanceof ApiError ? e.message : "Could not load courses"));
@@ -761,8 +861,13 @@ function CoursesPanel({
       .suggestCategory(orgId, "", "")
       .then(setCatInfo)
       .catch(() => undefined);
+    // Awaited by the action menu, so an option that stays open re-reads the course it
+    // just changed instead of showing the state it had a moment ago.
+    return listed;
   }, [node.id, orgId, onError]);
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const uploadsLeft = limits?.uploads.remaining;
   const uploadsFull = uploadsLeft === 0;
@@ -790,7 +895,216 @@ function CoursesPanel({
 
   const run = async (fn: () => Promise<unknown>) => {
     await act(fn);
-    load();
+    void load();
+  };
+
+  /**
+   * The same thing from inside the action menu, with one difference: a failure is
+   * re-thrown so the menu stays open beside the error it caused, rather than vanishing
+   * behind a four-second toast.
+   */
+  const runInMenu = async (fn: () => Promise<unknown>) => {
+    const ok = await act(fn);
+    await load();
+    if (!ok) throw new Error("action failed");
+  };
+
+  /** Read it as a reader meets it — full screen, and nothing recorded against anybody. */
+  const preview = (code: string) => {
+    if (!openInWindow(orgId, code, true)) {
+      dialogs.toast(
+        "Your browser blocked the reader window. Allow pop-ups for Knowledge Vault and try again.",
+        "danger",
+      );
+    }
+  };
+
+  const kindsPresent = useMemo(
+    () => [...new Set((list ?? []).map((c) => c.kind))].sort(),
+    [list],
+  );
+
+  const searching = query.trim().length > 0;
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (list ?? [])
+      .filter(
+        (c) =>
+          (kindFilter === "all" || c.kind === kindFilter) &&
+          (q === "" ||
+            [c.title, c.code, c.description ?? "", c.category ?? "", kindLabel(c.kind)]
+              .join(" ")
+              .toLowerCase()
+              .includes(q)),
+      )
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [list, query, kindFilter]);
+
+  const sections = useMemo(
+    () =>
+      groupItems(
+        filtered,
+        (c) =>
+          grouping === "type"
+            ? kindLabel(c.kind)
+            : grouping === "status"
+              ? statusOf(c)
+              : (c.category ?? UNSHELVED),
+        grouping === "status" ? { order: STATUS_SECTIONS } : { last: UNSHELVED },
+      ),
+    [filtered, grouping],
+  );
+
+  const openCourse = list?.find((c) => c.code === openCode) ?? null;
+
+  /**
+   * What can be done with one course, grouped by what the choice actually touches: the
+   * branch you are standing on, or the document everywhere it exists. That distinction
+   * used to live in a paragraph of small print above the list and in hover hints on
+   * eight identical buttons; here it is the shape of the menu itself.
+   */
+  const courseActions = (c: RoleCourse): ActionGroup[] => {
+    const placement = (patch: { mandatory?: boolean; inheritToDescendants?: boolean }) =>
+      courses.place(c.code, {
+        roleNodeId: node.id,
+        mandatory: patch.mandatory ?? c.mandatory,
+        inheritToDescendants: patch.inheritToDescendants ?? c.inheritToDescendants,
+      });
+
+    const manage: ActionOption[] = c.canManage
+      ? [
+          {
+            key: "properties",
+            label: "Edit properties",
+            glyph: <IconSliders size={16} />,
+            desc: "Classification, description, shelf, deadline, recurrence, prerequisites, downloads. The content is untouched, so nothing here bumps the version or expires anybody's completion.",
+            run: () => {
+              setEditingProps(c.code);
+            },
+          },
+          {
+            key: "deployment",
+            label: c.withdrawn ? "Put back into deployment" : "Take out of deployment",
+            glyph: c.withdrawn ? <IconPlay size={16} /> : <IconPause size={16} />,
+            on: c.withdrawn,
+            desc: c.withdrawn
+              ? "Puts it back on exactly the branches it already had. Readers get the current edition again."
+              : "A pause. It reaches nobody and leaves the library, but every placement is kept — this is the step before a new edition, so no one is left half-way through an edition being rewritten.",
+            run: () => runInMenu(() => courses.withdraw(c.code, !c.withdrawn)),
+          },
+          {
+            key: "revise",
+            label: c.source === "STUDIO" ? "Revise in the Studio" : "Replace the file",
+            glyph: c.source === "STUDIO" ? <IconPencil size={16} /> : <IconUpload size={16} />,
+            desc:
+              c.source === "STUDIO"
+                ? `Opens ${versionLabel(c.version)} in the Studio and publishes ${versionLabel(c.version + 1)}. Everyone keeps receiving it on the same branches.`
+                : `Swaps the file or address behind this document and publishes ${versionLabel(c.version + 1)}. Its title, classification and placements are all kept.`,
+            run: () => {
+              if (c.source === "STUDIO") {
+                router.push(
+                  `/orgs/${orgId}/studio?role=${node.id}&type=${c.kind === "EXAM" ? "exam" : "document"}&course=${c.code}`,
+                );
+              } else {
+                setReplacing(c.code);
+              }
+            },
+          },
+          {
+            key: "archive",
+            label: c.archived ? "Bring it out of the archive" : "Archive it everywhere",
+            glyph: <IconArchive size={16} />,
+            tone: c.archived ? "default" : "danger",
+            desc: c.archived
+              ? "Back into use: it can be assigned to branches again."
+              : "Retires the document org-wide, not just here. It keeps its history and stays readable to the people who already have it, but it can never be assigned to a new branch again.",
+            run: () => runInMenu(() => courses.archive(c.code, !c.archived)),
+          },
+        ]
+      : [];
+
+    return [
+      {
+        title: "Read it",
+        options: [
+          {
+            key: "preview",
+            label: "Preview the document",
+            glyph: <IconEye size={16} />,
+            tone: "primary",
+            desc: "Opens it full screen exactly as a reader meets it. Nothing is recorded against your own learning.",
+            run: () => preview(c.code),
+          },
+        ],
+      },
+      {
+        title: `On ${node.name}`,
+        note: "Settings that belong to this branch alone — every other branch keeps what it has.",
+        options: [
+          {
+            key: "mandatory",
+            label: c.mandatory ? "Mandatory here" : "Opt-in here",
+            glyph: <IconFlag size={16} />,
+            on: c.mandatory,
+            keepOpen: true,
+            desc: c.mandatory
+              ? "It is on the compliance list of everyone this branch reaches, and they are chased if they do not finish it. Choose it to make it opt-in."
+              : "It is offered, but nobody is required to finish it and it never counts as non-compliant. Choose it to make it mandatory.",
+            run: () => runInMenu(() => placement({ mandatory: !c.mandatory })),
+          },
+          {
+            key: "inherit",
+            label: c.inheritToDescendants ? "Passed down the subtree" : "This branch only",
+            glyph: <IconBranchDown size={16} />,
+            on: c.inheritToDescendants,
+            keepOpen: true,
+            desc: c.inheritToDescendants
+              ? "Every branch beneath this one receives it too. Choose it to limit the document to this branch alone."
+              : "Only this branch receives it — sub-branches do not. Choose it to pass it down the whole subtree.",
+            run: () =>
+              runInMenu(() => placement({ inheritToDescendants: !c.inheritToDescendants })),
+          },
+          {
+            key: "unplace",
+            label: "Unplace from this branch",
+            glyph: <IconUnlink size={16} />,
+            tone: "danger",
+            desc: "Takes it off THIS branch only. The document keeps existing, stays in the library and keeps reaching every other branch it is placed on.",
+            run: () => runInMenu(() => courses.unplace(c.code, node.id)),
+          },
+        ],
+      },
+      {
+        title: "The document itself",
+        note: "These reach every branch the document is on, not only this one.",
+        options: manage,
+      },
+      {
+        title: "Permanent",
+        options: c.canDelete
+          ? [
+              {
+                key: "delete",
+                label: "Delete it everywhere",
+                glyph: <IconTrash size={16} />,
+                tone: "danger",
+                desc: "Deletes the document and every placement of it, everywhere. Completion history survives. There is no undo.",
+                run: async () => {
+                  const ok = await dialogs.confirm({
+                    title: "Delete course everywhere",
+                    message: `Delete "${c.title}" (${c.code}) everywhere? All placements disappear. Completion history is kept.`,
+                    confirmLabel: "Delete",
+                    danger: true,
+                  });
+                  if (!ok) throw new Error("cancelled");
+                  await runInMenu(() => courses.remove(c.code));
+                },
+              },
+            ]
+          : [],
+      },
+    ];
   };
 
   return (
@@ -842,185 +1156,127 @@ function CoursesPanel({
       )}
 
       <h3 className="learning-h">Courses on this role</h3>
-      {(list?.length ?? 0) > 0 && (
-        <p className="auth-sub course-legend">
-          Three different ways to stop something reaching people, and they are not the same:{" "}
-          <strong
-            data-hint="Removes it from THIS branch only. It keeps existing and keeps reaching every other branch it is placed on."
-            data-hint-title="Unplace"
-          >
-            Unplace
-          </strong>{" "}
-          takes it off this branch,{" "}
-          <strong
-            data-hint="A pause. It reaches nobody and leaves the library, but every placement is kept so the next edition lands on exactly the same audience."
-            data-hint-title="Out of deployment"
-          >
-            out of deployment
-          </strong>{" "}
-          pauses it everywhere while a new edition is written, and{" "}
-          <strong
-            data-hint="Retirement. It stays readable and keeps its history, but it can never be assigned to a new branch again."
-            data-hint-title="Archive"
-          >
-            Archive
-          </strong>{" "}
-          retires it org-wide. Hover any button to see what it does.
-        </p>
-      )}
       {!list && <p className="auth-sub">Loading…</p>}
       {list?.length === 0 && <p className="auth-sub">No courses placed here yet.</p>}
-      <ul className="people-list">
-        {list?.map((c) => (
-          <li key={c.code} className="course-card" data-archived={c.archived}>
-            <div className="course-card-head">
-              <span className="person-name">{c.title}</span>
-              <span className="chip">{c.code}</span>
-              <span className="badge">{c.kind.toLowerCase()}</span>
-              <span className={`badge class-badge class-${c.classification}`}>
-                {c.classification.toLowerCase()}
-              </span>
-              <span className="chip">{versionLabel(c.version)}</span>
-              {c.inLibrary && <span className="badge badge-ok">in library</span>}
-              {c.archived && <span className="badge badge-danger">archived</span>}
-              {c.withdrawn && <span className="badge badge-danger">out of deployment</span>}
-            </div>
-            {c.description && <p className="person-sub">{c.description}</p>}
-            <div className="person-actions">
-              <button
-                className="btn btn-quiet btn-small"
-                data-hint={
-                  c.mandatory
-                    ? "Mandatory here: it is on the compliance list of everyone this branch reaches, and they are chased if they do not finish it. Click to make it opt-in."
-                    : "Opt-in here: it is offered but nobody is required to finish it, and it never shows as non-compliant. Click to make it mandatory."
-                }
-                data-hint-title={c.mandatory ? "Mandatory" : "Opt-in"}
-                onClick={() =>
-                  run(() =>
-                    courses.place(c.code, {
-                      roleNodeId: node.id,
-                      mandatory: !c.mandatory,
-                      inheritToDescendants: c.inheritToDescendants,
-                    }),
-                  )
-                }
+
+      {list && list.length > 0 && (
+        <>
+          <CatalogueBar
+            value={query}
+            onChange={setQuery}
+            label="Search the courses on this branch"
+            placeholder="Search title, code, shelf…"
+            shown={filtered.length}
+            total={list.length}
+            noun="course"
+          >
+            <label className="field cat-field">
+              <span>Sections</span>
+              <select
+                value={grouping}
+                onChange={(e) => setGrouping(e.target.value as CourseGrouping)}
               >
-                {c.mandatory ? "mandatory ✓" : "opt-in"}
-              </button>
-              <button
-                className="btn btn-quiet btn-small"
-                data-hint={
-                  c.inheritToDescendants
-                    ? "Every branch beneath this one receives it too. Click to limit it to this branch alone."
-                    : "Only this branch receives it — sub-branches do not. Click to pass it down the whole subtree."
-                }
-                data-hint-title="Inheritance"
-                onClick={() =>
-                  run(() =>
-                    courses.place(c.code, {
-                      roleNodeId: node.id,
-                      mandatory: c.mandatory,
-                      inheritToDescendants: !c.inheritToDescendants,
-                    }),
-                  )
-                }
-              >
-                {c.inheritToDescendants ? "inherits ↓ ✓" : "this role only"}
-              </button>
-              {c.canManage && (
-                <button
-                  className="btn btn-quiet btn-small"
-                  data-hint="Change what the organization says about this document — classification, description, shelf, deadline, recurrence, prerequisites, downloads. The content is untouched, so nothing here bumps the version or expires anybody's completion."
-                  data-hint-title="Edit properties"
-                  onClick={() => setEditingProps(c.code)}
-                >
-                  ⚙ Properties
-                </button>
-              )}
-              {/* Version control is not a Studio privilege. An uploaded document has
-                  editions too — a replaced file is a new edition of the same document,
-                  which is exactly what the deployment switch and Revise exist for. */}
-              {c.canManage && (
-                <>
-                  <button
-                    className="btn btn-quiet btn-small"
-                    data-hint={
-                      c.withdrawn
-                        ? "Put it back into deployment on exactly the branches it already had. Readers get the current edition again."
-                        : "Out of deployment it reaches nobody and leaves the library, but every placement is kept. This is the step before publishing a new edition — it is how readers are never left mid-way through an edition that is being rewritten."
-                    }
-                    data-hint-title={c.withdrawn ? "Put back into deployment" : "Take out of deployment"}
-                    onClick={() => run(() => courses.withdraw(c.code, !c.withdrawn))}
-                  >
-                    {c.withdrawn ? "▲ Put back" : "⏸ Take out of deployment"}
-                  </button>
-                  <button
-                    className="btn btn-quiet btn-small"
-                    data-hint={
-                      c.source === "STUDIO"
-                        ? `Open ${versionLabel(c.version)} in the Studio and publish ${versionLabel(c.version + 1)}. Everyone keeps receiving it on the same branches.`
-                        : `Replace the file or address behind this document and publish ${versionLabel(c.version + 1)}. Its title, classification and placements are all kept.`
-                    }
-                    data-hint-title="New edition"
-                    onClick={() =>
-                      c.source === "STUDIO"
-                        ? router.push(
-                            `/orgs/${orgId}/studio?role=${node.id}&type=${c.kind === "EXAM" ? "exam" : "document"}&course=${c.code}`,
-                          )
-                        : setReplacing(c.code)
-                    }
-                  >
-                    {c.source === "STUDIO" ? "✎ Revise" : "⇪ Replace file"}
-                  </button>
-                </>
-              )}
-              <button
-                className="btn btn-quiet btn-small"
-                data-hint="Removes it from THIS branch only. The document keeps existing, stays in the library and keeps reaching every other branch it is placed on. Use it when this branch simply no longer needs it."
-                data-hint-title="Unplace — from this branch"
-                onClick={() => run(() => courses.unplace(c.code, node.id))}
-              >
-                Unplace
-              </button>
-              {c.canManage && (
-                <button
-                  className="btn btn-quiet btn-small"
-                  data-hint={
-                    c.archived
-                      ? "Bring it back into use: it can be assigned to branches again."
-                      : "Archives the document EVERYWHERE, not just here. It keeps its history and stays readable to the people who already have it, but it cannot be assigned to any new branch again. Use it when the material is retired org-wide — Unplace is the one for “not needed on this branch”."
+                <option value="shelf">By shelf</option>
+                <option value="type">By type</option>
+                <option value="status">By status</option>
+              </select>
+            </label>
+            {kindsPresent.length > 1 && (
+              <label className="field cat-field">
+                <span>Type</span>
+                <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+                  <option value="all">All types</option>
+                  {kindsPresent.map((k) => (
+                    <option key={k} value={k}>
+                      {kindLabel(k)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </CatalogueBar>
+
+          {filtered.length === 0 && (
+            <CatalogueEmpty>
+              Nothing placed on this branch matches what you are looking for.
+            </CatalogueEmpty>
+          )}
+
+          {sections.map(([title, items], i) => (
+            <CatalogueSection
+              key={title}
+              title={title}
+              count={items.length}
+              forceOpen={searching}
+              // A shelf or two reads as one list and stays open. A filing cabinet of them
+              // opens at the first drawer, and the reader picks the next.
+              defaultOpen={filtered.length <= 12 || i === 0}
+              tone={
+                title === "Archived" ? "muted" : title === "Out of deployment" ? "warn" : "default"
+              }
+            >
+              {items.map((c) => (
+                <CatalogueRow
+                  key={c.code}
+                  leading={kindGlyph(c.kind)}
+                  title={c.title}
+                  meta={
+                    <>
+                      {c.code} · {kindLabel(c.kind)} · {versionLabel(c.version)}
+                      {grouping !== "shelf" && c.category ? ` · ${c.category}` : ""}
+                    </>
                   }
-                  data-hint-title={c.archived ? "Unarchive" : "Archive — everywhere"}
-                  onClick={() => run(() => courses.archive(c.code, !c.archived))}
-                >
-                  {c.archived ? "Unarchive" : "Archive"}
-                </button>
+                  chips={
+                    <>
+                      <span className={`badge class-badge class-${c.classification}`}>
+                        {classLabel(c.classification)}
+                      </span>
+                      <span className="badge">{c.mandatory ? "mandatory" : "opt-in"}</span>
+                      {c.inheritToDescendants && <span className="badge">inherits ↓</span>}
+                      {c.inLibrary && <span className="badge badge-ok">in library</span>}
+                      {c.withdrawn && (
+                        <span className="badge badge-danger">out of deployment</span>
+                      )}
+                      {c.archived && <span className="badge badge-danger">archived</span>}
+                    </>
+                  }
+                  dim={c.archived || c.withdrawn}
+                  hint="Everything this document can do — preview it, change how it reaches this branch, publish a new edition, retire it."
+                  hintTitle={c.title}
+                  onOpen={() => setOpenCode(c.code)}
+                />
+              ))}
+            </CatalogueSection>
+          ))}
+        </>
+      )}
+
+      {openCourse && (
+        <ActionMenu
+          title={openCourse.title}
+          subtitle={
+            <>
+              {kindLabel(openCourse.kind)} · {openCourse.code} ·{" "}
+              {versionLabel(openCourse.version)} · on {node.name}
+            </>
+          }
+          chips={
+            <>
+              <span className={`badge class-badge class-${openCourse.classification}`}>
+                {classLabel(openCourse.classification)}
+              </span>
+              {openCourse.category && <span className="chip">{openCourse.category}</span>}
+              {openCourse.inLibrary && <span className="badge badge-ok">in library</span>}
+              {openCourse.withdrawn && (
+                <span className="badge badge-danger">out of deployment</span>
               )}
-              {c.canDelete && (
-                <button
-                  className="btn btn-danger btn-small"
-                  data-hint="Deletes the document and every placement of it, everywhere, permanently. Completion history survives. There is no undo."
-                  data-hint-title="Delete"
-                  data-hint-tone="danger"
-                  onClick={async () => {
-                    if (
-                      await dialogs.confirm({
-                        title: "Delete course everywhere",
-                        message: `Delete "${c.title}" (${c.code}) everywhere? All placements disappear. Completion history is kept.`,
-                        confirmLabel: "Delete",
-                        danger: true,
-                      })
-                    )
-                      run(() => courses.remove(c.code));
-                  }}
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+              {openCourse.archived && <span className="badge badge-danger">archived</span>}
+            </>
+          }
+          groups={courseActions(openCourse)}
+          onClose={() => setOpenCode(null)}
+        />
+      )}
 
       {editingProps && (
         <PropertiesEditor

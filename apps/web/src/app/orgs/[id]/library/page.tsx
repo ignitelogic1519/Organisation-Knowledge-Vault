@@ -13,6 +13,7 @@ import { requests } from "@/lib/orgs-client";
 import { courses } from "@/lib/courses-client";
 import { Stars } from "@/components/CourseViewer";
 import { readerPath } from "@/lib/reader-window";
+import { CLASS_LABELS, KIND_LABELS, UNSHELVED } from "@/lib/course-labels";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
 import { useDialogs } from "@/components/dialogs";
@@ -21,24 +22,6 @@ import { useDialogs } from "@/components/dialogs";
 // filterable by type / category / rating, sortable, searchable. Opening an entry shows
 // its description, ratings and member comments, and lets you request the course for
 // your branch (the request goes to that branch's handler, who configures it first).
-
-const KIND_LABELS: Record<string, string> = {
-  DOCUMENT: "Document",
-  BOOK: "Book",
-  EXAM: "Exam",
-  LINK: "Link",
-  AUDIO: "Audio",
-  VIDEO: "Video",
-};
-
-const CLASS_LABEL: Record<string, string> = {
-  PUBLIC: "Public",
-  CONFIDENTIAL: "Confidential",
-  PRIVATE: "Private",
-  SECRET: "Secret",
-};
-
-const UNSHELVED = "Uncategorised";
 
 function RatingLine({ avg, count }: { avg: number | null; count: number }) {
   if (avg === null) return <span className="auth-sub">not rated yet</span>;
@@ -110,7 +93,7 @@ function CourseDetail({
             <span className="badge">{KIND_LABELS[course.kind] ?? course.kind}</span>
             <span className="chip">{versionLabel(course.version)}</span>
             <span className={`badge class-badge class-${course.classification}`}>
-              {CLASS_LABEL[course.classification]}
+              {CLASS_LABELS[course.classification]}
             </span>
             {course.archived && <span className="badge badge-danger">archived</span>}
             {course.category && <span className="chip chip-shelf">{course.category}</span>}
@@ -538,7 +521,7 @@ export default function LibraryPage() {
             <span>Class</span>
             <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
               <option value="all">All classes</option>
-              {Object.entries(CLASS_LABEL).map(([k, v]) => (
+              {Object.entries(CLASS_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
                 </option>
@@ -612,7 +595,7 @@ export default function LibraryPage() {
                   <div className="library-card-head">
                     <span className="badge">{KIND_LABELS[c.kind] ?? c.kind}</span>
                     <span className={`badge class-badge class-${c.classification}`}>
-                      {CLASS_LABEL[c.classification]}
+                      {CLASS_LABELS[c.classification]}
                     </span>
                     <RatingLine avg={c.avgRating} count={c.ratingCount} />
                   </div>

@@ -13,6 +13,7 @@ import { roles } from "@/lib/orgs-client";
 import { compliance } from "@/lib/courses-client";
 import { useOrg } from "@/components/org-context";
 import { useOrgEvent } from "@/components/org-events";
+import { CatalogueBar, CatalogueEmpty } from "@/components/Catalogue";
 import { useDialogs } from "@/components/dialogs";
 import { UsernameField } from "@/components/UsernameField";
 
@@ -374,6 +375,8 @@ export default function CompliancePage() {
   const [roleId, setRoleId] = useState<string | null>(null);
   const [report, setReport] = useState<ComplianceReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A branch with a hundred courses on it needs a way in, same as everywhere else.
+  const [query, setQuery] = useState("");
 
   const loadStructure = useCallback(() => {
     roles
@@ -403,6 +406,15 @@ export default function CompliancePage() {
   }, [roleId]);
   useEffect(loadReport, [loadReport]);
   useOrgEvent(["courses", "structure"], loadReport);
+
+  const shownCourses = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!report) return [];
+    if (!q) return report.courses;
+    return report.courses.filter((c) =>
+      `${c.title} ${c.code} ${c.viaRoleName}`.toLowerCase().includes(q),
+    );
+  }, [report, query]);
 
   if (nodes && governed.length === 0) {
     return (
@@ -487,8 +499,22 @@ export default function CompliancePage() {
             {report.courses.length === 0 && (
               <p className="auth-sub">No courses reach this branch yet.</p>
             )}
+            {report.courses.length > 5 && (
+              <CatalogueBar
+                value={query}
+                onChange={setQuery}
+                label="Search the courses on this branch"
+                placeholder="Search title, code or the branch it comes from…"
+                shown={shownCourses.length}
+                total={report.courses.length}
+                noun="course"
+              />
+            )}
+            {report.courses.length > 0 && shownCourses.length === 0 && (
+              <CatalogueEmpty>No course on this branch matches that search.</CatalogueEmpty>
+            )}
             <div className="compliance-list">
-              {report.courses.map((c) => (
+              {shownCourses.map((c) => (
                 <CourseBlock key={c.code} course={c} roleId={report.roleId} onSent={loadReport} />
               ))}
             </div>

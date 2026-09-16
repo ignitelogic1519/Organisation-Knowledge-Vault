@@ -157,3 +157,144 @@ export const IconRecovery = (p: IconProps) => (
     <path d="M12 8.8l3.4 1.3v3.1c0 2-1.4 3.5-3.4 4.3-2-.8-3.4-2.3-3.4-4.3v-3.1z" />
   </Svg>
 );
+
+/* ── Catalogue & action-menu icons ──────────────────────────────────────────
+   The set the searchable lists and the action menu draw from: one glyph per kind
+   of document, one per action. They are stroke icons like the rest, so a menu row
+   and a sidebar link are lit by the same currentColor. */
+
+export const IconSearch = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5" />
+  </Svg>
+);
+
+export const IconEye = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="2.8" />
+  </Svg>
+);
+
+export const IconDoc = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 3h7.5L19 8.5V21H6z" />
+    <path d="M13.5 3v5.5H19" />
+    <path d="M9 13h6M9 16.5h4.5" />
+  </Svg>
+);
+
+export const IconExam = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4" y="4" width="16" height="16" rx="3" />
+    <path d="m8.5 12 2.4 2.4 4.6-4.8" />
+  </Svg>
+);
+
+export const IconLink = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M10 13.5a3.6 3.6 0 0 0 5.1 0l2.9-2.9a3.6 3.6 0 0 0-5.1-5.1l-1.3 1.3" />
+    <path d="M14 10.5a3.6 3.6 0 0 0-5.1 0L6 13.4a3.6 3.6 0 0 0 5.1 5.1l1.3-1.3" />
+  </Svg>
+);
+
+export const IconAudio = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 17V6.5l9-2V15" />
+    <circle cx="6.5" cy="17" r="2.5" />
+    <circle cx="15.5" cy="15" r="2.5" />
+  </Svg>
+);
+
+export const IconVideo = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="5.5" width="13" height="13" rx="3" />
+    <path d="m16 12 5-3v9l-5-3z" />
+  </Svg>
+);
+
+export const IconFlag = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 21V4" />
+    <path d="M6 4.5h11l-2 3.5 2 3.5H6z" />
+  </Svg>
+);
+
+export const IconBranchDown = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 3v11" />
+    <path d="m8 10.5 4 4 4-4" />
+    <path d="M5 20h14" />
+  </Svg>
+);
+
+export const IconSliders = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 6h14M5 12h14M5 18h14" />
+    <circle cx="9" cy="6" r="2" />
+    <circle cx="15" cy="12" r="2" />
+    <circle cx="8" cy="18" r="2" />
+  </Svg>
+);
+
+export const IconPause = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="7" y="5" width="3.6" height="14" rx="1.4" />
+    <rect x="13.4" y="5" width="3.6" height="14" rx="1.4" />
+  </Svg>
+);
+
+export const IconPlay = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8 5.5 18 12 8 18.5z" />
+  </Svg>
+);
+
+export const IconPencil = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20h4L19.2 8.8a2.4 2.4 0 0 0-3.4-3.4L4.6 16.6z" />
+    <path d="m14.8 6.6 3.4 3.4" />
+  </Svg>
+);
+
+export const IconUpload = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 16V4.5" />
+    <path d="m7.5 9 4.5-4.5L16.5 9" />
+    <path d="M4.5 16v2.5A1.5 1.5 0 0 0 6 20h12a1.5 1.5 0 0 0 1.5-1.5V16" />
+  </Svg>
+);
+
+export const IconUnlink = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M10.5 13.5a3.6 3.6 0 0 0 4.6.4l2.4-2.4a3.6 3.6 0 0 0-5.1-5.1l-.8.8" />
+    <path d="M13.5 10.5a3.6 3.6 0 0 0-4.6-.4L6.5 12.5a3.6 3.6 0 0 0 5.1 5.1l.8-.8" />
+    <path d="m4 4 16 16" />
+  </Svg>
+);
+
+export const IconTrash = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4.5 6.5h15" />
+    <path d="M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7" />
+    <path d="M6.5 6.5 7.4 20a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-13.5" />
+    <path d="M10.5 10.5v7M13.5 10.5v7" />
+  </Svg>
+);
+
+export const IconMinusUser = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10" cy="8" r="3.6" />
+    <path d="M3.5 20c0-3.3 2.9-5.6 6.5-5.6 1.2 0 2.3.2 3.2.7" />
+    <path d="M15.5 17.5h5" />
+  </Svg>
+);
+
+export const IconKey = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="8" cy="13" r="4.2" />
+    <path d="M11.8 11.4 20 6.5" />
+    <path d="m17 8.3 1.8 2.6M19.4 6.9l1.6 2.4" />
+  </Svg>
+);
