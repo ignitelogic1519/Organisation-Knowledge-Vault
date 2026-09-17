@@ -37,9 +37,16 @@ Fill in three fields:
 2. **Username** — your unique handle (e.g. *avery.stone*). Choose it carefully: this is the
    **exact** name an administrator types to add you to an organization. It must be at least
    3 characters, and may contain letters, numbers, dots, dashes, underscores and `@`.
-3. **Password** — at least **10 characters**. You'll be asked to **retype it** to confirm
-   you got it right — a safeguard you'll see every time you set or change a password on the
-   platform.
+3. **Password** — at least **12 characters**, with an **uppercase letter**, a **lowercase
+   letter**, a **number** and a **symbol**. You don't have to remember that list: it sits
+   beside the field and ticks each line off as you type, and a strength bar underneath
+   moves from *Weak* to *Strong* as the password grows. You'll also be asked to **retype
+   it** to confirm you got it right — a safeguard you'll see every time you set a password
+   on the platform.
+
+> **Already have a profile?** Nothing changes for you. These rules apply when a password is
+> *chosen*; a password you already use keeps signing you in exactly as it did, and you are
+> never asked to replace it.
 
 Select **Create profile** and you're in.
 

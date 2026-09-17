@@ -13,6 +13,7 @@ import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconUser } from "@/components/icons";
 import { StorageSetupFields, emptyStorageConfig } from "@/components/StorageSetupFields";
 import { OrgLogoField } from "@/components/OrgLogoField";
+import { PasswordSetup } from "@/components/PasswordSetup";
 import type { StorageConfigInput } from "@vault/shared";
 
 const NAV = [
@@ -41,6 +42,8 @@ export default function NewOrgPage() {
   const [kvepCheckMsg, setKvepCheckMsg] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(null);
   const [orgName, setOrgName] = useState("");
+  const [supremePassword, setSupremePassword] = useState("");
+  const [supremePassword2, setSupremePassword2] = useState("");
   // Whether the CURRENT storage settings have been proven to work. Creating an organization
   // against storage nobody has reached produces one that cannot accept a single upload, and
   // the owner only finds out later — so the test is a gate, not a courtesy. Editing any
@@ -98,14 +101,14 @@ export default function NewOrgPage() {
     e.preventDefault();
     setError(null);
     const data = new FormData(e.currentTarget);
-    if (data.get("supremePassword") !== data.get("supremePassword2")) {
+    if (supremePassword !== supremePassword2) {
       setError("Supreme passwords do not match");
       return;
     }
     const parsed = createOrgSchema.safeParse({
       name: data.get("name"),
       ownerRoleName: data.get("ownerRoleName"),
-      supremePassword: data.get("supremePassword"),
+      supremePassword,
       acknowledgedUnrecoverable: data.get("ack") === "on" ? true : false,
       accessCode: String(data.get("accessCode") ?? "").trim(),
       // A KVEP organization sends no storage at all — it uses ours — and instead proves
@@ -202,15 +205,18 @@ export default function NewOrgPage() {
             <input name="ownerRoleName" placeholder="Owner / CEO / Principal…" required />
             <small>The role at the top of your structure — you become its first occupant</small>
           </label>
-          <label className="field">
-            <span>Supreme password</span>
-            <input name="supremePassword" type="password" minLength={12} required />
-            <small>At least 12 characters</small>
-          </label>
-          <label className="field">
-            <span>Repeat Supreme password</span>
-            <input name="supremePassword2" type="password" required />
-          </label>
+          <PasswordSetup
+            value={supremePassword}
+            onValueChange={setSupremePassword}
+            confirm={supremePassword2}
+            onConfirmChange={setSupremePassword2}
+            passwordName="supremePassword"
+            confirmName="supremePassword2"
+            passwordLabel="Supreme password"
+            confirmLabel="Repeat Supreme password"
+            rulesHeading="The Supreme password needs"
+            note="It guards owner-level changes and encrypts your .main revival file"
+          />
 
           <div className="warn-box">
             <strong>This password cannot be recovered. By anyone. Ever.</strong>

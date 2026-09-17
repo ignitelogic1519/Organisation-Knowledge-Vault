@@ -1375,7 +1375,6 @@ function BackupPanel({
                 "Choose a password for this .bkp — you will need it again to restore the backup.",
               label: "New backup password",
               confirmEntry: true,
-              minLength: 8,
               submitLabel: "Export .bkp",
             });
             if (!pw) return;

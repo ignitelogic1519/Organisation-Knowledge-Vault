@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { strongPassword } from "./password.js";
 import type { PlanStatus, PlatformRequestKind, PlatformRequestStatus } from "./pricing.js";
 
 // Super-super-admin console contracts (the "Knowledge Base" employee portal).
@@ -6,6 +7,7 @@ import type { PlanStatus, PlatformRequestKind, PlatformRequestStatus } from "./p
 
 export const adminLoginSchema = z.object({
   username: z.string().min(1, "Enter your admin username"),
+  /** An existing password being typed back — never strength-checked (password.ts). */
   password: z.string().min(1, "Enter your password"),
 });
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
@@ -19,8 +21,10 @@ export interface AdminSession {
 
 export const changeAdminPasswordSchema = z
   .object({
+    /** What they have today — checked against the hash, never against the policy. */
     currentPassword: z.string().min(1),
-    newPassword: z.string().min(10, "New password must be at least 10 characters").max(200),
+    /** What they are choosing now, so the policy applies (password.ts). */
+    newPassword: strongPassword("New password"),
     confirm: z.string(),
   })
   .refine((v) => v.newPassword === v.confirm, {
@@ -188,7 +192,12 @@ export type UpgradePlanInput = z.infer<typeof upgradePlanSchema>;
 /** Add another project member as a super-admin. */
 export const addAdminSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(60),
-  password: z.string().min(10, "Password must be at least 10 characters").max(200),
+  /**
+   * The temporary password a new super-admin first signs in with. They must replace it
+   * immediately, but it is still a password being chosen — and one that opens the
+   * console — so it meets the policy like any other (password.ts).
+   */
+  password: strongPassword(),
   displayName: z.string().min(1, "Enter a display name").max(80),
 });
 export type AddAdminInput = z.infer<typeof addAdminSchema>;

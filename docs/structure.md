@@ -673,6 +673,46 @@ explain rather than simply demand a password.
 
 ---
 
+### 8.9 A strength policy on new passwords ✅ DECIDED (2026-09-17)
+
+**The rule: a password being CHOSEN must be at least 12 characters and carry an uppercase
+letter, a lowercase letter, a number and a symbol. A password being TYPED BACK is never
+checked against any of it.**
+
+That second sentence is the whole design. The platform already holds passwords created
+under looser rules — profiles made at 10 characters, Supreme passwords at 12 with no class
+requirement, the bootstrap admin's seeded one. Applying a strength rule at the door would
+lock out every one of them, and no migration can fix it: the platform stores hashes, so
+nobody — not even the API — can tell whether an existing password would pass the new
+policy, and nothing can rewrite it. So the policy lives exactly where a NEW password is
+being decided, and nowhere else.
+
+| Where a password is chosen → policy applies | Where one is typed back → untouched |
+|---|---|
+| `POST /auth/register` — a new profile | `POST /auth/login` |
+| `POST /orgs` — a new organization's Supreme password | `POST /orgs/:id/supreme/verify`, and every Supreme-gated route |
+| `POST /admin/admins` — a new super-admin's first password | `POST /admin/login` |
+| `PATCH /admin/password` — the **new** password only | the same call's `currentPassword` |
+| `POST /roles/:roleId/export-bkp` — a new backup file's password | `…/restore-bkp`, `…/undelete`, `…/export-main`, `.main` revival, KVEP re-auth |
+
+**One implementation, three readers.** `packages/shared/src/password.ts` holds the policy,
+the checklist, the wording of the failure and the strength score. The browser draws the
+checklist from it, the client-side `safeParse` stops the form with it, and the API refuses
+the request with it — so the rule cannot drift between what someone is told and what they
+are held to. `strongPassword(subject)` is the zod piece; a field that receives an existing
+password stays `z.string().min(1)` and carries a comment saying why.
+
+**What the person sees** (`components/PasswordSetup.tsx`, design.md §3.1b): the fields,
+a live checklist beside them ticking off as each requirement is met, and a strength meter
+along the bottom. The meter is deliberately **capped below "Good" until every requirement
+is satisfied** — a bar reading Strong over a form that then refuses to submit is worse
+than no bar. It is never rendered on a sign-in form: an existing password's strength is
+not something its owner can act on there.
+
+**Not done, deliberately:** no expiry, no history, no forced reset of existing passwords,
+no breach-corpus lookup. The first three punish people who already chose well; the fourth
+is a network call on a password field.
+
 ## 9. Organization-provided storage ✅ DECIDED (2026-08-04) — built for files
 
 > This section is normative. The working record of how it was reached lives in

@@ -181,9 +181,16 @@ Fill in three fields:
 2. **Username** — your unique handle (e.g. *avery.stone*). Choose it carefully: this is the
    **exact** name an administrator types to add you to an organization. It must be at least
    3 characters, and may contain letters, numbers, dots, dashes, underscores and `@`.
-3. **Password** — at least **10 characters**. You'll be asked to **retype it** to confirm
-   you got it right — a safeguard you'll see every time you set or change a password on the
-   platform.
+3. **Password** — at least **12 characters**, with an **uppercase letter**, a **lowercase
+   letter**, a **number** and a **symbol**. You don't have to remember that list: it sits
+   beside the field and ticks each line off as you type, and a strength bar underneath
+   moves from *Weak* to *Strong* as the password grows. You'll also be asked to **retype
+   it** to confirm you got it right — a safeguard you'll see every time you set a password
+   on the platform.
+
+> **Already have a profile?** Nothing changes for you. These rules apply when a password is
+> *chosen*; a password you already use keeps signing you in exactly as it did, and you are
+> never asked to replace it.
 
 Select **Create profile** and you're in.
 
@@ -502,7 +509,11 @@ Fill in the fields:
    blank square. You can change it later from the root branch's **Group configuration**.
 4. **First role name** — the name of the top role you'll occupy. This is the root of your
    whole structure.
-5. **Supreme password** — at least **12 characters**. Retype it to confirm.
+5. **Supreme password** — at least **12 characters**, with an **uppercase letter**, a
+   **lowercase letter**, a **number** and a **symbol**; the checklist beside the field
+   tracks it as you type and the bar underneath rates it. Retype it to confirm. This is the
+   one password on the platform nobody can reset for you, which is the best possible reason
+   to make it a strong one.
 6. **Where your documents will live** — see the next section.
 
 ## Where your documents will live

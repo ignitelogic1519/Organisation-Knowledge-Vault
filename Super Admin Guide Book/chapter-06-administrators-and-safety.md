@@ -14,6 +14,12 @@ Any member of the team can be given a portal account.
 
 - **Adding one** takes a username, a display name and a temporary password. The new account is
   **forced to change that password at first sign-in**.
+- **Both passwords meet the platform's strength policy** — 12 characters or more, carrying an
+  uppercase letter, a lowercase letter, a number and a symbol. The form lists the rules beside
+  the field and ticks them off as you type, with a strength bar underneath; the same block
+  appears on the forced first change. Signing in is untouched: the password an existing
+  account already has keeps working, and nobody is forced to replace one because the policy
+  arrived.
 - **Deactivating** blocks the account everywhere — not only at the login, but on every request
   it would otherwise make. Reactivating restores it.
 - **You cannot deactivate yourself.** The console refuses, so the last person standing cannot

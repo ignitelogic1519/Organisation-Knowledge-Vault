@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PlacementKind } from "./types.js";
+import { strongPassword } from "./password.js";
 import { storageConfigSchema } from "./storage.js";
 
 // Organization contracts — docs/structure.md §1.2, §4.1.
@@ -10,10 +11,12 @@ export const createOrgSchema = z.object({
     .string()
     .min(2, "Name the first role (Owner, CEO, Principal, …)")
     .max(40),
-  supremePassword: z
-    .string()
-    .min(12, "Supreme password must be at least 12 characters")
-    .max(200),
+  /**
+   * Chosen here for the first time, so the strength policy applies (password.ts). It is
+   * also the one password in the platform nobody can reset, which is the strongest
+   * possible argument for making it a strong one.
+   */
+  supremePassword: strongPassword("Supreme password"),
   /** The unrecoverability warning must be explicitly acknowledged. */
   acknowledgedUnrecoverable: z.literal(true, {
     errorMap: () => ({ message: "You must acknowledge that the Supreme password is unrecoverable" }),
@@ -68,6 +71,11 @@ export const updateOrgLogoSchema = z.object({
 });
 export type UpdateOrgLogoInput = z.infer<typeof updateOrgLogoSchema>;
 
+/**
+ * The Supreme GATE — an existing password being typed back. Never strength-checked:
+ * organizations created before the policy keep their Supreme password, and the gate has
+ * to keep opening for it.
+ */
 export const supremeVerifySchema = z.object({
   password: z.string().min(1, "Enter the Supreme password"),
 });

@@ -5,24 +5,27 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { registerSchema } from "@vault/shared";
 import { auth, ApiError } from "@/lib/auth-client";
+import { PasswordSetup } from "@/components/PasswordSetup";
 import { SiteNav } from "@/components/SiteNav";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const data = new FormData(e.currentTarget);
-    if (data.get("password") !== data.get("password2")) {
+    if (password !== password2) {
       setError("The passwords don't match — retype them.");
       return;
     }
     const parsed = registerSchema.safeParse({
       username: data.get("username"),
-      password: data.get("password"),
+      password,
       displayName: data.get("displayName"),
     });
     if (!parsed.success) {
@@ -43,7 +46,7 @@ export default function RegisterPage() {
     <main>
       <SiteNav right={<Link href="/login" className="nav-link">Sign in</Link>} />
       <div className="kv-auth-wrap">
-        <form className="card kv-auth-card" onSubmit={submit}>
+        <form className="card kv-auth-card" data-wide="true" onSubmit={submit}>
           <span className="brand-mark" aria-hidden>
             ✦
           </span>
@@ -82,35 +85,17 @@ export default function RegisterPage() {
               exact username
             </div>
           </div>
-          <div className="mb-3 text-start">
-            <label className="form-label" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              className="form-control"
-              autoComplete="new-password"
-              minLength={10}
-              required
+          <div className="mb-3">
+            <PasswordSetup
+              variant="bootstrap"
+              value={password}
+              onValueChange={setPassword}
+              confirm={password2}
+              onConfirmChange={setPassword2}
+              passwordLabel="Password"
+              confirmLabel="Retype password"
+              note="This is the password you will sign in with"
             />
-            <div className="form-text">At least 10 characters</div>
-          </div>
-          <div className="mb-3 text-start">
-            <label className="form-label" htmlFor="password2">
-              Retype password
-            </label>
-            <input
-              id="password2"
-              name="password2"
-              type="password"
-              className="form-control"
-              autoComplete="new-password"
-              minLength={10}
-              required
-            />
-            <div className="form-text">Type it again to confirm you got it right</div>
           </div>
           {error && <p className="form-error">{error}</p>}
           <button className="btn btn-primary w-100" disabled={busy}>

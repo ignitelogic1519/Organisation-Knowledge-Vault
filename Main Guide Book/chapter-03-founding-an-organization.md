@@ -60,7 +60,11 @@ Fill in the fields:
    blank square. You can change it later from the root branch's **Group configuration**.
 4. **First role name** — the name of the top role you'll occupy. This is the root of your
    whole structure.
-5. **Supreme password** — at least **12 characters**. Retype it to confirm.
+5. **Supreme password** — at least **12 characters**, with an **uppercase letter**, a
+   **lowercase letter**, a **number** and a **symbol**; the checklist beside the field
+   tracks it as you type and the bar underneath rates it. Retype it to confirm. This is the
+   one password on the platform nobody can reset for you, which is the best possible reason
+   to make it a strong one.
 6. **Where your documents will live** — see the next section.
 
 ## Where your documents will live

@@ -133,6 +133,38 @@ Rules it keeps:
 5. Its layer sits at `z-index: 88`, one below the dialog layer, so a confirmation opens **on
    top of** the menu that asked for it.
 
+### 3.1b Choosing a password (`components/PasswordSetup.tsx`)
+
+Every form where a password is **chosen** — a new profile, a new organization's Supreme
+password, a new super-admin, a backup file — uses one block, and no form where a password
+is **typed back** uses it at all (structure.md §8.9). Sign-in asks for a credential that
+already exists; grading it there is noise nobody can act on.
+
+Three parts, in this order:
+
+| Part | What it does |
+|------|--------------|
+| The fields | Password, optionally retype, with a **reveal** toggle. A 12-character password with a symbol in it is not something anyone types blind twice, and hiding it from its own author protects nothing |
+| The checklist | Every requirement, **beside** the fields, each ticking green as it is met — so "what is left" is on screen the whole time instead of arriving as a rejection |
+| The meter | One segmented track along the **bottom**, filling and changing colour as the password grows: danger → warning → accent → success, with a slow sheen at Strong |
+
+Rules it keeps:
+
+1. **The meter never outruns the form.** It is capped below "Good" until every requirement
+   is ticked. A bar reading Strong over a form that then refuses to submit is worse than
+   no bar at all.
+2. **The layout is decided by the block, not the window** — `container-type: inline-size`,
+   so the checklist sits beside the fields in a wide column and drops underneath in a
+   narrow one. The same component lives in a 26rem auth card, the create-organization
+   column, a console panel and a dialog sheet.
+3. **It wears its host's form idiom** (`variant`: the Bootstrap auth cards, the app's
+   `.field` labels, the console's `.kb-label`), so nothing on the page looks imported.
+4. **The screen reader gets the same information**: the track is a `progressbar` carrying
+   the level and the count, each rule says "done" or "still needed", and one polite live
+   region announces progress rather than every tick firing at once.
+5. Motion is optional — under `prefers-reduced-motion` the ticks, the sheen and the bar's
+   own transition all stop, and the block still says everything it said before.
+
 ### 3.2 Definitions on hover (`components/Define.tsx`)
 
 Any term whose meaning is not obvious from its label wraps in `<Define>`. The term keeps a

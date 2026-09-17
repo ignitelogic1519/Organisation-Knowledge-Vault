@@ -10,7 +10,11 @@ The platform is live end-to-end. What works today:
 
 - **Identity** — username-based global profiles (no email), refresh-token sessions that
   **end after an hour of inactivity** (announced with a minute to spare, enforced by the
-  API on every request), retype-to-confirm on every new password.
+  API on every request), retype-to-confirm on every new password, and a **strength policy
+  on every password being chosen** (12+ characters with upper, lower, number and symbol)
+  shown as a live checklist and an animated meter. Passwords that already exist are never
+  re-checked — the policy applies where a password is decided, never where one is typed
+  back, so no existing profile, Supreme password or admin account is affected.
 - **Organizations** — Supreme-password custody model, `.main` existence backups and
   revival, 30-day soft-delete retention, per-branch `.bkp` backups.
 - **The Constellation** — the org's main page: the role tree drawn as a top-down star

@@ -1,7 +1,7 @@
 import { verify as argonVerify, hash as argonHash } from "@node-rs/argon2";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { can } from "@vault/shared";
+import { can, strongPassword } from "@vault/shared";
 import { db } from "../db.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
 import { requireSupreme, auditSupreme } from "../orgs/supreme.js";
@@ -502,9 +502,10 @@ export async function vaultFileRoutes(app: FastifyInstance) {
     "/roles/:roleId/export-bkp",
     { preHandler: app.authenticate },
     async (req, reply) => {
-      const { password } = z
-        .object({ password: z.string().min(8, "Backup password: at least 8 characters") })
-        .parse(req.body);
+      // The one password in this file that is CHOSEN rather than checked: it encrypts a
+      // backup that will sit on someone's disk, so it meets the policy (password.ts).
+      // Every other password here is an existing Supreme being verified, and stays as is.
+      const { password } = z.object({ password: strongPassword("Backup password") }).parse(req.body);
       const node = await db.roleNode.findUnique({
         where: { id: req.params.roleId },
         include: { org: true },

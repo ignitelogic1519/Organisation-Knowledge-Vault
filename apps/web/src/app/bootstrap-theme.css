@@ -503,6 +503,13 @@
   text-align: center;
 }
 
+/* Registering is the one auth card that carries a password checklist beside its fields,
+   so it is given the room to put it there. Sign-in stays narrow — it asks for a password
+   it already knows the shape of. */
+.kv-auth-card[data-wide="true"] {
+  max-width: 42rem;
+}
+
 .kv-auth-card .brand-mark {
   width: 3rem;
   height: 3rem;

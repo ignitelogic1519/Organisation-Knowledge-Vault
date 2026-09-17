@@ -19,6 +19,7 @@ import { Define } from "@/components/Define";
 import { KBASE_GLOSSARY, defineProperty } from "@/lib/kbase-glossary";
 import { IconLogout } from "@/components/icons";
 import { UsernameField, type Suggestion } from "@/components/UsernameField";
+import { PasswordSetup } from "@/components/PasswordSetup";
 import "./kbase.css";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -396,21 +397,20 @@ export default function AdminConsole() {
 function ChangePassword({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
   return (
     <main className="kv-auth-wrap" style={{ minHeight: "100svh" }}>
       <form
         className="card kv-auth-card"
+        data-wide="true"
         onSubmit={async (e) => {
           e.preventDefault();
           setError(null);
           setBusy(true);
           const d = new FormData(e.currentTarget);
           try {
-            await admin.changePassword(
-              String(d.get("cur")),
-              String(d.get("new")),
-              String(d.get("confirm")),
-            );
+            await admin.changePassword(String(d.get("cur")), next, confirm);
             onDone();
           } catch (err) {
             setError(err instanceof AdminApiError ? err.message : "Failed");
@@ -427,16 +427,29 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
           This account is still on the password it was created with. The portal stays closed
           until it is replaced.
         </p>
-        <input name="cur" type="password" className="form-control mb-2" placeholder="Current password" required />
+        {/* The password they have today — an existing credential, so no checklist and no
+            strength meter: it is not theirs to change, it is theirs to prove. */}
         <input
-          name="new"
+          name="cur"
           type="password"
-          className="form-control mb-2"
-          placeholder="New password (at least 10 characters)"
+          className="form-control mb-3"
+          placeholder="Current password"
+          autoComplete="current-password"
           required
-          minLength={10}
         />
-        <input name="confirm" type="password" className="form-control mb-3" placeholder="Retype the new password" required />
+        <div className="mb-3">
+          <PasswordSetup
+            variant="bootstrap"
+            value={next}
+            onValueChange={setNext}
+            confirm={confirm}
+            onConfirmChange={setConfirm}
+            passwordName="new"
+            confirmName="confirm"
+            passwordLabel="New password"
+            confirmLabel="Retype the new password"
+          />
+        </div>
         {error && <p className="form-error">{error}</p>}
         <button className="btn btn-primary w-100" disabled={busy}>
           {busy ? "Updating…" : "Update password"}
@@ -2558,6 +2571,7 @@ function AdminsTab({ flash }: { flash: (m: string) => void }) {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [adminPassword, setAdminPassword] = useState("");
   const load = useCallback(
     () => admin.admins().then((r) => setAdmins(r.admins)).catch(() => setAdmins([])),
     [],
@@ -2660,11 +2674,12 @@ function AdminsTab({ flash }: { flash: (m: string) => void }) {
               try {
                 await admin.addAdmin({
                   username: String(d.get("username")).trim(),
-                  password: String(d.get("password")),
+                  password: adminPassword,
                   displayName: String(d.get("displayName")).trim(),
                 });
                 flash("Administrator added — they must change the password on first sign-in");
                 form.reset();
+                setAdminPassword("");
                 load();
               } catch (err) {
                 setError(err instanceof AdminApiError ? err.message : "Failed");
@@ -2679,10 +2694,17 @@ function AdminsTab({ flash }: { flash: (m: string) => void }) {
               Display name
               <input name="displayName" required />
             </label>
-            <label className="kb-label">
-              <Define def={KBASE_GLOSSARY.mustChangePassword}>Temporary password</Define>
-              <input name="password" type="password" required minLength={10} />
-            </label>
+            <PasswordSetup
+              variant="kb"
+              value={adminPassword}
+              onValueChange={setAdminPassword}
+              passwordName="password"
+              passwordLabel={
+                <Define def={KBASE_GLOSSARY.mustChangePassword}>Temporary password</Define>
+              }
+              rulesHeading="The temporary password needs"
+              note="They must replace it the first time they sign in"
+            />
             {error && <p className="kb-error">{error}</p>}
             <div className="kb-actions">
               <button className="btn btn-primary btn-small">Add administrator</button>

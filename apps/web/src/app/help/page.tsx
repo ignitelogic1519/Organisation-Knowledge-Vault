@@ -31,6 +31,14 @@ const TOPICS = [
             <strong>Register</strong> once, then join or found any number of organizations.
           </li>
           <li>
+            When you <strong>choose</strong> a password — registering, founding an
+            organization, setting a backup&apos;s password — it needs{" "}
+            <strong>12 characters with an uppercase letter, a lowercase letter, a number
+            and a symbol</strong>. The form shows the list as you type and a strength bar
+            underneath, so nothing is a surprise at the end. Signing in is unaffected:{" "}
+            <strong>a password you already have keeps working exactly as it did</strong>.
+          </li>
+          <li>
             Manage or delete your profile, and read your Knowledge Coin balance, from the{" "}
             <strong>Account</strong> page.
           </li>

@@ -8,6 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { passwordPolicyMessage } from "@vault/shared";
+import { PasswordSetup } from "./PasswordSetup";
 
 // The platform's single prompt surface: every confirmation, alert and password entry
 // renders as a custom glass sheet rising from the bottom-center of the screen — no
@@ -34,7 +36,12 @@ interface PasswordOptions {
   message?: React.ReactNode;
   label?: string;
   submitLabel?: string;
-  /** Require re-typing the password — used whenever a NEW password is being set. */
+  /**
+   * A NEW password is being set here: the sheet asks for it twice and brings the whole
+   * setup block with it — the live checklist and the strength meter. Left off, the sheet
+   * is asking for a password that already exists (a Supreme gate, a restore) and shows
+   * nothing but the field.
+   */
   confirmEntry?: boolean;
   minLength?: number;
   /**
@@ -79,6 +86,8 @@ function PasswordSheet({
   onDone: (value: string | null) => void;
 }) {
   const [error, setError] = useState<string | null>(opts.error ?? null);
+  const [chosen, setChosen] = useState("");
+  const [confirm, setConfirm] = useState("");
   const min = opts.minLength ?? 8;
 
   return (
@@ -87,35 +96,51 @@ function PasswordSheet({
       onSubmit={(e) => {
         e.preventDefault();
         const d = new FormData(e.currentTarget);
+        if (opts.confirmEntry) {
+          const problem = passwordPolicyMessage(chosen, opts.label ?? "Password");
+          if (problem) {
+            setError(`${problem}.`);
+            return;
+          }
+          if (chosen !== confirm) {
+            setError("The passwords don't match — retype them.");
+            return;
+          }
+          onDone(chosen);
+          return;
+        }
         const pw = String(d.get("password") ?? "");
         if (pw.length < min) {
           setError(`At least ${min} characters.`);
-          return;
-        }
-        if (opts.confirmEntry && pw !== String(d.get("password2") ?? "")) {
-          setError("The passwords don't match — retype them.");
           return;
         }
         onDone(pw);
       }}
     >
       {opts.message && <div className="sheet-msg">{opts.message}</div>}
-      <label className="field">
-        <span>{opts.label ?? "Password"}</span>
-        <input
-          name="password"
-          type="password"
+      {opts.confirmEntry ? (
+        <PasswordSetup
+          value={chosen}
+          onValueChange={(v) => {
+            setChosen(v);
+            setError(null);
+          }}
+          confirm={confirm}
+          onConfirmChange={setConfirm}
+          passwordLabel={opts.label ?? "Password"}
           autoFocus
-          required
-          autoComplete="off"
-          onChange={() => setError(null)}
         />
-        {opts.confirmEntry && <small>At least {min} characters</small>}
-      </label>
-      {opts.confirmEntry && (
+      ) : (
         <label className="field">
-          <span>Retype to confirm</span>
-          <input name="password2" type="password" required autoComplete="off" />
+          <span>{opts.label ?? "Password"}</span>
+          <input
+            name="password"
+            type="password"
+            autoFocus
+            required
+            autoComplete="off"
+            onChange={() => setError(null)}
+          />
         </label>
       )}
       {error && <p className="form-error">{error}</p>}

@@ -3,6 +3,7 @@ export * from "./course-code.js";
 export * from "./rich-text.js";
 export * from "./embeds.js";
 export * from "./policy.js";
+export * from "./password.js";
 export * from "./auth.js";
 export * from "./orgs.js";
 export * from "./roles.js";
