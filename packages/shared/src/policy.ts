@@ -20,6 +20,15 @@ export function isStrictAncestor(ancestorPath: string, nodePath: string): boolea
 }
 
 /**
+ * True for the branch an organization starts from — the root the founder's Owner role
+ * sits on. Paths are built from role numbers ("100" → "100.101" → …), so the root is the
+ * one path with no separator in it.
+ */
+export function isRootRolePath(path: string): boolean {
+  return !path.includes(".");
+}
+
+/**
  * v1 rules:
  * - Default: the actor must hold an OWNER placement on the node or any ancestor.
  * - `create_sub_role`: additionally requires the delegation flag on a governing placement.
@@ -29,6 +38,9 @@ export function isStrictAncestor(ancestorPath: string, nodePath: string): boolea
  * - `manage_flags` / `delete_role` (invariant I6/I5): require an OWNER placement on a
  *   STRICT ancestor — a node's own owners cannot change their own node's flags or delete it;
  *   the layer above (or the org's root Owner role, ancestor of everything) does that.
+ * - `set_visibility`: governance over the node, and the node is NOT the root. Hiding is a
+ *   sub-branch property: the branch the organization starts from is what every member
+ *   arrives at, so it has no visibility switch at all (invariant I7).
  */
 export function can(
   placements: readonly PlacementRef[],
@@ -40,6 +52,10 @@ export function can(
       (p) => p.kind === "OWNER" && isStrictAncestor(p.roleNodePath, node.path),
     );
   }
+
+  // The main starter branch is always visible — nobody, however high they sit, can hide
+  // the org from its own members. Only sub-branches carry the hidden property.
+  if (action === "set_visibility" && isRootRolePath(node.path)) return false;
 
   const governing = placements.filter(
     (p) => p.kind === "OWNER" && isSelfOrAncestor(p.roleNodePath, node.path),

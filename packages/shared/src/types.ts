@@ -18,6 +18,7 @@ export type PolicyAction =
   | "add_people"
   | "add_co_owner"
   | "create_sub_role"
+  | "set_visibility"
   | "manage_flags"
   | "delete_role"
   | "export_backup"

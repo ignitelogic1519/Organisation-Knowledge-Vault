@@ -340,8 +340,9 @@ granted** — for example, "may create sub-groups" or "may appoint co-owners" �
 **an owner can never grant a right they don't hold themselves**. This keeps authority
 flowing safely down the tree and prevents anyone from quietly escalating their own power.
 
-Deleting a branch needs sign-off from the level above; branches are **public by default**
-but can be **hidden**, cascading privacy down the subtree.
+Deleting a branch needs sign-off from the level above; sub-branches are **public by default**
+but can be **hidden**, cascading privacy down the subtree — the organization's main branch,
+the one at the top, is always visible.
 Chapter 6 covers visibility, and
 Chapter 7 covers the rights themselves.
 
@@ -954,16 +955,21 @@ The new star appears immediately on the constellation, connected beneath the cur
 
 ## Visibility: public by default, hidden on purpose
 
-Every branch is **public by default** — meaning every member of the organization can see it
-and send a **Join request** to it. You control this with a single checkbox:
+Every **sub-branch** is **public by default** — meaning every member of the organization can
+see it and send a **Join request** to it. You control this with a single checkbox:
 
 - Leave it unticked → the branch is **public**.
 - Tick **Hidden (private) branch** → the branch is hidden from people on the same layer and
   below. Hiding cascades: **everything beneath a hidden branch is hidden too**, all the way
   down.
 
-Two important rules:
+Three important rules:
 
+- **The organization's main branch has no visibility setting.** The branch your organization
+  starts from — the one at the top of the constellation, the one every member arrives at — is
+  always visible, and its Group configuration says so where a sub-branch shows the checkbox.
+  Hiding is a property of the branches you grow *beneath* it: if a team's existence is
+  sensitive, give it its own sub-role and hide that.
 - **Owners above a hidden branch always keep seeing it.** Hiding never blinds the people
   responsible for that part of the tree.
 - If your branch is marked public but a **level above** is hidden, your branch stays hidden
@@ -1034,7 +1040,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Group configuration - Visibility"] --> B{"Hidden checkbox"}
+    A["Group configuration - Visibility"] --> M{"Main branch or sub-branch?"}
+    M -->|Main branch| N["Always visible - no checkbox to tick"]
+    M -->|Sub-branch| B{"Hidden checkbox"}
     B -->|Unticked| C["Public: everyone sees it and can send Join requests"]
     B -->|Ticked| D["Hidden: removed from the same layer and below"]
     D --> E["The whole subtree is hidden too"]
@@ -4175,7 +4183,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A["Visibility checkbox"] -->|Unticked| B["Public - visible, joinable"]
+    S["Sub-branch only - the main branch is always visible"] --> A["Visibility checkbox"]
+    A -->|Unticked| B["Public - visible, joinable"]
     A -->|Ticked| C["Hidden - whole subtree hidden; owners above still see it"]
     B --> D{"A level above hidden?"}
     D -->|Yes| E["Stays hidden -> Request visibility"]
@@ -4628,7 +4637,7 @@ flowchart LR
 | Find one organization among many | Anyone | 4 | `organizations-filter.png` |
 | Change the organization's logo | Root owner | 6 | `org-logo-editor.png` |
 | Create a sub-role | Owner | 6 | `sub-role-form.png` |
-| Set visibility (public/hidden) | Owner | 6 | `group-configuration.png` |
+| Set visibility (public/hidden) — sub-branches only | Owner | 6 | `group-configuration.png` |
 | Delete / request branch deletion | Owner | 6 | `group-configuration.png` |
 | Add a person (member/co-owner) | Owner | 7 | `add-person-choose.png` |
 | Grant co-owner rights | Owner | 7 | `add-coowner-form.png` |

@@ -63,8 +63,9 @@ granted** — for example, "may create sub-groups" or "may appoint co-owners" �
 **an owner can never grant a right they don't hold themselves**. This keeps authority
 flowing safely down the tree and prevents anyone from quietly escalating their own power.
 
-Deleting a branch needs sign-off from the level above; branches are **public by default**
-but can be **hidden**, cascading privacy down the subtree.
+Deleting a branch needs sign-off from the level above; sub-branches are **public by default**
+but can be **hidden**, cascading privacy down the subtree — the organization's main branch,
+the one at the top, is always visible.
 [Chapter 6](chapter-06-building-your-structure.md) covers visibility, and
 [Chapter 7](chapter-07-people-and-governance.md) covers the rights themselves.
 

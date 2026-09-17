@@ -135,6 +135,9 @@ export async function roleRoutes(app: FastifyInstance) {
             canCreateSubRole: can(placements, "create_sub_role", ref),
             canManageFlags: can(placements, "manage_flags", ref),
             canDelete,
+            // Hiding is a sub-branch property: the root branch every member arrives at
+            // carries no visibility switch (invariant I7).
+            canSetVisibility: can(placements, "set_visibility", ref),
             canRequestDelete: n.parentId !== null && !canDelete && ownsNode,
             canRequestJoin: effectivePublic && kinds.length === 0 && !governs,
             // Owner published their node but a level above keeps it hidden — and they
@@ -333,7 +336,10 @@ export async function roleRoutes(app: FastifyInstance) {
     },
   );
 
-  // Branch visibility: any owner governing the node can publish/unpublish it
+  // Branch visibility: any owner governing the node can publish/unpublish it — except on
+  // the root branch, which has no visibility at all (invariant I7). The org's main branch
+  // is where every member lands; hiding it would only hide the org from its own people,
+  // and the Visibility request already refuses it for the same reason.
   app.patch<{ Params: { roleId: string } }>(
     "/roles/:roleId",
     { preHandler: app.authenticate },
@@ -341,7 +347,12 @@ export async function roleRoutes(app: FastifyInstance) {
       const body = updateRoleFlagsSchema.parse(req.body);
       const ctx = await loadContext(req as RoleReq);
       if (!ctx) return reply.status(404).send({ error: "Role not found" });
-      if (!can(ctx.placements, "add_people", toRoleRef(ctx.node))) {
+      if (ctx.node.parentId === null) {
+        return reply.status(409).send({
+          error: "The main branch is always visible — only sub-branches can be hidden",
+        });
+      }
+      if (!can(ctx.placements, "set_visibility", toRoleRef(ctx.node))) {
         return reply.status(403).send({ error: "You don't manage this role" });
       }
       await db.roleNode.update({

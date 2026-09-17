@@ -74,6 +74,7 @@ Shape of every node:
 | I4 | A node marked `is_terminal` cannot receive sub-roles. |
 | I5 | A role cannot be deleted while its subtree is non-empty. Whole-branch delete/restructure is allowed only for the **top layer of that branch**. |
 | I6 | Delegation flags (`is_terminal`, `can_create_subgroups`) are changeable by anyone **above in the same branch** and by the **Owner role** — never by the Supreme (not an account). |
+| I7 | The **root (main) branch is always visible**. Hiding is a property of **sub-branches only** — the root carries no visibility switch, so no one can hide an organization from its own members. |
 
 ### 2.1 Permission model
 A single central policy check answers every authorization question:
@@ -398,7 +399,11 @@ record of what shipped after the base spec above; where they conflict, this sect
   branch from same-layer and lower personnel and **cascades down the whole subtree** (hidden
   inherits to the last end). Owners above a hidden node always still see it (hierarchy
   transparency). A node is *effectively* public only when it and every ancestor below the
-  root are public.
+  root are public. **The root (main starter) branch has no visibility switch at all**
+  (invariant I7): it is the branch every member arrives at, so hiding it would only hide
+  the organization from itself. The policy action `set_visibility` refuses the root, the
+  `PATCH /roles/:roleId` route answers 409 for it, and Group configuration shows the rule
+  in place of the checkbox — only sub-branches offer "Hidden (private) branch".
 - **Branch deletion** by a branch's own owners goes through a **Deletion request** to the
   level above; the level above can delete directly.
 

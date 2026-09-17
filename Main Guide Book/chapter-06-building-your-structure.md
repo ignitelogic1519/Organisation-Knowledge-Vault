@@ -49,16 +49,21 @@ The new star appears immediately on the constellation, connected beneath the cur
 
 ## Visibility: public by default, hidden on purpose
 
-Every branch is **public by default** — meaning every member of the organization can see it
-and send a **Join request** to it. You control this with a single checkbox:
+Every **sub-branch** is **public by default** — meaning every member of the organization can
+see it and send a **Join request** to it. You control this with a single checkbox:
 
 - Leave it unticked → the branch is **public**.
 - Tick **Hidden (private) branch** → the branch is hidden from people on the same layer and
   below. Hiding cascades: **everything beneath a hidden branch is hidden too**, all the way
   down.
 
-Two important rules:
+Three important rules:
 
+- **The organization's main branch has no visibility setting.** The branch your organization
+  starts from — the one at the top of the constellation, the one every member arrives at — is
+  always visible, and its Group configuration says so where a sub-branch shows the checkbox.
+  Hiding is a property of the branches you grow *beneath* it: if a team's existence is
+  sensitive, give it its own sub-role and hide that.
 - **Owners above a hidden branch always keep seeing it.** Hiding never blinds the people
   responsible for that part of the tree.
 - If your branch is marked public but a **level above** is hidden, your branch stays hidden
@@ -129,7 +134,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Group configuration - Visibility"] --> B{"Hidden checkbox"}
+    A["Group configuration - Visibility"] --> M{"Main branch or sub-branch?"}
+    M -->|Main branch| N["Always visible - no checkbox to tick"]
+    M -->|Sub-branch| B{"Hidden checkbox"}
     B -->|Unticked| C["Public: everyone sees it and can send Join requests"]
     B -->|Ticked| D["Hidden: removed from the same layer and below"]
     D --> E["The whole subtree is hidden too"]

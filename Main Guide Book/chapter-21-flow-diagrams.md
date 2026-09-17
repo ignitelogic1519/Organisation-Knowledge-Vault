@@ -42,7 +42,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A["Visibility checkbox"] -->|Unticked| B["Public - visible, joinable"]
+    S["Sub-branch only - the main branch is always visible"] --> A["Visibility checkbox"]
+    A -->|Unticked| B["Public - visible, joinable"]
     A -->|Ticked| C["Hidden - whole subtree hidden; owners above still see it"]
     B --> D{"A level above hidden?"}
     D -->|Yes| E["Stays hidden -> Request visibility"]
@@ -495,7 +496,7 @@ flowchart LR
 | Find one organization among many | Anyone | 4 | `organizations-filter.png` |
 | Change the organization's logo | Root owner | 6 | `org-logo-editor.png` |
 | Create a sub-role | Owner | 6 | `sub-role-form.png` |
-| Set visibility (public/hidden) | Owner | 6 | `group-configuration.png` |
+| Set visibility (public/hidden) — sub-branches only | Owner | 6 | `group-configuration.png` |
 | Delete / request branch deletion | Owner | 6 | `group-configuration.png` |
 | Add a person (member/co-owner) | Owner | 7 | `add-person-choose.png` |
 | Grant co-owner rights | Owner | 7 | `add-coowner-form.png` |

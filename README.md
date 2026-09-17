@@ -19,8 +19,9 @@ The platform is live end-to-end. What works today:
   have no access to says so. Live-updates over SSE for every member.
 - **Governance** — owners hold only granted rights (create sub-groups, appoint
   co-owners) and can never grant a right they don't hold themselves; branch deletion
-  needs the level above (by request); branches are public by default with hidden
-  cascading down the subtree (owners above always keep seeing their branches).
+  needs the level above (by request); sub-branches are public by default with hidden
+  cascading down the subtree (owners above always keep seeing their branches), while the
+  main branch an organization starts from is always visible and has no hide switch.
 - **Requests** — labeled ask-and-approve center (Course / Join / Deletion / Visibility
   requests) with a live count badge, inbox for deciders, withdraw/delete, 7-day
   auto-cleanup, and per-branch configuration on course-request approval. Join requests

@@ -345,7 +345,8 @@ POST   /admin/activity                      the same beat for the staff console
 POST   /admin/logout                        ends the console session server-side
 GET    /orgs/:id/events                     Server-Sent Events live channel (token in query)
 GET    /orgs/:id/structure                  visible tree slice (public branches + governed subtree)
-PATCH  /roles/:roleId                        branch visibility (isPublic)
+PATCH  /roles/:roleId                        branch visibility (isPublic) — sub-branches
+                                             only; the root answers 409 (structure.md I7)
 PATCH  /roles/:roleId/people/:profileId      owner capability flags (canCreateSubgroups / canAddCoOwners)
 
 GET    /orgs/:id/library[?q=]               shelved catalog (category, classification, ratings)

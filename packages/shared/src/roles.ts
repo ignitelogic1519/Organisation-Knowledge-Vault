@@ -20,6 +20,7 @@ export const addPersonSchema = z.object({
 });
 export type AddPersonInput = z.infer<typeof addPersonSchema>;
 
+/** Visibility is a sub-branch property — the root branch never accepts this (I7). */
 export const updateRoleFlagsSchema = z.object({
   isPublic: z.boolean(),
 });
@@ -48,7 +49,7 @@ export interface TreeNode {
   name: string;
   roleNumber: number;
   path: string;
-  /** This node's own visibility flag. */
+  /** This node's own visibility flag. The root branch is always public (I7). */
   isPublic: boolean;
   /** True only when the node AND every ancestor below the root are public —
    *  hidden inherits down the branch to the last end. */
@@ -67,6 +68,8 @@ export interface TreeNode {
     canCreateSubRole: boolean;
     canManageFlags: boolean;
     canDelete: boolean;
+    /** May publish/hide this branch — governance, and never on the root branch (I7). */
+    canSetVisibility: boolean;
     /** May create content here directly (owner) — publishes immediately. */
     canPublishContent: boolean;
     /** May propose content here (member with the flag) — needs manager review. */

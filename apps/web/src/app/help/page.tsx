@@ -119,8 +119,10 @@ const TOPICS = [
           <li>
             Branches are <strong>public by default</strong>: every member sees them in
             the constellation and can send a <strong>Join request</strong> to their
-            owners. A checkbox in Group configuration makes a branch{" "}
-            <strong>hidden</strong> from people on the same layer and below.
+            owners. A checkbox in Group configuration makes a <strong>sub-branch</strong>{" "}
+            <strong>hidden</strong> from people on the same layer and below. The
+            organization&apos;s <strong>main branch has no such checkbox</strong> — it is
+            where every member arrives, so it is always visible.
           </li>
           <li>
             Hidden inherits downward — a hidden branch hides its whole subtree until the

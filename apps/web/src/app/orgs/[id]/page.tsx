@@ -119,24 +119,37 @@ function ConfigPanel({
   return (
     <div className="drawer-section">
       {/* visibility — public by default; hiding is the explicit checkbox choice and
-          inherits down from every level above. Owners above always keep seeing it. */}
+          inherits down from every level above. Owners above always keep seeing it.
+          The main branch carries no switch at all: it is where every member arrives. */}
       <div className="config-row">
         <div>
           <strong>Visibility</strong>
-          <p className="auth-sub">
-            Branches are public by default — every member sees them and can send a Join
-            request. Hiding removes the branch from people on the same layer and below;
-            it hides everything beneath it too, down to the last end. Owners above this
-            node always keep seeing it.
-          </p>
-          <label className="ack-row" style={{ marginTop: "0.45rem" }}>
-            <input
-              type="checkbox"
-              checked={!node.isPublic}
-              onChange={() => act(() => roles.setPublic(node.id, !node.isPublic))}
-            />
-            <span>Hidden (private) branch</span>
-          </label>
+          {isRoot ? (
+            <p className="auth-sub">
+              This is the organization&apos;s main branch — where every member arrives — so
+              it is always visible and cannot be hidden. Hiding is a sub-branch property:
+              create a sub-role and hide that one instead.
+            </p>
+          ) : (
+            <>
+              <p className="auth-sub">
+                Branches are public by default — every member sees them and can send a Join
+                request. Hiding removes the branch from people on the same layer and below;
+                it hides everything beneath it too, down to the last end. Owners above this
+                node always keep seeing it.
+              </p>
+              {node.my.canSetVisibility && (
+                <label className="ack-row" style={{ marginTop: "0.45rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={!node.isPublic}
+                    onChange={() => act(() => roles.setPublic(node.id, !node.isPublic))}
+                  />
+                  <span>Hidden (private) branch</span>
+                </label>
+              )}
+            </>
+          )}
         </div>
       </div>
       {node.isPublic && !node.effectivePublic && (

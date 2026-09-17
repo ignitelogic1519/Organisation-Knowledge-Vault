@@ -342,7 +342,9 @@ export async function vaultFileRoutes(app: FastifyInstance) {
             parentId: r.parentId ? (roleIdMap.get(r.parentId) ?? null) : null,
             name: r.name,
             roleNumber: r.roleNumber,
-            isPublic: r.isPublic ?? true, // pre-visibility .main files: public by default
+            // pre-visibility .main files: public by default. A root saved hidden by an
+            // older build comes back visible — the main branch has no visibility (I7).
+            isPublic: r.parentId ? (r.isPublic ?? true) : true,
             path: r.path,
             nextItemNumber: r.nextItemNumber,
           },
