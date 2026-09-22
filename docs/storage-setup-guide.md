@@ -32,7 +32,9 @@ The guide is not a fixed sequence with variables in it. It is built from
 * **Which machine.** Synology, QNAP, TrueNAS, Unraid, a Linux server, a Windows PC, a Mac,
   or "I do not have one yet" — which produces buying advice instead of instructions. The
   answer decides what Docker is called on that machine, where it is installed from, what
-  the default folder path is, and how you open a terminal on it.
+  the default folder path is, how you open a terminal on it, and which backup tool the last
+  step names. On a Windows PC every command is written for PowerShell, the terminal the
+  guide tells that reader to open.
 * **Clicking or typing.** The same three steps written twice: once as a walk through the
   machine's own screens, once as commands. Presented as a preference with its trade-offs,
   not as a fork the reader has to be qualified to take.
@@ -73,9 +75,13 @@ Three ideas, and the whole thing makes sense once these land.
 over the network. Your laptop is also a computer with a disk. The only thing your laptop is
 missing is the software that speaks the protocol.
 
-**2 · MinIO is that software.** You point MinIO at an ordinary folder and it serves that
-folder over the **S3 API** — the same language Amazon S3 speaks. Files you put in through
-MinIO appear as ordinary files in that folder. Nothing is locked away in a database.
+**2 · MinIO is that software** — today in the form of **Silo**, its community-maintained fork.
+(MinIO Inc. stopped publishing free builds in October 2025 and archived the project in February
+2026; Silo keeps its settings, commands, on-disk format and console.) You point it at an
+ordinary folder and it serves that folder over the **S3 API** — the same language Amazon S3
+speaks. Everything it stores lives inside that folder, in MinIO's own layout (`xl.meta` files
+rather than the uploaded files themselves), so the folder *is* your storage: back it up and
+you have backed up everything.
 
 ```
    Knowledge Vault  ──speaks S3──►  MinIO  ──writes files──►  C:\kv-storage\
@@ -117,73 +123,46 @@ mkdir C:\kv-storage
 mkdir -p ~/kv-storage
 ```
 
-### Step 2 · Install MinIO
+### Step 2 · Install the storage server (Silo)
 
-Pick whichever line matches your machine. MinIO is a **single file** — there is no
-installer and nothing to uninstall later; you delete the file when you are done.
+MinIO Inc. no longer publishes free builds: its images were withdrawn in October 2025 and the
+project was archived in February 2026, so `dl.min.io`, Homebrew's `minio/stable` tap and
+`quay.io/minio/minio` are no longer a source for anything maintained. Use **Silo**, the
+community-maintained fork. It keeps MinIO's `MINIO_*` settings, its `server` command, its
+on-disk format and its full console, and its image carries the `mc` client.
 
-**Windows (PowerShell):**
-```powershell
-mkdir C:\minio
-Invoke-WebRequest -Uri "https://dl.min.io/server/minio/release/windows-amd64/minio.exe" `
-                  -OutFile "C:\minio\minio.exe"
-```
-
-**Check the download before running it.** The file is around 100 MB. If it is a few KB, the
-download failed and saved an error page instead — running that gives *"not a valid
-application for this OS platform"*, which looks like an architecture problem but is not.
-
-```powershell
-(Get-Item C:\minio\minio.exe).Length / 1MB    # expect ~100, not ~0.01
-```
-
-If you prefer `curl.exe`, it **must** have `-L` or it will not follow redirects:
-```powershell
-curl.exe -L -o C:\minio\minio.exe https://dl.min.io/server/minio/release/windows-amd64/minio.exe
-```
-
-**macOS:**
-```bash
-brew install minio/stable/minio
-```
-or, without Homebrew:
-```bash
-curl -LO https://dl.min.io/server/minio/release/darwin-arm64/minio   # Apple Silicon
-# curl -LO https://dl.min.io/server/minio/release/darwin-amd64/minio # Intel Mac
-chmod +x minio
-```
-
-**Linux:**
-```bash
-curl -LO https://dl.min.io/server/minio/release/linux-amd64/minio
-chmod +x minio
-ls -lh minio     # expect ~100M — a tiny file means the download failed
-```
-
-**Docker (any OS, if you already have Docker running):**
+**Docker (any OS — the recommended route):**
 ```bash
 docker run -d --name kv-minio -p 9000:9000 -p 9001:9001 \
   -e MINIO_ROOT_USER=kvadmin -e MINIO_ROOT_PASSWORD=kvadmin12345 \
   -v ~/kv-storage:/data \
-  quay.io/minio/minio:latest server /data --console-address ":9001"
+  docker.io/pgsty/silo:latest server /data --console-address ":9001"
 ```
+In Windows PowerShell, use `C:\kv-storage` for the folder and end each continued line with a
+backtick (`` ` ``) instead of `\`.
+
+**Without Docker:** download the archive for your platform from
+[github.com/pgsty/silo/releases](https://github.com/pgsty/silo/releases) (the server binary is
+`silo`) and the client from [github.com/pgsty/mc/releases](https://github.com/pgsty/mc/releases)
+(the binary is `mcli`). Both take exactly the arguments this file shows for MinIO and `mc`.
 
 ### Step 3 · Start it
 
-Leave this window open — MinIO runs until you close it.
+With Docker, Step 2 already started it — `docker logs kv-minio` shows the addresses below.
+Without Docker, leave this window open — the server runs until you close it.
 
 **Windows:**
 ```powershell
 $env:MINIO_ROOT_USER="kvadmin"
 $env:MINIO_ROOT_PASSWORD="kvadmin12345"
-C:\minio\minio.exe server C:\kv-storage --console-address ":9001"
+C:\silo\silo.exe server C:\kv-storage --console-address ":9001"
 ```
 
 **macOS / Linux:**
 ```bash
 export MINIO_ROOT_USER=kvadmin
 export MINIO_ROOT_PASSWORD=kvadmin12345
-minio server ~/kv-storage --console-address ":9001"
+./silo server ~/kv-storage --console-address ":9001"
 ```
 
 > The password must be at least 8 characters or MinIO refuses to start. `kvadmin12345` is
@@ -205,31 +184,24 @@ Two addresses matter:
 A **bucket** is a named top-level container — it becomes a sub-folder inside `kv-storage`.
 You also want an **access key**, so Knowledge Vault never holds the root password.
 
-> **Use the command line for this, not the web console.** MinIO removed most management
-> features from the open-source console during 2025 and moved them to the `mc` command.
-> Depending on which build you downloaded, `localhost:9001` may have no *Create Bucket* or
-> *Access Keys* buttons at all. Nothing is broken — the commands below work on every
-> version, so they are the reliable path.
+> **The command line is the reliable path.** Silo restores the full console, so
+> `localhost:9001` has *Create Bucket* and *Access Keys* buttons again — but an original MinIO
+> build from 2025 may have neither (MinIO stripped them from its free console). The commands
+> below work on every version.
 
-Open a **second** terminal (leave MinIO running in the first).
-
-**Windows:**
-```powershell
-Invoke-WebRequest -Uri "https://dl.min.io/client/mc/release/windows-amd64/mc.exe" `
-                  -OutFile "C:\minio\mc.exe"
-
-C:\minio\mc.exe alias set local http://localhost:9000 kvadmin kvadmin12345
-C:\minio\mc.exe mb local/knowledge-vault
-C:\minio\mc.exe admin user svcacct add local kvadmin
+**Docker** — the client is already inside the container:
+```bash
+docker exec kv-minio mc alias set local http://localhost:9000 kvadmin kvadmin12345
+docker exec kv-minio mc mb local/knowledge-vault
+docker exec kv-minio mc admin user svcacct add local kvadmin
 ```
 
-**macOS / Linux:**
+**Without Docker** — in a **second** terminal (leave the server running in the first), the
+same three lines with `mcli` in place of `docker exec kv-minio mc`:
 ```bash
-brew install minio/stable/mc        # or: curl -LO https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x mc
-
-mc alias set local http://localhost:9000 kvadmin kvadmin12345
-mc mb local/knowledge-vault
-mc admin user svcacct add local kvadmin
+mcli alias set local http://localhost:9000 kvadmin kvadmin12345
+mcli mb local/knowledge-vault
+mcli admin user svcacct add local kvadmin
 ```
 
 The last command prints the two values you need. **Copy them now** — the secret is shown
@@ -242,8 +214,8 @@ Secret Key: aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7d
 
 Check it worked:
 
-```powershell
-C:\minio\mc.exe ls local          # should list: knowledge-vault
+```bash
+docker exec kv-minio mc ls local          # should list: knowledge-vault
 ```
 
 Look in `C:\kv-storage` (or `~/kv-storage`) — there is now a `knowledge-vault` folder.
@@ -340,12 +312,20 @@ governance decision.
    "Goes straight to your own storage, encrypted in this browser first".
 3. Publish.
 
-Now open `C:\kv-storage\knowledge-vault\objects\2026\08\` on disk.
+Now look in `C:\kv-storage\knowledge-vault\objects\<year>\<month>\` on disk.
 
-There is a file ending in **`.kvblob`**. Try to open it — you cannot. It is not a PDF any
-more; it is ciphertext. **That is the whole security promise, visible on your own disk:**
-even standing on the storage itself, with full access to the machine, the document is
-unreadable.
+There is an entry ending in **`.kvblob`** — a folder, in fact: MinIO keeps each object as an
+`xl.meta` file plus data parts. Pull the object out the way any tool would, and look at it:
+
+```bash
+docker exec kv-minio mc ls --recursive local/knowledge-vault
+docker exec kv-minio mc cat local/knowledge-vault/objects/<year>/<month>/<name>.kvblob | head -c 400
+```
+
+It opens with `KVBLOB01` and a short plaintext header — the original filename, type and size
+are readable there — and everything after it is ciphertext. It is not a PDF any more.
+**That is the security promise, visible on your own disk:** even standing on the storage
+itself, with full access to the machine, the document's contents are unreadable.
 
 Now open the document inside Knowledge Vault. It renders perfectly — because your browser
 fetched that `.kvblob` straight from MinIO and decrypted it locally, with a key our API
@@ -365,13 +345,15 @@ passes through the API.** On a real deployment that is bandwidth we never pay fo
 
 ### A6 · Try the failure case
 
-Stop MinIO (Ctrl-C in its window), then reload the document in Knowledge Vault.
+Stop the storage server (`docker stop kv-minio`, or Ctrl-C in its window), then reload the
+document in Knowledge Vault.
 
 You should get a **"This document is waiting on your storage"** panel — not a red error,
 not anything that looks like data loss. Because it is not: the file is still sitting in
 your folder, we just cannot reach it.
 
-Start MinIO again, press **Check connection** in the storage panel, and it recovers.
+Start it again (`docker start kv-minio`), press **Check connection** in the storage panel, and
+it recovers.
 
 ---
 
@@ -441,21 +423,33 @@ reaches MinIO and MinIO is refusing anonymous access, exactly as it should.
 ### B3 · Tell MinIO its public address
 
 MinIO checks that the address a request was signed for matches the address it is serving
-on. Behind a tunnel those differ, so tell MinIO its public name. **Stop MinIO and restart
-it** with the extra line:
+on. Behind a tunnel those differ, so tell MinIO its public name.
+
+**Docker** — recreate the container with one more `-e`. Nothing is lost: the bucket and the
+key live in the folder, not the container.
+```bash
+docker rm -f kv-minio
+docker run -d --name kv-minio -p 9000:9000 -p 9001:9001 \
+  -e MINIO_ROOT_USER=kvadmin -e MINIO_ROOT_PASSWORD=kvadmin12345 \
+  -e MINIO_SERVER_URL="https://random-words-here.trycloudflare.com" \
+  -v ~/kv-storage:/data \
+  docker.io/pgsty/silo:latest server /data --console-address ":9001"
+```
+
+**Without Docker** — stop the server and start it again with the extra line.
 
 **Windows:**
 ```powershell
 $env:MINIO_ROOT_USER="kvadmin"
 $env:MINIO_ROOT_PASSWORD="kvadmin12345"
 $env:MINIO_SERVER_URL="https://random-words-here.trycloudflare.com"
-C:\minio\minio.exe server C:\kv-storage --console-address ":9001"
+C:\silo\silo.exe server C:\kv-storage --console-address ":9001"
 ```
 
 **macOS / Linux:**
 ```bash
 export MINIO_SERVER_URL="https://random-words-here.trycloudflare.com"
-minio server ~/kv-storage --console-address ":9001"
+./silo server ~/kv-storage --console-address ":9001"
 ```
 
 Skipping this is the single most common cause of `SignatureDoesNotMatch`.
@@ -486,7 +480,7 @@ docker run -d --name minio --restart unless-stopped \
   -e MINIO_ROOT_PASSWORD=<strong-password> \
   -e MINIO_SERVER_URL=https://vault.their-company.com \
   -v /volume1/knowledge-vault:/data \
-  quay.io/minio/minio:latest server /data --console-address ":9001"
+  docker.io/pgsty/silo:latest server /data --console-address ":9001"
 ```
 
 `/volume1/knowledge-vault` is the shared folder on the NAS. On QNAP it is usually
@@ -494,18 +488,30 @@ docker run -d --name minio --restart unless-stopped \
 
 **The differences from your laptop test:**
 
-1. **A named tunnel, not a quick one.** They create a free Cloudflare account, add their
-   domain, and run `cloudflared tunnel create` so the hostname is stable and theirs.
-   Tailscale Funnel is an equally good alternative.
-2. **A scoped access key**, not one with full access. In the MinIO console, create a policy
-   limited to `GetObject`, `PutObject`, `DeleteObject` and `ListBucket` on that one bucket,
-   and attach it to the key.
+1. **A named tunnel, not a quick one**, on a domain whose DNS Cloudflare runs, so the
+   hostname is stable and theirs. `nslookup -type=ns their-domain.com` answers whether it
+   already is (names ending in `ns.cloudflare.com`). If it isn't, there are two ways in: buy a
+   separate domain inside Cloudflare, which touches nothing they already run, or move the
+   existing one — Cloudflare copies its DNS records, their domain administrator checks every
+   one arrived (MX above all, or email stops), turns DNSSEC off at the registrar and swaps the
+   nameservers for Cloudflare's two. Tailscale Funnel is an equally good alternative to the
+   tunnel itself.
+2. **A scoped access key**, not one with full access, limited to `GetObject`, `PutObject`,
+   `DeleteObject` and `ListBucket` on that one bucket:
+   `mc admin accesskey edit local/ <access-key-id> --policy policy.json`, or paste the same
+   policy into the key in the console.
 3. **Both containers set to restart automatically**, so a power cut does not silently take
    their documents offline.
 4. **The NAS backed up.** Say this out loud to them: their NAS is now the only copy of
    their documents. Knowledge Vault keeps the catalogue — who may read what, who has
    completed what — but not the files. A NAS with one disk and no backup is a single point
-   of failure for their training records.
+   of failure for their training records, and RAID is not a backup: it survives a dead
+   disk, not a deletion, ransomware or the loss of the whole box. Back up the whole folder —
+   the hidden `.minio.sys` included — with the NAS's own tool (Hyper Backup on a Synology,
+   Hybrid Backup Sync 3 on a QNAP).
+5. **Nothing over 100 MB through a free-plan tunnel.** Cloudflare's Free and Pro plans cap a
+   request body at 100 MB, and Knowledge Vault uploads each file as a single PUT, so files
+   between 100 and 200 MB fail. Tell them to publish large videos as links.
 
 Everything else — bucket, access key, connection test, encryption choice — is identical to
 what you just did on your laptop.
@@ -518,12 +524,12 @@ The connection test names the stage that failed. Match it here.
 
 **PowerShell: "The specified executable is not a valid application for this OS platform"**
 The downloaded file is not a real program — almost always a failed download that saved an
-error page under the name `minio.exe`. Check its size:
+error page under the program's name. Check its size:
 ```powershell
-(Get-Item C:\minio\minio.exe).Length / 1MB     # ~100 = good, ~0.01 = failed download
+(Get-Item C:\silo\silo.exe).Length / 1MB     # tens of MB = good, ~0.01 = failed download
 ```
-Re-download with `Invoke-WebRequest` (Step 2), or with `curl.exe -L` — plain `curl.exe -o`
-does **not** follow redirects and silently saves the redirect page instead of the binary.
+Download it again from the releases page (Step 2); with `curl.exe`, always pass `-L` — plain
+`curl.exe -o` does **not** follow redirects and silently saves the redirect page instead.
 If the file really is ~100 MB and you still get this, check whether you are on an ARM
 Windows laptop: `$env:PROCESSOR_ARCHITECTURE`. `AMD64` is fine; `ARM64` needs Windows 11's
 x64 emulation, and Docker is the easier route there.
@@ -553,14 +559,20 @@ bucket would make every permission rule in Knowledge Vault decorative. In the co
 the bucket's Access Policy back to **Private**.
 
 **Connection test passes, but uploading a document fails**
-Almost always CORS — the browser is being blocked from talking to MinIO directly. MinIO
-allows all browser origins by default, so this usually means someone set
-`MINIO_API_CORS_ALLOW_ORIGIN`. Either unset it, or set it to your web app's address:
+Check the file size first. Through a Cloudflare Tunnel on the free plan, anything over 100 MB
+is refused with a 413, and because that response carries no CORS headers the browser reports
+it as a network error rather than a size one. The test cannot catch this — nor CORS itself,
+because it runs from our server, not a browser.
+
+Otherwise it is almost always CORS — the browser is being blocked from talking to MinIO
+directly. MinIO and Silo allow all browser origins by default, so this usually means someone
+set `MINIO_API_CORS_ALLOW_ORIGIN`. Either unset it, or set it to your web app's address:
 ```bash
 export MINIO_API_CORS_ALLOW_ORIGIN="http://localhost:3000"
 ```
-The storage setup screen has a **Show setup steps** section with the exact rules if your
-storage needs them written out.
+Bucket-level rules are the other route: the setup guide's step 8 writes them as XML — the
+format `mc cors set` reads — and the storage form's **Show the browser rules** shows the same
+rules as JSON.
 
 **The document opens, then says it failed its integrity check**
 The copy in storage no longer matches what was uploaded. We refuse to display it rather
@@ -585,8 +597,8 @@ put MinIO behind a tunnel so it has an HTTPS address (Part 2). The two halves ha
 # stop cloudflared and MinIO with Ctrl-C in their windows
 ```
 
-Then delete the `kv-storage` folder and the MinIO binary. Nothing was installed into your
-system, and nothing was left running.
+Then remove the container (`docker rm -f kv-minio`) or the binary, and delete the `kv-storage`
+folder. Nothing was installed into your system, and nothing was left running.
 
 In Knowledge Vault, delete the test documents **before** removing the storage, so the
 delete queue can clean the objects out of the bucket properly.
@@ -604,38 +616,53 @@ are — four sentences, because a reader who does not have those does not have a
 with the one warning that is a prerequisite rather than a footnote: their storage becomes
 the only copy of their documents.
 
-1. **What you are about to build, in plain words.** The vocabulary, the datacentre/office
-   problem in one paragraph, the backup warning, and the choice of machine. Choosing "I do
-   not have one yet" replaces the step with three costed options and sizing advice.
+1. **What you are about to build, in plain words.** The vocabulary (including why the program
+   called MinIO is installed as Silo), the datacentre/office problem in one paragraph, the
+   backup warning — with the line that RAID is not a backup — and the choice of machine.
+   Choosing "I do not have one yet" replaces the step with three costed options and sizing
+   advice.
 2. **Install Docker.** Named and located per machine: Package Center → Container Manager on
    a Synology, App Center → Container Station on a QNAP, Apps on TrueNAS, the Docker tab on
    Unraid, `get.docker.com` on Linux, Docker Desktop on Windows and macOS — each with the
    manufacturer's own documentation linked. Ends by asking clicking-or-typing, and tells the
    reader how to open a terminal on their specific machine if they chose typing.
 3. **Install MinIO.** Collects the folder, the MinIO user name and a generated password.
-   Then either the container-manager walkthrough (ports, volume, the two environment
-   variables, the command, the restart policy) or the single `docker run`, followed by a
-   table explaining every flag in it. Ends with the local address and a check that signs in
-   to the console.
+   Then either the container-manager walkthrough (the `pgsty/silo` image, the container named
+   `minio` because step 7's commands use that name, ports, volume, the two environment
+   variables, the command, the restart policy) or the single `docker run` of
+   `docker.io/pgsty/silo:latest`, followed by a table explaining every flag in it. Ends with
+   the local address and a check that signs in to the console.
 4. **Create the bucket.** Collects the bucket name. Console route or `mc` route, with the
-   note that recent MinIO builds have removed the console's create button — which is the
-   thing that makes people think they are stuck.
+   note that Silo keeps the console's create button while an older MinIO install may not —
+   the thing that makes people think they are stuck.
 5. **Create the access key.** Why it is not the master password; both routes; the warning
-   that the secret is shown once; and an optional scoped policy for the security-minded.
+   that the secret is shown once; and an optional scoped policy for the security-minded,
+   applied with `mc admin accesskey edit … --policy`.
 6. **Give the storage an address.** Why port forwarding is the wrong answer and a tunnel is
-   not. Branches on the domain question. The own-domain branch walks the Cloudflare Zero
-   Trust dashboard click by click and explains why the public hostname is `HTTP` to
-   `localhost:9000` when the address is HTTPS. The no-domain branch gives the quick tunnel,
-   how to read the URL out of the logs, and an honest account of what it costs them.
+   not. Branches on the domain question, and both tunnel branches carry the free plan's
+   100 MB upload ceiling. The own-domain branch explains DNS in a sentence, checks who runs it
+   with `nslookup -type=ns`, and lays out the two ways onto Cloudflare — buy a separate domain
+   there, or move the existing one (records checked, MX above all; DNSSEC off; nameservers
+   swapped) — before walking the Cloudflare Zero Trust dashboard click by click and explaining
+   why the public hostname is `HTTP` to `localhost:9000` when the address is HTTPS. The
+   no-domain branch gives the quick tunnel, how to read the URL out of the logs, and an
+   honest account of what it costs them.
 7. **Tell MinIO its public address.** `MINIO_SERVER_URL`, with the whole recreate command
    already carrying their values. Marked skippable when their storage was already public.
-8. **The browser rules.** `corsRulesFor(webOrigin)` for the deployment they are on, and the
-   two commands to apply it to their bucket.
+8. **The browser rules.** `corsXmlFor(webOrigin)` — the XML form `mc cors set` reads — for the
+   deployment they are on, and the commands to apply it, starting by reconnecting `mc`, whose
+   saved alias went with the container step 7 recreated.
 9. **Connect.** A table of the four values with theirs already in it, the encryption choice
-   and why it is permanent, what the connection test actually does, and the three failure
-   messages with what each really means.
-10. **Finish well.** Reboot and re-test, back up the folder and restore one file from it,
-    write down who holds what. Plus the migration button, if documents predate the storage.
+   and why it is permanent, what the connection test actually does, and the failures with
+   what each really means — including an upload that fails after the test has passed.
+10. **Finish well.** Reboot and re-test; back up the whole folder, `.minio.sys` included, with
+    the tool the machine's profile names (Hyper Backup, Hybrid Backup Sync 3, …) and restore
+    it to a spare folder; write down who holds what. Plus the migration button, if documents
+    predate the storage.
+
+On a Windows PC every command is written for PowerShell — backtick continuations, here-strings
+for the files it writes, `Select-String` where the others use `grep` — because step 2 tells
+that reader to open PowerShell.
 
 ### Where this appears in the product
 
@@ -665,4 +692,4 @@ substituted.
 
 ---
 
-*Last updated: 2026-08-11*
+*Last updated: 2026-09-22*

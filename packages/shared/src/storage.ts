@@ -197,22 +197,47 @@ export const uploadCommitSchema = z.object({
 });
 export type UploadCommitInput = z.infer<typeof uploadCommitSchema>;
 
+// One CORS rule, written out in both of the formats storage servers accept.
+const CORS_METHODS = ["GET", "PUT", "HEAD"];
+const CORS_EXPOSE = ["ETag", "Content-Length", "Content-Type"];
+const CORS_MAX_AGE_SECONDS = 3000;
+
 /**
  * The IAM/bucket policy we tell the organization to apply, and the CORS rules their
  * browser uploads need. Rendered into the setup screen so nobody has to invent them.
+ * This is the JSON form that dashboards such as R2's take.
  */
 export function corsRulesFor(webOrigin: string): string {
   return JSON.stringify(
     [
       {
         AllowedOrigins: [webOrigin],
-        AllowedMethods: ["GET", "PUT", "HEAD"],
+        AllowedMethods: CORS_METHODS,
         AllowedHeaders: ["*"],
-        ExposeHeaders: ["ETag", "Content-Length", "Content-Type"],
-        MaxAgeSeconds: 3000,
+        ExposeHeaders: CORS_EXPOSE,
+        MaxAgeSeconds: CORS_MAX_AGE_SECONDS,
       },
     ],
     null,
     2,
   );
+}
+
+/**
+ * The same rule as an S3 `CORSConfiguration` document — the only form `mc cors set` reads,
+ * so it is what the setup guide has MinIO-family servers apply.
+ */
+export function corsXmlFor(webOrigin: string): string {
+  const origin = webOrigin.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return [
+    "<CORSConfiguration>",
+    "  <CORSRule>",
+    `    <AllowedOrigin>${origin}</AllowedOrigin>`,
+    ...CORS_METHODS.map((m) => `    <AllowedMethod>${m}</AllowedMethod>`),
+    "    <AllowedHeader>*</AllowedHeader>",
+    ...CORS_EXPOSE.map((h) => `    <ExposeHeader>${h}</ExposeHeader>`),
+    `    <MaxAgeSeconds>${CORS_MAX_AGE_SECONDS}</MaxAgeSeconds>`,
+    "  </CORSRule>",
+    "</CORSConfiguration>",
+  ].join("\n");
 }
