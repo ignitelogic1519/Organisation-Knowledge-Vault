@@ -169,7 +169,7 @@ export async function testConnection(cfg: S3Config, prefix: string): Promise<Sto
       error:
         "This bucket is publicly readable, so anything stored in it could be opened by anyone " +
         "with the link. Make the bucket private before connecting it.",
-      hint: "In MinIO: `mc anonymous set none <alias>/<bucket>`.",
+      hint: "In Silo: `mcli anonymous set none <alias>/<bucket>`.",
     };
   }
   steps.push({ step: "public", label: "Confirm the bucket is private", ok: true });

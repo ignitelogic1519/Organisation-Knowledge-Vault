@@ -751,7 +751,9 @@ with us, is small, and must stay queryable when their storage is not.
 ### 9.2 The backend — one adapter, presented as "NAS"
 
 The first (and initially only) backend is **S3-compatible object storage**, offered to
-organizations as **NAS** and documented with **MinIO** as the recommended server to run on it.
+organizations as **NAS** and documented with **Silo** — PGSTY's open-source (AGPL-3.0), S3-compatible
+server, released every month or two with a published security-advisory process — as the
+recommended server to run on it.
 
 The adapter speaks the S3 API. That is a deliberate economy: the same adapter later serves
 Amazon S3, Cloudflare R2, Google Cloud Storage (interoperability mode), Wasabi, Backblaze B2
@@ -777,13 +779,13 @@ Fields collected:
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| Endpoint URL | yes | `https://storage.acme.com` — their MinIO address. HTTPS only |
+| Endpoint URL | yes | `https://storage.acme.com` — their Silo address. HTTPS only |
 | Bucket | yes | Must already exist; we never create buckets |
 | Access key ID | yes | |
 | Secret access key | yes | Encrypted at rest; never returned to the browser after saving |
 | Path prefix | no | Lets them share a bucket with other systems |
-| Region | no | `us-east-1` by default; MinIO ignores it |
-| Force path-style | no | **On** by default — MinIO needs it |
+| Region | no | `us-east-1` by default; Silo ignores it |
+| Force path-style | no | **On** by default — Silo needs it |
 | TLS fingerprint | no | Only when their certificate is self-signed |
 | Encryption posture | yes | See §9.5 |
 

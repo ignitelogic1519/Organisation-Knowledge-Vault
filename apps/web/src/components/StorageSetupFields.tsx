@@ -158,7 +158,7 @@ export function StorageSetupFields({
           onChange={(e) => set("endpoint", e.target.value)}
           placeholder="https://storage.your-company.com"
         />
-        <small>The HTTPS address of MinIO on your NAS.</small>
+        <small>The HTTPS address of Silo on your NAS.</small>
       </label>
 
       <label className="field">
@@ -208,7 +208,7 @@ export function StorageSetupFields({
         <label className="field">
           <span>Region</span>
           <input value={value.region} onChange={(e) => set("region", e.target.value)} />
-          <small>MinIO ignores this. Leave it as it is unless your storage asks for one.</small>
+          <small>Silo ignores this. Leave it as it is unless your storage asks for one.</small>
         </label>
         <label className="ack-row">
           <input
@@ -216,7 +216,7 @@ export function StorageSetupFields({
             checked={value.forcePathStyle}
             onChange={(e) => set("forcePathStyle", e.target.checked)}
           />
-          <span>Path-style addressing (MinIO needs this on)</span>
+          <span>Path-style addressing (Silo needs this on)</span>
         </label>
       </details>
 

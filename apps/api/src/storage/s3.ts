@@ -8,7 +8,7 @@ import { createHash, createHmac } from "node:crypto";
 // test exercises every part of it against the customer's real endpoint before their
 // backend is ever activated.
 //
-// Works against anything S3-compatible: MinIO (what we recommend on a NAS), Amazon S3,
+// Works against anything S3-compatible: Silo (what we recommend on a NAS), MinIO, Amazon S3,
 // Cloudflare R2, Google Cloud Storage in interoperability mode, Wasabi, Backblaze B2
 // and DigitalOcean Spaces.
 

@@ -13,7 +13,7 @@ import { db } from "../db.js";
 //   exam         Studio MCQ paper (questions AND answer key), inline in the ref
 //   inline       small files in our Postgres — the legacy path, still used by orgs
 //                that have not connected storage
-//   s3           the organization's OWN S3-compatible storage (MinIO on their NAS,
+//   s3           the organization's OWN S3-compatible storage (Silo on their NAS,
 //                and later S3/R2/GCS/Wasabi/B2/Spaces) — we hold only the pointer
 //   unreachable  we know this exists, we cannot fetch it right now
 //

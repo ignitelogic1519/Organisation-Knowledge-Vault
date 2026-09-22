@@ -718,7 +718,7 @@ model PlatformSetting {
 }
 
 // ── Organization-provided storage (docs/structure.md §9) ─────────────────────
-// The organization's own S3-compatible backend (MinIO on their NAS today; S3, R2,
+// The organization's own S3-compatible backend (Silo on their NAS today; S3, R2,
 // GCS, Wasabi, B2 and Spaces are the same adapter with a different endpoint).
 // Secrets are encrypted with STORAGE_KEK, which lives in the environment and NEVER
 // in this database — a dump alone must not reach a customer's storage.
@@ -741,11 +741,11 @@ model OrgStorage {
   adapter String       @default("s3") // the only backend today; the dropdown shows it as "NAS"
 
   // ── Non-secret connection config ──
-  endpoint       String // https://storage.acme.com — their MinIO address
+  endpoint       String // https://storage.acme.com — their storage server's address
   bucket         String
-  region         String  @default("us-east-1") // MinIO ignores it; real S3 needs it
+  region         String  @default("us-east-1") // Silo ignores it; real S3 needs it
   prefix         String  @default("") // lets them share a bucket with other systems
-  forcePathStyle Boolean @default(true) // MinIO needs this on
+  forcePathStyle Boolean @default(true) // Silo needs this on
 
   // ── Secrets, sealed with STORAGE_KEK (see storage/secrets.ts) ──
   accessKeyIdEnc String
