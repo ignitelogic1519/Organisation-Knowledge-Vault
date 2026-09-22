@@ -50,13 +50,13 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
     icon: "🗄",
     status: "live",
     tagline:
-      "An S3-compatible server on hardware you own. MinIO on a NAS in your own building is the recommended shape.",
+      "An S3-compatible server on hardware you own. Silo — the maintained edition of MinIO — on a NAS in your own building is the recommended shape.",
     whoFor:
       "Any organization that wants its documents to sit on its own hardware, under its own physical control, and to be able to walk away with everything.",
     steps: [
       {
         title: "1 · Stand up the storage",
-        text: "Run MinIO (or any S3-compatible server) on your NAS and create one bucket for Knowledge Vault. We never create buckets — the one you name has to exist already.",
+        text: "Run Silo, the maintained edition of MinIO (or any S3-compatible server), on your NAS and create one bucket for Knowledge Vault. We never create buckets — the one you name has to exist already.",
       },
       {
         title: "2 · Make a key that can do exactly one thing",
@@ -64,7 +64,7 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
       },
       {
         title: "3 · Let browsers talk to it",
-        text: "Add the CORS rules we generate for you, scoped to our web origin. This is the step people get wrong most often, which is why the setup screen tests it rather than trusting it.",
+        text: "Add the CORS rules we generate for you, scoped to our web origin. MinIO-family servers accept every origin out of the box, so this is usually needed only when an upload is refused — and because the connection test runs from our servers, only a real upload from a browser proves this step.",
       },
       {
         title: "4 · Choose the encryption posture",
@@ -94,7 +94,7 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
     tradeoffs: [
       "Your storage has to have a public HTTPS address. A NAS reachable only on your office LAN cannot be used this way.",
       "An organization cannot be created until its storage is reachable and working.",
-      "Files up to 200 MB, uploaded in framed 4 MB parts so a large file never has to fit in a phone's memory twice.",
+      "Files up to 200 MB, encrypted in 4 MB frames so a large file never has to fit in a phone's memory twice. Behind a Cloudflare Tunnel on Cloudflare's free plan, the ceiling is 100 MB per file.",
     ],
   },
   {

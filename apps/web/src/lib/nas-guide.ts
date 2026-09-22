@@ -1,4 +1,4 @@
-import { corsRulesFor } from "@vault/shared";
+import { corsXmlFor } from "@vault/shared";
 
 /**
  * The storage setup guide — content model.
@@ -91,6 +91,8 @@ interface NasProfile {
   terminalHow: string;
   /** True when the machine has a graphical Docker manager worth using. */
   hasGui: boolean;
+  /** How this machine backs a folder up to somewhere else, in its own words. */
+  backupHow: string;
 }
 
 export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
@@ -110,6 +112,7 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     terminalHow:
       "In DSM go to Control Panel → Terminal & SNMP, tick “Enable SSH service”, and Apply. Then connect from your own computer with an SSH client (Terminal on a Mac, PowerShell on Windows): ssh admin@your-nas-address.",
     hasGui: true,
+    backupHow: "a Hyper Backup task (Package Center) to a USB drive, another NAS or a cloud account",
   },
   qnap: {
     label: "QNAP",
@@ -125,8 +128,9 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     dockerLink: { label: "QNAP's Container Station page", href: "https://www.qnap.com/en/software/container-station" },
     defaultFolder: "/share/knowledge-vault",
     terminalHow:
-      "In QTS go to Control Panel → Network & File Services → Telnet/SSH and enable SSH. Then connect with ssh admin@your-nas-address.",
+      "In QTS go to Control Panel → Network & File Services → Telnet/SSH and enable SSH. Then connect with ssh admin@your-nas-address. If a Console Management menu appears, press Q to reach the ordinary prompt.",
     hasGui: true,
+    backupHow: "a Hybrid Backup Sync 3 job (App Center) to a USB drive, another NAS or a cloud account",
   },
   truenas: {
     label: "TrueNAS",
@@ -144,6 +148,7 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     terminalHow:
       "The TrueNAS web interface has a built-in shell: System Settings → Shell. Or enable SSH under System Settings → Services.",
     hasGui: true,
+    backupHow: "a Cloud Sync, Rsync or Replication task under Data Protection",
   },
   unraid: {
     label: "Unraid",
@@ -159,6 +164,7 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     defaultFolder: "/mnt/user/knowledge-vault",
     terminalHow: "Press the terminal icon (>_) in the top-right corner of the Unraid web interface.",
     hasGui: true,
+    backupHow: "a backup app from Community Applications, or rsync to another machine",
   },
   linux: {
     label: "A Linux server",
@@ -174,6 +180,7 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     defaultFolder: "/srv/knowledge-vault",
     terminalHow: "You are already using it — the SSH session you installed Docker in.",
     hasGui: false,
+    backupHow: "a tool such as restic or borg, to another machine or a cloud bucket",
   },
   windows: {
     label: "A Windows PC",
@@ -190,6 +197,7 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     defaultFolder: "C:\\knowledge-vault",
     terminalHow: "Press Start, type PowerShell, and open it.",
     hasGui: false,
+    backupHow: "your usual backup software, to another disk or a cloud account",
   },
   mac: {
     label: "A Mac",
@@ -205,6 +213,7 @@ export const NAS_PROFILES: Record<Exclude<NasKind, "undecided">, NasProfile> = {
     defaultFolder: "/Users/Shared/knowledge-vault",
     terminalHow: "Open Terminal from Applications → Utilities.",
     hasGui: false,
+    backupHow: "Time Machine or your usual backup software, to another disk",
   },
 };
 
@@ -225,6 +234,43 @@ export const folderOf = (a: Answers) => a.folder.trim() || profileOf(a)?.default
 export const bucketOf = (a: Answers) => a.bucket.trim() || "knowledge-vault";
 export const userOf = (a: Answers) => a.minioUser.trim() || "kvstorage";
 export const passOf = (a: Answers) => a.minioPassword.trim() || "<the-password-you-chose>";
+
+/**
+ * The storage server's image. MinIO Inc. stopped publishing free images in October 2025
+ * and archived the project in February 2026; Silo is the community-maintained fork. It
+ * keeps MinIO's settings (MINIO_*), its `server` command, its on-disk format and its
+ * console, and bundles `mc` — so everything below is written exactly as for MinIO.
+ */
+const MINIO_IMAGE = "docker.io/pgsty/silo:latest";
+
+/**
+ * One command over several lines, continued the way the reader's terminal expects:
+ * PowerShell on Windows (the terminal step 2 tells them to open), sh everywhere else.
+ */
+function multiline(a: Answers, lines: string[]): string {
+  const cont = a.nas === "windows" ? " `" : " \\";
+  return lines.map((line, i) => (i < lines.length - 1 ? line + cont : line)).join("\n");
+}
+
+/** Write a small text file into the current folder, in the reader's shell. */
+function writeFile(a: Answers, name: string, body: string): string {
+  return a.nas === "windows"
+    ? `@'\n${body}\n'@ | Set-Content -Encoding ascii ${name}`
+    : `cat > ${name} <<'EOF'\n${body}\nEOF`;
+}
+
+/** The `docker run` that starts the storage server — with its public address, once it has one. */
+function minioRunCommand(a: Answers, serverUrl?: string): string {
+  return multiline(a, [
+    "docker run -d --name minio --restart unless-stopped",
+    "  -p 9000:9000 -p 9001:9001",
+    `  -e MINIO_ROOT_USER=${userOf(a)}`,
+    `  -e MINIO_ROOT_PASSWORD=${passOf(a)}`,
+    ...(serverUrl ? [`  -e MINIO_SERVER_URL=${serverUrl}`] : []),
+    `  -v ${folderOf(a)}:/data`,
+    `  ${MINIO_IMAGE} server /data --console-address ":9001"`,
+  ]);
+}
 
 /** A password worth using, generated in the browser and never sent anywhere. */
 export function suggestPassword(): string {
@@ -305,7 +351,7 @@ function stepIntro(a: Answers): Step {
         rows: [
           ["NAS", "A computer with disks in it that stays switched on. That is genuinely all it is. Yours might be a Synology box in a cupboard, or an old desktop under a desk."],
           ["Docker", "A way of installing a program so that it comes with everything it needs and cannot break anything else on the machine. You install Docker once; after that, installing things is one line long."],
-          ["MinIO", "The program that lets Knowledge Vault read and write a folder on your NAS over the network. Without it, your NAS is a filing cabinet with no door."],
+          ["MinIO", "The program that lets Knowledge Vault read and write a folder on your NAS over the network. Without it, your NAS is a filing cabinet with no door. Its makers stopped publishing the free edition in 2025, so this guide installs Silo, a community-maintained copy of the same program: same settings, same commands."],
           ["Bucket", "A named folder inside that folder. MinIO puts everything in one, and you will call yours something like “knowledge-vault”."],
         ],
       },
@@ -316,14 +362,16 @@ function stepIntro(a: Answers): Step {
           "There is one more idea, and it is the reason half of this guide exists. Knowledge Vault " +
           "runs in a datacentre. Your NAS sits on your office network. Those two cannot see each " +
           "other any more than a stranger can see inside your house — which is a good thing, and " +
-          "also a problem we have to solve. Step 7 solves it, safely, without opening your front door.",
+          "also a problem we have to solve. Step 6 solves it, safely, without opening your front door.",
       },
       {
         kind: "warn",
         text:
           "Read this one before you start. Once storage is connected, your NAS holds the only copy " +
           "of your documents. We keep the catalogue; we never keep the files. If that machine has " +
-          "one disk and no backup, then your training records have one disk and no backup.",
+          "one disk and no backup, then your training records have one disk and no backup. RAID " +
+          "keeps you going when a disk dies, but not when a file is deleted, ransomware strikes or " +
+          "the whole machine is lost — only a backup covers those, and step 10 sets one up.",
       },
       {
         kind: "choice",
@@ -357,7 +405,7 @@ function stepIntro(a: Answers): Step {
               rows: [
                 ["A two-bay Synology (DS224+ or similar) with two disks", "£350–500 / $400–600", "The easiest by a distance. Two disks mirror each other, so one dying does not lose anything. This is what most organizations should buy."],
                 ["Any spare desktop with a spare disk", "Free", "Works fine. Needs to be left on, and you should still have a backup somewhere else."],
-                ["A small cloud server (Hetzner, DigitalOcean)", "£5–20 / $6–25 a month", "No hardware to look after and it already has a public address, which skips step 7 entirely. But your documents live in somebody else's datacentre, which may be the thing you were avoiding."],
+                ["A small cloud server (Hetzner, DigitalOcean)", "£5–20 / $6–25 a month", "No hardware to look after, and it already has a public address, so step 6 needs no tunnel. But your documents live in somebody else's datacentre, which may be the thing you were avoiding."],
               ],
             },
             {
@@ -462,7 +510,6 @@ function stepMinio(a: Answers): Step {
   const p = profileOf(a);
   const folder = folderOf(a);
   const user = userOf(a);
-  const pass = passOf(a);
   const guiRoute = a.route === "gui";
 
   return {
@@ -477,8 +524,8 @@ function stepMinio(a: Answers): Step {
         text:
           "MinIO is a single small program. You give it a folder and it makes that folder readable and " +
           "writable over the network, in the same language Amazon S3 speaks — which is the language " +
-          "Knowledge Vault knows. Files it writes are ordinary files in that folder. Nothing is trapped " +
-          "in a database, and you can walk away with everything at any time.",
+          "Knowledge Vault knows. Everything it stores lives inside that one folder, so backing the " +
+          "folder up backs everything up, and you can walk away with it at any time.",
       },
       {
         kind: "input",
@@ -517,14 +564,15 @@ function stepMinio(a: Answers): Step {
               kind: "steps",
               items: [
                 a.nas === "synology"
-                  ? "In Container Manager, open Registry, search for minio, choose minio/minio and press Download. Pick the latest tag."
+                  ? "In Container Manager, open Registry, search for pgsty/silo, choose it and press Download. Pick the latest tag."
                   : a.nas === "qnap"
-                    ? "In Container Station, press Create, search for minio and pick minio/minio."
+                    ? "In Container Station, press Create, search for pgsty/silo and pick it."
                     : a.nas === "unraid"
-                      ? "On the Docker tab press Add Container, then search Community Applications for MinIO."
+                      ? "On the Docker tab press Add Container and set Repository to pgsty/silo."
                       : a.nas === "truenas"
-                        ? "In Apps press Discover Apps, search for MinIO, and press Install."
-                        : "In Docker Desktop, search for minio/minio in the top search bar and press Run.",
+                        ? "In Apps press Discover Apps, then Custom App, and set the image repository to pgsty/silo with the tag latest."
+                        : "In Docker Desktop, search for pgsty/silo in the top search bar and press Run.",
+                "Name the container minio — the commands in later steps refer to it by that name.",
                 "When it asks for ports, map 9000 to 9000 and 9001 to 9001.",
                 `When it asks for volumes or storage, map the folder ${folder} on the machine to /data inside the container.`,
                 `When it asks for environment variables, add MINIO_ROOT_USER = ${user} and MINIO_ROOT_PASSWORD = the password you chose.`,
@@ -549,20 +597,7 @@ function stepMinio(a: Answers): Step {
             {
               kind: "command",
               label: `Run this on your ${p?.noun ?? "machine"}`,
-              code:
-                a.nas === "windows"
-                  ? `docker run -d --name minio --restart unless-stopped ^
-  -p 9000:9000 -p 9001:9001 ^
-  -e MINIO_ROOT_USER=${user} ^
-  -e MINIO_ROOT_PASSWORD=${pass} ^
-  -v ${folder}:/data ^
-  quay.io/minio/minio:latest server /data --console-address ":9001"`
-                  : `docker run -d --name minio --restart unless-stopped \\
-  -p 9000:9000 -p 9001:9001 \\
-  -e MINIO_ROOT_USER=${user} \\
-  -e MINIO_ROOT_PASSWORD=${pass} \\
-  -v ${folder}:/data \\
-  quay.io/minio/minio:latest server /data --console-address ":9001"`,
+              code: minioRunCommand(a),
               note: "Copy the whole thing including the line breaks — it is one command spread over six lines.",
             },
             {
@@ -579,9 +614,9 @@ function stepMinio(a: Answers): Step {
                 ["--name minio", "Call it “minio”, so later commands can refer to it by name."],
                 ["--restart unless-stopped", "Start it again automatically after a reboot or a power cut. This is the line people forget."],
                 ["-p 9000:9000 -p 9001:9001", "Open two doors: 9000 is the one Knowledge Vault talks to, 9001 is a web page for you."],
-                [`-v ${folder}:/data`, "Give the container your folder. Everything it writes lands there as ordinary files."],
+                [`-v ${folder}:/data`, "Give the container your folder. Everything it stores lands there."],
                 ["-e MINIO_ROOT_USER / PASSWORD", "The master account you just chose."],
-                ["quay.io/minio/minio:latest", "Which program to download, and from where."],
+                [MINIO_IMAGE, "Which program to download, and from where: Silo, the maintained edition of MinIO."],
               ],
             },
           ] as Block[])),
@@ -651,9 +686,9 @@ function stepBucket(a: Answers): Step {
             {
               kind: "note",
               text:
-                "Some recent MinIO builds have stripped these buttons out of the free console. If yours has " +
-                "no Create Bucket button, nothing is broken — switch this card to the typing route, which " +
-                "works on every version.",
+                "Silo keeps MinIO's full console, so the button is there. On an older MinIO install whose " +
+                "console has no Create Bucket button, nothing is broken — switch this card to the typing " +
+                "route, which works on every version.",
             },
           ] as Block[])
         : ([
@@ -745,19 +780,24 @@ function stepKey(a: Answers): Step {
         kind: "command",
         depth: "basic",
         label: "Limit the key to this bucket (optional)",
-        code: `cat > policy.json <<'EOF'
-{
+        code: [
+          writeFile(
+            a,
+            "policy.json",
+            `{
   "Version": "2012-10-17",
   "Statement": [{
     "Effect": "Allow",
     "Action": ["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:ListBucket"],
     "Resource": ["arn:aws:s3:::${bucket}","arn:aws:s3:::${bucket}/*"]
   }]
-}
-EOF
-docker cp policy.json minio:/tmp/policy.json
-docker exec minio mc admin policy create local kv-only /tmp/policy.json`,
-        note: "Then attach the kv-only policy to the access key, in the console under Access Keys → Edit.",
+}`,
+          ),
+          "docker cp policy.json minio:/tmp/policy.json",
+          `docker exec minio mc alias set local http://localhost:9000 ${user} ${passOf(a)}`,
+          "docker exec minio mc admin accesskey edit local/ <access-key-id> --policy /tmp/policy.json",
+        ].join("\n"),
+        note: "Replace <access-key-id> with the access key ID you just copied. The key keeps working, but can now reach only this bucket.",
       },
       { kind: "check", text: "You have two strings written down: an access key ID and a secret access key. Step 9 asks for both." },
     ],
@@ -789,7 +829,8 @@ function stepReach(a: Answers): Step {
       question: "Do you own a domain name?",
       help:
         "A domain is something like your-company.com. If your organization has a website or company email, " +
-        "somebody owns one. This decides which kind of tunnel you should set up.",
+        "somebody owns one — it is the part after @ in your work email address. This decides which kind of " +
+        "tunnel you should set up.",
       options: [
         {
           value: "own",
@@ -825,6 +866,15 @@ function stepReach(a: Answers): Step {
     },
   ];
 
+  if (a.domain === "own" || a.domain === "none") {
+    blocks.push({
+      kind: "warn",
+      text:
+        "Cloudflare's free plan accepts at most 100 MB in a single upload. Knowledge Vault allows files up to " +
+        "200 MB, so anything in between fails through the tunnel. Publish large videos as links instead.",
+    });
+  }
+
   if (a.domain === "none") {
     blocks.push(
       {
@@ -836,13 +886,15 @@ function stepReach(a: Answers): Step {
       {
         kind: "command",
         label: "Start a quick tunnel",
-        code: `docker run -d --name cloudflared --restart unless-stopped --network host \\
-  cloudflare/cloudflared:latest tunnel --no-autoupdate --url http://localhost:9000`,
+        code: multiline(a, [
+          "docker run -d --name cloudflared --restart unless-stopped --network host",
+          "  cloudflare/cloudflared:latest tunnel --no-autoupdate --url http://localhost:9000",
+        ]),
       },
       {
         kind: "command",
         label: "Then read the address it gave you",
-        code: `docker logs cloudflared 2>&1 | grep trycloudflare.com`,
+        code: `docker logs cloudflared 2>&1 | ${a.nas === "windows" ? "Select-String" : "grep"} trycloudflare.com`,
         note: "You are looking for a line like https://random-words-here.trycloudflare.com — that is your address.",
       },
       {
@@ -878,6 +930,35 @@ function stepReach(a: Answers): Step {
         help: "Just the domain itself — no https://, no www.",
       },
       {
+        kind: "prose",
+        text:
+          "A tunnel can only be named on a domain whose DNS Cloudflare runs. DNS is the directory that tells " +
+          "the internet where a domain's website and email are, and the domain's nameservers say who keeps " +
+          "that directory. Check who keeps yours:",
+      },
+      {
+        kind: "command",
+        label: "Who runs your domain's DNS? (Command Prompt, PowerShell or Terminal)",
+        code: `nslookup -type=ns ${a.domainName.trim() || "your-company.com"}`,
+        note:
+          "Names ending in ns.cloudflare.com mean Cloudflare already runs it — go straight to the steps below. " +
+          "Anything else (GoDaddy, Hostinger, Microsoft…) means you need one of the two ways in that follow.",
+      },
+      {
+        kind: "table",
+        head: ["If Cloudflare doesn't run it yet", "What it involves"],
+        rows: [
+          [
+            "Buy a separate domain inside Cloudflare (simplest)",
+            "Domain Registration → Register Domains, about £8–12 a year. It is on Cloudflare from the first minute, and nothing you already run is touched. Put the new domain in the box above.",
+          ],
+          [
+            "Move your existing domain to Cloudflare",
+            "Add a domain → Free plan, and Cloudflare copies your existing DNS records. Check every one arrived, especially MX (email) and TXT records. Then, at the company you bought the domain from, turn DNSSEC off and replace the nameservers with the two Cloudflare shows. It takes effect within a few hours. A missed record interrupts email or the website, so do this with whoever looks after those.",
+          ],
+        ],
+      },
+      {
         kind: "input",
         field: "hostname",
         label: "What should the storage be called on that domain?",
@@ -889,22 +970,24 @@ function stepReach(a: Answers): Step {
       {
         kind: "steps",
         items: [
-          "Create a free Cloudflare account if you do not have one, and add your domain to it. Cloudflare will ask you to change your domain's nameservers at whoever you bought it from; their wizard walks you through it and it takes a few minutes to take effect.",
+          "Sign in to Cloudflare and make sure your domain shows as Active. If it doesn't yet, finish one of the two ways in above first.",
           "In the Cloudflare dashboard open Zero Trust — it is in the left-hand menu, and it is free for what we are doing.",
-          "Go to Networks → Tunnels, and press Create a tunnel.",
+          "Go to Networks → Tunnels (newer dashboards: Networks → Connectors), and press Create a tunnel.",
           "Choose Cloudflared as the type, give the tunnel a name (anything: “knowledge-vault-storage”), and press Save.",
           "It now shows you an install command with a long token in it. You only need the token — the part after --token.",
           "Run the command on the next card with that token, on your NAS.",
           "Back in Cloudflare, the tunnel should go green and say Connected within a minute.",
-          `Press Next, then add a Public Hostname: subdomain "${a.hostname.trim().split(".")[0] || "storage"}", your domain, service type HTTP, and URL localhost:9000.`,
+          `Press Next, then add a Public Hostname (newer dashboards call it a published application route): subdomain "${a.hostname.trim().split(".")[0] || "storage"}", your domain, service type HTTP, and URL localhost:9000.`,
           "Save. The address is live immediately.",
         ],
       },
       {
         kind: "command",
         label: "Run the connector on your NAS",
-        code: `docker run -d --name cloudflared --restart unless-stopped --network host \\
-  cloudflare/cloudflared:latest tunnel --no-autoupdate run --token <paste-your-token-here>`,
+        code: multiline(a, [
+          "docker run -d --name cloudflared --restart unless-stopped --network host",
+          "  cloudflare/cloudflared:latest tunnel --no-autoupdate run --token <paste-your-token-here>",
+        ]),
         note: "Replace <paste-your-token-here> with the token from the Cloudflare page. It is long — paste it, do not type it.",
       },
       {
@@ -960,8 +1043,6 @@ function stepReach(a: Answers): Step {
 function stepServerUrl(a: Answers): Step {
   const endpoint = resolvedEndpoint(a);
   const folder = folderOf(a);
-  const user = userOf(a);
-  const pass = passOf(a);
   return {
     id: "server-url",
     short: "Tell MinIO",
@@ -997,25 +1078,8 @@ function stepServerUrl(a: Answers): Step {
       {
         kind: "command",
         label: "Recreate MinIO with its public address",
-        code:
-          a.nas === "windows"
-            ? `docker rm -f minio
-docker run -d --name minio --restart unless-stopped ^
-  -p 9000:9000 -p 9001:9001 ^
-  -e MINIO_ROOT_USER=${user} ^
-  -e MINIO_ROOT_PASSWORD=${pass} ^
-  -e MINIO_SERVER_URL=${endpoint} ^
-  -v ${folder}:/data ^
-  quay.io/minio/minio:latest server /data --console-address ":9001"`
-            : `docker rm -f minio
-docker run -d --name minio --restart unless-stopped \\
-  -p 9000:9000 -p 9001:9001 \\
-  -e MINIO_ROOT_USER=${user} \\
-  -e MINIO_ROOT_PASSWORD=${pass} \\
-  -e MINIO_SERVER_URL=${endpoint} \\
-  -v ${folder}:/data \\
-  quay.io/minio/minio:latest server /data --console-address ":9001"`,
-        note: "Identical to the command you ran before, with MINIO_SERVER_URL added.",
+        code: `docker rm -f minio\n${minioRunCommand(a, endpoint)}`,
+        note: "Identical to the command you ran before, with MINIO_SERVER_URL added — and the same password.",
       },
       {
         kind: "check",
@@ -1052,18 +1116,26 @@ function stepCors(a: Answers, origin: string): Step {
           "browser will only send a file to a different address than the page it is on if that address says " +
           "the request is welcome. These rules say so, and they name this Knowledge Vault and nothing else.",
       },
-      { kind: "command", label: "Save this on the machine as cors.json", code: corsRulesFor(origin) },
       {
         kind: "command",
-        label: "Apply it to the bucket",
-        code: `docker cp cors.json minio:/tmp/cors.json
-docker exec minio mc cors set local/${bucket} /tmp/cors.json`,
+        label: "Save the rules on the machine as cors.xml",
+        code: writeFile(a, "cors.xml", corsXmlFor(origin)),
+        note: "mc reads CORS rules as XML — the same rules the storage form shows as JSON.",
+      },
+      {
+        kind: "command",
+        label: "Apply them to the bucket",
+        code: `docker exec minio mc alias set local http://localhost:9000 ${userOf(a)} ${passOf(a)}
+docker cp cors.xml minio:/tmp/cors.xml
+docker exec minio mc cors set local/${bucket} /tmp/cors.xml`,
+        note: "The first line reconnects mc: its saved connection went with the old container in step 7.",
       },
       {
         kind: "note",
         text:
-          "Recent MinIO builds already allow every browser origin, in which case this changes nothing and can " +
-          "be skipped. Come back and do it if the connection test passes but uploading a document fails.",
+          "MinIO and Silo allow every browser origin out of the box, in which case this changes nothing and can " +
+          "be skipped. Come back and do it if the connection test passes but uploading a document fails — the " +
+          "test runs from our servers, so it cannot see this step.",
       },
     ],
   };
@@ -1119,7 +1191,7 @@ function stepConnect(a: Answers): Step {
       {
         kind: "prose",
         depth: "basic",
-        text: "The three failures worth knowing in advance:",
+        text: "The failures worth knowing in advance:",
       },
       {
         kind: "table",
@@ -1129,6 +1201,7 @@ function stepConnect(a: Answers): Step {
           ["Could not reach your storage", "The tunnel is down, the address has a trailing slash, or the port is 9001 instead of 9000."],
           ["The secret access key is wrong, or the clock is out of sync", "Nine times out of ten this is step 7 — MINIO_SERVER_URL was not set to your public address."],
           ["This bucket is publicly readable", "Somebody made the bucket public. Set it back to private in the console."],
+          ["The test passes, but uploading a document fails", "The file is over 100 MB, the most Cloudflare's free plan carries in one upload — or the browser rules from step 8 are needed."],
         ],
       },
       {
@@ -1142,6 +1215,7 @@ function stepConnect(a: Answers): Step {
 }
 
 function stepAfter(a: Answers): Step {
+  const p = profileOf(a);
   return {
     id: "after",
     short: "Finish well",
@@ -1158,7 +1232,7 @@ function stepAfter(a: Answers): Step {
         kind: "steps",
         items: [
           "Reboot the machine, wait for it to come back, and press Check connection in Knowledge Vault. Both containers should return by themselves. If they do not, the restart policy did not take — recreate them with --restart unless-stopped.",
-          `Set up a backup of ${folderOf(a)} to somewhere else entirely — another disk, another building, a cloud backup service. Then restore one file from it, today, to prove the backup is real. An untested backup is a hope.`,
+          `Set up a backup of ${folderOf(a)} to somewhere else entirely — another disk, another building, a cloud backup service.${p ? ` On a ${p.noun}, that is ${p.backupHow}.` : ""} Back up the whole folder, including the hidden .minio.sys inside it: the files only make sense together. Then restore it to a spare folder, today, to prove the backup is real. An untested backup is a hope.`,
           "Write down, somewhere other than your own head: where MinIO runs, the master user name and password, the access key ID, which tunnel is in use and on whose Cloudflare account. The person who set this up is not always the person who has to fix it.",
         ],
       },
@@ -1181,7 +1255,7 @@ function stepAfter(a: Answers): Step {
               kind: "warn",
               text:
                 "You are on a temporary address. Before anyone puts a real document in, get a domain and redo " +
-                "step 7 as a named tunnel. Otherwise this stops working the first time the tunnel restarts, and " +
+                "step 6 as a named tunnel. Otherwise this stops working the first time the tunnel restarts, and " +
                 "it will be a confusing morning.",
             },
           ] as Block[])

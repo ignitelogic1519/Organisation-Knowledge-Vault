@@ -133,7 +133,7 @@ export function StorageSetupFields({
           Knowledge Vault runs in a datacentre, so it cannot see a NAS that only exists on
           your office network. The safest way to fix that is a{" "}
           <strong>Cloudflare Tunnel</strong> — one container on the NAS, no ports opened on
-          your firewall, and you get a proper HTTPS address. It is step five of the guide.{" "}
+          your firewall, and you get a proper HTTPS address. It is step six of the guide.{" "}
           <button type="button" className="linklike" onClick={() => setShowGuide((v) => !v)}>
             {showGuide ? "Hide the browser rules" : "Show the browser rules"}
           </button>

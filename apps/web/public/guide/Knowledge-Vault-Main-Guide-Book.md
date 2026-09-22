@@ -4871,18 +4871,20 @@ overdue. What they cannot do is open or upload a document until the storage come
 
 ### NAS — your own storage
 
-An **S3-compatible server on hardware you own**. MinIO running on a NAS in your own building is
-the recommended shape, and the one the setup guide walks through.
+An **S3-compatible server on hardware you own**. Silo — the community-maintained edition of
+MinIO — running on a NAS in your own building is the recommended shape, and the one the setup
+guide walks through.
 
 The process, in the order it actually happens:
 
-1. **Stand up the storage.** Run MinIO (or any S3-compatible server) and create one bucket for
+1. **Stand up the storage.** Run Silo (or any S3-compatible server) and create one bucket for
    Knowledge Vault. We never create buckets — the one you name has to exist already.
 2. **Make a key that can do exactly one thing.** A dedicated access key scoped to that bucket
    and prefix: read, write, delete, list, and nothing else.
 3. **Let browsers talk to it.** Add the CORS rules we generate for you, scoped to our web
-   origin. This is the step people get wrong most often, which is why the setup screen *tests*
-   it rather than trusting it.
+   origin. MinIO-family servers accept every origin out of the box, so this is usually needed
+   only when an upload is refused. The connection test runs from our servers and cannot see this
+   step — the first real upload from a browser is what proves it.
 4. **Choose the encryption posture.** *Encrypted* (recommended) writes opaque `.kvblob` objects
    nobody can read out of band — not even your own IT administrator. *Readable* keeps ordinary
    browsable files. **The choice is fixed once storage is active**, because changing it means
@@ -4903,8 +4905,9 @@ never leaks what a document is about.
 
 **What it costs you.** Your storage has to have a public HTTPS address; a NAS reachable only on
 your office network cannot be used this way today (see §4). An organization cannot be created
-until its storage is reachable and working. Files can be up to **200 MB**, uploaded in framed
-parts so a large file never has to fit in a phone's memory twice.
+until its storage is reachable and working. Files can be up to **200 MB**, encrypted in framed
+parts so a large file never has to fit in a phone's memory twice — but behind a Cloudflare Tunnel
+on Cloudflare's free plan, each upload is capped at **100 MB**, so publish large videos as links.
 
 ### KVEP — the Knowledge Vault Employee Perk
 
