@@ -50,13 +50,13 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
     icon: "🗄",
     status: "live",
     tagline:
-      "An S3-compatible server on hardware you own. Silo — the maintained edition of MinIO — on a NAS in your own building is the recommended shape.",
+      "An S3-compatible server on hardware you own. Silo — an open-source storage server that speaks the S3 API — on a NAS in your own building is the recommended shape.",
     whoFor:
       "Any organization that wants its documents to sit on its own hardware, under its own physical control, and to be able to walk away with everything.",
     steps: [
       {
         title: "1 · Stand up the storage",
-        text: "Run Silo, the maintained edition of MinIO (or any S3-compatible server), on your NAS and create one bucket for Knowledge Vault. We never create buckets — the one you name has to exist already.",
+        text: "Run Silo (or any S3-compatible server) on your NAS and create one bucket for Knowledge Vault. We never create buckets — the one you name has to exist already.",
       },
       {
         title: "2 · Make a key that can do exactly one thing",
@@ -64,7 +64,7 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
       },
       {
         title: "3 · Let browsers talk to it",
-        text: "Add the CORS rules we generate for you, scoped to our web origin. MinIO-family servers accept every origin out of the box, so this is usually needed only when an upload is refused — and because the connection test runs from our servers, only a real upload from a browser proves this step.",
+        text: "Add the CORS rules we generate for you, scoped to our web origin. Silo accepts every origin out of the box, and these rules narrow that to Knowledge Vault alone — and because the connection test runs from our servers, only a real upload from a browser proves this step.",
       },
       {
         title: "4 · Choose the encryption posture",

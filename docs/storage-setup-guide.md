@@ -43,7 +43,7 @@ The guide is not a fixed sequence with variables in it. It is built from
   restart, or an address they already have. Each option shows its pros and cons *at the
   moment of choosing*, and the choice changes the commands, the checks, and whether step 7
   is marked skippable.
-* **Free text.** The folder, the bucket, the MinIO user name and password, the NAS's local
+* **Free text.** The folder, the bucket, the Silo user name and password, the NAS's local
   address, the domain, the hostname. Every one is substituted into every later command and
   into the final table of values, so nothing is left to fill in by hand.
 
@@ -75,20 +75,19 @@ Three ideas, and the whole thing makes sense once these land.
 over the network. Your laptop is also a computer with a disk. The only thing your laptop is
 missing is the software that speaks the protocol.
 
-**2 · MinIO is that software** — today in the form of **Silo**, its community-maintained fork.
-(MinIO Inc. stopped publishing free builds in October 2025 and archived the project in February
-2026; Silo keeps its settings, commands, on-disk format and console.) You point it at an
-ordinary folder and it serves that folder over the **S3 API** — the same language Amazon S3
-speaks. Everything it stores lives inside that folder, in MinIO's own layout (`xl.meta` files
-rather than the uploaded files themselves), so the folder *is* your storage: back it up and
-you have backed up everything.
+**2 · Silo is that software.** Silo (from PGSTY) is an open-source storage server. You point
+it at an ordinary folder and it serves that folder over the **S3 API** — the same language
+Amazon S3 speaks. Everything it stores lives inside that folder, in its own layout (`xl.meta`
+files rather than the uploaded files themselves), so the folder *is* your storage: back it up
+and you have backed up everything. Silo is built on the open-source MinIO engine, which is why
+its settings are named `MINIO_*` and its folder holds a hidden `.minio.sys`.
 
 ```
-   Knowledge Vault  ──speaks S3──►  MinIO  ──writes files──►  C:\kv-storage\
+   Knowledge Vault  ──speaks S3──►  Silo   ──writes files──►  C:\kv-storage\
                                   (software)                 (an ordinary folder)
 ```
 
-So **"turn a folder into a NAS" = "run MinIO pointed at that folder"**. That is the whole
+So **"turn a folder into a NAS" = "run Silo pointed at that folder"**. That is the whole
 trick, and it is the same trick on your laptop as on the customer's NAS.
 
 **3 · Reachability is the only thing that differs.** Knowledge Vault's API runs on Render,
@@ -125,15 +124,16 @@ mkdir -p ~/kv-storage
 
 ### Step 2 · Install the storage server (Silo)
 
-MinIO Inc. no longer publishes free builds: its images were withdrawn in October 2025 and the
-project was archived in February 2026, so `dl.min.io`, Homebrew's `minio/stable` tap and
-`quay.io/minio/minio` are no longer a source for anything maintained. Use **Silo**, the
-community-maintained fork. It keeps MinIO's `MINIO_*` settings, its `server` command, its
-on-disk format and its full console, and its image carries the `mc` client.
+Knowledge Vault standardises on **Silo**: open source (AGPL-3.0), released every month or two
+with a published security-advisory process, and one image that carries the server, its web
+console and its `mcli` client. It passes Knowledge Vault's storage checks end to end — signed
+and presigned uploads and downloads, listing, the anonymous-access refusal and the browser's
+CORS preflight. (The old `dl.min.io` downloads and `quay.io/minio/minio` image are no longer
+maintained; don't use them.)
 
 **Docker (any OS — the recommended route):**
 ```bash
-docker run -d --name kv-minio -p 9000:9000 -p 9001:9001 \
+docker run -d --name kv-silo -p 9000:9000 -p 9001:9001 \
   -e MINIO_ROOT_USER=kvadmin -e MINIO_ROOT_PASSWORD=kvadmin12345 \
   -v ~/kv-storage:/data \
   docker.io/pgsty/silo:latest server /data --console-address ":9001"
@@ -144,11 +144,11 @@ backtick (`` ` ``) instead of `\`.
 **Without Docker:** download the archive for your platform from
 [github.com/pgsty/silo/releases](https://github.com/pgsty/silo/releases) (the server binary is
 `silo`) and the client from [github.com/pgsty/mc/releases](https://github.com/pgsty/mc/releases)
-(the binary is `mcli`). Both take exactly the arguments this file shows for MinIO and `mc`.
+(the binary is `mcli`).
 
 ### Step 3 · Start it
 
-With Docker, Step 2 already started it — `docker logs kv-minio` shows the addresses below.
+With Docker, Step 2 already started it — `docker logs kv-silo` shows the addresses below.
 Without Docker, leave this window open — the server runs until you close it.
 
 **Windows:**
@@ -165,7 +165,7 @@ export MINIO_ROOT_PASSWORD=kvadmin12345
 ./silo server ~/kv-storage --console-address ":9001"
 ```
 
-> The password must be at least 8 characters or MinIO refuses to start. `kvadmin12345` is
+> The password must be at least 8 characters or Silo refuses to start. `kvadmin12345` is
 > fine for a laptop test and must never be used anywhere real.
 
 You should see something like:
@@ -184,20 +184,18 @@ Two addresses matter:
 A **bucket** is a named top-level container — it becomes a sub-folder inside `kv-storage`.
 You also want an **access key**, so Knowledge Vault never holds the root password.
 
-> **The command line is the reliable path.** Silo restores the full console, so
-> `localhost:9001` has *Create Bucket* and *Access Keys* buttons again — but an original MinIO
-> build from 2025 may have neither (MinIO stripped them from its free console). The commands
-> below work on every version.
+> **Clicking works too.** Silo's web console at `localhost:9001` has *Create Bucket* and
+> *Access Keys* buttons. The commands below do the same thing, and are quicker to repeat.
 
 **Docker** — the client is already inside the container:
 ```bash
-docker exec kv-minio mc alias set local http://localhost:9000 kvadmin kvadmin12345
-docker exec kv-minio mc mb local/knowledge-vault
-docker exec kv-minio mc admin user svcacct add local kvadmin
+docker exec kv-silo mcli alias set local http://localhost:9000 kvadmin kvadmin12345
+docker exec kv-silo mcli mb local/knowledge-vault
+docker exec kv-silo mcli admin user svcacct add local kvadmin
 ```
 
 **Without Docker** — in a **second** terminal (leave the server running in the first), the
-same three lines with `mcli` in place of `docker exec kv-minio mc`:
+same three lines with `mcli` in place of `docker exec kv-silo mcli`:
 ```bash
 mcli alias set local http://localhost:9000 kvadmin kvadmin12345
 mcli mb local/knowledge-vault
@@ -215,13 +213,13 @@ Secret Key: aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7d
 Check it worked:
 
 ```bash
-docker exec kv-minio mc ls local          # should list: knowledge-vault
+docker exec kv-silo mcli ls local          # should list: knowledge-vault
 ```
 
 Look in `C:\kv-storage` (or `~/kv-storage`) — there is now a `knowledge-vault` folder.
 That is your bucket, sitting on your own disk.
 
-A new MinIO bucket is **private** by default, which is what Knowledge Vault requires — it
+A new Silo bucket is **private** by default, which is what Knowledge Vault requires — it
 refuses to connect a bucket the whole internet can read.
 
 **You now have a working NAS on your laptop.** Everything from here is about connecting to
@@ -232,7 +230,7 @@ it.
 ## Track A — Test entirely on your laptop *(do this first)*
 
 No Cloudflare, no tunnel, nothing on the internet. You run Knowledge Vault locally, and it
-talks to MinIO across `localhost`.
+talks to Silo across `localhost`.
 
 Knowledge Vault normally insists on `https://` addresses so credentials are never sent in
 the clear. It makes **one exception, for `localhost` only** — precisely so this test works.
@@ -267,7 +265,7 @@ pnpm --filter @vault/api dev
 pnpm --filter @vault/web dev
 ```
 
-Terminal 3 is MinIO from Step 3. Three windows, all running.
+Terminal 3 is Silo from Step 3. Three windows, all running.
 
 ### A3 · Connect the storage
 
@@ -314,12 +312,12 @@ governance decision.
 
 Now look in `C:\kv-storage\knowledge-vault\objects\<year>\<month>\` on disk.
 
-There is an entry ending in **`.kvblob`** — a folder, in fact: MinIO keeps each object as an
+There is an entry ending in **`.kvblob`** — a folder, in fact: Silo keeps each object as an
 `xl.meta` file plus data parts. Pull the object out the way any tool would, and look at it:
 
 ```bash
-docker exec kv-minio mc ls --recursive local/knowledge-vault
-docker exec kv-minio mc cat local/knowledge-vault/objects/<year>/<month>/<name>.kvblob | head -c 400
+docker exec kv-silo mcli ls --recursive local/knowledge-vault
+docker exec kv-silo mcli cat local/knowledge-vault/objects/<year>/<month>/<name>.kvblob | head -c 400
 ```
 
 It opens with `KVBLOB01` and a short plaintext header — the original filename, type and size
@@ -328,7 +326,7 @@ are readable there — and everything after it is ciphertext. It is not a PDF an
 itself, with full access to the machine, the document's contents are unreadable.
 
 Now open the document inside Knowledge Vault. It renders perfectly — because your browser
-fetched that `.kvblob` straight from MinIO and decrypted it locally, with a key our API
+fetched that `.kvblob` straight from Silo and decrypted it locally, with a key our API
 handed over your logged-in session.
 
 ### A5 · Prove the bytes bypass the server
@@ -339,20 +337,20 @@ This is worth seeing, because it is the entire economic argument.
 2. Open the document.
 3. Look at the requests.
 
-You will see a request to `localhost:9000` (MinIO) carrying the file, and a small JSON
+You will see a request to `localhost:9000` (Silo) carrying the file, and a small JSON
 request to `localhost:4000` (our API) carrying only the link and the key. **The file never
 passes through the API.** On a real deployment that is bandwidth we never pay for.
 
 ### A6 · Try the failure case
 
-Stop the storage server (`docker stop kv-minio`, or Ctrl-C in its window), then reload the
+Stop the storage server (`docker stop kv-silo`, or Ctrl-C in its window), then reload the
 document in Knowledge Vault.
 
 You should get a **"This document is waiting on your storage"** panel — not a red error,
 not anything that looks like data loss. Because it is not: the file is still sitting in
 your folder, we just cannot reach it.
 
-Start it again (`docker start kv-minio`), press **Check connection** in the storage panel, and
+Start it again (`docker start kv-silo`), press **Check connection** in the storage panel, and
 it recovers.
 
 ---
@@ -371,7 +369,7 @@ comes back down that connection. **No inbound firewall rule. No open port. Nothi
 That is the reason security teams accept it.
 
 ```
-   Render API  ──►  Cloudflare  ◄──outbound connection──  cloudflared  ──►  MinIO
+   Render API  ──►  Cloudflare  ◄──outbound connection──  cloudflared  ──►  Silo
                                    (your laptop opens it)
 ```
 
@@ -395,7 +393,7 @@ chmod +x cloudflared && sudo mv cloudflared /usr/local/bin/
 
 ### B2 · Start a quick tunnel
 
-With MinIO still running, in a new window:
+With Silo still running, in a new window:
 
 ```bash
 cloudflared tunnel --url http://localhost:9000
@@ -414,22 +412,22 @@ Cloudflare gives you a free hostname with a valid certificate.
 
 Test it: open `https://random-words-here.trycloudflare.com/knowledge-vault` in a browser.
 An XML error about access being denied is **the correct result** — it means the tunnel
-reaches MinIO and MinIO is refusing anonymous access, exactly as it should.
+reaches Silo and Silo is refusing anonymous access, exactly as it should.
 
 > **Quick tunnels are for testing only.** The URL is random and changes every time you
 > restart cloudflared, and Cloudflare rate-limits them. For anything lasting, use a named
 > tunnel on your own domain (Part 3).
 
-### B3 · Tell MinIO its public address
+### B3 · Tell Silo its public address
 
-MinIO checks that the address a request was signed for matches the address it is serving
-on. Behind a tunnel those differ, so tell MinIO its public name.
+Silo checks that the address a request was signed for matches the address it is serving
+on. Behind a tunnel those differ, so tell Silo its public name.
 
 **Docker** — recreate the container with one more `-e`. Nothing is lost: the bucket and the
 key live in the folder, not the container.
 ```bash
-docker rm -f kv-minio
-docker run -d --name kv-minio -p 9000:9000 -p 9001:9001 \
+docker rm -f kv-silo
+docker run -d --name kv-silo -p 9000:9000 -p 9001:9001 \
   -e MINIO_ROOT_USER=kvadmin -e MINIO_ROOT_PASSWORD=kvadmin12345 \
   -e MINIO_SERVER_URL="https://random-words-here.trycloudflare.com" \
   -v ~/kv-storage:/data \
@@ -474,7 +472,7 @@ Same three pieces. Only the machine changes.
 **On the NAS** (Synology, QNAP, TrueNAS and Unraid all run Docker):
 
 ```bash
-docker run -d --name minio --restart unless-stopped \
+docker run -d --name silo --restart unless-stopped \
   -p 9000:9000 -p 9001:9001 \
   -e MINIO_ROOT_USER=<strong-user> \
   -e MINIO_ROOT_PASSWORD=<strong-password> \
@@ -498,7 +496,7 @@ docker run -d --name minio --restart unless-stopped \
    tunnel itself.
 2. **A scoped access key**, not one with full access, limited to `GetObject`, `PutObject`,
    `DeleteObject` and `ListBucket` on that one bucket:
-   `mc admin accesskey edit local/ <access-key-id> --policy policy.json`, or paste the same
+   `mcli admin accesskey edit local/ <access-key-id> --policy policy.json`, or paste the same
    policy into the key in the console.
 3. **Both containers set to restart automatically**, so a power cut does not silently take
    their documents offline.
@@ -535,7 +533,7 @@ Windows laptop: `$env:PROCESSOR_ARCHITECTURE`. `AMD64` is fine; `ARM64` needs Wi
 x64 emulation, and Docker is the easier route there.
 
 **"Could not reach your storage at … "**
-Nothing answered. Check MinIO is still running; check the address has no trailing slash;
+Nothing answered. Check Silo is still running; check the address has no trailing slash;
 check the port is `:9000` and not `:9001` (`9001` is the console, not the API). Behind a
 tunnel, confirm the tunnel window is still open — quick tunnels die when you close the
 terminal.
@@ -547,7 +545,7 @@ secret is definitely right and you are behind a tunnel, you almost certainly ski
 a few minutes of drift breaks them.
 
 **"That bucket does not exist on your storage"**
-The name must match exactly, lowercase. Check it in the MinIO console under Buckets.
+The name must match exactly, lowercase. Check it in the Silo console under Buckets.
 
 **"The access key exists but is not allowed to do this on that bucket"**
 The key's policy is too narrow. For a laptop test, make a new key with the policy left
@@ -564,14 +562,14 @@ is refused with a 413, and because that response carries no CORS headers the bro
 it as a network error rather than a size one. The test cannot catch this — nor CORS itself,
 because it runs from our server, not a browser.
 
-Otherwise it is almost always CORS — the browser is being blocked from talking to MinIO
-directly. MinIO and Silo allow all browser origins by default, so this usually means someone
+Otherwise it is almost always CORS — the browser is being blocked from talking to Silo
+directly. Silo allows all browser origins by default, so this usually means someone
 set `MINIO_API_CORS_ALLOW_ORIGIN`. Either unset it, or set it to your web app's address:
 ```bash
 export MINIO_API_CORS_ALLOW_ORIGIN="http://localhost:3000"
 ```
 Bucket-level rules are the other route: the setup guide's step 8 writes them as XML — the
-format `mc cors set` reads — and the storage form's **Show the browser rules** shows the same
+format `mcli cors set` reads — and the storage form's **Show the browser rules** shows the same
 rules as JSON.
 
 **The document opens, then says it failed its integrity check**
@@ -586,18 +584,18 @@ and remember to update `MINIO_SERVER_URL` too.
 **The deployed web app cannot reach `http://localhost:9000`**
 It never will, and this is the browser refusing rather than anything being misconfigured: a
 page served over HTTPS is not allowed to fetch over plain HTTP. So you cannot point the
-Vercel-hosted app at MinIO on your laptop. Either run the web app locally too (Track A), or
-put MinIO behind a tunnel so it has an HTTPS address (Part 2). The two halves have to match.
+Vercel-hosted app at Silo on your laptop. Either run the web app locally too (Track A), or
+put Silo behind a tunnel so it has an HTTPS address (Part 2). The two halves have to match.
 
 ---
 
 ## Cleaning up after the test
 
 ```bash
-# stop cloudflared and MinIO with Ctrl-C in their windows
+# stop cloudflared and Silo with Ctrl-C in their windows
 ```
 
-Then remove the container (`docker rm -f kv-minio`) or the binary, and delete the `kv-storage`
+Then remove the container (`docker rm -f kv-silo`) or the binary, and delete the `kv-storage`
 folder. Nothing was installed into your system, and nothing was left running.
 
 In Knowledge Vault, delete the test documents **before** removing the storage, so the
@@ -611,13 +609,13 @@ delete queue can clean the objects out of the bucket properly.
 What the guide and the PDF contain, in the order they present it. Parts 1–3 above are how
 *we* test; this is the sequence a customer walks once, on real hardware.
 
-**Before they start.** The guide opens with what a NAS, Docker, MinIO and a bucket actually
+**Before they start.** The guide opens with what a NAS, Docker, Silo and a bucket actually
 are — four sentences, because a reader who does not have those does not have anything — and
 with the one warning that is a prerequisite rather than a footnote: their storage becomes
 the only copy of their documents.
 
-1. **What you are about to build, in plain words.** The vocabulary (including why the program
-   called MinIO is installed as Silo), the datacentre/office problem in one paragraph, the
+1. **What you are about to build, in plain words.** The vocabulary, the datacentre/office
+   problem in one paragraph, the
    backup warning — with the line that RAID is not a backup — and the choice of machine.
    Choosing "I do not have one yet" replaces the step with three costed options and sizing
    advice.
@@ -626,18 +624,18 @@ the only copy of their documents.
    Unraid, `get.docker.com` on Linux, Docker Desktop on Windows and macOS — each with the
    manufacturer's own documentation linked. Ends by asking clicking-or-typing, and tells the
    reader how to open a terminal on their specific machine if they chose typing.
-3. **Install MinIO.** Collects the folder, the MinIO user name and a generated password.
+3. **Install Silo.** Collects the folder, the Silo user name and a generated password.
    Then either the container-manager walkthrough (the `pgsty/silo` image, the container named
-   `minio` because step 7's commands use that name, ports, volume, the two environment
+   `silo` because step 7's commands use that name, ports, volume, the two environment
    variables, the command, the restart policy) or the single `docker run` of
    `docker.io/pgsty/silo:latest`, followed by a table explaining every flag in it. Ends with
    the local address and a check that signs in to the console.
-4. **Create the bucket.** Collects the bucket name. Console route or `mc` route, with the
-   note that Silo keeps the console's create button while an older MinIO install may not —
-   the thing that makes people think they are stuck.
+4. **Create the bucket.** Collects the bucket name. Console route or `mcli` route, with a
+   note that switching to the typing route is the answer when a screen has moved — the thing
+   that makes people think they are stuck.
 5. **Create the access key.** Why it is not the master password; both routes; the warning
    that the secret is shown once; and an optional scoped policy for the security-minded,
-   applied with `mc admin accesskey edit … --policy`.
+   applied with `mcli admin accesskey edit … --policy`.
 6. **Give the storage an address.** Why port forwarding is the wrong answer and a tunnel is
    not. Branches on the domain question, and both tunnel branches carry the free plan's
    100 MB upload ceiling. The own-domain branch explains DNS in a sentence, checks who runs it
@@ -647,10 +645,10 @@ the only copy of their documents.
    why the public hostname is `HTTP` to `localhost:9000` when the address is HTTPS. The
    no-domain branch gives the quick tunnel, how to read the URL out of the logs, and an
    honest account of what it costs them.
-7. **Tell MinIO its public address.** `MINIO_SERVER_URL`, with the whole recreate command
+7. **Tell Silo its public address.** `MINIO_SERVER_URL`, with the whole recreate command
    already carrying their values. Marked skippable when their storage was already public.
-8. **The browser rules.** `corsXmlFor(webOrigin)` — the XML form `mc cors set` reads — for the
-   deployment they are on, and the commands to apply it, starting by reconnecting `mc`, whose
+8. **The browser rules.** `corsXmlFor(webOrigin)` — the XML form `mcli cors set` reads — for the
+   deployment they are on, and the commands to apply it, starting by reconnecting `mcli`, whose
    saved alias went with the container step 7 recreated.
 9. **Connect.** A table of the four values with theirs already in it, the encryption choice
    and why it is permanent, what the connection test actually does, and the failures with

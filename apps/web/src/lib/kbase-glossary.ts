@@ -157,7 +157,7 @@ export const KBASE_GLOSSARY: Record<string, Definition> = {
   storageEndpoint: {
     term: "Address",
     short: "The S3-compatible endpoint their storage answers on.",
-    detail: "A NAS on the customer's own network, a MinIO instance, or any S3-compatible service.",
+    detail: "A NAS on the customer's own network running Silo, or any S3-compatible service.",
   },
   storageBucket: {
     term: "Bucket",

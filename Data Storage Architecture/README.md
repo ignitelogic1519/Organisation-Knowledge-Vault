@@ -134,7 +134,8 @@ Appended as we agree things. Nothing is settled until it appears here.
 | 2026-08-04 | Storage is chosen in a dropdown **at organization creation**, currently offering only NAS | Owner's call. Requires the connection test to run *before* the creation transaction, and a failed test must not consume the access code |
 | 2026-08-04 | The Supreme-wrapped DEK is **computed at `.main` export time and never persisted** | Persisting it would put an offline attack on a human-chosen password into every database dump, defeating the point of holding the platform key outside the database |
 | 2026-08-04 | Behaviour written into `docs/structure.md` §9 — that section is now normative | Working agreement: docs before code. Where this folder and §9 disagree, §9 wins |
+| 2026-09-22 | **The recommended NAS server is Silo** (`pgsty/silo`), not MinIO | MinIO's community edition stopped shipping builds (Oct 2025) and was archived (Feb 2026). Silo continues the same S3 engine, commands and on-disk format, releases every month or two with a published security-advisory process, and passed our own S3 client end to end (signed and presigned transfers, listing, anonymous refusal, CORS preflight, a bucket-scoped key). Versity S3 Gateway also passed once its CORS origin was set, and is the fallback; RustFS (1.0 on 2026-09-16, several pre-release CVEs) and AIStor Free (proprietary) were not chosen |
 
 ---
 
-*Last updated: 2026-08-04*
+*Last updated: 2026-09-22*

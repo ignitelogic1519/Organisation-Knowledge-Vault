@@ -67,7 +67,7 @@ export const STORAGE_ADAPTERS = [
     /** What the organization sees in the dropdown. */
     label: "NAS",
     blurb:
-      "Your own NAS, running MinIO. Files go straight from your people's browsers to your " +
+      "Your own NAS, running Silo. Files go straight from your people's browsers to your " +
       "hardware — we never hold them, and you pay nobody for storage.",
   },
 ] as const;
@@ -225,7 +225,7 @@ export function corsRulesFor(webOrigin: string): string {
 
 /**
  * The same rule as an S3 `CORSConfiguration` document — the only form `mc cors set` reads,
- * so it is what the setup guide has MinIO-family servers apply.
+ * so it is what the setup guide applies to Silo.
  */
 export function corsXmlFor(webOrigin: string): string {
   const origin = webOrigin.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

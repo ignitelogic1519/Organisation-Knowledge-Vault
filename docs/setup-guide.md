@@ -153,7 +153,7 @@ Deploys with the normal git push. Two one-time setups:
 ### 5.2 Storage
 The storage adapter port ships with three live backends:
 - **Organization-provided (`s3`)** — the organization connects its own S3-compatible
-  storage, offered as **NAS** and documented with MinIO. Files go browser → their storage,
+  storage, offered as **NAS** and documented with Silo. Files go browser → their storage,
   encrypted in the browser by default, and never pass through our API. This is the path all
   new uploads should take. See **`docs/storage-setup-guide.md`** for the walkthrough,
   including how to test it against a folder on your own laptop before any NAS exists.

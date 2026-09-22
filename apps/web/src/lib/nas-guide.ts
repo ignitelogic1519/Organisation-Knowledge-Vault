@@ -85,7 +85,7 @@ interface NasProfile {
   dockerName: string;
   dockerHow: string[];
   dockerLink?: { label: string; href: string };
-  /** The folder MinIO will keep documents in, prefilled. */
+  /** The folder Silo will keep documents in, prefilled. */
   defaultFolder: string;
   /** How you get a terminal on it, for the command-line route. */
   terminalHow: string;
@@ -236,12 +236,12 @@ export const userOf = (a: Answers) => a.minioUser.trim() || "kvstorage";
 export const passOf = (a: Answers) => a.minioPassword.trim() || "<the-password-you-chose>";
 
 /**
- * The storage server's image. MinIO Inc. stopped publishing free images in October 2025
- * and archived the project in February 2026; Silo is the community-maintained fork. It
- * keeps MinIO's settings (MINIO_*), its `server` command, its on-disk format and its
- * console, and bundles `mc` — so everything below is written exactly as for MinIO.
+ * The storage server: Silo, from PGSTY — open source (AGPL-3.0), S3-compatible, released
+ * every month or two with a published security-advisory process. One image carries the
+ * server, its web console and its `mcli` client. Its settings keep the MINIO_* names of the
+ * S3 engine it is built on, which is why they appear in the commands below.
  */
-const MINIO_IMAGE = "docker.io/pgsty/silo:latest";
+const SILO_IMAGE = "docker.io/pgsty/silo:latest";
 
 /**
  * One command over several lines, continued the way the reader's terminal expects:
@@ -260,15 +260,15 @@ function writeFile(a: Answers, name: string, body: string): string {
 }
 
 /** The `docker run` that starts the storage server — with its public address, once it has one. */
-function minioRunCommand(a: Answers, serverUrl?: string): string {
+function siloRunCommand(a: Answers, serverUrl?: string): string {
   return multiline(a, [
-    "docker run -d --name minio --restart unless-stopped",
+    "docker run -d --name silo --restart unless-stopped",
     "  -p 9000:9000 -p 9001:9001",
     `  -e MINIO_ROOT_USER=${userOf(a)}`,
     `  -e MINIO_ROOT_PASSWORD=${passOf(a)}`,
     ...(serverUrl ? [`  -e MINIO_SERVER_URL=${serverUrl}`] : []),
     `  -v ${folderOf(a)}:/data`,
-    `  ${MINIO_IMAGE} server /data --console-address ":9001"`,
+    `  ${SILO_IMAGE} server /data --console-address ":9001"`,
   ]);
 }
 
@@ -351,8 +351,8 @@ function stepIntro(a: Answers): Step {
         rows: [
           ["NAS", "A computer with disks in it that stays switched on. That is genuinely all it is. Yours might be a Synology box in a cupboard, or an old desktop under a desk."],
           ["Docker", "A way of installing a program so that it comes with everything it needs and cannot break anything else on the machine. You install Docker once; after that, installing things is one line long."],
-          ["MinIO", "The program that lets Knowledge Vault read and write a folder on your NAS over the network. Without it, your NAS is a filing cabinet with no door. Its makers stopped publishing the free edition in 2025, so this guide installs Silo, a community-maintained copy of the same program: same settings, same commands."],
-          ["Bucket", "A named folder inside that folder. MinIO puts everything in one, and you will call yours something like “knowledge-vault”."],
+          ["Silo", "The program that lets Knowledge Vault read and write a folder on your NAS over the network — an open-source storage server that speaks the same language as Amazon S3. Without it, your NAS is a filing cabinet with no door."],
+          ["Bucket", "A named folder inside that folder. Silo puts everything in one, and you will call yours something like “knowledge-vault”."],
         ],
       },
       {
@@ -446,7 +446,7 @@ function stepDocker(a: Answers): Step {
         depth: "basic",
         text:
           `Docker is the thing that makes the rest of this short. Without it you would be installing ` +
-          `MinIO by hand, keeping it updated by hand, and restarting it by hand after every power cut. ` +
+          `Silo by hand, keeping it updated by hand, and restarting it by hand after every power cut. ` +
           `With it, each of those is one line. On a ${p.noun} it is called ${p.dockerName}.`,
       },
       { kind: "steps", items: p.dockerHow },
@@ -506,23 +506,23 @@ sudo usermod -aG docker $USER
   };
 }
 
-function stepMinio(a: Answers): Step {
+function stepSilo(a: Answers): Step {
   const p = profileOf(a);
   const folder = folderOf(a);
   const user = userOf(a);
   const guiRoute = a.route === "gui";
 
   return {
-    id: "minio",
-    short: "Install MinIO",
-    title: "Install MinIO and point it at a folder",
+    id: "minio", // kept: readers' saved progress refers to this id
+    short: "Install Silo",
+    title: "Install Silo and point it at a folder",
     minutes: 12,
     blocks: [
       {
         kind: "prose",
         depth: "basic",
         text:
-          "MinIO is a single small program. You give it a folder and it makes that folder readable and " +
+          "Silo is a single small program. You give it a folder and it makes that folder readable and " +
           "writable over the network, in the same language Amazon S3 speaks — which is the language " +
           "Knowledge Vault knows. Everything it stores lives inside that one folder, so backing the " +
           "folder up backs everything up, and you can walk away with it at any time.",
@@ -540,7 +540,7 @@ function stepMinio(a: Answers): Step {
       {
         kind: "input",
         field: "minioUser",
-        label: "A user name for MinIO",
+        label: "A user name for Silo",
         placeholder: "kvstorage",
         help:
           "This is the master account for the storage itself. It is NOT your Knowledge Vault login, " +
@@ -557,7 +557,7 @@ function stepMinio(a: Answers): Step {
           "somewhere safe now — you will need it again in two steps' time, and there is no way to " +
           "recover it from the machine afterwards.",
       },
-      { kind: "warn", text: "MinIO refuses to start with a password shorter than eight characters." },
+      { kind: "warn", text: "Silo refuses to start with a password shorter than eight characters." },
       ...(guiRoute
         ? ([
             {
@@ -572,7 +572,7 @@ function stepMinio(a: Answers): Step {
                       : a.nas === "truenas"
                         ? "In Apps press Discover Apps, then Custom App, and set the image repository to pgsty/silo with the tag latest."
                         : "In Docker Desktop, search for pgsty/silo in the top search bar and press Run.",
-                "Name the container minio — the commands in later steps refer to it by that name.",
+                "Name the container silo — the commands in later steps refer to it by that name.",
                 "When it asks for ports, map 9000 to 9000 and 9001 to 9001.",
                 `When it asks for volumes or storage, map the folder ${folder} on the machine to /data inside the container.`,
                 `When it asks for environment variables, add MINIO_ROOT_USER = ${user} and MINIO_ROOT_PASSWORD = the password you chose.`,
@@ -592,12 +592,12 @@ function stepMinio(a: Answers): Step {
         : ([
             {
               kind: "prose",
-              text: "One command. It downloads MinIO, points it at your folder, and sets it to come back after a reboot.",
+              text: "One command. It downloads Silo, points it at your folder, and sets it to come back after a reboot.",
             },
             {
               kind: "command",
               label: `Run this on your ${p?.noun ?? "machine"}`,
-              code: minioRunCommand(a),
+              code: siloRunCommand(a),
               note: "Copy the whole thing including the line breaks — it is one command spread over six lines.",
             },
             {
@@ -611,12 +611,12 @@ function stepMinio(a: Answers): Step {
               head: ["Part", "What it does"],
               rows: [
                 ["docker run -d", "Start a container and leave it running in the background."],
-                ["--name minio", "Call it “minio”, so later commands can refer to it by name."],
+                ["--name silo", "Call it “silo”, so later commands can refer to it by name."],
                 ["--restart unless-stopped", "Start it again automatically after a reboot or a power cut. This is the line people forget."],
                 ["-p 9000:9000 -p 9001:9001", "Open two doors: 9000 is the one Knowledge Vault talks to, 9001 is a web page for you."],
                 [`-v ${folder}:/data`, "Give the container your folder. Everything it stores lands there."],
                 ["-e MINIO_ROOT_USER / PASSWORD", "The master account you just chose."],
-                [MINIO_IMAGE, "Which program to download, and from where: Silo, the maintained edition of MinIO."],
+                [SILO_IMAGE, "Which program to download, and from where."],
               ],
             },
           ] as Block[])),
@@ -632,7 +632,7 @@ function stepMinio(a: Answers): Step {
       },
       {
         kind: "check",
-        text: `Open http://${a.nasAddress.trim() || "your-nas-address"}:9001 in a browser on the same network. You should get a MinIO sign-in page. Sign in with the user name and password you just chose — that proves both are right before anything else depends on them.`,
+        text: `Open http://${a.nasAddress.trim() || "your-nas-address"}:9001 in a browser on the same network. You should get the Silo Console sign-in page. Sign in with the user name and password you just chose — that proves both are right before anything else depends on them.`,
       },
       {
         kind: "warn",
@@ -670,7 +670,7 @@ function stepBucket(a: Answers): Step {
         field: "bucket",
         label: "What should the bucket be called?",
         placeholder: "knowledge-vault",
-        help: "Lowercase letters, numbers and hyphens only. No spaces, no capitals — those are MinIO's rules, not ours.",
+        help: "Lowercase letters, numbers and hyphens only. No spaces, no capitals — those are S3's naming rules, not ours.",
       },
       ...(guiRoute
         ? ([
@@ -686,24 +686,23 @@ function stepBucket(a: Answers): Step {
             {
               kind: "note",
               text:
-                "Silo keeps MinIO's full console, so the button is there. On an older MinIO install whose " +
-                "console has no Create Bucket button, nothing is broken — switch this card to the typing " +
-                "route, which works on every version.",
+                "Screens move between versions. If you cannot find the button, nothing is broken — switch " +
+                "this card to the typing route, which does the same in three lines.",
             },
           ] as Block[])
         : ([
             {
               kind: "prose",
               text:
-                "MinIO ships with its own command-line client, called mc, inside the container you just started — " +
+                "Silo ships with its own command-line client, called mcli, inside the container you just started — " +
                 "so there is nothing extra to install. These three lines introduce it to your storage and make the bucket.",
             },
             {
               kind: "command",
               label: "Create the bucket",
-              code: `docker exec minio mc alias set local http://localhost:9000 ${user} ${pass}
-docker exec minio mc mb local/${bucket}
-docker exec minio mc ls local`,
+              code: `docker exec silo mcli alias set local http://localhost:9000 ${user} ${pass}
+docker exec silo mcli mb local/${bucket}
+docker exec silo mcli ls local`,
               note: "Run them one at a time. The last one lists what exists, so you can see it worked.",
             },
           ] as Block[])),
@@ -741,7 +740,7 @@ function stepKey(a: Answers): Step {
         depth: "basic",
         text:
           "It comes in two halves. The access key ID is a user name — not secret. The secret access key is " +
-          "the password, and MinIO shows it to you exactly once.",
+          "the password, and Silo shows it to you exactly once.",
       },
       ...(guiRoute
         ? ([
@@ -759,7 +758,7 @@ function stepKey(a: Answers): Step {
             {
               kind: "command",
               label: "Create the key",
-              code: `docker exec minio mc admin user svcacct add local ${user}`,
+              code: `docker exec silo mcli admin user svcacct add local ${user}`,
               note: "It prints two lines: Access Key and Secret Key. Copy both now.",
             },
           ] as Block[])),
@@ -793,9 +792,9 @@ function stepKey(a: Answers): Step {
   }]
 }`,
           ),
-          "docker cp policy.json minio:/tmp/policy.json",
-          `docker exec minio mc alias set local http://localhost:9000 ${user} ${passOf(a)}`,
-          "docker exec minio mc admin accesskey edit local/ <access-key-id> --policy /tmp/policy.json",
+          "docker cp policy.json silo:/tmp/policy.json",
+          `docker exec silo mcli alias set local http://localhost:9000 ${user} ${passOf(a)}`,
+          "docker exec silo mcli admin accesskey edit local/ <access-key-id> --policy /tmp/policy.json",
         ].join("\n"),
         note: "Replace <access-key-id> with the access key ID you just copied. The key keeps working, but can now reach only this bucket.",
       },
@@ -1001,7 +1000,7 @@ function stepReach(a: Answers): Step {
         text:
           "Service type HTTP and URL localhost:9000 confuses people, because the address you are creating is " +
           "HTTPS. Both are right: Cloudflare handles the HTTPS out on the internet, and speaks plain HTTP to " +
-          "MinIO across your own machine, where there is nothing to intercept.",
+          "Silo across your own machine, where there is nothing to intercept.",
       },
     );
   }
@@ -1027,7 +1026,7 @@ function stepReach(a: Answers): Step {
   if (a.domain) {
     blocks.push({
       kind: "check",
-      text: `Open ${resolvedEndpoint(a)}/${bucketOf(a)} in a browser. An XML error saying access is denied is the RIGHT answer — it means the tunnel reached MinIO and MinIO refused an anonymous visitor, exactly as it should. A timeout or “cannot reach” means the tunnel is not up.`,
+      text: `Open ${resolvedEndpoint(a)}/${bucketOf(a)} in a browser. An XML error saying access is denied is the RIGHT answer — it means the tunnel reached Silo and Silo refused an anonymous visitor, exactly as it should. A timeout or “cannot reach” means the tunnel is not up.`,
     });
   }
 
@@ -1045,8 +1044,8 @@ function stepServerUrl(a: Answers): Step {
   const folder = folderOf(a);
   return {
     id: "server-url",
-    short: "Tell MinIO",
-    title: "Tell MinIO what it is called from outside",
+    short: "Tell Silo",
+    title: "Tell Silo what it is called from outside",
     minutes: 4,
     skipped:
       a.domain === "already-public"
@@ -1058,27 +1057,27 @@ function stepServerUrl(a: Answers): Step {
         depth: "basic",
         text:
           "This is the step that catches almost everyone, so it gets a card of its own. Every request to " +
-          "MinIO is signed, and the signature includes the address it was sent to. Behind a tunnel, the " +
-          "address the world uses is not the address MinIO thinks it has — so the signatures do not match " +
+          "Silo is signed, and the signature includes the address it was sent to. Behind a tunnel, the " +
+          "address the world uses is not the address Silo thinks it has — so the signatures do not match " +
           "and everything is rejected.",
       },
       {
         kind: "prose",
         depth: "basic",
         text:
-          "The error it produces says the secret key is wrong. The secret key is not wrong. Telling MinIO its " +
+          "The error it produces says the secret key is wrong. The secret key is not wrong. Telling Silo its " +
           "public name fixes it.",
       },
       {
         kind: "prose",
         text:
-          "Restart MinIO with one extra setting. Nothing is lost by removing the container — your documents " +
+          "Restart Silo with one extra setting. Nothing is lost by removing the container — your documents " +
           "are in the folder, not in the container.",
       },
       {
         kind: "command",
-        label: "Recreate MinIO with its public address",
-        code: `docker rm -f minio\n${minioRunCommand(a, endpoint)}`,
+        label: "Recreate Silo with its public address",
+        code: `docker rm -f silo\n${siloRunCommand(a, endpoint)}`,
         note: "Identical to the command you ran before, with MINIO_SERVER_URL added — and the same password.",
       },
       {
@@ -1120,20 +1119,20 @@ function stepCors(a: Answers, origin: string): Step {
         kind: "command",
         label: "Save the rules on the machine as cors.xml",
         code: writeFile(a, "cors.xml", corsXmlFor(origin)),
-        note: "mc reads CORS rules as XML — the same rules the storage form shows as JSON.",
+        note: "mcli reads CORS rules as XML — the same rules the storage form shows as JSON.",
       },
       {
         kind: "command",
         label: "Apply them to the bucket",
-        code: `docker exec minio mc alias set local http://localhost:9000 ${userOf(a)} ${passOf(a)}
-docker cp cors.xml minio:/tmp/cors.xml
-docker exec minio mc cors set local/${bucket} /tmp/cors.xml`,
-        note: "The first line reconnects mc: its saved connection went with the old container in step 7.",
+        code: `docker exec silo mcli alias set local http://localhost:9000 ${userOf(a)} ${passOf(a)}
+docker cp cors.xml silo:/tmp/cors.xml
+docker exec silo mcli cors set local/${bucket} /tmp/cors.xml`,
+        note: "The first line reconnects mcli: its saved connection went with the old container in step 7.",
       },
       {
         kind: "note",
         text:
-          "MinIO and Silo allow every browser origin out of the box, in which case this changes nothing and can " +
+          "Silo allows every browser origin out of the box, in which case this changes nothing and can " +
           "be skipped. Come back and do it if the connection test passes but uploading a document fails — the " +
           "test runs from our servers, so it cannot see this step.",
       },
@@ -1233,7 +1232,7 @@ function stepAfter(a: Answers): Step {
         items: [
           "Reboot the machine, wait for it to come back, and press Check connection in Knowledge Vault. Both containers should return by themselves. If they do not, the restart policy did not take — recreate them with --restart unless-stopped.",
           `Set up a backup of ${folderOf(a)} to somewhere else entirely — another disk, another building, a cloud backup service.${p ? ` On a ${p.noun}, that is ${p.backupHow}.` : ""} Back up the whole folder, including the hidden .minio.sys inside it: the files only make sense together. Then restore it to a spare folder, today, to prove the backup is real. An untested backup is a hope.`,
-          "Write down, somewhere other than your own head: where MinIO runs, the master user name and password, the access key ID, which tunnel is in use and on whose Cloudflare account. The person who set this up is not always the person who has to fix it.",
+          "Write down, somewhere other than your own head: where Silo runs, the master user name and password, the access key ID, which tunnel is in use and on whose Cloudflare account. The person who set this up is not always the person who has to fix it.",
         ],
       },
       {
@@ -1270,7 +1269,7 @@ export function buildGuide(answers: Answers, webOrigin: string): Step[] {
   return [
     stepIntro(answers),
     stepDocker(answers),
-    stepMinio(answers),
+    stepSilo(answers),
     stepBucket(answers),
     stepKey(answers),
     stepReach(answers),
@@ -1290,7 +1289,7 @@ export function decisionsSoFar(a: Answers): { label: string; value: string }[] {
   if (a.route) rows.push({ label: "Route", value: a.route === "gui" ? "Clicking through the screens" : "Typing commands" });
   if (a.folder.trim() || p) rows.push({ label: "Folder", value: folderOf(a) });
   rows.push({ label: "Bucket", value: bucketOf(a) });
-  if (a.minioUser.trim()) rows.push({ label: "MinIO user", value: a.minioUser.trim() });
+  if (a.minioUser.trim()) rows.push({ label: "Silo user", value: a.minioUser.trim() });
   if (a.domain)
     rows.push({
       label: "Reachable by",

@@ -51,9 +51,9 @@ overdue. What they cannot do is open or upload a document until the storage come
 
 ### NAS — your own storage
 
-An **S3-compatible server on hardware you own**. Silo — the community-maintained edition of
-MinIO — running on a NAS in your own building is the recommended shape, and the one the setup
-guide walks through.
+An **S3-compatible server on hardware you own**. Silo — an open-source storage server that
+speaks the S3 API — running on a NAS in your own building is the recommended shape, and the one
+the setup guide walks through.
 
 The process, in the order it actually happens:
 
@@ -62,8 +62,8 @@ The process, in the order it actually happens:
 2. **Make a key that can do exactly one thing.** A dedicated access key scoped to that bucket
    and prefix: read, write, delete, list, and nothing else.
 3. **Let browsers talk to it.** Add the CORS rules we generate for you, scoped to our web
-   origin. MinIO-family servers accept every origin out of the box, so this is usually needed
-   only when an upload is refused. The connection test runs from our servers and cannot see this
+   origin. Silo accepts every origin out of the box, and these rules narrow that to Knowledge
+   Vault alone. The connection test runs from our servers and cannot see this
    step — the first real upload from a browser is what proves it.
 4. **Choose the encryption posture.** *Encrypted* (recommended) writes opaque `.kvblob` objects
    nobody can read out of band — not even your own IT administrator. *Readable* keeps ordinary
