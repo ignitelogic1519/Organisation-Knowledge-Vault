@@ -492,10 +492,8 @@ docker run -d --name silo --restart unless-stopped \
    separate domain inside Cloudflare, which touches nothing they already run, or move the
    existing one — Cloudflare copies its DNS records, their domain administrator checks every
    one arrived (MX above all, or email stops), turns DNSSEC off at the registrar and swaps the
-   nameservers for Cloudflare's two. A domain on AWS Route 53 (nameservers containing
-   `awsdns`) takes the separate domain: its alias records point at AWS services, don't carry
-   over as they are, and would have to be rebuilt by hand. Tailscale Funnel is an equally good
-   alternative to the tunnel itself.
+   nameservers for Cloudflare's two. Tailscale Funnel is an equally good alternative to the
+   tunnel itself.
 2. **A scoped access key**, not one with full access, limited to `GetObject`, `PutObject`,
    `DeleteObject` and `ListBucket` on that one bucket:
    `mcli admin accesskey edit local/ <access-key-id> --policy policy.json`, or paste the same
@@ -641,13 +639,12 @@ the only copy of their documents.
 6. **Give the storage an address.** Why port forwarding is the wrong answer and a tunnel is
    not. Branches on the domain question, and both tunnel branches carry the free plan's
    100 MB upload ceiling. The own-domain branch explains DNS in a sentence, checks who runs it
-   with `nslookup -type=ns`, sends a domain on AWS Route 53 (`awsdns` nameservers) to a
-   separate domain because its alias records don't carry over, and lays out the two ways onto
-   Cloudflare — buy a separate domain there, or move the existing one (records checked, MX
-   above all; DNSSEC off; nameservers swapped) — before walking the Cloudflare Zero Trust
-   dashboard click by click and explaining why the public hostname is `HTTP` to
-   `localhost:9000` when the address is HTTPS. The no-domain branch gives the quick tunnel,
-   how to read the URL out of the logs, and an honest account of what it costs them.
+   with `nslookup -type=ns`, and lays out the two ways onto Cloudflare — buy a separate domain
+   there, or move the existing one (records checked, MX above all; DNSSEC off; nameservers
+   swapped) — before walking the Cloudflare Zero Trust dashboard click by click and explaining
+   why the public hostname is `HTTP` to `localhost:9000` when the address is HTTPS. The
+   no-domain branch gives the quick tunnel, how to read the URL out of the logs, and an
+   honest account of what it costs them.
 7. **Tell Silo its public address.** `MINIO_SERVER_URL`, with the whole recreate command
    already carrying their values. Marked skippable when their storage was already public.
 8. **The browser rules.** `corsXmlFor(webOrigin)` — the XML form `mcli cors set` reads — for the
@@ -693,4 +690,4 @@ substituted.
 
 ---
 
-*Last updated: 2026-09-23*
+*Last updated: 2026-09-22*
