@@ -941,7 +941,10 @@ function stepReach(a: Answers): Step {
         code: `nslookup -type=ns ${a.domainName.trim() || "your-company.com"}`,
         note:
           "Names ending in ns.cloudflare.com mean Cloudflare already runs it — go straight to the steps below. " +
-          "Anything else (GoDaddy, Hostinger, Microsoft…) means you need one of the two ways in that follow.",
+          "Names containing awsdns mean AWS Route 53 runs it: buy a separate domain rather than moving it, " +
+          "because Route 53's alias records, which point at AWS services, don't carry over as they are and " +
+          "would have to be rebuilt by hand. Anything else (GoDaddy, Hostinger, Microsoft…) means you need " +
+          "one of the two ways in that follow.",
       },
       {
         kind: "table",
