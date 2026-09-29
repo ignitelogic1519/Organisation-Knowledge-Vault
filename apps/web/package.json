@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "@vault/shared": "workspace:*",
     "bootstrap": "^5.3.8",
     "jspdf": "^4.2.1",

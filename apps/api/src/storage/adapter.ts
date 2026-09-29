@@ -15,6 +15,8 @@ import { db } from "../db.js";
 //                that have not connected storage
 //   s3           the organization's OWN S3-compatible storage (Silo on their NAS,
 //                and later S3/R2/GCS/Wasabi/B2/Spaces) — we hold only the pointer
+//   gdrive       the organization's OWN Google Drive — we hold the pointer and the
+//                Drive file id; bytes stream through the gateway (§9.16)
 //   unreachable  we know this exists, we cannot fetch it right now
 //
 // Deletion is part of the port. It did not used to be: four call sites reached past it
@@ -89,10 +91,17 @@ export const storage = {
     return { adapter: "inline", fileId: row.id, gz: useGz };
   },
 
-  /** The organization's own storage: the browser has already uploaded the object
-   *  directly, so all we record is where it is and what it should hash to. */
-  async saveObject(storageObjectId: string, objectKey: string): Promise<StorageRef> {
-    return { adapter: "s3", storageObjectId, objectKey };
+  /** The organization's own storage: the object is already there, so all we record is
+   *  where it is. `gdrive` refs also carry the Drive file id, so deleting the course
+   *  can queue the remote delete without another lookup. */
+  async saveObject(
+    storageObjectId: string,
+    objectKey: string,
+    backend: { adapter: string; remoteId?: string | null } = { adapter: "s3" },
+  ): Promise<StorageRef> {
+    return backend.adapter === "gdrive"
+      ? { adapter: "gdrive", storageObjectId, objectKey, remoteId: backend.remoteId ?? null }
+      : { adapter: "s3", storageObjectId, objectKey };
   },
 
   /** Studio-authored interactive documents: the blocks (and the document's theme) live
@@ -117,6 +126,7 @@ export const storage = {
       case "exam":
         return { exam: ref.exam, theme: ref.theme };
       case "s3":
+      case "gdrive":
         return {
           object: {
             storageObjectId: String(ref.storageObjectId),
@@ -157,15 +167,23 @@ export const storage = {
  */
 export function deletionOpsFor(
   orgId: string,
-  ref: { adapter?: string; fileId?: string; objectKey?: string; storageObjectId?: string } | null,
+  ref: {
+    adapter?: string;
+    fileId?: string;
+    objectKey?: string;
+    storageObjectId?: string;
+    remoteId?: string | null;
+  } | null,
 ): Prisma.PrismaPromise<unknown>[] {
   if (!ref?.adapter) return [];
   if (ref.adapter === "inline" && ref.fileId) {
     return [db.storedFile.deleteMany({ where: { id: ref.fileId } })];
   }
-  if (ref.adapter === "s3" && ref.objectKey) {
+  if ((ref.adapter === "s3" || ref.adapter === "gdrive") && ref.objectKey) {
     return [
-      db.storageDeletion.create({ data: { orgId, objectKey: ref.objectKey } }),
+      db.storageDeletion.create({
+        data: { orgId, objectKey: ref.objectKey, remoteId: ref.remoteId ?? null },
+      }),
       db.storageObject.deleteMany({ where: { orgId, objectKey: ref.objectKey } }),
     ];
   }

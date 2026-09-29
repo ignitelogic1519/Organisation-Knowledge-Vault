@@ -5,7 +5,7 @@ import {
   STORAGE_ADAPTERS,
   corsRulesFor,
   storageConfigSchema,
-  type StorageConfigInput,
+  type S3StorageConfigInput as StorageConfigInput,
   type StorageTestResult,
 } from "@vault/shared";
 import { storageApi } from "@/lib/storage-client";

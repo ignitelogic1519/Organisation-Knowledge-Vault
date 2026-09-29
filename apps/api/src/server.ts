@@ -20,6 +20,7 @@ import { complianceRoutes } from "./compliance/routes.js";
 import { notificationRoutes } from "./notifications/routes.js";
 import { vaultFileRoutes } from "./vault-files/routes.js";
 import { storageRoutes } from "./storage/routes.js";
+import { gatewayRoutes } from "./storage/gateway.js";
 import { eventRoutes } from "./events.js";
 
 // Body limit must clear a 10 MB inline file: base64 inflates by ~33% (~13.3 MB) plus the
@@ -30,6 +31,10 @@ const app = Fastify({ logger: true, bodyLimit: 16 * 1024 * 1024 });
 // @fastify/cors — it rejects "" as an invalid origin option.
 await app.register(cors, {
   origin: env.webOrigin ? env.webOrigin : true,
+  // The streaming gateway answers byte ranges; the browser may only read these headers
+  // if they are exposed. A ten-minute preflight cache keeps range requests to one trip.
+  exposedHeaders: ["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type"],
+  maxAge: 600,
 });
 
 // Zod validation failures become clean 400s with the first helpful message
@@ -76,6 +81,10 @@ await app.register(complianceRoutes);
 await app.register(notificationRoutes);
 await app.register(vaultFileRoutes);
 await app.register(storageRoutes);
+// The streaming gateway runs in this process unless STREAM_GATEWAY_URL points tickets at
+// a separate one (docs/structure.md §9.16). Registering it either way costs nothing and
+// keeps tickets already issued working through a switch-over.
+await app.register(gatewayRoutes);
 await app.register(eventRoutes);
 
 app.get("/health", async (): Promise<HealthResponse> => ({

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { OrgStorage } from "@prisma/client";
-import type { StorageConfigInput, StorageTestResult, StorageTestStep } from "@vault/shared";
+import type { S3StorageConfigInput, StorageTestResult, StorageTestStep } from "@vault/shared";
 import { db } from "../db.js";
 import {
   S3Error,
@@ -11,6 +11,7 @@ import {
   putObject,
   type S3Config,
 } from "./s3.js";
+import { probeGdrive, type ProbeOutcome } from "./gdrive-store.js";
 import {
   newDek,
   openCredential,
@@ -24,6 +25,11 @@ import {
 
 /** Turn a stored row into the credentials the S3 client needs. */
 export function s3ConfigFor(row: OrgStorage): S3Config {
+  if (row.adapter !== "s3" || !row.endpoint || !row.bucket || !row.accessKeyIdEnc || !row.secretKeyEnc) {
+    throw Object.assign(new Error("This organization's storage is not an S3-compatible backend"), {
+      statusCode: 500,
+    });
+  }
   return {
     endpoint: row.endpoint,
     bucket: row.bucket,
@@ -201,8 +207,17 @@ export async function testConnection(cfg: S3Config, prefix: string): Promise<Sto
  */
 export async function connectStorage(
   orgId: string,
-  input: StorageConfigInput,
+  input: S3StorageConfigInput,
 ): Promise<{ ok: false; result: StorageTestResult } | { ok: true; row: OrgStorage }> {
+  const current = await db.orgStorage.findUnique({ where: { orgId } });
+  if (current && current.adapter !== "s3" && current.status !== "UNCONFIGURED") {
+    throw Object.assign(
+      new Error(
+        "This organization stores its documents in Google Drive. Moving them to a NAS needs a migration that is not available yet.",
+      ),
+      { statusCode: 409 },
+    );
+  }
   const cfg: S3Config = {
     endpoint: input.endpoint.replace(/\/+$/, ""),
     bucket: input.bucket,
@@ -224,6 +239,10 @@ export async function connectStorage(
 
   const data = {
     adapter: "s3",
+    credentialEnc: null,
+    gdriveAccountEmail: null,
+    gdriveRootId: null,
+    remoteTargetKey: null,
     endpoint: cfg.endpoint,
     bucket: cfg.bucket,
     region: cfg.region,
@@ -251,6 +270,85 @@ export async function connectStorage(
 
 // ── Health (§9.8) ────────────────────────────────────────────────────────────
 
+/** How long a transient failure (timeouts, 5xx) must last before Drive storage degrades. */
+const TRANSIENT_GRACE_MS = 15 * 60 * 1000;
+
+async function probeS3(row: OrgStorage): Promise<ProbeOutcome> {
+  let cfg: S3Config;
+  try {
+    cfg = s3ConfigFor(row);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err), reason: "KEY", definitive: true };
+  }
+  const probeKey = fullKey(row, `.health-${randomBytes(6).toString("hex")}`);
+  try {
+    await putObject(cfg, probeKey, Buffer.from("ok", "utf8"), "text/plain");
+    await deleteObject(cfg, probeKey);
+    return { ok: true };
+  } catch (err) {
+    // A NAS that fails its check is degraded at once, as it always has been: its owner
+    // controls the hardware and needs to know today, not tomorrow night.
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      reason: err instanceof S3Error && err.code === "Unreachable" ? "UNREACHABLE" : "PERMISSION",
+      definitive: true,
+    };
+  }
+}
+
+/**
+ * Move a backend between ACTIVE and DEGRADED from one check's outcome. A definitive
+ * failure degrades at once; a transient one only once it has lasted TRANSIENT_GRACE_MS,
+ * so a thirty-second Google blip never pauses an organization's deadlines (§9.8).
+ */
+export async function recordHealth(
+  row: OrgStorage,
+  outcome: ProbeOutcome,
+): Promise<{ status: "ACTIVE" | "DEGRADED"; changed: boolean; error?: string }> {
+  const now = new Date();
+  if (outcome.ok) {
+    const changed = row.status !== "ACTIVE";
+    await db.orgStorage.update({
+      where: { id: row.id },
+      data: {
+        status: "ACTIVE",
+        lastCheckAt: now,
+        lastError: null,
+        degradedReason: null,
+        degradedAt: null,
+        failingSince: null,
+      },
+    });
+    return { status: "ACTIVE", changed };
+  }
+  const failingSince = row.failingSince ?? now;
+  const degrade =
+    outcome.definitive ||
+    row.status === "DEGRADED" ||
+    now.getTime() - failingSince.getTime() >= TRANSIENT_GRACE_MS;
+  if (!degrade) {
+    await db.orgStorage.update({
+      where: { id: row.id },
+      data: { lastCheckAt: now, lastError: outcome.error, failingSince },
+    });
+    return { status: "ACTIVE", changed: false, error: outcome.error };
+  }
+  const changed = row.status !== "DEGRADED";
+  await db.orgStorage.update({
+    where: { id: row.id },
+    data: {
+      status: "DEGRADED",
+      lastCheckAt: now,
+      lastError: outcome.error,
+      degradedReason: outcome.reason,
+      degradedAt: row.degradedAt ?? now,
+      failingSince,
+    },
+  });
+  return { status: "DEGRADED", changed, error: outcome.error };
+}
+
 /**
  * Re-test one organization's backend and move it between ACTIVE and DEGRADED.
  *
@@ -260,53 +358,23 @@ export async function connectStorage(
 export async function checkHealth(
   row: OrgStorage,
 ): Promise<{ status: "ACTIVE" | "DEGRADED"; changed: boolean; error?: string }> {
-  let cfg: S3Config;
-  try {
-    cfg = s3ConfigFor(row);
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    const changed = row.status !== "DEGRADED";
-    await db.orgStorage.update({
-      where: { id: row.id },
-      data: {
-        status: "DEGRADED",
-        lastCheckAt: new Date(),
-        lastError: error,
-        degradedAt: row.degradedAt ?? new Date(),
-      },
-    });
-    return { status: "DEGRADED", changed, error };
-  }
-
-  const probeKey = fullKey(row, `.health-${randomBytes(6).toString("hex")}`);
-  try {
-    await putObject(cfg, probeKey, Buffer.from("ok", "utf8"), "text/plain");
-    await deleteObject(cfg, probeKey);
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    const changed = row.status !== "DEGRADED";
-    await db.orgStorage.update({
-      where: { id: row.id },
-      data: {
-        status: "DEGRADED",
-        lastCheckAt: new Date(),
-        lastError: error,
-        degradedAt: row.degradedAt ?? new Date(),
-      },
-    });
-    return { status: "DEGRADED", changed, error };
-  }
-
-  const changed = row.status !== "ACTIVE";
-  await db.orgStorage.update({
-    where: { id: row.id },
-    data: { status: "ACTIVE", lastCheckAt: new Date(), lastError: null, degradedAt: null },
-  });
-  return { status: "ACTIVE", changed };
+  const outcome = row.adapter === "gdrive" ? await probeGdrive(row) : await probeS3(row);
+  return recordHealth(row, outcome);
 }
 
 /** Real consumption, read from their storage rather than from our own bookkeeping. */
 export async function usageFor(row: OrgStorage): Promise<{ objects: number; bytes: number }> {
+  const fromRecords = async () => {
+    const agg = await db.storageObject.aggregate({
+      where: { orgId: row.orgId, courseId: { not: null } },
+      _sum: { bytes: true },
+      _count: true,
+    });
+    return { objects: agg._count, bytes: agg._sum.bytes ?? 0 };
+  };
+  // Drive files are counted from our records: listing a whole Drive folder for a panel
+  // would spend the organization's Google quota on a number we already hold.
+  if (row.adapter === "gdrive") return fromRecords();
   try {
     const listed = await listObjects(s3ConfigFor(row), fullKey(row, "objects/"), 1000);
     return { objects: listed.keys.length, bytes: listed.bytes };

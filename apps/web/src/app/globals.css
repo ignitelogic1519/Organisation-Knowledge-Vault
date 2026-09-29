@@ -9723,6 +9723,54 @@ body.is-dragging-block * {
 
 /* The connection test reports every stage, so a failure names what broke rather
    than saying "could not connect" (docs/structure.md §9.4). */
+/* ── Google Drive storage (docs/structure.md §9.16) ── */
+.gdrive-connected {
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.95rem;
+  font-size: 0.92rem;
+}
+.gdrive-connected p {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+.gdrive-ack {
+  font-size: 0.9rem;
+}
+.storage-test-steps {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+}
+.stream-meter {
+  display: block;
+  width: min(100%, 22rem);
+  height: 0.55rem;
+  margin-top: 0.35rem;
+}
+.google-done {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem 1rem;
+}
+.google-done .auth-card {
+  max-width: 26rem;
+  text-align: center;
+}
+.google-done h1 {
+  font-size: 1.3rem;
+  margin: 0 0 0.6rem;
+}
+
 .storage-test-result {
   border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
   background: color-mix(in srgb, var(--danger) 6%, transparent);

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { versionLabel, type StorageView } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses, fileToBase64, type CourseDetail } from "@/lib/courses-client";
-import { uploadFile } from "@/lib/storage-client";
+import { uploadFile, uploadStageLabel } from "@/lib/storage-client";
 import { useDialogs } from "@/components/dialogs";
 import { Row } from "./fields";
 
@@ -82,16 +82,8 @@ export function ReplaceFileSheet({
 
       let uploaded: { storageObjectId: string } | null = null;
       if (file && orgStorage?.status === "ACTIVE") {
-        uploaded = await uploadFile(orgId, file, (s) =>
-          setStage(
-            s === "encrypting"
-              ? "Encrypting in this browser…"
-              : s === "uploading"
-                ? "Uploading to your storage…"
-                : s === "finishing"
-                  ? "Finishing…"
-                  : "Preparing…",
-          ),
+        uploaded = await uploadFile(orgId, file, (s, fraction) =>
+          setStage(uploadStageLabel(s, fraction)),
         );
         setStage(null);
       }

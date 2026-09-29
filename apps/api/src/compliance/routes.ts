@@ -28,7 +28,13 @@ import { orgOwnerProfileIds } from "../orgs/owners.js";
 import { sweepExpired } from "../notifications/mailbox.js";
 import { storage, type StorageRef } from "../storage/adapter.js";
 import { audit } from "../security.js";
-import { collectOrphans, drainDeletionQueue, runHealthChecks } from "../storage/jobs.js";
+import {
+  collectOrphans,
+  drainDeletionQueue,
+  runDriveHousekeeping,
+  runHealthChecks,
+} from "../storage/jobs.js";
+import { forgetGdrive } from "../storage/gdrive-store.js";
 import { broadcast } from "../events.js";
 import { IDLE_TIMEOUT_MS } from "../auth/tokens.js";
 
@@ -558,6 +564,8 @@ export async function complianceRoutes(app: FastifyInstance) {
       storageDegraded: 0,
       storagePausedOrgs: 0,
       storageDeletesDone: 0,
+      driveReconciled: 0,
+      drivePendingSwept: 0,
       storageOrphansCollected: 0,
     };
 
@@ -753,6 +761,9 @@ export async function complianceRoutes(app: FastifyInstance) {
     const cutoff = new Date(Date.now() - 30 * 86400_000);
     const doomed = await db.organization.findMany({ where: { deletedAt: { lt: cutoff } } });
     for (const org of doomed) {
+      // Their files stay in their Google Drive (§9.10); our access to it does not.
+      const drive = await db.orgStorage.findUnique({ where: { orgId: org.id } });
+      if (drive?.adapter === "gdrive") await forgetGdrive(drive).catch(() => {});
       await purgeOrganization(org.id);
       report.purgedOrgs++;
     }
@@ -773,6 +784,13 @@ export async function complianceRoutes(app: FastifyInstance) {
       report.storageOrphansCollected = await collectOrphans();
     } catch (err) {
       app.log.error({ err }, "storage cleanup failed");
+    }
+    try {
+      const drive = await runDriveHousekeeping();
+      report.driveReconciled = drive.reconciled;
+      report.drivePendingSwept = drive.swept;
+    } catch (err) {
+      app.log.error({ err }, "google drive housekeeping failed");
     }
 
     app.log.info({ report }, "nightly job finished");
