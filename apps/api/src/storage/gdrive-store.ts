@@ -151,11 +151,22 @@ function describeFailure(err: unknown): { message: string; hint?: string } {
  * Prove the connection works end to end, creating the Knowledge Vault folder on first
  * use. Every step is reported, so a failure names the exact stage that broke.
  */
+/** Free space in the unit a person would say it in: "1.9 TB", "740.2 GB". */
+function roomy(bytes: number): string {
+  const gigs = bytes / 1024 ** 3;
+  return gigs >= 1024 ? `${(gigs / 1024).toFixed(1)} TB` : `${gigs.toFixed(1)} GB`;
+}
+
 export async function testDrive(
   drive: Drive,
   ids: DriveIds,
   opts: { folderName: string },
-): Promise<{ result: StorageTestResult; ids: DriveIds; accountEmail: string | null }> {
+): Promise<{
+  result: StorageTestResult;
+  ids: DriveIds;
+  accountEmail: string | null;
+  quota?: { limit: number | null; usage: number };
+}> {
   const steps: StorageTestStep[] = [];
   const out: DriveIds = { ...ids };
   let accountEmail: string | null = null;
@@ -302,10 +313,10 @@ export async function testDrive(
     step: "quota",
     label: "Check there is room",
     ok: true,
-    detail: free === null ? "Unlimited" : `${(free / 1024 ** 3).toFixed(1)} GB free`,
+    detail: free === null ? "Unlimited" : `${roomy(free)} free`,
   });
 
-  return { result: { ok: true, steps }, ids: out, accountEmail };
+  return { result: { ok: true, steps }, ids: out, accountEmail, quota };
 }
 
 /** Run the test for a pending connection and remember the folders it created. */
@@ -425,6 +436,14 @@ export async function connectGdrive(
     degradedReason: null,
     degradedAt: null,
     failingSince: null,
+    // The test just read these, so the panel can show Drive space from the first view.
+    ...(tested.quota
+      ? {
+          quotaLimitBytes: tested.quota.limit === null ? null : BigInt(tested.quota.limit),
+          quotaUsedBytes: BigInt(tested.quota.usage),
+          quotaCheckedAt: new Date(),
+        }
+      : {}),
   };
 
   let row: OrgStorage;

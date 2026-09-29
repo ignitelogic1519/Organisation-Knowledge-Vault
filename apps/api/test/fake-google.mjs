@@ -16,6 +16,10 @@
 //   GOOGLE_DRIVE_API=http://localhost:4999/drive/v3
 //   GOOGLE_DRIVE_UPLOAD=http://localhost:4999/upload/drive/v3
 //   GOOGLE_OAUTH_CLIENT_ID=fake-client  GOOGLE_OAUTH_CLIENT_SECRET=fake-secret
+//
+// Controls for a local walk-through (never part of the real API):
+//   GET  /__fake/files        every file, with its size and whether it is in the trash
+//   POST /__fake/revoke-all   as if the owner removed Knowledge Vault from their account
 
 import { createHash, randomBytes } from "node:crypto";
 import { createServer } from "node:http";
@@ -131,6 +135,24 @@ export async function startFakeGoogle({ port = 0, email = "owner@example.com", q
       await readBody(req);
       if (f.reason === "invalid_grant") return json(res, 400, { error: "invalid_grant" });
       return driveError(res, f.status, f.reason);
+    }
+
+    // ── Walk-through controls ────────────────────────────────────────────
+    if (path === "/__fake/files" && req.method === "GET") {
+      return json(res, 200, {
+        files: [...state.files.values()].map((f) => ({
+          id: f.id,
+          name: f.name,
+          mimeType: f.mimeType,
+          bytes: f.content ? f.content.length : 0,
+          trashed: !!f.trashed,
+          appProperties: f.appProperties,
+        })),
+      });
+    }
+    if (path === "/__fake/revoke-all" && req.method === "POST") {
+      for (const r of state.refresh.values()) r.revoked = true;
+      return json(res, 200, { revoked: state.refresh.size });
     }
 
     // ── OAuth ────────────────────────────────────────────────────────────

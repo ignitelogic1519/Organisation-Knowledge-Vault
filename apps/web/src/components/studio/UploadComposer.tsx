@@ -84,7 +84,9 @@ export function UploadComposer({
 
   const maxNote =
     orgStorage?.status === "ACTIVE"
-      ? "Up to 200 MB — it goes straight to your own storage."
+      ? orgStorage.adapter === "gdrive"
+        ? "Up to 200 MB — it goes to your organization's Google Drive."
+        : "Up to 200 MB — it goes straight to your own storage."
       : "Up to 10 MB while the organization has no storage of its own connected.";
 
   const take = useCallback((f: File | null) => {
@@ -317,11 +319,18 @@ export function UploadComposer({
               </div>
             )}
 
-            {orgStorage?.status === "ACTIVE" && kind !== "LINK" && (
+            {orgStorage?.status === "ACTIVE" && kind !== "LINK" && orgStorage.adapter !== "gdrive" && (
               <p className="insp-note">
                 It goes straight from this browser to your own storage
                 {orgStorage.encryption === "ENCRYPTED" ? ", encrypted here first" : ""} — the bytes
                 never pass through Knowledge Vault.
+              </p>
+            )}
+            {orgStorage?.status === "ACTIVE" && kind !== "LINK" && orgStorage.adapter === "gdrive" && (
+              <p className="insp-note">
+                {orgStorage.encryption === "ENCRYPTED"
+                  ? "It is encrypted in this browser first, then passes through Knowledge Vault's streaming service to your Google Drive — locked the whole way, and never kept."
+                  : "It passes through Knowledge Vault's streaming service to your Google Drive, and is never kept on the way."}
               </p>
             )}
             {orgStorage?.status === "DEGRADED" && (

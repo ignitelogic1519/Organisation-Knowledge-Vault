@@ -18,9 +18,12 @@
  * check against real encrypted objects.
  */
 
-const WINDOW = 2 * 1024 * 1024; // plaintext bytes answered per range request
+const WINDOW = 4 * 1024 * 1024; // most plaintext bytes answered per range request
+const PLAIN_BLOCK = 256 * 1024; // unencrypted objects are read in blocks of this size
+const RUN = 4; // blocks fetched per request to the gateway (1 MiB at the default size)
+const CACHE_BLOCKS = 24; // decrypted blocks kept per stream (6 MiB at the default size)
 const TAG = 16;
-const streams = new Map(); // id -> { ...registration, key: CryptoKey | null }
+const streams = new Map(); // id -> { ...registration, key: CryptoKey | null, cache: Map }
 const waiting = new Map(); // id -> [resolve]
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -37,7 +40,8 @@ self.addEventListener("message", (event) => {
   const m = event.data || {};
   if (m.type === "kv-register" && typeof m.id === "string") {
     const done = (key) => {
-      streams.set(m.id, { ...m, key });
+      const before = streams.get(m.id);
+      streams.set(m.id, { ...m, key, cache: before ? before.cache : new Map() });
       for (const resolve of waiting.get(m.id) || []) resolve(true);
       waiting.delete(m.id);
       if (event.ports && event.ports[0]) event.ports[0].postMessage({ ok: true });
@@ -96,14 +100,14 @@ function nonceFor(base, i) {
 /** Fetch stored bytes [a, b] through the gateway, renewing an expired ticket once. */
 async function upstream(s, id, clientId, a, b) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const res = await fetch(s.url, {
-      headers: { authorization: `KVT ${s.ticket}`, range: `bytes=${a}-${b}` },
+    const current = streams.get(id) || s; // a renewal replaces the ticket
+    const res = await fetch(current.url, {
+      headers: { authorization: `KVT ${current.ticket}`, range: `bytes=${a}-${b}` },
       cache: "no-store",
     });
     if (res.status === 401 && attempt === 0) {
       const renewed = await askPages("kv-renew", id, clientId);
       if (!renewed) break;
-      s = streams.get(id);
       continue;
     }
     if (!res.ok) {
@@ -120,41 +124,101 @@ async function upstream(s, id, clientId, a, b) {
   throw Object.assign(new Error("This document's access has expired. Reopen it."), { status: 401 });
 }
 
-/** Plaintext [start, end] of an encrypted object: fetch its frames, decrypt, trim. */
-async function decryptRange(s, id, clientId, start, end) {
-  const f = s.stream.frameBytes;
+function blockSize(s) {
+  return s.encrypted ? s.stream.frameBytes : PLAIN_BLOCK;
+}
+
+/**
+ * Blocks first..last of an object, as plaintext: one request to the gateway for the
+ * stored bytes that hold them and, when encrypted, each frame decrypted and checked here.
+ */
+async function fetchBlocks(s, id, clientId, first, last) {
+  const f = blockSize(s);
+  const lenOf = (i) => Math.min(f, s.bytes - i * f);
+  if (!s.encrypted) {
+    const data = await upstream(s, id, clientId, first * f, first * f + (last - first) * f + lenOf(last) - 1);
+    const out = [];
+    for (let i = first; i <= last; i += 1) out.push(data.slice((i - first) * f, (i - first) * f + lenOf(i)));
+    return out;
+  }
   const stride = f + TAG;
-  const first = Math.floor(start / f);
-  const last = Math.floor(end / f);
-  const lastLen = Math.min(f, s.bytes - last * f);
   const cipherStart = s.stream.headerBytes + first * stride;
-  const cipherEnd = s.stream.headerBytes + last * stride + lastLen + TAG - 1;
+  const cipherEnd = s.stream.headerBytes + last * stride + lenOf(last) + TAG - 1;
   const data = await upstream(s, id, clientId, cipherStart, cipherEnd);
   const base = b64(s.stream.nonceBase);
-  const out = new Uint8Array(end - start + 1);
+  const out = [];
   let at = 0;
-  let written = 0;
   for (let i = first; i <= last; i += 1) {
-    const len = Math.min(f, s.bytes - i * f);
-    const plain = new Uint8Array(
-      await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: nonceFor(base, i), tagLength: TAG * 8 },
-        s.key,
-        data.subarray(at, at + len + TAG),
+    const len = lenOf(i);
+    out.push(
+      new Uint8Array(
+        await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: nonceFor(base, i), tagLength: TAG * 8 },
+          s.key,
+          data.subarray(at, at + len + TAG),
+        ),
       ),
     );
     at += len + TAG;
-    const from = i === first ? start - first * f : 0;
-    const to = i === last ? end - i * f + 1 : len;
-    out.set(plain.subarray(from, to), written);
-    written += to - from;
   }
   return out;
 }
 
-async function readRange(s, id, clientId, start, end) {
-  if (s.encrypted) return decryptRange(s, id, clientId, start, end);
-  return upstream(s, id, clientId, start, end);
+/**
+ * One plaintext block, from this stream's small cache when a player asks for the same
+ * bytes again (they re-request overlapping ranges constantly), or fetched with up to
+ * RUN - 1 of the blocks after it. The cache holds promises, so two requests for the
+ * same block share one fetch; it is bounded, and forgotten with the stream.
+ */
+function block(s, id, clientId, i, lastWanted) {
+  const cache = s.cache;
+  if (cache.has(i)) {
+    const hit = cache.get(i);
+    cache.delete(i);
+    cache.set(i, hit); // most recently used last
+    return hit;
+  }
+  let last = i;
+  while (last < lastWanted && last - i + 1 < RUN && !cache.has(last + 1)) last += 1;
+  const run = fetchBlocks(s, id, clientId, i, last);
+  for (let k = i; k <= last; k += 1) {
+    const one = run.then((blocks) => blocks[k - i]);
+    one.catch(() => cache.get(k) === one && cache.delete(k)); // never cache a failure
+    cache.set(k, one);
+  }
+  while (cache.size > CACHE_BLOCKS) cache.delete(cache.keys().next().value);
+  return cache.get(i);
+}
+
+/**
+ * The plaintext bytes [start, end] as a stream, one block at a time, fetched only as the
+ * player reads them — a player that stops reading (it has enough, or it seeked) costs
+ * nothing more. The first block is read before answering, so a failure there becomes a
+ * proper status rather than a broken stream.
+ */
+async function rangeBody(s, id, clientId, start, end) {
+  const f = blockSize(s);
+  const first = Math.floor(start / f);
+  const last = Math.floor(end / f);
+  const piece = async (i) => {
+    const b = await block(s, id, clientId, i, last);
+    const from = i === first ? start - i * f : 0;
+    const to = i === last ? end - i * f + 1 : b.length;
+    return b.slice(from, to);
+  };
+  const head = await piece(first);
+  let next = first;
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        controller.enqueue(next === first ? head : await piece(next));
+        next += 1;
+        if (next > last) controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
 }
 
 async function serve(request, id, clientId) {
@@ -170,22 +234,11 @@ async function serve(request, id, clientId) {
   };
 
   try {
+    if (size === 0) return new Response(new Uint8Array(0), { status: 200, headers: baseHeaders });
     if (!header) {
-      // No range asked for (an <img>, a download): stream the whole document a window
-      // at a time, so memory stays at one window whatever its size.
-      let at = 0;
-      const body = new ReadableStream({
-        async pull(controller) {
-          if (at >= size) return controller.close();
-          const end = Math.min(size - 1, at + WINDOW - 1);
-          try {
-            controller.enqueue(await readRange(s, id, clientId, at, end));
-            at = end + 1;
-          } catch (err) {
-            controller.error(err);
-          }
-        },
-      });
+      // No range asked for (an <img>, a download): the whole document, a block at a time,
+      // so memory stays small whatever its size.
+      const body = await rangeBody(s, id, clientId, 0, size - 1);
       return new Response(body, { status: 200, headers: { ...baseHeaders, "content-length": String(size) } });
     }
 
@@ -205,12 +258,12 @@ async function serve(request, id, clientId) {
     }
     // Answer a bounded window; the player asks for the next one when it wants it.
     end = Math.min(end, start + WINDOW - 1);
-    const bytes = await readRange(s, id, clientId, start, end);
-    return new Response(bytes, {
+    const body = await rangeBody(s, id, clientId, start, end);
+    return new Response(body, {
       status: 206,
       headers: {
         ...baseHeaders,
-        "content-length": String(bytes.length),
+        "content-length": String(end - start + 1),
         "content-range": `bytes ${start}-${end}/${size}`,
       },
     });

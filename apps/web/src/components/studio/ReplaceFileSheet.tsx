@@ -191,7 +191,9 @@ export function ReplaceFileSheet({
                 <strong>Drop the replacement here</strong>
                 <small>
                   {orgStorage?.status === "ACTIVE"
-                    ? "Up to 200 MB — straight to your own storage."
+                    ? orgStorage.adapter === "gdrive"
+                      ? "Up to 200 MB — to your organization's Google Drive."
+                      : "Up to 200 MB — straight to your own storage."
                     : "Up to 10 MB."}
                 </small>
               </>

@@ -68,19 +68,23 @@ export function StoragePanel({
   }, [orgId]);
   useEffect(() => load(), [load]);
 
+  // A connected organization keeps its backend: reconnecting Google Drive, or
+  // reconfiguring a NAS. Only a first connection offers the choice.
+  const chosen: Backend = view?.configured ? (view.adapter === "gdrive" ? "gdrive" : "s3") : backend;
+
   async function save() {
     // Unlock first if needed, then carry straight on. Returning here and making the
     // owner press Save a second time reads like the button did nothing.
     const token = supremeToken ?? (await onNeedSupreme());
     if (!token) return; // cancelled or refused — the gate has already explained why
 
-    const payload = backend === "gdrive" ? gdrive : config;
+    const payload = chosen === "gdrive" ? gdrive : config;
     if (!payload) return;
     setBusy(true);
     setError(null);
     try {
       await storageApi.connect(orgId, payload, token);
-      dialogs.toast(backend === "gdrive" ? "Google Drive connected." : "Storage connected.", "success");
+      dialogs.toast(chosen === "gdrive" ? "Google Drive connected." : "Storage connected.", "success");
       setEditing(false);
       load();
     } catch (err) {
@@ -149,7 +153,6 @@ export function StoragePanel({
 
   if (editing || !view.configured) {
     const reconnectingDrive = view.configured && view.adapter === "gdrive";
-    const chosen: Backend = reconnectingDrive ? "gdrive" : view.configured ? "s3" : backend;
     return (
       <section className="panel storage-panel">
         <h3>
@@ -255,8 +258,13 @@ export function StoragePanel({
             a connection problem, not a loss. New uploads are paused, and deadline reminders
             are paused too so nobody is marked late for something they could not open.
           </p>
-          {view.degradedReason && DEGRADED_WHY[view.degradedReason] && <p>{DEGRADED_WHY[view.degradedReason]}</p>}
-          {view.lastError && <p className="muted">{view.lastError}</p>}
+          {/* The reason in words an owner can act on; the raw error only when we have
+              no such words for it, so the same sentence is never said twice. */}
+          {view.degradedReason && DEGRADED_WHY[view.degradedReason] ? (
+            <p>{DEGRADED_WHY[view.degradedReason]}</p>
+          ) : (
+            view.lastError && <p className="muted">{view.lastError}</p>
+          )}
         </div>
       )}
 
@@ -315,7 +323,7 @@ export function StoragePanel({
               {size(usage.bytes)} of {size(usage.limitBytes)}
               <span className="muted">
                 {" "}
-                · pauses at the allowance until the 1st, and is never billed
+                · uploads and viewing both count; at the allowance it pauses until the 1st and is never billed
               </span>
               <meter
                 className="stream-meter"

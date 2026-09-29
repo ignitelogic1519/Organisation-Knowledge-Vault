@@ -9666,6 +9666,24 @@ body.is-dragging-block * {
 .storage-panel {
   border: 1px solid var(--border);
   margin-bottom: 1.2rem;
+  container-type: inline-size;
+}
+
+/* Labels such as "Streaming this month" must not take the value column's room: cap
+   them at 40%, and in a narrow drawer put each value under its label instead. */
+.storage-panel .kv-list {
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+}
+
+@container (max-width: 26rem) {
+  .storage-panel .kv-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+
+  .storage-panel .kv-list dd {
+    margin-bottom: 0.55rem;
+  }
 }
 
 .storage-advanced {

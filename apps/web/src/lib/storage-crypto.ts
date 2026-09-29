@@ -391,7 +391,6 @@ export async function uploadViaGateway(
     if (confirmed < sent) throw new Error("Google Drive did not keep the whole chunk. Upload the file again.");
     fill = 0;
     chunk = new Uint8Array(new ArrayBuffer(chunkSize));
-    onProgress?.("uploading", sent / total);
   };
 
   for await (const piece of storedBytes(file, ticket, plainSha)) {
@@ -404,7 +403,8 @@ export async function uploadViaGateway(
       at += take;
       if (fill === chunkSize) await flush();
     }
-    if (ticket.encrypted) onProgress?.("encrypting", (sent + fill) / total);
+    // Encrypting and sending interleave a chunk at a time, so this pass is one stage.
+    onProgress?.("uploading", (sent + fill) / total);
   }
   await flush();
   if (sent !== total) {

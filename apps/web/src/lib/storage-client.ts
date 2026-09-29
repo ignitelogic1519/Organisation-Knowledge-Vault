@@ -84,8 +84,10 @@ export const storageApi = {
 
 /**
  * Upload a file to the organization's own storage and return the id to attach to a
- * course. The bytes go straight from this browser to their storage — our API issues the
- * signed link and records the result, and never sees the file.
+ * course. For S3-compatible storage the bytes go straight from this browser to their
+ * storage — our API issues the signed link and records the result, and never sees the
+ * file. For Google Drive they pass through the streaming gateway (encrypted here first
+ * when the organization encrypts), because Drive has no signed upload link.
  */
 export async function uploadFile(
   orgId: string,
