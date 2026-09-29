@@ -104,9 +104,13 @@ Relevant existing pieces:
 | `03-knowledge-vault-map.md` | The `Knowledge_vault_map` manifest written into their storage |
 | `04-security-and-encryption.md` | Envelope encryption; three postures; the custody model |
 | `05-open-questions.md` | Eight decisions still open, each with a recommendation |
-| `06-risks-and-concerns.md` | Eight risks, ranked — two of which change the design |
+| `06-risks-and-concerns.md` | Ten risks, ranked — two of which change the design |
+| `07-google-drive-architecture.md` | **Google Drive, designed 2026-09-29, not built** — accounts, postures, the streaming gateway, the stream client, quotas, integrity, delivery plan |
+| `08-google-drive-failure-modes.md` | Every way Drive storage goes wrong, how we find out, and what prevents it |
+| `09-google-drive-cost-and-efficiency.md` | What Drive costs to run — $0, with the gateway on a free VM and never on the API's host — and how fast it is |
 
-**Read all five before proposing a design.** The conclusions below are load-bearing.
+**Read 01–06 before proposing a design, and 07–08 before touching Drive.** The conclusions
+below are load-bearing.
 
 ---
 
@@ -202,8 +206,26 @@ code on 2026-08-04:**
   most exist only in the spec, and there is **no per-org backend selection at all** — the
   adapter is chosen per *course*, by content kind.
 
-Also verified: **the repository has zero tests**, so the contract-test harness risk 7 assumes
-does not yet exist.
+Also verified then: the repository had zero tests. **That has changed** — `apps/api/test/`
+now covers the envelope crypto, `.kvblob` parity between browser and server, and SigV4 signing
+against AWS's published vector (`storage.test.mjs`), plus password, session, compliance and
+visibility suites.
+
+**Three more findings, verified against the code on 2026-09-29** while designing Google Drive:
+
+- **The recovery promise in §9.11 is not wired.** `wrapDekForSupreme()` exists in
+  `storage/secrets.ts` but nothing calls it, so `.main` carries no data key; per-file keys live
+  only in `StorageObject.wrappedKey`; and `.main` revival marks every stored object
+  `unreachable` (`vault-files/routes.ts`). *Storage + map + `.main` + Supreme password* cannot
+  recover an encrypted object today. Document 07, §11 proposes the fix (question 12).
+- **The browser still holds whole files.** `encryptFile()` reads the entire file with
+  `file.arrayBuffer()`, and `fetchAndDecrypt()` holds the ciphertext and the plaintext at once.
+  The 4 MB frames make the *crypto* incremental, but the "never twice in a phone's memory"
+  property §9.5 describes is not yet delivered in the browser. The streaming client in document
+  07, §7 delivers it.
+- **The CORS rule we generate for NAS** exposes `ETag`, `Content-Length` and `Content-Type` but
+  not `Content-Range` or `Accept-Ranges`, so a browser cannot stream a NAS object by range
+  until the rule is extended and re-applied (document 08, G6).
 
 Also read `06-risks-and-concerns.md` — in particular risk 1 (moving Studio documents costs
 latency on the most common action in the product, and saves almost no space) and risk 2 (we
@@ -228,6 +250,12 @@ liability than what we hold today).
 **Do not** start with Google Drive because it is the most-requested — it is the hardest, and
 it is the one that leaves us paying for bandwidth.
 
+*Steps 1–6 are done: NAS ships. Step 7 has started — Google Drive is the owner's next backend
+(2026-09-29), and its design is documents 07 and 08. The warning above still describes it
+accurately: on Drive, bytes cross our infrastructure in both directions, which is why the design
+centres on a streaming gateway. Start with the spikes in document 07, §16, then phase G0, which
+also repairs the three NAS findings above.*
+
 ---
 
 ## Non-negotiables
@@ -243,4 +271,4 @@ it is the one that leaves us paying for bandwidth.
 
 ---
 
-*Last updated: 2026-08-04*
+*Last updated: 2026-09-29*

@@ -1041,7 +1041,7 @@ roadmap section), the storage teaser on the home page, and the anchor links betw
 | `nas` | live | S3-compatible storage on hardware the organization owns — §9.2 |
 | `kvep` | live | The employee perk; content stays on our storage — §9.13 |
 | `cloud-object` | planned | S3 / R2 / GCS / Wasabi / B2 / Spaces — the same adapter, a different endpoint |
-| `cloud-drive` | exploring | Google Drive and OneDrive — no useful signed URLs, so we would proxy every byte |
+| `cloud-drive` | exploring | Google Drive and OneDrive — no useful signed URLs, so every byte crosses our servers. Google Drive's scope is decided and its design is in review — §9.16 |
 | `private-nas` | exploring | A NAS with no public address, reached through a connector the organization runs |
 
 The status vocabulary is normative, because it is a promise to a reader:
@@ -1050,3 +1050,42 @@ The status vocabulary is normative, because it is a promise to a reader:
 - **planned** — the adapter exists and this is configuration and documentation, not new code.
 - **exploring** — a real requirement with an unsolved part. Listed so nobody has to guess
   whether we have thought about it, and honest about why it is not next.
+
+### 9.16 Google Drive — scope decided, design in review (2026-09-29)
+
+> **Not built.** This subsection records only what has been decided. The design is
+> `Data Storage Architecture/07-google-drive-architecture.md`, its failure register is `08`, its
+> cost and efficiency are `09`, and the choices still open are questions 9–18 in `05`. Each rule
+> of that design is written into
+> this section as it is decided, and before its code — until then, the rest of §9 describes NAS
+> and KVEP only.
+
+**Decided by the owner:**
+
+- **Google Drive is the next backend** — for file storage, and for streaming audio and video.
+- **It serves Google Workspace and personal Google accounts alike.**
+- **Both postures of §9.5 are offered on Drive**: `ENCRYPTED` by default, `PLAIN` available,
+  chosen at setup and fixed once storage is active, exactly as on NAS.
+- **Speed over compression.** Objects are stored byte for byte (`PLAIN`) or as framed ciphertext
+  (`ENCRYPTED`) and are never compressed; the path that carries document bytes never applies
+  transport compression. Compressed bytes cannot be served by range, which is what seeking is,
+  and compressing before encrypting leaks information through length.
+- **Free first.** Every part runs on a free tier; a cost is accepted only where it is unavoidable,
+  and is then stated plainly. So the byte path **stops at its free allowance rather than billing
+  past it**: at the monthly limit, new streams and uploads pause until the 1st, and nothing else
+  in the product is affected.
+
+**Fixed by the platform, not by choice** — any Drive design has to live with these:
+
+- **Document bytes cross our infrastructure on Drive, in both directions.** Drive issues no
+  signed link for a single file, and its upload continuation endpoint cannot be reached from a
+  browser. A Drive organization is therefore never zero-bandwidth for us, and nothing published
+  may say it is. The storage ceiling of §9.12 still stops applying — the storage is theirs — but
+  the bandwidth is ours (question 16).
+- **A Google access token is never sent to a browser.** Drive tokens reach everything their
+  identity can reach, not one file.
+- **Drive's bytes never pass through the API's host.** Render's free plan includes 5 GB of
+  outbound traffic a month and, with no card on file, shuts every service down until the next
+  month once it is exceeded. The bytes need a machine of their own.
+- **The register entry `cloud-drive` stays `exploring`** until an adapter ships (§9.15).
+

@@ -167,6 +167,36 @@ amounts involved are trivial either way.
 
 ---
 
+## 9 · Google Drive puts us back in the byte path *(added 2026-09-29)*
+
+**The concern.** NAS was chosen first because presigned URLs keep every byte off our
+infrastructure. Drive cannot: it has no signed link for a single file, and its upload
+continuation endpoint cannot be reached from a browser. So on Drive, **every upload and every
+read crosses a server we run** — bandwidth we pay for, a service we operate, and, in `PLAIN`
+posture, customer documents readable in our memory for the length of a transfer.
+
+**What it needs:** a streaming gateway that holds no permissions, no keys and no long-lived
+credentials, only carries bytes for tickets the API signs, and never buffers a whole file; a
+ciphertext-only cache, which makes `ENCRYPTED` the cheaper and faster posture on Drive; honest
+setup wording for `PLAIN`; and a decision on who pays for the bandwidth (question 16). Document
+07, §8 designs it; document 08 lists what goes wrong with it.
+
+---
+
+## 10 · The recovery promise is not wired yet *(added 2026-09-29, verified in the code)*
+
+**The concern.** §9.11 promises that *their storage + the map + `.main` + the Supreme password*
+recovers everything without us. Today it cannot recover an encrypted object: `.main` escrows no
+data key (`wrapDekForSupreme()` is never called), per-file keys exist only in our database, and
+revival marks every stored object `unreachable` with no way back. That is true for NAS now, and
+it becomes sharper with personal Google accounts, where one person's Drive may hold the only copy.
+
+**What it needs:** each object's wrapped key carried in its own header (backward compatible),
+the data key escrowed in `.main`, revival that re-links objects, and the standalone decrypt tool
+— before `ENCRYPTED` ships on Drive (question 12, document 07, §11).
+
+---
+
 ## What I am *not* worried about
 
 For balance:
@@ -181,4 +211,4 @@ For balance:
 
 ---
 
-*Last updated: 2026-08-04*
+*Last updated: 2026-09-29*

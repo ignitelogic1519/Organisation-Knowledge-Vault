@@ -186,33 +186,38 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
     icon: "📁",
     status: "exploring",
     tagline:
-      "Google Drive and OneDrive — familiar, universally available, and structurally the expensive option.",
+      "Google Drive first — on Google Workspace or a personal Google account — with OneDrive to follow. Familiar, universally available, and the one shape where the bytes cross our servers.",
     whoFor:
-      "Organizations that already keep everything in a drive and would rather not add a second place. We would rather they used object storage, and we will say so.",
+      "Organizations that already keep everything in a drive and would rather not add a second place. On Google Workspace, a shared drive keeps the files with the organization rather than with whoever connected it.",
     steps: [
       {
-        title: "1 · Connect the account",
-        text: "OAuth against the drive, with tokens refreshed on our side and a folder we may write into. Substantially more moving parts than an access key.",
+        title: "1 · Connect Google",
+        text: "Sign in with the Google account the files should live under and choose where they go. Knowledge Vault asks only for the files it creates itself — never the rest of your Drive — and keeps its access fresh on our side, which is substantially more moving parts than an access key.",
       },
       {
-        title: "2 · Accept that we carry the bytes",
-        text: "Neither drive issues signed URLs in the form we need, so every upload and every download would pass through our API. That is bandwidth we pay for on every read, and a large file held in the memory of a small instance.",
+        title: "2 · Choose the encryption posture",
+        text: "The same choice as NAS: encrypted objects nobody can read in Drive — not your administrators, not Drive's own search — or ordinary files you can open there, readable by anyone with access to the folder. Fixed once storage is active.",
+      },
+      {
+        title: "3 · Accept that we carry the bytes",
+        text: "Drive has no signed link for a single file, and its upload endpoint cannot be reached from a browser directly, so every upload and every download passes through our servers. That is bandwidth we pay for on every read — and when the files are readable, they pass through us readable.",
       },
     ],
     facts: {
       reach: "Public APIs — always reachable",
       bytes: "Through our servers on every upload and every download",
-      encryption: "Encrypted objects only — a drive full of readable files defeats the point",
+      encryption: "Your choice: encrypted (.kvblob) or readable files, as with NAS",
       cost: "Your drive quota, plus real bandwidth cost on our side",
     },
     strengths: [
       "Nothing new to buy, and nothing new to administer.",
-      "The folder is one people already know how to find.",
+      "The folder is one people already know how to find — and, with readable files, can open.",
+      "Works with a personal Google account as well as with Google Workspace.",
     ],
     tradeoffs: [
-      "No signed URLs means we proxy every byte — the one thing the storage design exists to avoid.",
+      "No signed links means every byte crosses our servers — the one thing object storage avoids. Encrypted files cross as ciphertext; readable ones cross readable.",
       "Drive quotas and per-account rate limits become your users' problem at exactly the wrong moment.",
-      "This is why it sits behind object storage in the queue rather than beside it.",
+      "On a personal account, or in someone's own My Drive, the files belong to a person — and leave with them.",
     ],
   },
   {
