@@ -122,7 +122,7 @@ Prereqs for both: an LLM provider decision + per-org API budget, and a text-extr
 step in the storage adapter port. Ship 11a first — it needs no index.
 
 
-## 12. Storage backends — the queue after NAS (updated 2026-08-05)
+## 12. Storage backends — the queue after NAS (updated 2026-09-29)
 The storage adapter port (`apps/api/src/storage/adapter.ts`, `storageRef.adapter`) is kept
 deliberately open. Shipped: `inline` (gzip-compressed Postgres bytes, ≤10 MB, and the KVEP
 path), `link`, `authored` (Studio blocks), and **S3-compatible storage presented as NAS**.
@@ -133,7 +133,7 @@ status, so the roadmap on `/storage` and this register can never disagree:
 | Backend | Status | What is actually left to do |
 |---------|--------|-----------------------------|
 | **Cloud object storage** (S3, R2, GCS, Wasabi, B2, Spaces) | `planned` | Nothing in the adapter — a provider list, endpoint templates, and per-provider IAM/CORS documentation. This is the whole return on choosing S3 first. |
-| **Cloud drives** (Google Drive, OneDrive) | `exploring` | OAuth, token refresh, and an answer to the fact that neither issues signed URLs in the form we need — so every byte would proxy through our API, which is the one thing §9 exists to avoid. |
+| **Cloud drives** (Google Drive, OneDrive) | `exploring` | **Google Drive is next** (owner's call, 2026-09-29), for Workspace and personal accounts, in both postures — `docs/structure.md` §9.16. The answer to "no signed URLs" is designed in `Data Storage Architecture/07-google-drive-architecture.md`: a streaming gateway that carries bytes for tickets the API signs, and a service worker that streams and decrypts in the browser. Left: questions 9–17 in `05`, the spikes, then the build. OneDrive follows the same design. |
 | **NAS with no public address** | `exploring` | A connector the organization runs beside the storage, opening outbound only. The unsolved part is the off-network read: any design that ends in us proxying the bytes is the cloud-drive problem in different clothes. |
 
 Large-media upload pipelines and previews still land here. Changing a status is one edit in the

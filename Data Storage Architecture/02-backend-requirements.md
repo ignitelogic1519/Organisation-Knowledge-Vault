@@ -98,6 +98,14 @@ want the reasons on the record.
 
 ### Google Drive
 
+> **Superseded 2026-09-29 by `07-google-drive-architecture.md`.** Google Drive is now the next
+> backend, and its design changed three things written below: we **do not accept
+> service-account JSON keys** (a keyless service identity through Workload Identity Federation
+> replaces them); **uploads pass through us too**, not only downloads, because Drive's upload
+> continuation endpoint cannot be reached from a browser; and a connected Google account —
+> personal or Workspace — is granted only the least-privilege `drive.file` scope. The analysis
+> below is kept as the record of how the design was reached.
+
 **Two ways to connect, and the choice matters:**
 
 **Service account with a Shared Drive** *(recommended)*
@@ -272,8 +280,8 @@ One table, for the setup form and for answering "what do I need to get ready?".
 | **Backblaze B2 / Wasabi / DO Spaces** | A | Endpoint · region · bucket · key ID · secret | Non-public bucket · CORS | No | Yes |
 | **MinIO** (their VPS/NAS) | A | Endpoint URL · bucket · access key · secret · path-style on · TLS cert if self-signed | Public HTTPS address · valid certificate · CORS | No | Yes |
 | **Azure Blob Storage** | A* | Account name · container · account key **or** SAS token | Private container · CORS | No | Yes (SAS) |
-| **Google Drive** (Workspace) | B | Service-account JSON key · Shared Drive ID · folder | **Shared Drive** (service accounts have no personal quota) · add SA as Content Manager | **Yes** | No |
-| **Google Drive** (personal) | B | OAuth client ID + secret · refresh token · folder ID | Admin consent · accept that files are owned by a person | **Yes** | No |
+| **Google Drive** (Workspace) | B | *Either* one sign-in with a Google account (`drive.file`) and a Shared Drive folder picked in Google's picker, *or* a keyless service identity: GCP project number · pool · provider · service-account email — **no key** | **Shared Drive** (service accounts have no quota of their own) · service identity added as Content Manager · allow our OAuth client if third-party apps are restricted | **Yes**, both ways, through our streaming gateway — ciphertext only when encrypted | No |
+| **Google Drive** (personal) | B | One sign-in with the Google account (`drive.file`); we create the folder | Accept that the files are owned by a person, in 15 GB shared with Gmail and Photos | **Yes**, as above | No |
 | **OneDrive / SharePoint** | B | Tenant ID · client ID · client secret **or** certificate · drive/site ID · folder | Entra app registration · `Files.ReadWrite.All` app-only · admin consent · **track secret expiry** | **Yes** | Partial |
 | **SFTP / VPS** | C | Host · port · username · **private key** (preferred) or password · base path | Public address · dedicated chrooted no-shell account · host key pinned | **Yes** | No |
 | **WebDAV** (NAS, server) | C | HTTPS base URL · username · password · path | Public HTTPS · valid certificate (or we pin the fingerprint) | **Yes** | No |
@@ -302,4 +310,4 @@ steering organizations towards Group A.
 
 ---
 
-*Last updated: 2026-08-04*
+*Last updated: 2026-09-29*

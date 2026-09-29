@@ -8,6 +8,9 @@ changes.
 > **Questions 1 and 2 are decided (2026-08-04).** See the answers inline below and the
 > decision log in `README.md`. The behaviour they settle is specified in `docs/structure.md`
 > §9, which is now the normative source.
+>
+> **Questions 9–17 (2026-09-29) are about Google Drive** and are open. They are at the end of
+> this document.
 
 ---
 
@@ -203,4 +206,146 @@ schema changes and the new endpoints, and log the decisions in the README. Then 
 
 ---
 
-*Last updated: 2026-08-04*
+# Google Drive — questions 9 to 17 (2026-09-29)
+
+**Already decided by you, 2026-09-29:** Google Drive is the next backend; it serves both
+Google Workspace and personal accounts; both postures — encrypted and readable — are offered on
+it; and when speed and compression pull against each other, speed wins. These are in the
+decision log and are not re-asked here.
+
+What follows are the choices the design in `07-google-drive-architecture.md` needs from you.
+Each carries my recommendation. Ordered by how much of the design each one moves.
+
+---
+
+## 9 · Which ways of connecting Google ship, and in what order?
+
+Two modes survive the analysis in document 07, §3:
+
+- **A · A connected Google account** (OAuth, `drive.file`). One sign-in. Works for personal
+  accounts and for Workspace. We hold one sealed refresh token, which can reach only files
+  Knowledge Vault created.
+- **B · A keyless service identity** (Workload Identity Federation). For Workspace organizations
+  with a GCP project. We hold nothing secret; no person is in the chain.
+
+Three were rejected: service-account JSON keys (a long-lived key to their Drive in our database,
+blocked by default for newer GCP organizations, and strictly dominated by B); one Knowledge Vault
+service account shared by all customers (shared quotas, one credential reaching everyone, a
+confused-deputy risk); domain-wide delegation (impersonation of anyone in their domain).
+
+**My recommendation: A first — it is the only mode personal accounts can use — then B.** Never
+the three rejected ones, even when a customer asks.
+
+---
+
+## 10 · PLAIN on Drive — readable file names?
+
+A NAS in `PLAIN` posture stores `objects/2026/09/<hex>.bin`: readable bytes behind meaningless
+names. On Drive, the point of choosing readable storage is usually being able to *use* the
+folder — and a folder of hex names is not usable.
+
+- **Readable names:** *"Arm Lockout Procedure — 100-101-0003 v2.pdf"*, with the real file type,
+  so Drive previews and searches them. The logical object key underneath is unchanged.
+- **Content-free names**, as on NAS.
+
+A readable name reveals nothing the readable content does not, to exactly the same people.
+
+**My recommendation: readable names on Drive in PLAIN.** ENCRYPTED stays content-free, as
+everywhere.
+
+---
+
+## 11 · Where the streaming gateway runs
+
+Drive puts bytes through us — both directions, not optional (document 07, §1). Something has to
+carry them.
+
+- **In the API process** — nothing new to deploy; shares 512 MB and the free instance's sleep.
+- **Its own always-on service** — scales on bandwidth, never sleeps, costs money.
+- **Behind Cloudflare's CDN** — ruled out for media: Cloudflare's terms restrict video hosted
+  outside Cloudflare.
+
+**My recommendation: in the API process for the first release, behind a feature flag and tight
+concurrency caps; its own service before general availability.**
+
+---
+
+## 12 · Close the recovery gap before encrypted Drive ships?
+
+Verified in the code: `.main` escrows no data key, per-file keys live only in our database, and
+revival marks every stored object unreachable. So §9.11's recovery promise does not hold today,
+for NAS either (document 07, §11).
+
+The proposal: carry each object's wrapped key in its own header (backward compatible — readers
+ignore fields they do not know); escrow the data key in `.main`; let revival re-link objects;
+ship the decrypt tool.
+
+**My recommendation: yes — and ENCRYPTED does not ship on Drive until it is done.** A personal
+account holding encrypted blobs with no working recovery route is one bad day from total loss.
+
+---
+
+## 13 · Frame size for new objects
+
+Frames are the unit of decryption, so the frame size is the minimum wait before a video starts
+and the minimum waste on a seek. Today's is 4 MiB: 6.7 seconds before the first frame on a
+5 Mbps phone. At 256 KiB it is 0.42 seconds. The format already carries the frame size in each
+object's header, so this needs no format change.
+
+**My recommendation: 256 KiB for new Drive objects**, confirmed on a low-end phone in spike S5
+(1 MiB if not); NAS adopts it when the streaming client reaches NAS.
+
+---
+
+## 14 · Deleting from a Shared Drive — trash, or permanent?
+
+A **Content Manager** can only move files to trash, which Google purges after 30 days. A
+**Manager** can purge at once — and can also change the drive's membership and settings.
+
+**My recommendation: Content Manager.** Deletion leaves the drive within 30 days, and we say so
+honestly. Asking for the power to rearrange a customer's drive, to shorten that, is the wrong
+trade.
+
+---
+
+## 15 · Personal accounts — any conditions?
+
+You have decided personal accounts are supported. The question is how plainly to say what they
+mean: files owned by a person, 15 GB shared with Gmail and Photos, and no way back if the account
+is lost.
+
+**My recommendation: allowed on every plan, both postures, with one sentence the owner must tick
+at setup** — *"These files belong to this Google account. If the account is lost, so are they."*
+— and ENCRYPTED recommended, as everywhere. On a Workspace account the same tick is required for
+My Drive, with a Shared Drive offered instead.
+
+---
+
+## 16 · Who pays for the bandwidth?
+
+§9.12 stops metering storage for organizations that bring their own, because it took that cost
+off us. On Drive it did not take all of it: every byte streamed crosses our gateway, and we pay
+for it.
+
+- **A monthly gateway transfer allowance per plan**, shown in the storage panel, with a clear
+  message when it is reached.
+- **Absorb it**, and price Drive into the plans.
+
+**My recommendation: an allowance per plan, sized generously.** ENCRYPTED organizations cost us
+less — their repeat reads come from the cache — which is one more reason to recommend it.
+
+---
+
+## 17 · Studio documents and exams on Drive
+
+§9 keeps Studio documents, exam papers and drafts in our database for now: they are kilobytes,
+and moving them adds a round trip to the most common action in the product. Drive's round trip is
+slower than a NAS's.
+
+**My recommendation: the same on Drive — they stay with us until the authored-content phase (G4),
+which brings the read-through cache from document 06, risk 1.** Files, audio and video are what
+move first, and they are what streaming is for.
+
+---
+
+*Last updated: 2026-09-29*

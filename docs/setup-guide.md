@@ -177,8 +177,10 @@ our database via the inline adapter. It is gated twice by a super-admin's own us
 password — once when the request is raised, and again at creation — which is what keeps the
 perk internal (`docs/structure.md` §9.13).
 
-Google Drive and OneDrive/SharePoint plug into the same port later (`future.md` §9); both
-proxy bytes through us, which is why the S3-compatible adapter came first.
+Google Drive and OneDrive/SharePoint plug into the same port later (`future.md` §12); both
+proxy bytes through us, which is why the S3-compatible adapter came first. Google Drive is
+next, and designed in `Data Storage Architecture/07-google-drive-architecture.md` — nothing
+about deploying it exists yet.
 
 After a `.main` revival, media shows as *unreachable* until storage is reconnected — inline
 files do not survive a purge; links resume working immediately after re-adding them, and

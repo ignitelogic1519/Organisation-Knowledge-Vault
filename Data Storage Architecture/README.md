@@ -1,6 +1,7 @@
 # Data Storage Architecture
 
-**Status: the first backend is built and shipping. This folder remains the working record.**
+**Status: the first backend (NAS) is built and shipping. Google Drive is designed and in review
+— documents 07 and 08, with questions 9–17 open. This folder remains the working record.**
 
 This folder is the working record of one decision: **moving document bytes off our
 infrastructure and onto storage the organization provides and pays for.**
@@ -25,6 +26,8 @@ and the numbered documents are rewritten to match whatever we settle on.
 | [04 — Security & encryption](04-security-and-encryption.md) | How "nobody else can look at this document" is actually achieved |
 | [05 — Open questions](05-open-questions.md) | What I need decided before any of this can be built |
 | [06 — Risks & concerns](06-risks-and-concerns.md) | What worries me about the migration, ranked by cost of discovering it late |
+| [07 — Google Drive: the architecture](07-google-drive-architecture.md) | Drive as a backend for storage and streaming — enterprise and personal accounts, both postures, the streaming gateway, the service-worker stream client, quotas, integrity, and the delivery plan |
+| [08 — Google Drive: every bad case](08-google-drive-failure-modes.md) | The failure register: every way Drive storage goes wrong, how we find out, and what prevents or contains it |
 
 ---
 
@@ -135,7 +138,11 @@ Appended as we agree things. Nothing is settled until it appears here.
 | 2026-08-04 | The Supreme-wrapped DEK is **computed at `.main` export time and never persisted** | Persisting it would put an offline attack on a human-chosen password into every database dump, defeating the point of holding the platform key outside the database |
 | 2026-08-04 | Behaviour written into `docs/structure.md` §9 — that section is now normative | Working agreement: docs before code. Where this folder and §9 disagree, §9 wins |
 | 2026-09-22 | **The recommended NAS server is Silo** (`pgsty/silo`), not MinIO | MinIO's community edition stopped shipping builds (Oct 2025) and was archived (Feb 2026). Silo continues the same S3 engine, commands and on-disk format, releases every month or two with a published security-advisory process, and passed our own S3 client end to end (signed and presigned transfers, listing, anonymous refusal, CORS preflight, a bucket-scoped key). Versity S3 Gateway also passed once its CORS origin was set, and is the fallback; RustFS (1.0 on 2026-09-16, several pre-release CVEs) and AIStor Free (proprietary) were not chosen |
+| 2026-09-29 | **Google Drive is the next backend**, for storage and for streaming audio and video | Owner's call. Design in document 07; failure register in document 08; the choices still open are questions 9–17 |
+| 2026-09-29 | **Drive serves both Google Workspace and personal Google accounts** | Owner's call. The two carry different custody — a Shared Drive's files belong to the organization, a My Drive's to a person — so document 07, §3 designs for each; how they connect is question 9 |
+| 2026-09-29 | **Both postures are offered on Drive** — `ENCRYPTED` by default, `PLAIN` available — exactly as on NAS | Owner's call. Overturns the storage register's earlier *"encrypted objects only"* line for cloud drives, which is corrected |
+| 2026-09-29 | **Speed over compression**: objects are stored byte for byte (`PLAIN`) or as framed ciphertext (`ENCRYPTED`), never compressed, and the byte path never applies transport compression | Owner's call. Media is already compressed, compressed bytes cannot be served by range (which is what seeking is), and compressing before encrypting leaks information through length |
 
 ---
 
-*Last updated: 2026-09-22*
+*Last updated: 2026-09-29*

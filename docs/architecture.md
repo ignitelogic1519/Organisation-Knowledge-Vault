@@ -224,6 +224,13 @@ interface StorageAdapter {
 - The `Course.storageRef` JSON keeps adapter name + adapter-specific pointer, so NAS/S3/cloud
   adapters (see `future.md`) drop in later without schema changes — this end stays open by design.
 
+> **Update 2026-09-29.** The first backend shipped as S3-compatible storage presented as NAS
+> (`structure.md` §9.2), not Google Drive. Google Drive is now designed as the next one — in
+> `Data Storage Architecture/07-google-drive-architecture.md`, which keeps the `drive.file` scope
+> rule above for connected accounts and adds a streaming gateway, because Drive's bytes must pass
+> through us. The interface above also changes there: §13 of that document proposes a
+> `RemoteStore` port that the S3 code moves behind first.
+
 ---
 
 ## 5. `.main` and `.bkp` File Design
@@ -307,7 +314,7 @@ mobile app's contract — no web-only shortcuts allowed.
 | Render (free) | API sleeps after inactivity → cold starts ~30-60 s | Acceptable for v1; health-ping later if needed. |
 | Neon (free) | ~0.5 GB storage, connection limits | Prisma connection pooling; media never in DB. |
 | Vercel (free) | Serverless limits | Frontend only; heavy work lives on the API. |
-| Google Drive | 15 GB per account; not a streaming CDN | Per-org OAuth (each org brings its own quota); playback via Drive preview/stream URLs — accepted v1 limitation. |
+| Google Drive *(designed 2026-09-29, not built)* | 15 GB per personal account; no per-file signed links; per-identity request, write and daily-upload quotas | One Google identity per organization, so quotas never cross customers; bytes stream through our own gateway with range support, never through Drive preview or share links — `Data Storage Architecture/07-google-drive-architecture.md`. |
 | Gmail (transactional mail) | Low daily send limits | Only two mail types in v1: deletion confirmation + sign-up email verification. |
 | Nightly jobs | Render free tier sleeps; no reliable built-in cron | Jobs exposed as a protected API endpoint, triggered by a free external scheduler (GitHub Actions `schedule`). |
 
