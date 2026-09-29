@@ -107,6 +107,7 @@ Relevant existing pieces:
 | `06-risks-and-concerns.md` | Ten risks, ranked — two of which change the design |
 | `07-google-drive-architecture.md` | **Google Drive, designed 2026-09-29, not built** — accounts, postures, the streaming gateway, the stream client, quotas, integrity, delivery plan |
 | `08-google-drive-failure-modes.md` | Every way Drive storage goes wrong, how we find out, and what prevents it |
+| `09-google-drive-cost-and-efficiency.md` | What Drive costs to run — $0, with the gateway on a free VM and never on the API's host — and how fast it is |
 
 **Read 01–06 before proposing a design, and 07–08 before touching Drive.** The conclusions
 below are load-bearing.

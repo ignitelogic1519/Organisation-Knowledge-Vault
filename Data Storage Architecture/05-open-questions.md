@@ -9,8 +9,8 @@ changes.
 > decision log in `README.md`. The behaviour they settle is specified in `docs/structure.md`
 > §9, which is now the normative source.
 >
-> **Questions 9–17 (2026-09-29) are about Google Drive** and are open. They are at the end of
-> this document.
+> **Questions 9–18 (2026-09-29) are about Google Drive** and are open — question 18 concerns the
+> API's hosting and matters with or without Drive. They are at the end of this document.
 
 ---
 
@@ -206,7 +206,7 @@ schema changes and the new endpoints, and log the decisions in the README. Then 
 
 ---
 
-# Google Drive — questions 9 to 17 (2026-09-29)
+# Google Drive — questions 9 to 18 (2026-09-29)
 
 **Already decided by you, 2026-09-29:** Google Drive is the next backend; it serves both
 Google Workspace and personal accounts; both postures — encrypted and readable — are offered on
@@ -260,13 +260,20 @@ everywhere.
 Drive puts bytes through us — both directions, not optional (document 07, §1). Something has to
 carry them.
 
-- **In the API process** — nothing new to deploy; shares 512 MB and the free instance's sleep.
-- **Its own always-on service** — scales on bandwidth, never sleeps, costs money.
+- **In the API process** — nothing new to deploy. **Ruled out for production** (revised
+  2026-09-29): the API's host, Render's free plan, now includes 5 GB of outbound traffic a month,
+  and exceeding it with no card on file shuts down every service until the next month.
+- **Its own service on a free VM** — Oracle Cloud's Always Free tier includes 10 TB of outbound
+  traffic a month; the gateway needs far less processor and memory than the free VM has.
+- **Its own service on a paid host** — about $4–7 a month; the fallback if Oracle is not an
+  option.
 - **Behind Cloudflare's CDN** — ruled out for media: Cloudflare's terms restrict video hosted
   outside Cloudflare.
 
-**My recommendation: in the API process for the first release, behind a feature flag and tight
-concurrency caps; its own service before general availability.**
+**My recommendation, revised for your "free if possible": its own service on one Oracle Cloud
+Always Free VM, from the first release,** with a monthly byte budget that pauses streaming at the
+free allowance rather than billing past it. In-process only on a developer's machine. Document 09
+has the numbers.
 
 ---
 
@@ -331,8 +338,15 @@ for it.
   message when it is reached.
 - **Absorb it**, and price Drive into the plans.
 
-**My recommendation: an allowance per plan, sized generously.** ENCRYPTED organizations cost us
-less — their repeat reads come from the cache — which is one more reason to recommend it.
+*Revised 2026-09-29:* with the gateway on a free VM (question 11), nobody pays up to 10 TB a month
+across all organizations — about 100,000 views of a 100 MB video. The question becomes how that
+free budget is shared.
+
+**My recommendation: each plan's allowance is that plan's share of the free 10 TB**, shown in the
+storage panel, so one organization can never spend everyone else's. At its limit an
+organization's streaming pauses until the 1st; nothing is billed. ENCRYPTED organizations use
+less of it — a re-opened document comes from the reader's own browser — which is one more reason
+to recommend it.
 
 ---
 
@@ -345,6 +359,28 @@ slower than a NAS's.
 **My recommendation: the same on Drive — they stay with us until the authored-content phase (G4),
 which brings the read-through cache from document 06, risk 1.** Files, audio and video are what
 move first, and they are what streaming is for.
+
+---
+
+## 18 · The API's free bandwidth — a risk today, with or without Drive *(added 2026-09-29)*
+
+Render's free plan cut its included outbound bandwidth from 100 GB to **5 GB a month** in April
+2026. With no card on file, going over it **spins down every service until the start of the next
+month** — sign-in, the Constellation, compliance, everything. With a card, each further GB costs
+$0.15.
+
+This is not a Drive problem: the API already sends every JSON response, and it serves the files
+of KVEP organizations and organizations without their own storage — up to 10 MB each — straight
+from Postgres. Five hundred opens of one 10 MB file is 5 GB.
+
+- **A card on file** — a busy month becomes a small bill instead of an outage.
+- **A byte meter on the API** — warns the Knowledge Base team at 60% of the month's allowance,
+  and can stop serving inline files before the limit rather than let the whole product go dark.
+- **Both.**
+
+**My recommendation: both.** The meter keeps it free in practice; the card means that if the
+meter is ever wrong, the product stays up and the cost is a few dollars. This is your call,
+because a card is a spending decision.
 
 ---
 

@@ -1054,8 +1054,9 @@ The status vocabulary is normative, because it is a promise to a reader:
 ### 9.16 Google Drive — scope decided, design in review (2026-09-29)
 
 > **Not built.** This subsection records only what has been decided. The design is
-> `Data Storage Architecture/07-google-drive-architecture.md`, its failure register is `08`, and
-> the choices still open are questions 9–17 in `05`. Each rule of that design is written into
+> `Data Storage Architecture/07-google-drive-architecture.md`, its failure register is `08`, its
+> cost and efficiency are `09`, and the choices still open are questions 9–18 in `05`. Each rule
+> of that design is written into
 > this section as it is decided, and before its code — until then, the rest of §9 describes NAS
 > and KVEP only.
 
@@ -1069,6 +1070,10 @@ The status vocabulary is normative, because it is a promise to a reader:
   (`ENCRYPTED`) and are never compressed; the path that carries document bytes never applies
   transport compression. Compressed bytes cannot be served by range, which is what seeking is,
   and compressing before encrypting leaks information through length.
+- **Free first.** Every part runs on a free tier; a cost is accepted only where it is unavoidable,
+  and is then stated plainly. So the byte path **stops at its free allowance rather than billing
+  past it**: at the monthly limit, new streams and uploads pause until the 1st, and nothing else
+  in the product is affected.
 
 **Fixed by the platform, not by choice** — any Drive design has to live with these:
 
@@ -1079,5 +1084,8 @@ The status vocabulary is normative, because it is a promise to a reader:
   the bandwidth is ours (question 16).
 - **A Google access token is never sent to a browser.** Drive tokens reach everything their
   identity can reach, not one file.
+- **Drive's bytes never pass through the API's host.** Render's free plan includes 5 GB of
+  outbound traffic a month and, with no card on file, shuts every service down until the next
+  month once it is exceeded. The bytes need a machine of their own.
 - **The register entry `cloud-drive` stays `exploring`** until an adapter ships (§9.15).
 

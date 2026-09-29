@@ -1,7 +1,7 @@
 # 07 — Google Drive: the architecture
 
 *Design for review, written 2026-09-29. **Nothing in this document is built.** The owner's
-decisions so far are in the README's decision log; the choices still open are questions 9–17
+decisions so far are in the README's decision log; the choices still open are questions 9–18
 in `05-open-questions.md`; every failure case and its protection is in
 `08-google-drive-failure-modes.md`. Where this document and `docs/structure.md` §9 disagree,
 §9 wins — and §9 describes Drive only as far as §9.16 goes.*
@@ -31,7 +31,7 @@ In your words, then mine.
 
 ## The short version
 
-The ten things that make this design what it is. Everything below expands one of them.
+The eleven things that make this design what it is. Everything below expands one of them.
 
 1. **Bytes cross our infrastructure on Drive, in both directions.** This is not a choice. Drive
    has no signed link for a single file, and its upload endpoint cannot be driven from a
@@ -66,6 +66,9 @@ The ten things that make this design what it is. Everything below expands one of
     *keyless service identity* (Workload Identity Federation) serves enterprises that want no
     person in the chain. We never accept service-account JSON keys and never use domain-wide
     delegation.
+11. **It runs at $0** — Google charges nothing within its quotas, and the gateway lives on a free
+    VM with 10 TB of traffic a month, never on the API's host, whose free plan allows 5 GB. It
+    stops at its free allowance rather than billing past it. Document 09 has the numbers.
 
 **One prerequisite, verified in the code:** the recovery promise in §9.11 (*storage + map +
 `.main` + Supreme password recovers everything*) is not wired yet — `.main` escrows no data key
@@ -127,7 +130,7 @@ Three planes, three jobs:
 | Plane | Runs | Decides | Never holds |
 |-------|------|---------|-------------|
 | **Control** — the API | Render, as today | Who may read what (`can()`), which object, which key, how long a ticket lives | Document bytes in the hot path |
-| **Data** — the stream gateway | In the API process at first, its own service before general availability (§8) | Nothing. It verifies a signature and carries bytes | Permissions, a database, long-lived credentials, keys, plaintext of encrypted objects |
+| **Data** — the stream gateway | Its own service, on a free VM with 10 TB of traffic a month (§8.3, document 09) | Nothing. It verifies a signature and carries bytes | Permissions, a database, long-lived credentials, keys, plaintext of encrypted objects |
 | **Client** — the service worker | The reader's browser | How to satisfy the player's next `Range` request | Keys beyond the lifetime of the page that registered them |
 
 The dividing line is the same one §9.1 draws between catalogue and contents, applied one level
@@ -176,10 +179,13 @@ Available to everyone. The only mode for personal accounts.
 - **On Workspace, connect a dedicated account** — `knowledge-vault@acme.com` rather than a
   named person — and put the folder in a Shared Drive. The setup screen says so.
 - **Launch prerequisites that are easy to miss:** the OAuth client must be **published to
-  production** (an app left in *Testing* has its refresh tokens expire after seven days) and
-  **brand-verified** (until then, an "unverified app" warning and a 100-user cap). `drive.file`
-  needs brand verification only, and a privacy policy that honours Google's API user-data
-  policy.
+  production** — an app left in *Testing* has its refresh tokens expire after seven days. Because
+  `drive.file`, `openid` and `email` are all non-sensitive scopes, publishing needs **no Google
+  review and carries no user cap**. Brand verification is optional: it puts Knowledge Vault's
+  name and logo on the consent screen, and needs a domain we own (document 09). A privacy policy
+  that honours Google's API user-data policy is required either way. *(Corrected 2026-09-29: an
+  earlier version of this section said an unverified app shows a warning and a 100-user cap —
+  that applies only to sensitive and restricted scopes.)*
 
 **Before the organization exists.** §9.3 requires the connection test to pass before the
 creation transaction opens. OAuth is a redirect, so the token arrives before there is an
@@ -300,6 +306,10 @@ Where the speed is actually won, in order of effect:
 7. **Range loading for PDFs** — page one renders before a 150-page manual has downloaded.
 8. **A faststart check at upload** — an MP4 with its index at the end is fixed in the browser
    before encryption, so playback does not have to fetch the end of the file first.
+9. **A ciphertext cache in the reader's browser** — ENCRYPTED documents only, kept still
+   encrypted for a week and bounded in size. Re-opening a document costs no bandwidth at all,
+   and because keys are never stored, the cached copy is as safe as the one in Drive. This is
+   also what keeps the free bandwidth budget in document 09 from being spent twice.
 
 ---
 
@@ -548,10 +558,22 @@ a refresh token, a federation key or `STORAGE_KEK`.
 
 ### 8.3 Where it runs
 
+*Revised 2026-09-29 for cost — the reasoning and the numbers are in document 09.*
+
 | Stage | Where | Why |
 |-------|-------|-----|
-| First release (G1) | Inside the API process, behind a feature flag and tight caps | Nothing new to deploy. Enough to prove the design with real organizations |
-| General availability (G2) | Its own always-on service, from the same repository (`apps/stream`) | Scales on bandwidth rather than on API load; does not sleep the way the free API instance does; can be placed near its readers |
+| Development | Inside the API process, on a developer's machine | Nothing to deploy while building |
+| **Every release, from G1** | **Its own service (`apps/stream`) on one Oracle Cloud Always Free VM** | **10 TB of outbound traffic a month at no cost**, always on, and on a different machine from the API — so a busy month for streaming can never take the rest of the product down |
+
+**Never inside the API in production.** The API's host, Render's free plan, includes 5 GB of
+outbound bandwidth a month, and when it runs out with no card on file Render shuts down every
+service until the next month — the whole product, not only streaming (document 08, H8).
+
+**It stops at its free allowance rather than billing past it.** The gateway meters the bytes it
+sends — to browsers and, for uploads, to Google — against a monthly budget, globally and per
+organization. Owners are warned at 60%, 80% and 95%; at 100%, new streams and uploads are refused
+with a plain message until the 1st, and nothing else is affected. A paused feature, never an
+invoice.
 
 **Not behind Cloudflare's CDN for media.** Cloudflare's terms restrict serving video hosted
 outside Cloudflare's own storage through its CDN. The gateway can sit behind any ordinary load
@@ -871,8 +893,8 @@ share of readers falling back from the service worker, by browser.
 | Phase | Contents | Done when |
 |-------|----------|-----------|
 | **G0 — Foundations** (improves NAS too) | A `RemoteStore` interface that the S3 code moves behind, unchanged in behaviour; the recovery chain of §11; the streaming client (two-pass encryption, the service worker, PDF range loading); header facts recorded at commit; health hysteresis | Every existing storage test passes; a NAS organization revives from `.main` + bucket + Supreme password with its documents re-linked; a 200 MB encrypted video on NAS seeks within target in the S5 browsers |
-| **G1 — Drive, connected account** | OAuth, pending connections, the Picker, the connection test, both postures, uploads, streaming, deletion, health, reconciliation, the map — gateway in-process, behind a flag | A personal account and a Workspace Shared Drive each pass the full canary suite; every G1 item in document 08 has a test |
-| **G2 — Drive, generally available** | The gateway as its own service, the slice cache, the quota governor, dashboards, brand verification, customer setup guide | Targets in §15 met in production for a month |
+| **G1 — Drive, connected account** | OAuth, pending connections, the Picker, the connection test, both postures, uploads, streaming, deletion, health, reconciliation, the map — with the gateway as its own service on the free Oracle VM and its monthly byte budget from day one, behind a feature flag | A personal account and a Workspace Shared Drive each pass the full canary suite; every G1 item in document 08 has a test; the byte budget pauses streaming at its limit in a drill |
+| **G2 — Drive, generally available** | The slice cache, the browser ciphertext cache, the quota governor, dashboards, the customer setup guide; brand verification only if a domain is bought for it | Targets in §15 met in production for a month, at $0 |
 | **G3 — Keyless service identity** | Mode B: our OIDC issuer, generated setup commands, the federated token path | A Workspace test organization connects with no secret held by us, and revoking the binding degrades it within one health check |
 | **G4 — Moving between backends; authored content** | Storage-to-storage migration (NAS ↔ Drive, inline → Drive), copying ciphertext verbatim so keys never change; Studio documents and exams on Drive, with the read-through cache from document 06, risk 1 | An organization moves NAS → Drive with no re-encryption and no document unreadable at any point |
 | **G5 — Optional, spike-gated** | Browser-direct ENCRYPTED reads through a read-only identity (Mode B only); browser-direct uploads if Google ever answers CORS on the continuation endpoint | Only if the numbers justify the added surface |
@@ -895,12 +917,14 @@ share of readers falling back from the service worker, by browser.
 
 **Changed now, with this design:**
 
-- `Data Storage Architecture/README.md` — this document and 08 listed; the owner's decisions of
-  2026-09-29 in the decision log.
+- `Data Storage Architecture/README.md` — this document, 08 and 09 listed; the owner's
+  decisions of 2026-09-29 in the decision log.
+- `09-google-drive-cost-and-efficiency.md` — what this costs to run (nothing, arranged as
+  described there), where the one trap is, and how efficient it is in plain numbers.
 - `00-handoff-brief.md` — the Drive design, and three findings verified in the code.
 - `02-backend-requirements.md` — the old Google Drive section marked superseded; its
   quick-reference rows corrected (no JSON keys; bytes through the gateway).
-- `05-open-questions.md` — questions 9–17.
+- `05-open-questions.md` — questions 9–18.
 - `06-risks-and-concerns.md` — risks 9 and 10.
 - `docs/structure.md` — §9.16 records what is decided, and the register row in §9.15 points
   at it.

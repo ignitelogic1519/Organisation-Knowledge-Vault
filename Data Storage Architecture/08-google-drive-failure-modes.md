@@ -35,14 +35,14 @@ Ranked by likelihood × impact, and by how expensive each would be to discover i
 | Rank | # | The bad case | Why it ranks here |
 |------|---|--------------|-------------------|
 | 1 | A1 | The connected account's refresh token stops working | It *will* happen to most Mode A organizations eventually, and every document stops opening at once |
-| 2 | I1 | Knowledge Vault disappears and an encrypted organization cannot recover | Total, permanent loss — and the recovery chain it depends on is not wired today |
-| 3 | E1 | A PLAIN file is shared publicly from Drive | Confidential content exposed with no involvement from us at all |
-| 4 | A2 | The person whose account holds the files leaves | Personal ownership is the default for My Drive, and people leave |
-| 5 | B2 | Google's rate limits hit during the 9 a.m. induction | The busiest moment is exactly when the quota is exhausted |
-| 6 | C1 | Someone uploads a new version of one of our files in Drive | Silent content substitution, if reads were not pinned |
-| 7 | D1 | Someone trashes the folder | One drag in the Drive UI takes the whole organization offline |
-| 8 | H3 | Our platform is breached | Every connected organization's Knowledge Vault files become reachable |
-| 9 | F3 | The gateway runs out of memory or connections | One overloaded instance fails every organization's streams together |
+| 2 | H8 | The API's host runs out of free bandwidth | Five gigabytes a month, and exceeding it takes the *whole product* offline until the 1st — a risk today, and certain if streaming ever ran through the API |
+| 3 | I1 | Knowledge Vault disappears and an encrypted organization cannot recover | Total, permanent loss — and the recovery chain it depends on is not wired today |
+| 4 | E1 | A PLAIN file is shared publicly from Drive | Confidential content exposed with no involvement from us at all |
+| 5 | A2 | The person whose account holds the files leaves | Personal ownership is the default for My Drive, and people leave |
+| 6 | B2 | Google's rate limits hit during the 9 a.m. induction | The busiest moment is exactly when the quota is exhausted |
+| 7 | C1 | Someone uploads a new version of one of our files in Drive | Silent content substitution, if reads were not pinned |
+| 8 | D1 | Someone trashes the folder | One drag in the Drive UI takes the whole organization offline |
+| 9 | H3 | Our platform is breached | Every connected organization's Knowledge Vault files become reachable |
 | 10 | B1 | Their Drive fills up | Especially personal accounts, where 15 GB is shared with Gmail and Photos |
 
 ---
@@ -62,7 +62,7 @@ Ranked by likelihood × impact, and by how expensive each would be to discover i
 | A9 | **One Google account connects two organizations.** `drive.file` access is per account and app, not per organization, so one token can see both organizations' files | Low · High | Commit and reconciliation check each file's `kvOrg` property | Every write takes its parent from the organization's own stored folder IDs; every commit checks the file carries this organization's property; every ticket names a file ID from our database only. A mismatch is refused and audited | G1 |
 | A10 | **Context-aware access or IP rules** in their Workspace refuse calls from our servers | Low · High | A policy `403` during the test | Named in the test. The Workspace guide publishes the gateway's and API's egress addresses for the admin to allow | G2 |
 | A11 | **External members cannot be added to the Shared Drive**, so a Mode B service account (external to their domain) cannot join | Medium · Medium | Adding it fails on their side; our test sees no drive access | The guide explains both answers: a sharing exception or trust rule for that one account, or Mode A with an internal dedicated account — which needs no external sharing at all | G3 |
-| A12 | **Our OAuth app is unverified** — users see a warning screen, and at most 100 users can connect | High · Medium (at launch) | Before launch | Brand verification is a launch gate for G2. `drive.file` needs only brand verification, not a security assessment | G2 |
+| A12 | **Our OAuth app is left in *Testing*, or later asks for a sensitive scope** — seven-day refresh tokens in the first case; Google's review, a warning screen and a 100-user cap in the second | Low · High | Before launch; any change to the requested scopes | Publish to production before the first customer connects — with only non-sensitive scopes (`drive.file`, `openid`, `email`) that needs no review and carries no user cap. Any change that would add a sensitive scope is a design decision, not a code change. *(Corrected 2026-09-29: this row previously said `drive.file` apps face a warning and a cap.)* | G1 |
 | A13 | **An account in Google's Advanced Protection Program** cannot grant access to most third-party apps | Low · Low | Consent refused | The message says so and suggests a Shared Drive connected through a different account | G1 |
 | A14 | **Our role is downgraded** — Content Manager to Contributor or Viewer — so writes or deletes fail while reads work | Low · Medium | The health check reads the root folder's capabilities (can add children, can trash) | `DEGRADED(PERMISSION)` naming the missing capability; reads continue, uploads pause | G1 |
 
@@ -77,7 +77,7 @@ Ranked by likelihood × impact, and by how expensive each would be to discover i
 | B5 | **A popular file is locked by Google** for about a day (`downloadQuotaExceeded`) — the whole company opening one induction video | Medium · Medium | That error from Drive | ENCRYPTED: the cache means Drive sees about one read per slice per gateway, however many people watch. PLAIN: the gateway copies the file once to a fresh ID, verifies the hash, repoints the course and queues the old file for deletion; if even that fails, the viewer explains that Google has temporarily limited this one file | G2 |
 | B6 | **The Shared Drive reaches 500,000 items**, trash included | Low · High | Our own object count | Warn owners at 80%. Each object is one item plus a handful of month folders, so this is roughly 400,000 documents away — but trash counts, so a Manager emptying trash is the first remedy | G1 |
 | B7 | **Our own project's quota** is exhausted by many organizations at once — in Mode A they all share it | Medium · High | Project-level quota alerts at 70% | A global governor gives each organization a fair share; a quota increase is requested before general availability; Mode B organizations count against their own project | G2 |
-| B8 | **Our bandwidth bill grows with streaming** — unlike NAS, we pay for every byte | High · Medium (to us) | Bytes served per organization | ENCRYPTED cache hits cost Drive nothing and us only the last leg; a per-plan gateway transfer allowance is question 16 | G2 |
+| B8 | **Streaming outgrows the free bandwidth** — unlike NAS, every Drive byte crosses a server we run | Medium · Medium | The gateway's monthly byte meter | The gateway runs on a free VM with 10 TB a month (document 09). It meters every byte it sends against a global and per-organization budget, warns at 60/80/95%, and at 100% **pauses new streams and uploads until the 1st instead of billing**. The browser's ciphertext cache means re-opening an encrypted document costs nothing | G1 |
 
 ## C · Integrity and tampering
 
@@ -124,8 +124,9 @@ Ranked by likelihood × impact, and by how expensive each would be to discover i
 |---|-----------------|-------|-----------------|-------------------------------------------|-------|
 | F1 | **Google Drive has an outage** or a partial one | Low · High | `5xx`, timeouts | Idempotent reads retried with jitter; **hysteresis** — transient failures degrade an organization only after 15 minutes of consecutive failure, so a blip does not pause compliance; cached ENCRYPTED slices keep serving through short outages | G1, cache G2 |
 | F2 | **Drive is slow** — 200–500 ms before its first byte | High · Low | Gateway timings | Warm connections and cached tokens; a prefetch of the first slice when the ticket is issued; small frames; the cache | G1–G2 |
-| F3 | **The gateway is overwhelmed** — memory or connections on a 512 MB instance | Medium · High | Concurrency and memory metrics | Streams, never buffers (≈ 64 KiB per stream); global and per-organization caps answered with `503` and `Retry-After` rather than a collapse; its own service before general availability | G1, G2 |
-| F4 | **The free API instance is asleep** when the first reader of the morning arrives | High · Low | — | Exists today for every request. The gateway becomes an always-on service in G2; ticket issuance stays on the API | G2 |
+| F3 | **The gateway is overwhelmed** — connections or network on its one VM | Medium · High | Concurrency and network metrics | Streams, never buffers (≈ 64 KiB per stream), so memory is never the limit; global and per-organization caps answered with `503` and `Retry-After` rather than a collapse; on its own machine, so an overloaded gateway never slows the API | G1 |
+| F4 | **The free API instance is asleep** when the first reader of the morning arrives | High · Low | — | Exists today for every request. The gateway is always on from the first release; only ticket issuance waits for the API to wake | G1 |
+| F9 | **Oracle reclaims the free VM** as idle — under 20% processor, network and memory use over a week — or has no capacity in the chosen region | Medium · High | The gateway's health check from the API | The Oracle account is upgraded to pay-as-you-go, which stops idle reclamation and keeps the same free allowances, with a $1 budget alert as a tripwire. The gateway is one container, redeployable anywhere in minutes; the fallback host is in document 09 | G1 |
 | F5 | **Token refresh stampede** — a hundred readers arrive as the access token expires | Medium · Low | — | One refresh in flight per organization; refreshed ten minutes before expiry | G1 |
 | F6 | **An MP4 with its index at the end** plays only after its end is fetched | Medium · Low | Detected at upload | The browser moves the index to the front before encrypting; if it cannot, the author is told the video will start slowly | G1 |
 | F7 | **Storage fails mid-exam** | Low · High | — | §9.9 unchanged: the paper is fetched when dealt and cached for the sitting; an attempt is never consumed by a storage failure | G4 |
@@ -153,6 +154,7 @@ Ranked by likelihood × impact, and by how expensive each would be to discover i
 | H5 | **Google changes the Drive API** or its quota model | Medium · Medium | The nightly canary; Google's release notes | Pinned to v3; limits in configuration; the canary runs every night against real accounts | G1 |
 | H6 | **Tests pass and production fails** — the classic storage bug | Medium · High | — | A fake Drive with injectable failures, contract tests, the nightly canary, and chaos drills before each phase ships (document 07, §16) | G1 |
 | H7 | **We cannot see it going wrong** | Medium · High | — | The metrics in document 07, §15, per organization and global, with alerts on error rate, quota consumption, fallback rate and degraded organizations | G2 |
+| H8 | **The API's host runs out of free bandwidth and shuts the whole product down.** Render's free plan includes 5 GB of outbound traffic a month since April 2026; with no card on file, exceeding it spins down every service until the next month | High · Critical *if streaming ever ran through the API* | Render's usage page; a byte meter on the API | **Drive bytes never flow through the API in production** — the gateway is a separate machine (document 07, §8.3). The trap also exists today, without Drive: the API serves every JSON response and the files of KVEP organizations and organizations without their own storage. A card on file (turning a shutdown into $0.15 a GB) and a byte meter warning at 60% are question 18 | G0 |
 
 ## I · Lifecycle, custody and exit
 
