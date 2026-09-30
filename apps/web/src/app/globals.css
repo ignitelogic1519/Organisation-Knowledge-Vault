@@ -14277,3 +14277,17 @@ html.kv-pointer-on * {
     padding: 1.1rem 1rem;
   }
 }
+
+.gdrive-missing {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.gdrive-missing summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.gdrive-missing code {
+  word-break: break-all;
+}

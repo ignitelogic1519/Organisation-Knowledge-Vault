@@ -61,7 +61,10 @@ export const storageApi = {
 
   // ── Google Drive (§9.16) ──────────────────────────────────────────────────
   /** Whether this platform has a Google sign-in client at all. */
-  googleStatus: () => api<{ configured: boolean; gatewayExternal: boolean }>("/storage/google/status"),
+  googleStatus: () =>
+    api<{ configured: boolean; gatewayExternal: boolean; missing?: string[]; redirectUri?: string }>(
+      "/storage/google/status",
+    ),
   /** The URL that starts a Google sign-in, opened in a pop-up. */
   googleAuthorize: (intent: "create" | "reconnect", orgId?: string) =>
     api<{ url: string }>("/storage/google/authorize", {
