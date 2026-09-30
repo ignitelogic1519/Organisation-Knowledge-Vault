@@ -8,6 +8,7 @@ import type {
   StorageTestResult,
 } from "@vault/shared";
 import { storageApi } from "@/lib/storage-client";
+import { ApiError } from "@/lib/auth-client";
 import { connectGoogle, type GoogleConnectHandle } from "@/lib/google-connect";
 
 // The Google Drive setup fieldset (docs/structure.md §9.16), shared by organization
@@ -38,6 +39,11 @@ export function GoogleDriveSetup({
   requiredAccount?: string | null;
 }) {
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
+  const [redirectUri, setRedirectUri] = useState<string | null>(null);
+  // Set when we could not ask at all — a different problem from "not switched on", and
+  // saying the wrong one sends people looking in the wrong place.
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [connection, setConnection] = useState<GdriveConnectionView | null>(null);
   const [connecting, setConnecting] = useState<GoogleConnectHandle | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -47,12 +53,26 @@ export function GoogleDriveSetup({
   const [testing, setTesting] = useState(false);
   const connectionRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  const checkStatus = () => {
+    setStatusError(null);
+    setConfigured(null);
     storageApi
       .googleStatus()
-      .then((s) => setConfigured(s.configured))
-      .catch(() => setConfigured(false));
-  }, []);
+      .then((s) => {
+        setConfigured(s.configured);
+        setMissing(s.missing ?? []);
+        setRedirectUri(s.redirectUri ?? null);
+      })
+      .catch((err: unknown) => {
+        setStatusError(
+          err instanceof ApiError && err.status === 404
+            ? "Knowledge Vault's server is still running a version without Google Drive. Its update may still be deploying — try again in a few minutes."
+            : "Knowledge Vault's server did not answer. It may be starting up — try again in a moment.",
+        );
+      });
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(checkStatus, []);
 
   // Tell the surrounding form what would be saved, and retract any test result the
   // moment something it depended on changes.
@@ -117,6 +137,18 @@ export function GoogleDriveSetup({
     }
   }
 
+  if (statusError) {
+    return (
+      <div className="warn-box">
+        <strong>We could not check whether Google Drive is available.</strong>
+        <p>{statusError}</p>
+        <button type="button" className="btn btn-small" onClick={checkStatus}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   if (configured === false) {
     return (
       <div className="info-box">
@@ -125,6 +157,31 @@ export function GoogleDriveSetup({
           The platform needs its own Google sign-in client before any organization can connect a
           Drive. Ask the Knowledge Base team — it is a one-time setup on their side.
         </p>
+        {missing.length > 0 && (
+          <details className="gdrive-missing">
+            <summary>For the Knowledge Base team</summary>
+            <p>
+              Set {missing.length === 1 ? "this setting" : "these settings"} on the API service
+              (Render → Environment), then redeploy:
+            </p>
+            <ul>
+              {missing.map((m) => (
+                <li key={m}>
+                  <code>{m}</code>
+                </li>
+              ))}
+            </ul>
+            {redirectUri && (
+              <p>
+                The Google OAuth client&rsquo;s authorized redirect URI must be exactly{" "}
+                <code>{redirectUri}</code>.
+              </p>
+            )}
+            <p>
+              Step by step: <code>docs/storage-setup-guide.md</code>, Part 4.2.
+            </p>
+          </details>
+        )}
       </div>
     );
   }

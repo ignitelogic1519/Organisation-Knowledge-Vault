@@ -47,6 +47,7 @@ import {
   dropAccessToken,
   exchangeCode,
   googleConfigured,
+  googleRedirectUri,
   primeAccessToken,
   readState,
   revokeToken,
@@ -458,10 +459,21 @@ export async function storageRoutes(app: FastifyInstance) {
   // ── Google sign-in (§9.16) ─────────────────────────────────────────────────
 
   /** Whether this platform can offer Google Drive at all. */
-  app.get("/storage/google/status", { preHandler: app.authenticate }, async () => ({
-    configured: googleConfigured() && storageKekConfigured(),
-    gatewayExternal: gatewayIsExternal(),
-  }));
+  app.get("/storage/google/status", { preHandler: app.authenticate }, async () => {
+    // Names only, never values: the storage form shows the platform team exactly which
+    // setting is missing instead of a vague "not switched on".
+    const missing = [
+      ...(process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() ? [] : ["GOOGLE_OAUTH_CLIENT_ID"]),
+      ...(process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim() ? [] : ["GOOGLE_OAUTH_CLIENT_SECRET"]),
+      ...(storageKekConfigured() ? [] : ["STORAGE_KEK"]),
+    ];
+    return {
+      configured: googleConfigured() && storageKekConfigured(),
+      gatewayExternal: gatewayIsExternal(),
+      missing,
+      redirectUri: googleRedirectUri(),
+    };
+  });
 
   /** Start a sign-in. The browser opens the returned URL in a pop-up. */
   app.post("/storage/google/authorize", { preHandler: app.authenticate }, async (req, reply) => {
