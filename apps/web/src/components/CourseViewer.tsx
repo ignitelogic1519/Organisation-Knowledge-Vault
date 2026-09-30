@@ -5,6 +5,7 @@ import { versionLabel, type AuthoredBlock, type Classification, type DownloadTic
 import { ApiError, authFetch } from "@/lib/auth-client";
 import { courses, downloadBlob } from "@/lib/courses-client";
 import { fetchAndDecrypt } from "@/lib/storage-crypto";
+import { openStream } from "@/lib/stream-sw";
 import { isSingleViewDevice, openInWindow } from "@/lib/reader-window";
 import { CourseExam } from "./CourseExam";
 import { AuthoredBlockView, DocumentPages, paginate } from "./DocumentView";
@@ -159,6 +160,7 @@ export function CourseViewer({
   // on the browser's flaky iframe PDF viewer); links embed; authored → block array.
   useEffect(() => {
     let blobUrl: string | null = null;
+    let closeStream: (() => void) | null = null;
     let cancelled = false;
     setSrc(null);
     setAuthored(null);
@@ -191,16 +193,41 @@ export function CourseViewer({
           if (cancelled) return;
           if (data.authored) setAuthored(data.authored);
           else if (data.downloadUrl) {
-            // An object in the organization's own storage: fetch the ciphertext straight
-            // from their hardware and decrypt it here. Nothing routes through our API.
-            const bytes = await fetchAndDecrypt(data as unknown as DownloadTicket);
-            if (cancelled) return;
-            const mime = (data as unknown as DownloadTicket).mime || "application/octet-stream";
+            const ticket = data as unknown as DownloadTicket;
+            const mime = ticket.mime || "application/octet-stream";
             const kind = renderKind(mime);
             if (!kind) {
               setUnpreviewable(mime);
               return;
             }
+            // Audio and video in Google Drive stream through the service worker: playback
+            // starts after the first small frame, and seeking fetches only what it needs,
+            // decrypted here in the browser (docs/structure.md §9.16). Anything else — and
+            // any browser without a service worker — is fetched whole and opened below.
+            if (
+              ticket.transport === "gateway" &&
+              (kind === "video" || kind === "audio") &&
+              (!ticket.encrypted || !!ticket.stream)
+            ) {
+              const opened = await openStream(ticket, async () => {
+                const again = await authFetch(`/courses/${item.code}/content`);
+                if (!again.ok) throw new Error("Could not renew access");
+                return (await again.json()) as DownloadTicket;
+              });
+              if (cancelled) {
+                opened?.close();
+                return;
+              }
+              if (opened) {
+                closeStream = opened.close;
+                setFile({ kind, url: opened.src, buf: new ArrayBuffer(0) });
+                return;
+              }
+            }
+            // An object in the organization's own storage: fetch it (straight from their
+            // NAS, or through the gateway for Google Drive) and decrypt it here.
+            const bytes = await fetchAndDecrypt(ticket);
+            if (cancelled) return;
             const buf = bytes.slice().buffer as ArrayBuffer;
             blobUrl = URL.createObjectURL(new Blob([buf], { type: mime }));
             setFile({
@@ -248,6 +275,7 @@ export function CourseViewer({
     return () => {
       cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
+      closeStream?.();
     };
   }, [item.code, isExam]);
 
@@ -326,6 +354,14 @@ export function CourseViewer({
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? "Download failed");
+      }
+      // A document in the organization's own storage answers with a ticket, not the
+      // file: fetch (and decrypt) it the way the viewer does, then save that.
+      if ((res.headers.get("content-type") ?? "").includes("application/json")) {
+        const ticket = (await res.json()) as DownloadTicket;
+        const bytes = await fetchAndDecrypt(ticket);
+        downloadBlob(new Blob([bytes.slice().buffer as ArrayBuffer], { type: ticket.mime }), ticket.filename);
+        return;
       }
       const cd = res.headers.get("content-disposition") ?? "";
       const name = /filename="?([^"]+)"?/.exec(cd)?.[1] ?? `${item.code}`;

@@ -12,9 +12,10 @@ import { AppShell } from "@/components/AppShell";
 import { useDialogs } from "@/components/dialogs";
 import { IconGrid, IconHelp, IconUser } from "@/components/icons";
 import { StorageSetupFields, emptyStorageConfig } from "@/components/StorageSetupFields";
+import { GoogleDriveSetup } from "@/components/GoogleDriveSetup";
 import { OrgLogoField } from "@/components/OrgLogoField";
 import { PasswordSetup } from "@/components/PasswordSetup";
-import type { StorageConfigInput } from "@vault/shared";
+import type { GdriveStorageConfigInput, S3StorageConfigInput } from "@vault/shared";
 
 const NAV = [
   { href: "/orgs", label: "Organizations", icon: <IconGrid /> },
@@ -30,10 +31,13 @@ export default function NewOrgPage() {
   const [busy, setBusy] = useState(false);
   // Where this organization's documents will live (docs/structure.md §9.3). Tested
   // before the organization is created, so a failed test costs nothing.
-  const [storage, setStorage] = useState<StorageConfigInput>(emptyStorageConfig);
-  // Where the documents go. NAS is the ordinary answer; KVEP is our staff perk, which
-  // skips storage entirely and keeps content in our database (docs/structure.md §9.13).
-  const [mode, setMode] = useState<"NAS" | "KVEP">("NAS");
+  const [storage, setStorage] = useState<S3StorageConfigInput>(emptyStorageConfig);
+  // Where the documents go: a NAS the organization runs, its Google Drive (§9.16), or —
+  // for our own staff — KVEP, which skips storage entirely and keeps content in our
+  // database (docs/structure.md §9.13).
+  const [mode, setMode] = useState<"NAS" | "GDRIVE" | "KVEP">("NAS");
+  const [gdrive, setGdrive] = useState<GdriveStorageConfigInput | null>(null);
+  const [gdriveTested, setGdriveTested] = useState(false);
   const [kvepUser, setKvepUser] = useState("");
   const [kvepPass, setKvepPass] = useState("");
   const [kvepCheck, setKvepCheck] = useState<"idle" | "checking" | "ok" | "bad">("idle");
@@ -50,11 +54,14 @@ export default function NewOrgPage() {
   // field clears it again (StorageSetupFields calls back with false).
   const [storageTested, setStorageTested] = useState(false);
   // Switching between NAS and KVEP swaps which proof is required, and neither carries over.
-  const proofReady = mode === "NAS" ? storageTested : kvepCheck === "ok";
+  const proofReady =
+    mode === "NAS" ? storageTested : mode === "GDRIVE" ? gdriveTested && !!gdrive : kvepCheck === "ok";
   const proofNote =
     mode === "NAS"
       ? "Run “Test connection” on your storage first — an organization whose storage cannot be reached can never accept an upload."
-      : "Check the super-admin credentials first — the employee perk is only granted against an account we can verify.";
+      : mode === "GDRIVE"
+        ? "Connect your Google account, confirm who the files will belong to, and run “Test connection” first."
+        : "Check the super-admin credentials first — the employee perk is only granted against an account we can verify.";
 
   // Plan chooser (shown beside the form)
   const [plans, setPlans] = useState<PricingPlanView[]>([]);
@@ -115,7 +122,9 @@ export default function NewOrgPage() {
       // the creator is one of our staff.
       ...(mode === "KVEP"
         ? { kvepAdmin: { username: kvepUser.trim(), password: kvepPass } }
-        : { storage }),
+        : mode === "GDRIVE"
+          ? { storage: gdrive ?? undefined }
+          : { storage }),
       ...(logo ? { logo } : {}),
     });
     if (!parsed.success) {
@@ -253,6 +262,19 @@ export default function NewOrgPage() {
               <input
                 type="radio"
                 name="storageMode"
+                checked={mode === "GDRIVE"}
+                onChange={() => setMode("GDRIVE")}
+              />
+              <span>
+                <strong>Google Drive.</strong> Your documents live in a folder in your Google
+                Drive — a personal Google account or Google Workspace. Knowledge Vault can only
+                see the files it creates there.
+              </span>
+            </label>
+            <label className="ack-row">
+              <input
+                type="radio"
+                name="storageMode"
                 checked={mode === "KVEP"}
                 onChange={() => setMode("KVEP")}
               />
@@ -271,6 +293,8 @@ export default function NewOrgPage() {
               onTested={setStorageTested}
               webOrigin={typeof window === "undefined" ? "" : window.location.origin}
             />
+          ) : mode === "GDRIVE" ? (
+            <GoogleDriveSetup intent="create" onChange={setGdrive} onTested={setGdriveTested} />
           ) : (
             <div className="kvep-fields">
               <div className="info-box">

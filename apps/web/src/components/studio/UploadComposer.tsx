@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { OrgPlanLimitsView, PublishCheck, StorageView } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses, fileToBase64 } from "@/lib/courses-client";
-import { uploadFile } from "@/lib/storage-client";
+import { uploadFile, uploadStageLabel } from "@/lib/storage-client";
 import { useDialogs } from "@/components/dialogs";
 import { DocumentProperties } from "./DocumentProperties";
 import { Row } from "./fields";
@@ -84,7 +84,9 @@ export function UploadComposer({
 
   const maxNote =
     orgStorage?.status === "ACTIVE"
-      ? "Up to 200 MB — it goes straight to your own storage."
+      ? orgStorage.adapter === "gdrive"
+        ? "Up to 200 MB — it goes to your organization's Google Drive."
+        : "Up to 200 MB — it goes straight to your own storage."
       : "Up to 10 MB while the organization has no storage of its own connected.";
 
   const take = useCallback((f: File | null) => {
@@ -144,16 +146,8 @@ export function UploadComposer({
       // hardware and we only pass on the reference (docs/structure.md §9.3).
       let uploaded: { storageObjectId: string } | null = null;
       if (file && orgStorage?.status === "ACTIVE") {
-        uploaded = await uploadFile(orgId, file, (s) =>
-          setStage(
-            s === "encrypting"
-              ? "Encrypting in this browser…"
-              : s === "uploading"
-                ? "Uploading to your storage…"
-                : s === "finishing"
-                  ? "Finishing…"
-                  : "Preparing…",
-          ),
+        uploaded = await uploadFile(orgId, file, (s, fraction) =>
+          setStage(uploadStageLabel(s, fraction)),
         );
         setStage(null);
       }
@@ -325,11 +319,18 @@ export function UploadComposer({
               </div>
             )}
 
-            {orgStorage?.status === "ACTIVE" && kind !== "LINK" && (
+            {orgStorage?.status === "ACTIVE" && kind !== "LINK" && orgStorage.adapter !== "gdrive" && (
               <p className="insp-note">
                 It goes straight from this browser to your own storage
                 {orgStorage.encryption === "ENCRYPTED" ? ", encrypted here first" : ""} — the bytes
                 never pass through Knowledge Vault.
+              </p>
+            )}
+            {orgStorage?.status === "ACTIVE" && kind !== "LINK" && orgStorage.adapter === "gdrive" && (
+              <p className="insp-note">
+                {orgStorage.encryption === "ENCRYPTED"
+                  ? "It is encrypted in this browser first, then passes through Knowledge Vault's streaming service to your Google Drive — locked the whole way, and never kept."
+                  : "It passes through Knowledge Vault's streaming service to your Google Drive, and is never kept on the way."}
               </p>
             )}
             {orgStorage?.status === "DEGRADED" && (

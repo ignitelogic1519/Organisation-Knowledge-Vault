@@ -342,6 +342,34 @@ export const NOTIFICATION_KINDS: Record<string, NotificationKindMeta> = {
     sublabel: "Storage",
     icon: "✅",
   },
+  // Google Drive housekeeping (docs/structure.md §9.16): the folder was taken back out
+  // of the trash, or someone changed our files in Drive's own interface.
+  storage_restored_folder: {
+    label: "Your Knowledge Vault folder was restored",
+    category: "SYSTEM",
+    priority: "HIGH",
+    retentionDays: RETENTION_DAYS.SYSTEM,
+    sublabel: "Storage",
+    icon: "♻️",
+  },
+  storage_reconcile: {
+    label: "Changes were found in your Drive folder",
+    category: "SYSTEM",
+    priority: "HIGH",
+    retentionDays: RETENTION_DAYS.SYSTEM,
+    sublabel: "Storage",
+    icon: "🔍",
+  },
+  // Google Drive's monthly streaming allowance (docs/structure.md §9.16): a warning at
+  // 60%, 80% and 95%, and a HIGH notice when it pauses at 100%.
+  streaming_allowance: {
+    label: "Streaming allowance",
+    category: "SYSTEM",
+    priority: "NORMAL",
+    retentionDays: RETENTION_DAYS.SYSTEM,
+    sublabel: "Storage",
+    icon: "📶",
+  },
 };
 
 /** Sub-labels for request messages, derived from the request kind they carry. */

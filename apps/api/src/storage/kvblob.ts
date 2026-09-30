@@ -32,6 +32,8 @@ function nonceFor(base: Buffer, counter: number): Buffer {
 export interface SealedBlob {
   blob: Buffer;
   header: KvblobHeader;
+  /** Where frame 0 starts: magic, length and header JSON. */
+  headerBytes: number;
   /** Wrap this object's key under the org DEK, once its final key is known. */
   wrapFileKey: (dek: Buffer, objectKey: string) => string;
 }
@@ -45,18 +47,29 @@ export interface SealedBlob {
 export function encryptToKvblob(
   plaintext: Buffer,
   fileKey: Buffer,
-  meta: { mime: string; filename: string; sha256?: string },
+  meta: {
+    mime: string;
+    filename: string;
+    sha256?: string;
+    /** Plaintext bytes per frame; the reader takes it from the header. */
+    frameBytes?: number;
+    /** The file key wrapped under the org DEK, carried in the header (§9.11). */
+    wrappedKey?: string;
+    objectKey?: string;
+  },
 ): SealedBlob {
   const nonceBase = randomBytes(NONCE_BASE_BYTES);
+  const frameBytes = meta.frameBytes ?? KVBLOB_FRAME_BYTES;
   const header: KvblobHeader = {
     v: 1,
     alg: "AES-256-GCM",
-    frame: KVBLOB_FRAME_BYTES,
+    frame: frameBytes,
     nonceBase: nonceBase.toString("base64"),
     size: plaintext.length,
     sha256: meta.sha256 ?? sha256Hex(plaintext),
     mime: meta.mime,
     filename: meta.filename,
+    ...(meta.wrappedKey && meta.objectKey ? { wk: meta.wrappedKey, ok: meta.objectKey, dv: 1 } : {}),
   };
 
   const headerBuf = Buffer.from(JSON.stringify(header), "utf8");
@@ -66,9 +79,9 @@ export function encryptToKvblob(
   const frames: Buffer[] = [];
   // A zero-length file still produces one (empty) frame, so the reader's loop is
   // uniform and an empty object is distinguishable from a truncated one.
-  const frameCount = Math.max(1, Math.ceil(plaintext.length / KVBLOB_FRAME_BYTES));
+  const frameCount = Math.max(1, Math.ceil(plaintext.length / frameBytes));
   for (let i = 0; i < frameCount; i += 1) {
-    const slice = plaintext.subarray(i * KVBLOB_FRAME_BYTES, (i + 1) * KVBLOB_FRAME_BYTES);
+    const slice = plaintext.subarray(i * frameBytes, (i + 1) * frameBytes);
     const cipher = createCipheriv("aes-256-gcm", fileKey, nonceFor(nonceBase, i));
     frames.push(cipher.update(slice), cipher.final(), cipher.getAuthTag());
   }
@@ -76,6 +89,7 @@ export function encryptToKvblob(
   return {
     blob: Buffer.concat([Buffer.from(KVBLOB_MAGIC, "ascii"), lenBuf, headerBuf, ...frames]),
     header,
+    headerBytes: KVBLOB_MAGIC.length + 4 + headerBuf.length,
     wrapFileKey: (dek, objectKey) => wrapFileKey(dek, fileKey, objectKey),
   };
 }

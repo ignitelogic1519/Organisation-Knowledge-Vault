@@ -1,10 +1,42 @@
 # 07 — Google Drive: the architecture
 
-*Design for review, written 2026-09-29. **Nothing in this document is built.** The owner's
-decisions so far are in the README's decision log; the choices still open are questions 9–18
+*Design written 2026-09-29; **built the same day, in part** — see "As built" below. The
+owner's decisions are in the README's decision log; the choices still open are questions 9–18
 in `05-open-questions.md`; every failure case and its protection is in
 `08-google-drive-failure-modes.md`. Where this document and `docs/structure.md` §9 disagree,
-§9 wins — and §9 describes Drive only as far as §9.16 goes.*
+§9 wins — and §9.16 is now the rule for what exists.*
+
+## As built (2026-09-30)
+
+**Shipped** — phase G0 and most of G1 (§16), behind no flag: it is live once the platform has a
+Google OAuth client (`docs/storage-setup-guide.md` Part 4.2).
+
+| Part of this design | As built |
+|---|---|
+| §3.2 Mode A, a connected account | ✅ Personal and Workspace accounts, into the account's **My Drive**. PKCE, `drive.file` only, sealed state, pending connections, the seven-step test, same-account reconnection |
+| §4 Both postures | ✅ `ENCRYPTED` and `PLAIN`, fixed at activation |
+| §6 The layout | ✅ `Knowledge Vault — <org>/objects/YYYY-MM/`, README, health file, `kvOrg`/`kvObj` properties |
+| §7.1 Upload | ✅ Two passes, 256 KiB frames, 8 MiB chunks through the gateway, pre-generated IDs, resume from Google's confirmed offset, commit against `sha256Checksum`, revision kept forever |
+| §7.2 Reading | ✅ The service worker for audio and video, with seeking and a small decrypted-frame cache; everything else fetched whole and decrypted in the browser |
+| §7.4 Range → frames | ✅ `kvblobCipherRange` in `@vault/shared`, mirrored in the worker |
+| §8 The gateway | ✅ Ed25519 tickets, per-org epoch ("Close open document links"), the monthly byte budget with owner warnings at 60/80/95% and a pause at 100%. **Where it runs changed — §8.3** |
+| §11 Recovery chain | ✅ Wrapped file keys in every header (NAS too), the data key and object index in `.main`, `recovery-tool/kv-recover.mjs` |
+| §12 Health, hysteresis, reconciliation | ✅ Definitive failures degrade at once, transient after 15 minutes; nightly reconciliation restores trashed documents, reports replaced and missing ones, and queues orphans |
+| §16 Testing — the fake Drive | ✅ `apps/api/test/fake-google.mjs`, 17 tests, and a browser walk-through of every flow |
+
+**Not built yet:**
+
+- **Shared Drives and the Google Picker** (§3.2, spike S4) — `gdriveTarget` is always
+  `MY_DRIVE`. On Workspace the setup screen recommends a dedicated account instead.
+- **Mode B, the keyless service identity** (§3.3, phase G3).
+- **Moving between backends** (phase G4): a connected NAS cannot become Drive or the reverse.
+  Inline files do migrate onto Drive.
+- **Phase G2**: the gateway's slice cache, the browser ciphertext cache, the quota governor,
+  dashboards. PDF range loading (§7.2) — PDFs load whole.
+- **The hot-file copy for `PLAIN`** (§9, `downloadQuotaExceeded`): the reader is told to try
+  later instead.
+- **The nightly canary against real Google accounts**, and the full browser matrix (spike S5):
+  the walk-through ran on Chromium.
 
 *References: **§9.x** is `docs/structure.md` §9; a bare **§7** or **§12** is a section of this
 document; **question N** is in `05-open-questions.md`; **A1**, **E1** and so on are rows of
@@ -67,12 +99,14 @@ The eleven things that make this design what it is. Everything below expands one
     person in the chain. We never accept service-account JSON keys and never use domain-wide
     delegation.
 11. **It runs at $0** — Google charges nothing within its quotas, and the gateway lives on a free
-    VM with 10 TB of traffic a month, never on the API's host, whose free plan allows 5 GB. It
-    stops at its free allowance rather than billing past it. Document 09 has the numbers.
+    VM with 10 TB of traffic a month. *(As built: it ships inside the API capped at 2 GiB a month,
+    so it can never spend the API host's 5 GB — §8.3.)* It stops at its free allowance rather than
+    billing past it. Document 09 has the numbers.
 
 **One prerequisite, verified in the code:** the recovery promise in §9.11 (*storage + map +
-`.main` + Supreme password recovers everything*) is not wired yet — `.main` escrows no data key
-and no per-file keys. It must be wired before encrypted Drive storage ships. See §11.
+`.main` + Supreme password recovers everything*) was not wired — `.main` escrowed no data key
+and no per-file keys. It had to be wired before encrypted Drive storage shipped, and was: see
+§11 and `recovery-tool/`.
 
 ---
 
@@ -565,9 +599,15 @@ a refresh token, a federation key or `STORAGE_KEK`.
 | Development | Inside the API process, on a developer's machine | Nothing to deploy while building |
 | **Every release, from G1** | **Its own service (`apps/stream`) on one Oracle Cloud Always Free VM** | **10 TB of outbound traffic a month at no cost**, always on, and on a different machine from the API — so a busy month for streaming can never take the rest of the product down |
 
-**Never inside the API in production.** The API's host, Render's free plan, includes 5 GB of
-outbound bandwidth a month, and when it runs out with no card on file Render shuts down every
-service until the next month — the whole product, not only streaming (document 08, H8).
+**As built (2026-09-30): inside the API, under a budget that cannot reach the trap.** The
+API's host, Render's free plan, includes 5 GB of outbound bandwidth a month, and when it runs
+out with no card on file Render shuts down every service until the next month — the whole
+product, not only streaming (document 08, H8). Rather than require a second machine before
+Drive can be used at all, the gateway runs inside the API **by default with a 2 GiB monthly
+allowance** — small enough that Drive can never spend the 5 GB, big enough to set Drive up and
+try it. Setting `STREAM_GATEWAY_URL` moves it to its own service (`apps/api/src/stream-server.ts`,
+`start:stream`) on the Oracle VM, and the allowance rises to 9.5 TiB. That is still the
+recommended arrangement for real use; `docs/storage-setup-guide.md` Part 4.4 has the steps.
 
 **It stops at its free allowance rather than billing past it.** The gateway meters the bytes it
 sends — to browsers and, for uploads, to Google — against a monthly budget, globally and per

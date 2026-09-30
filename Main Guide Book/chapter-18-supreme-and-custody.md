@@ -48,6 +48,20 @@ deleted and the 30-day retention period in the Recovery has passed.
 
 Select **⬇ Download** to export it. **Keep it somewhere safe and offline.**
 
+**It also opens your documents.** When your organization stores its documents encrypted — on a
+NAS or in Google Drive — the `.main` file carries the key that unlocks them. With three things,
+a small recovery tool (`recovery-tool/kv-recover.mjs`, one file that never touches the network)
+opens every document **without Knowledge Vault at all**:
+
+1. a copy of your storage — the bucket's `objects` folder, or the *Knowledge Vault* folder
+   downloaded from Google Drive;
+2. the `.main` file;
+3. the Supreme password.
+
+Each document is checked against the fingerprint recorded when it was uploaded, and one that
+was altered is reported instead of written out. **Export a fresh `.main` after you connect
+storage** — a file exported before then does not carry the key.
+
 ### Deleting the organization
 The **Delete organization** action begins a **30-day retention** period, after which the org
 is purged and **only the `.main` file can bring it back**. The platform insists you download

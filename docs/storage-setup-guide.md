@@ -2,7 +2,9 @@
 
 > Practical companion to `docs/structure.md` §9. Part 1 turns a folder on your own laptop
 > into a NAS you can test against today. Part 2 puts it on the internet with Cloudflare
-> Tunnel. Part 3 is the version you hand to a customer with a real NAS.
+> Tunnel. Part 3 is the version you hand to a customer with a real NAS. **Part 4 is Google
+> Drive** — switching it on once for the platform, testing it on a laptop without a Google
+> account, and what an owner does.
 >
 > **Start with Part 1 and Track A.** It needs no Cloudflare account, no domain, no NAS, and
 > nothing exposed to the internet. Get that working before adding anything else.
@@ -516,6 +518,194 @@ what you just did on your laptop.
 
 ---
 
+## Part 4 — Google Drive
+
+Google Drive works differently from a NAS in one way that matters: Google gives no private
+link for a single file, so documents pass through Knowledge Vault's **streaming gateway** on
+their way to and from the Drive (`docs/structure.md` §9.16). Everything else — the two
+postures, the connection test, the degraded state, the recovery chain — is the NAS model.
+
+### 4.1 · Try it on your laptop first, against a fake Google
+
+`apps/api/test/fake-google.mjs` is a stand-in for Google's sign-in and the part of the Drive
+API we use. It signs you in instantly as `owner@example.com` with a 2 TB Drive, keeps
+everything in memory, and behaves like Google where it matters (PKCE, revocable tokens,
+resumable uploads, byte ranges, revisions).
+
+```bash
+# Terminal 1 — the fake Google, on :4999
+cd apps/api && node test/fake-google.mjs
+```
+
+In `apps/api/.env` set `GOOGLE_OAUTH_CLIENT_ID=fake-client`,
+`GOOGLE_OAUTH_CLIENT_SECRET=fake-secret`, and uncomment the five `GOOGLE_*_URL` lines from
+`.env.example`. Then start the API and the web app as in Track A (A2).
+
+1. **Create an organization** → *Where your documents will live* → **Google Drive**.
+2. **Connect your Google account.** A pop-up opens, lands on "Google account connected" and
+   closes itself; the form says *Connected as owner@example.com*.
+3. Choose **Encrypted** or **Readable files**, tick the acknowledgement, **Test connection** —
+   seven ticks — then **Create organization**.
+4. **Upload a video** (Courses → *+ Upload course* → Video). Open it: it plays, and seeking
+   jumps straight there. Upload a PDF and open it too.
+5. **Look inside the fake Drive:** `curl -s localhost:4999/__fake/files` lists every file —
+   `.kvblob` names for Encrypted, the real file names for Readable.
+6. **Drill a failure:** `curl -X POST localhost:4999/__fake/revoke-all` (as if the owner removed
+   our access in their Google account), then **Check connection** in the storage panel: it
+   turns to *We cannot reach your storage*, with the reason. Readers see *waiting on your
+   storage*. **Reconnect Google** with the same account and it is back.
+
+Restarting the fake wipes its memory, so every organization you connected to it degrades.
+Create a new one.
+
+### 4.2 · Switch it on for real — once, for the whole platform
+
+This is the only setup Google Drive needs from us. It takes about fifteen minutes and costs
+nothing. You need the address of the deployed API (for example
+`https://knowledge-vault-api.onrender.com`) and of the web app.
+
+**1. A Google Cloud project.** Sign in to <https://console.cloud.google.com> with the account
+the platform should be administered from → the project picker at the top → **New project** →
+name it `Knowledge Vault` → **Create**, and make sure it is selected.
+
+**2. Turn on the Drive API.** ☰ → **APIs & Services** → **Library** → search *Google Drive API*
+→ **Enable**.
+
+**3. The consent screen** — what an owner sees when they connect. ☰ → **Google Auth Platform**
+(older consoles: *APIs & Services → OAuth consent screen*) → **Get started**:
+
+| Screen | What to enter |
+|---|---|
+| App information | App name **Knowledge Vault**; user support email: yours |
+| Audience | **External** — so personal Gmail accounts and every company's Workspace can connect |
+| Contact information | Your email |
+
+Then, in **Branding**: the application home page is the web app's address, and the privacy
+policy link is **`<web app>/privacy/google`** — the page that says exactly what we reach and
+keep, which Google's user-data policy requires. Leave the logo empty: adding one makes Google
+review the brand first.
+
+In **Data access** → **Add or remove scopes**, tick exactly these three and save:
+
+- `.../auth/drive.file` — *See, edit, create, and delete only the specific Google Drive files
+  you use with this app*
+- `openid`
+- `.../auth/userinfo.email`
+
+All three are **non-sensitive**, so there is no Google review, no warning screen and no user
+limit. Do not add any other Drive scope: every broader one is sensitive or restricted, and
+brings a review and a warning screen with it.
+
+**4. The client.** **Clients** → **Create client** → application type **Web application** →
+name it `Knowledge Vault API`. Under **Authorized redirect URIs** add exactly:
+
+```
+https://<your-api>/storage/google/callback
+```
+
+for example `https://knowledge-vault-api.onrender.com/storage/google/callback`. No JavaScript
+origins are needed — the browser never calls Google's API itself. **Create**, then copy the
+**Client ID** and **Client secret** (the secret is shown once; download the JSON if you want a
+copy).
+
+**5. Publish it.** **Audience** → **Publish app** → **Confirm**. The status must read **In
+production**. An app left in *Testing* only lets listed test users connect, and every
+connection it makes **expires after seven days**, which would degrade every Drive organization
+a week after it connected.
+
+**6. Give the API the client.** Render → `knowledge-vault-api` → **Environment**:
+
+| Variable | Value |
+|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | the Client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | the Client secret |
+| `WEB_ORIGIN` | the web app's address — already set; the sign-in pop-up returns there |
+
+**Save** — Render redeploys. The redirect address is built from `RENDER_EXTERNAL_URL`, which
+Render sets itself; set `API_PUBLIC_URL` only if the API is reached at a different address
+(a custom domain), and then use that address in step 4.
+
+**7. Check it.** Open **Create organization** → **Google Drive**. It should offer **Connect your
+Google account**, not *Google Drive is not switched on*. Connect a real account, run the test,
+and create a throwaway organization; upload a short video and play it.
+
+**If the owner's company uses Google Workspace**, their administrator may block apps they have
+not approved. The sign-in then says *Access blocked: … has not been approved by your admin*.
+The administrator approves it in the Google Admin console → **Security** → **Access and data
+control** → **API controls** → **Manage Third-Party App Access** → **Configure new app** →
+search by the Client ID → **Trusted** (or **Limited**).
+
+### 4.3 · What an owner does
+
+What the product walks them through, in order — for a support conversation:
+
+1. **Choose Google Drive** — when creating the organization, or later in the root branch's
+   **Group configuration → Storage**. Connecting and saving need the Supreme password.
+2. **Connect your Google account** in the pop-up, and allow *See, edit, create, and delete only
+   the specific Google Drive files you use with this app*. On Workspace, a dedicated account
+   (such as `knowledge-vault@company.com`) is better than a person's own — the documents belong
+   to whichever account connects.
+3. **Encrypted or readable** — fixed once saved. Encrypted is recommended: nobody who opens the
+   folder can read the documents, including the company's own administrators, and Drive's
+   search and AI see nothing.
+4. **Acknowledge** that the files belong to that account and count against its storage.
+5. **Test connection** — reach, folder, write, read, compare, private, room — then save.
+6. The folder appears in their Drive as **Knowledge Vault — \<organization\>**. They should not
+   edit it; if someone does, the nightly check puts trashed documents back and keeps serving
+   the original of anything replaced, and tells the owners.
+
+The storage panel then shows the account, a link to the folder, the Drive's space, and
+**Streaming this month** — the allowance below.
+
+### 4.4 · The streaming allowance, and moving the gateway off Render
+
+Every byte uploaded to or read from Google Drive crosses the gateway, and Render's free plan
+includes 5 GB of outbound traffic a month — with no card on file, going over it stops every
+service until the 1st. So by default the gateway runs **inside the API with a 2 GiB monthly
+allowance**. At 60%, 80% and 95% the owners are told; at 100% Drive uploads and viewing pause
+until the 1st, and nothing else is affected. Never an invoice.
+
+2 GiB is about twenty views of a 10-minute HD video, or four hundred 5 MB PDFs, a month —
+enough to set Drive up and try it with a team, not to run a busy organization on. When that is
+not enough, run the gateway on its own machine — an **Oracle Cloud Always Free** VM carries
+10 TB a month at no cost (`Data Storage Architecture/09-google-drive-cost-and-efficiency.md`):
+
+1. Create an Always Free VM (Ubuntu), and open port 443 both in its subnet's security list and
+   on the VM itself (Oracle's Ubuntu images ship with an `iptables` rule that drops it).
+2. Install Node 22 and pnpm, clone this repository, and build:
+   `pnpm install && pnpm --filter @vault/shared build && pnpm --filter @vault/api build`.
+3. Give it the **same** `DATABASE_URL`, `STORAGE_KEK`, `GOOGLE_OAUTH_CLIENT_ID`,
+   `GOOGLE_OAUTH_CLIENT_SECRET` and `WEB_ORIGIN` as the API, plus `PORT=4100`, and run
+   `pnpm --filter @vault/api start:stream` as a systemd service. It serves the gateway and
+   `/health`, nothing else.
+4. Put HTTPS in front of it — Caddy obtains a certificate by itself. With no domain of your
+   own, `<ip-with-dashes>.sslip.io` resolves to the VM and works as the hostname.
+5. On Render, set `STREAM_GATEWAY_URL=https://<that hostname>`. From the next ticket on,
+   documents flow through the VM, and the allowance rises to 9.5 TiB.
+
+Do not put the gateway behind Cloudflare's CDN: its terms restrict serving video that is not
+stored with Cloudflare.
+
+### 4.5 · When it does not work
+
+| What you see | What it means | What to do |
+|---|---|---|
+| *Google Drive is not switched on for this Knowledge Vault yet* | `GOOGLE_OAUTH_*` is not set on the API, or `STORAGE_KEK` is missing | 4.2 step 6; check Render redeployed |
+| Google says **Error 400: redirect_uri_mismatch** | The redirect URI in the client is not exactly `<API>/storage/google/callback` | Copy it from the error's details into 4.2 step 4 — scheme, host and path must match |
+| Google says **Access blocked: this app can only be used by test users**, or connections stop working after a week | The app is still in *Testing* | 4.2 step 5 |
+| **Access blocked: … has not been approved by your admin** | A Workspace policy | The Workspace paragraph at the end of 4.2 |
+| The pop-up never opens | The browser blocked it | Allow pop-ups for the site; the button opens it directly on the click |
+| The pop-up says *connected* but the form keeps waiting | The pop-up returned to a different address than the form is on | `WEB_ORIGIN` must be the exact address owners use |
+| Test fails at **Confirm the folder is private** | The Knowledge Vault folder is shared by link or with the whole domain | Remove that sharing in Drive, test again |
+| Test fails at **Check there is room** | Less than 50 MB free in the Drive | Free space or add storage to the account |
+| *This organization's documents are in X's Google Drive* | Reconnecting with a different account | Use account X — only it can see those files |
+| *We cannot reach your storage* — access removed or expired | The grant was removed in the Google account, or the account changed its password with the "sign out everywhere" option | **Reconnect Google** with the same account; nothing is lost |
+| *…has used its streaming allowance for the month* | The monthly allowance | Wait for the 1st, or 4.4 |
+| A document shows *failed its integrity check* | Its bytes in Drive were altered | Restore the file's earlier version in Drive; the original revision is kept forever |
+
+
+---
+
 ## Troubleshooting
 
 The connection test names the stage that failed. Match it here.
@@ -690,4 +880,4 @@ substituted.
 
 ---
 
-*Last updated: 2026-09-22*
+*Last updated: 2026-09-30*

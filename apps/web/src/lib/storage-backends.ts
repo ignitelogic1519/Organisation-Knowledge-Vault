@@ -181,43 +181,87 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
     ],
   },
   {
-    key: "cloud-drive",
-    name: "Cloud drives",
+    key: "google-drive",
+    name: "Google Drive",
     icon: "📁",
-    status: "exploring",
+    status: "live",
     tagline:
-      "Google Drive first — on Google Workspace or a personal Google account — with OneDrive to follow. Familiar, universally available, and the one shape where the bytes cross our servers.",
+      "A folder in your Google Drive — a personal Google account or Google Workspace. Knowledge Vault can only see the files it creates there, never the rest of your Drive.",
     whoFor:
-      "Organizations that already keep everything in a drive and would rather not add a second place. On Google Workspace, a shared drive keeps the files with the organization rather than with whoever connected it.",
+      "Organizations that already keep their work in Google Drive and would rather not run a server. On Google Workspace, a dedicated account keeps the files with the organization rather than with one person.",
     steps: [
       {
-        title: "1 · Connect Google",
-        text: "Sign in with the Google account the files should live under and choose where they go. Knowledge Vault asks only for the files it creates itself — never the rest of your Drive — and keeps its access fresh on our side, which is substantially more moving parts than an access key.",
+        title: "1 · Sign in with Google",
+        text: "In the creation form, or later in storage settings, connect the Google account the documents should live in. Google asks you to allow access to the files Knowledge Vault creates — and nothing else in your Drive.",
       },
       {
-        title: "2 · Choose the encryption posture",
-        text: "The same choice as NAS: encrypted objects nobody can read in Drive — not your administrators, not Drive's own search — or ordinary files you can open there, readable by anyone with access to the folder. Fixed once storage is active.",
+        title: "2 · Confirm who owns the files",
+        text: "Files in a Google account's Drive belong to that account and count against its storage. You confirm that before connecting. On Google Workspace we suggest a dedicated account, such as knowledge-vault@your-company.com, rather than a person's own.",
       },
       {
-        title: "3 · Accept that we carry the bytes",
-        text: "Drive has no signed link for a single file, and its upload endpoint cannot be reached from a browser directly, so every upload and every download passes through our servers. That is bandwidth we pay for on every read — and when the files are readable, they pass through us readable.",
+        title: "3 · Choose the encryption posture",
+        text: "Encrypted (recommended) stores locked .kvblob files nobody can read in Drive — not your administrators, not Drive's search. Readable keeps ordinary files under their own names. The choice is fixed once storage is active.",
+      },
+      {
+        title: "4 · Pass the connection test",
+        text: "We create a Knowledge Vault folder, write a test file, read it back, compare it, and check the folder is not shared publicly and has room. A failure names the exact step, and costs you nothing.",
+      },
+      {
+        title: "5 · Work normally",
+        text: "Uploads and viewing pass through Knowledge Vault's streaming service, which keeps nothing and carries encrypted documents locked. Videos start in a moment and seek without downloading the whole file.",
       },
     ],
     facts: {
-      reach: "Public APIs — always reachable",
-      bytes: "Through our servers on every upload and every download",
-      encryption: "Your choice: encrypted (.kvblob) or readable files, as with NAS",
-      cost: "Your drive quota, plus real bandwidth cost on our side",
+      reach: "Google's public API — always reachable",
+      bytes: "Through our streaming service — locked when encrypted, never stored",
+      encryption: "Your choice: encrypted (.kvblob) or readable files",
+      cost: "Your Drive's storage; streaming has a free monthly allowance on our side",
     },
     strengths: [
-      "Nothing new to buy, and nothing new to administer.",
-      "The folder is one people already know how to find — and, with readable files, can open.",
-      "Works with a personal Google account as well as with Google Workspace.",
+      "No server to run, and nothing new to buy.",
+      "Knowledge Vault's access covers only the files it creates — never the rest of your Drive.",
+      "Readers always get the exact version that was uploaded, even if someone replaces the file in Drive.",
+      "Encrypted documents are unreadable in Drive — to its administrators, to its search, and to anyone the folder is shared with.",
     ],
     tradeoffs: [
-      "No signed links means every byte crosses our servers — the one thing object storage avoids. Encrypted files cross as ciphertext; readable ones cross readable.",
-      "Drive quotas and per-account rate limits become your users' problem at exactly the wrong moment.",
-      "On a personal account, or in someone's own My Drive, the files belong to a person — and leave with them.",
+      "Every byte crosses our streaming service on the way — unlike a NAS, where the browser talks to your storage directly.",
+      "Streaming has a monthly allowance, and owners are warned as it runs down. When it is used up, opening and uploading Drive documents pauses until the 1st; nothing is billed.",
+      "The files belong to the connected Google account and count against its storage.",
+      "Readable documents pass through the streaming service readable. They are never kept.",
+    ],
+  },
+  {
+    key: "onedrive",
+    name: "OneDrive and SharePoint",
+    icon: "🗂",
+    status: "exploring",
+    tagline:
+      "Microsoft's drives, through the same design as Google Drive: least-privilege access, the same postures, the same streaming service.",
+    whoFor:
+      "Organizations on Microsoft 365 that would rather keep documents in SharePoint than add a second place.",
+    steps: [
+      {
+        title: "1 · Connect Microsoft 365",
+        text: "An app registration the organization approves, reaching one SharePoint document library and nothing else.",
+      },
+      {
+        title: "2 · The rest as Google Drive",
+        text: "The same connection test, encryption postures, streaming service and recovery route. The unsolved part is only the Microsoft side: consent, certificate-based credentials and their expiry.",
+      },
+    ],
+    facts: {
+      reach: "Microsoft Graph — always reachable",
+      bytes: "Through our streaming service, as with Google Drive",
+      encryption: "Your choice: encrypted (.kvblob) or readable files",
+      cost: "Your Microsoft 365 storage; streaming as for Google Drive",
+    },
+    strengths: [
+      "Nothing new to buy for organizations already on Microsoft 365.",
+      "SharePoint libraries belong to the organization, not to a person.",
+    ],
+    tradeoffs: [
+      "App credentials expire, typically within two years, and must be renewed before they do.",
+      "Listed because it is asked for, not because it is next.",
     ],
   },
   {
@@ -236,7 +280,7 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
       },
       {
         title: "2 · The browser still does the carrying",
-        text: "The design only earns its place if the reader's browser can still fetch directly over the local network when it is on it. Anything that ends in us proxying the bytes is the cloud-drive problem wearing different clothes.",
+        text: "The design only earns its place if the reader's browser can still fetch directly over the local network when it is on it. Anything that ends in us carrying every byte loses what makes a NAS worth running.",
       },
     ],
     facts: {

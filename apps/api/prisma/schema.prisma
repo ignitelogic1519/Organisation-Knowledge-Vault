@@ -718,10 +718,10 @@ model PlatformSetting {
 }
 
 // ── Organization-provided storage (docs/structure.md §9) ─────────────────────
-// The organization's own S3-compatible backend (Silo on their NAS today; S3, R2,
-// GCS, Wasabi, B2 and Spaces are the same adapter with a different endpoint).
-// Secrets are encrypted with STORAGE_KEK, which lives in the environment and NEVER
-// in this database — a dump alone must not reach a customer's storage.
+// The organization's own backend: S3-compatible storage presented as NAS (Silo on
+// their hardware), or their Google Drive (§9.16). Secrets are encrypted with
+// STORAGE_KEK, which lives in the environment and NEVER in this database — a dump
+// alone must not reach a customer's storage.
 
 enum StorageStatus {
   UNCONFIGURED // no backend connected: the org still uses the inline adapter
@@ -738,28 +738,53 @@ model OrgStorage {
   id      String       @id @default(uuid())
   orgId   String       @unique
   org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  adapter String       @default("s3") // the only backend today; the dropdown shows it as "NAS"
+  adapter String       @default("s3") // "s3" (shown as NAS) | "gdrive" (Google Drive)
 
-  // ── Non-secret connection config ──
-  endpoint       String // https://storage.acme.com — their storage server's address
-  bucket         String
+  // ── S3 / NAS: non-secret connection config ──
+  endpoint       String? // https://storage.acme.com — their storage server's address
+  bucket         String?
   region         String  @default("us-east-1") // Silo ignores it; real S3 needs it
   prefix         String  @default("") // lets them share a bucket with other systems
   forcePathStyle Boolean @default(true) // Silo needs this on
 
-  // ── Secrets, sealed with STORAGE_KEK (see storage/secrets.ts) ──
-  accessKeyIdEnc String
-  secretKeyEnc   String
+  // ── S3 / NAS: secrets, sealed with STORAGE_KEK (see storage/secrets.ts) ──
+  accessKeyIdEnc String?
+  secretKeyEnc   String?
 
-  // The org's data key, wrapped by the platform KEK. The Supreme-wrapped copy is
-  // computed at .main export time and deliberately NEVER stored (§9.5).
+  // ── Google Drive (§9.16) ──
+  /// The connected Google account's OAuth refresh token (scope drive.file only),
+  /// sealed with STORAGE_KEK and bound to this organization. Access tokens are never
+  /// stored anywhere.
+  credentialEnc      String?
+  gdriveAccountEmail String? // shown to owners: "connected as …"
+  gdriveHostedDomain String? // set when the account is Google Workspace
+  gdriveTarget       String? // "MY_DRIVE" today
+  gdriveRootId       String? // the "Knowledge Vault" folder we created
+  gdriveObjectsId    String? // its objects/ folder
+  gdriveFolders      Json? // { "2026/09": "<folder id>" } — month folders, created once
+  gdriveHealthFileId String? // the one file the health check rewrites and reads back
+  /// "gdrive:<rootId>" — unique, so one folder can never serve two organizations.
+  remoteTargetKey    String? @unique
+
+  // The org's data key, wrapped by the platform KEK. The Supreme-protected copy is
+  // written into the .main export at export time and never stored here (§9.5).
   wrappedDek String?
 
-  status      StorageStatus     @default(UNCONFIGURED)
-  encryption  EncryptionPosture @default(ENCRYPTED)
-  lastCheckAt DateTime?
-  lastError   String? // the precise reason the last check failed, shown to owners
-  degradedAt  DateTime? // when it entered DEGRADED — compliance pauses from here (§9.8)
+  status          StorageStatus     @default(UNCONFIGURED)
+  encryption      EncryptionPosture @default(ENCRYPTED)
+  lastCheckAt     DateTime?
+  lastError       String? // the precise reason the last check failed, shown to owners
+  /// AUTH_REVOKED | PERMISSION | ROOT_MISSING | QUOTA_FULL | UNREACHABLE | KEY
+  degradedReason  String?
+  degradedAt      DateTime? // when it entered DEGRADED — compliance pauses from here (§9.8)
+  /// First failure of a transient kind (timeouts, 5xx, rate limits). The organization
+  /// is only degraded once they have lasted long enough to be real (§9.8).
+  failingSince    DateTime?
+  /// Bumping this invalidates every outstanding streaming ticket for the organization.
+  ticketEpoch     Int               @default(0)
+  quotaLimitBytes BigInt? // their Drive's storage limit, null when unlimited
+  quotaUsedBytes  BigInt?
+  quotaCheckedAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -769,23 +794,36 @@ model OrgStorage {
 // carries a real course link and an integrity hash, so orphan collection is an
 // indexed query rather than a scan of every course's storageRef JSON.
 model StorageObject {
-  id        String  @id @default(uuid())
-  orgId     String
-  objectKey String // objects/2026/08/<hash>.kvblob — relative to the configured prefix
-  sha256    String // of the PLAINTEXT, verified after decryption (§9.4)
-  bytes     Int // plaintext size — what the user downloads and what quota counts
-  mime      String
-  filename  String
-  encrypted Boolean @default(true)
+  id         String  @id @default(uuid())
+  orgId      String
+  objectKey  String // objects/2026/08/<hash>.kvblob — relative to the configured prefix
+  sha256     String // of the PLAINTEXT, verified after decryption (§9.4)
+  bytes      Int // plaintext size — what the user downloads and what quota counts
+  mime       String
+  filename   String
+  encrypted  Boolean @default(true)
   /// This object's file key, wrapped under the org DEK. Null when encryption is PLAIN.
   /// Every object gets its own key, so one compromised file never unlocks the next.
   wrappedKey String?
-  courseId  String? // null while a course is mid-create, or for orphans awaiting collection
+  courseId   String? // null while a course is mid-create, or for orphans awaiting collection
+
+  // ── Where it is on a remote that addresses files by ID (Google Drive) ──
+  remoteId       String? // the Drive file ID
+  remoteRevision String? // the revision we wrote, kept forever — reads are pinned to it
+  // ── The stored bytes' shape, recorded at commit. The database copy is the authority:
+  //    a stored header that disagrees with it is refused (§9.16). ──
+  cipherBytes    Int? // exact stored length (ciphertext for ENCRYPTED, the file for PLAIN)
+  cipherSha256   String? // SHA-256 of the stored bytes, as the browser computed while sending
+  frameBytes     Int? // plaintext bytes per .kvblob frame
+  headerBytes    Int? // magic + length + header JSON — where frame 0 starts
+  nonceBase      String?
+
   createdAt DateTime @default(now())
 
   @@unique([orgId, objectKey])
   @@index([orgId])
   @@index([courseId])
+  @@index([remoteId])
 }
 
 // Durable delete queue. A remote delete cannot run inside a Postgres transaction, so
@@ -795,6 +833,7 @@ model StorageDeletion {
   id        String   @id @default(uuid())
   orgId     String
   objectKey String
+  remoteId  String? // Drive file ID, when the backend addresses files by ID
   attempts  Int      @default(0)
   lastError String?
   nextTryAt DateTime @default(now())
@@ -802,6 +841,59 @@ model StorageDeletion {
 
   @@index([nextTryAt])
   @@index([orgId])
+}
+
+// One resumable upload to Google Drive in flight. Google's session URI is itself a
+// capability — whoever holds it can write that one file — so it is sealed like a
+// credential and never leaves the server.
+model StorageUploadSession {
+  id              String    @id @default(uuid())
+  orgId           String
+  storageObjectId String    @unique
+  sessionUriEnc   String
+  totalBytes      Int
+  confirmedBytes  Int       @default(0)
+  completedAt     DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+
+  @@index([orgId])
+  @@index([expiresAt])
+}
+
+// A Google sign-in that has finished before the organization it is for exists (§9.3:
+// storage is tested before creation). Owned by the profile that signed in, sealed under
+// its own id, and swept after an hour — with its token revoked at Google.
+model StoragePendingConnection {
+  id                 String    @id @default(uuid())
+  profileId          String
+  /// "create" for a new organization, or the orgId being reconnected.
+  purpose            String
+  credentialEnc      String
+  accountEmail       String
+  hostedDomain       String?
+  // Folders created by a connection test, reused when the organization is created.
+  gdriveRootId       String?
+  gdriveObjectsId    String?
+  gdriveHealthFileId String?
+  testedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  expiresAt          DateTime
+
+  @@index([profileId])
+  @@index([expiresAt])
+}
+
+// Bytes carried by the streaming gateway, per calendar month (UTC). orgId "*" is the
+// platform-wide total. The gateway refuses new work at the monthly allowance rather
+// than letting a host bill past it — or, on Render's free plan, switch the API off.
+model StreamUsage {
+  id    String @id @default(uuid())
+  month String // "2026-09"
+  orgId String
+  bytes BigInt @default(0)
+
+  @@unique([month, orgId])
 }
 
 // Append-only audit of every super-admin action (god-mode needs a trail).

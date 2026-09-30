@@ -16,6 +16,7 @@ import { broadcast } from "../events.js";
 import { orgOwnerProfileIds } from "./owners.js";
 import { audit } from "../security.js";
 import { connectStorage, testConnection } from "../storage/org-storage.js";
+import { connectGdrive, testPending, usablePending } from "../storage/gdrive-store.js";
 import {
   redeemAccessCode,
   planStatusFor,
@@ -88,17 +89,25 @@ export async function orgRoutes(app: FastifyInstance) {
     // transaction, and a failure must leave the access code unspent so they can fix
     // their NAS and retry with the same code.
     if (body.storage) {
-      const probe = await testConnection(
-        {
-          endpoint: body.storage.endpoint.replace(/\/+$/, ""),
-          bucket: body.storage.bucket,
-          region: body.storage.region || "us-east-1",
-          accessKeyId: body.storage.accessKeyId,
-          secretAccessKey: body.storage.secretAccessKey,
-          forcePathStyle: body.storage.forcePathStyle,
-        },
-        body.storage.prefix,
-      );
+      if (body.storage.adapter === "gdrive" && !body.storage.acknowledgedPersonalOwnership) {
+        return reply.status(400).send({
+          error: "Confirm that you understand the files will belong to this Google account before connecting it.",
+        }) as never;
+      }
+      const probe =
+        body.storage.adapter === "gdrive"
+          ? await testPending(await usablePending(body.storage.connectionId, req.profileId))
+          : await testConnection(
+              {
+                endpoint: body.storage.endpoint.replace(/\/+$/, ""),
+                bucket: body.storage.bucket,
+                region: body.storage.region || "us-east-1",
+                accessKeyId: body.storage.accessKeyId,
+                secretAccessKey: body.storage.secretAccessKey,
+                forcePathStyle: body.storage.forcePathStyle,
+              },
+              body.storage.prefix,
+            );
       if (!probe.ok) {
         return reply.status(400).send({
           error: probe.error ?? "Your storage could not be verified",
@@ -221,13 +230,26 @@ export async function orgRoutes(app: FastifyInstance) {
     // outside the transaction: sealing credentials and generating the data key are
     // local work, and the connection they describe has already been proven.
     if (body.storage) {
-      const outcome = await connectStorage(org.id, body.storage);
-      if (outcome.ok) {
-        await audit(org.id, "storage.connect", {
-          actorProfileId: req.profileId,
-          ip: req.ip,
-          detail: { endpoint: outcome.row.endpoint, bucket: outcome.row.bucket },
-        });
+      try {
+        const outcome =
+          body.storage.adapter === "gdrive"
+            ? await connectGdrive(org.id, body.storage, req.profileId)
+            : await connectStorage(org.id, body.storage);
+        if (outcome.ok) {
+          await audit(org.id, "storage.connect", {
+            actorProfileId: req.profileId,
+            ip: req.ip,
+            detail:
+              outcome.row.adapter === "gdrive"
+                ? { adapter: "gdrive", account: outcome.row.gdriveAccountEmail, folder: outcome.row.gdriveRootId }
+                : { endpoint: outcome.row.endpoint, bucket: outcome.row.bucket },
+          });
+        }
+      } catch (err) {
+        // The organization exists and its code is spent; storage passed its test a
+        // moment ago. If saving it fails now, the owner connects it from Group
+        // configuration — the same form, the same test — rather than losing the org.
+        req.log.error({ err }, "storage could not be saved after creation");
       }
     }
 

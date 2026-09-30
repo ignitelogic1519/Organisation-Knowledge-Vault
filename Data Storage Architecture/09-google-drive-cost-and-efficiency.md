@@ -147,8 +147,10 @@ induction video and a handful of PDFs), with 2 GB of new uploads: about **31 GB 
 
 ## What this changes in the design
 
-- **Question 11 — where the gateway runs:** on one Oracle Cloud Always Free VM, from the first
-  release. Never inside the API in production.
+- **Question 11 — where the gateway runs:** on one Oracle Cloud Always Free VM for real
+  volume. *As built (2026-09-30):* it ships inside the API, capped at 2 GiB a month so it can
+  never spend Render's 5 GB, and `STREAM_GATEWAY_URL` moves it to the VM with a 9.5 TiB cap —
+  document 07, §8.3.
 - **Question 16 — who pays for bandwidth:** nobody, up to 10 TB a month; the per-plan allowance
   becomes each organization's share of that free budget, so one organization cannot spend
   everyone else's.

@@ -1,13 +1,14 @@
 "use client";
 
 import type {
+  GdriveConnectionView,
   StorageConfigInput,
   StorageTestResult,
   StorageView,
   UploadTicket,
 } from "@vault/shared";
 import { api } from "./auth-client";
-import { uploadToOrgStorage } from "./storage-crypto";
+import { uploadToOrgStorage, uploadViaGateway } from "./storage-crypto";
 
 // Client for the storage settings screens and the direct-to-storage upload path
 // (docs/structure.md §9.3).
@@ -50,6 +51,29 @@ export const storageApi = {
       body: "{}",
     }),
 
+  /** Stop every outstanding streaming ticket at once. Supreme-gated. */
+  revokeTickets: (orgId: string, supremeToken: string) =>
+    api<{ ok: boolean }>(`/orgs/${orgId}/storage/revoke-tickets`, {
+      method: "POST",
+      body: "{}",
+      headers: { "x-supreme-token": supremeToken },
+    }),
+
+  // ── Google Drive (§9.16) ──────────────────────────────────────────────────
+  /** Whether this platform has a Google sign-in client at all. */
+  googleStatus: () => api<{ configured: boolean; gatewayExternal: boolean }>("/storage/google/status"),
+  /** The URL that starts a Google sign-in, opened in a pop-up. */
+  googleAuthorize: (intent: "create" | "reconnect", orgId?: string) =>
+    api<{ url: string }>("/storage/google/authorize", {
+      method: "POST",
+      body: JSON.stringify({ intent, ...(orgId ? { orgId } : {}) }),
+    }),
+  /** A completed sign-in waiting to be used. */
+  googleConnection: (id: string) => api<GdriveConnectionView>(`/storage/google/connections/${id}`),
+  /** Abandon a sign-in: its test folder is removed and Google forgets the grant. */
+  cancelGoogleConnection: (id: string) =>
+    api<{ ok: boolean }>(`/storage/google/connections/${id}`, { method: "DELETE" }),
+
   /** Move files still held in our database onto the organization's storage (§9.12). */
   migrate: (orgId: string) =>
     api<{ moved: number; remaining: number; errors: string[] }>(
@@ -60,13 +84,15 @@ export const storageApi = {
 
 /**
  * Upload a file to the organization's own storage and return the id to attach to a
- * course. The bytes go straight from this browser to their storage — our API issues the
- * signed link and records the result, and never sees the file.
+ * course. For S3-compatible storage the bytes go straight from this browser to their
+ * storage — our API issues the signed link and records the result, and never sees the
+ * file. For Google Drive they pass through the streaming gateway (encrypted here first
+ * when the organization encrypts), because Drive has no signed upload link.
  */
 export async function uploadFile(
   orgId: string,
   file: File,
-  onProgress?: (stage: "preparing" | "encrypting" | "uploading" | "finishing") => void,
+  onProgress?: (stage: "preparing" | "encrypting" | "uploading" | "finishing", fraction?: number) => void,
 ): Promise<{ storageObjectId: string }> {
   onProgress?.("preparing");
   const ticket = await api<UploadTicket>(`/orgs/${orgId}/storage/upload-url`, {
@@ -78,6 +104,18 @@ export async function uploadFile(
     }),
   });
 
+  const commit = async (payload: object) => {
+    onProgress?.("finishing");
+    return api<{ storageObjectId: string; objectKey: string }>(`/orgs/${orgId}/storage/commit`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  };
+  // Google Drive: through the streaming gateway, in resumable chunks.
+  if (ticket.transport === "gateway") {
+    return uploadViaGateway(file, ticket, commit, (stage, fraction) => onProgress?.(stage, fraction));
+  }
+
   onProgress?.(ticket.encrypted ? "encrypting" : "uploading");
   return uploadToOrgStorage(file, ticket, async (payload) => {
     onProgress?.("finishing");
@@ -86,4 +124,22 @@ export async function uploadFile(
       { method: "POST", body: JSON.stringify(payload) },
     );
   });
+}
+
+/** What an upload is doing, in words — with a percentage once there is one to give. */
+export function uploadStageLabel(
+  stage: "preparing" | "encrypting" | "uploading" | "finishing",
+  fraction?: number,
+): string {
+  const pct = typeof fraction === "number" ? ` ${Math.min(100, Math.round(fraction * 100))}%` : "";
+  switch (stage) {
+    case "encrypting":
+      return `Encrypting in this browser…${pct}`;
+    case "uploading":
+      return `Uploading to your storage…${pct}`;
+    case "finishing":
+      return "Finishing…";
+    default:
+      return `Preparing…${pct}`;
+  }
 }

@@ -5,6 +5,35 @@ moved since they last used it. Newest first.
 
 ---
 
+## September 2026
+
+### Keep your documents in Google Drive
+
+A second way to store documents, beside NAS: **a folder in your Google Drive** — a personal
+Google account or Google Workspace, with no server to run. Knowledge Vault can reach only the
+files it creates in that folder, never the rest of your Drive. Documents can be stored
+encrypted (the default — unreadable in Drive, even to your administrators) or as ordinary
+readable files, and the same connection test runs before anything is saved.
+
+Videos and audio stream: they start in a moment and seek straight to where you click, and an
+encrypted one is only unlocked in the reader's own browser. Because Google Drive has no private
+link for a single file, documents travel through Knowledge Vault's streaming service, which
+keeps nothing and has a free monthly allowance — owners are warned as it runs down, and at the
+limit Drive documents pause until the 1st rather than cost anything.
+See [Chapter 23](chapter-23-where-your-documents-live.md).
+
+![Connecting Google Drive, tested](images/storage-gdrive-setup.png)
+
+### Your `.main` file can now open your documents on its own
+
+Every encrypted document now carries its own locked key, and the `.main` file carries the key
+that opens them. With the `.main` file, the Supreme password and a copy of your storage, a small
+recovery tool opens every document — even with Knowledge Vault gone. This covers NAS and Google
+Drive alike.
+See [Chapter 18](chapter-18-supreme-and-custody.md).
+
+---
+
 ## August 2026
 
 ### The compliance report stopped calling completed people overdue

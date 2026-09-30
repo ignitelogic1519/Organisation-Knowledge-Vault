@@ -1,4 +1,5 @@
 import { verify as argonVerify, hash as argonHash } from "@node-rs/argon2";
+import { unwrapDekFromPlatform } from "../storage/secrets.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { can, strongPassword } from "@vault/shared";
@@ -43,6 +44,63 @@ interface MainPayload {
   coursePlacements: Record<string, unknown>[];
   prerequisites: { courseId: string; requiresCourseId: string }[];
   completions: Record<string, unknown>[];
+  /**
+   * Where the organization's documents are, and the key that opens them (§9.11). The
+   * data key is safe here: the whole payload is encrypted with the Supreme password.
+   * With this file, that password and the storage itself, the standalone recovery tool
+   * opens every document with no help from Knowledge Vault. No storage credentials.
+   */
+  storage?: {
+    adapter: string;
+    encryption: "ENCRYPTED" | "PLAIN";
+    dataKey: string | null;
+    dataKeyVersion: number;
+    location: Record<string, string | null>;
+    objects: {
+      objectKey: string;
+      remoteId: string | null;
+      wrappedKey: string | null;
+      filename: string;
+      mime: string;
+      sha256: string;
+      bytes: number;
+      encrypted: boolean;
+    }[];
+  } | null;
+}
+
+/** The storage section of .main: the escrowed data key and an index of the objects. */
+async function buildStorageEscrow(orgId: string): Promise<MainPayload["storage"]> {
+  const store = await db.orgStorage.findUnique({ where: { orgId } });
+  if (!store || store.status === "UNCONFIGURED") return null;
+  const objects = await db.storageObject.findMany({
+    where: { orgId, courseId: { not: null } },
+    select: {
+      objectKey: true,
+      remoteId: true,
+      wrappedKey: true,
+      filename: true,
+      mime: true,
+      sha256: true,
+      bytes: true,
+      encrypted: true,
+    },
+  });
+  return {
+    adapter: store.adapter,
+    encryption: store.encryption,
+    dataKey: store.wrappedDek ? unwrapDekFromPlatform(orgId, store.wrappedDek).toString("base64") : null,
+    dataKeyVersion: 1,
+    location:
+      store.adapter === "gdrive"
+        ? {
+            googleAccount: store.gdriveAccountEmail,
+            folderId: store.gdriveRootId,
+            folderUrl: store.gdriveRootId ? `https://drive.google.com/drive/folders/${store.gdriveRootId}` : null,
+          }
+        : { endpoint: store.endpoint, bucket: store.bucket, prefix: store.prefix },
+    objects,
+  };
 }
 
 async function buildMainPayload(orgId: string): Promise<MainPayload> {
@@ -119,6 +177,7 @@ export async function vaultFileRoutes(app: FastifyInstance) {
       }
 
       const payload = await buildMainPayload(org.id);
+      payload.storage = await buildStorageEscrow(org.id);
       // Embed the signed plan snapshot so a revive-after-purge knows the plan/expiry.
       const planClaim = buildPlanClaim(org);
       const planSig = signPlanClaim(org.orgNumber, planClaim);

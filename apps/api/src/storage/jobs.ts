@@ -2,11 +2,18 @@ import { gunzipSync } from "node:zlib";
 import type { OrgStorage } from "@prisma/client";
 import { db } from "../db.js";
 import { notify } from "../courses/helpers.js";
+import { ownerProfileIds } from "./owners.js";
 import { deleteObject, putObject } from "./s3.js";
 import { checkHealth, fullKey, mintObjectKey, s3ConfigFor, storageFor } from "./org-storage.js";
 import { encryptToKvblob } from "./kvblob.js";
 import { dekFor } from "./org-storage.js";
-import { newFileKey, sha256Hex } from "./secrets.js";
+import { newFileKey, sha256Hex, wrapFileKey } from "./secrets.js";
+import {
+  deleteGdriveObject,
+  putGdriveObject,
+  reconcileGdrive,
+  sweepPendingConnections,
+} from "./gdrive-store.js";
 
 // Background storage work, all driven from the nightly job (POST /jobs/run) and, for
 // the deletion queue, opportunistically after a delete. Every one of these is safe to
@@ -48,7 +55,12 @@ export async function drainDeletionQueue(limit = 50): Promise<{ done: number; fa
     }
 
     try {
-      await deleteObject(s3ConfigFor(store), fullKey(store, row.objectKey));
+      if (store.adapter === "gdrive") {
+        // Drive addresses files by ID; a row without one has nothing left to delete.
+        if (row.remoteId) await deleteGdriveObject(store, row.remoteId);
+      } else {
+        await deleteObject(s3ConfigFor(store), fullKey(store, row.objectKey));
+      }
       await db.storageDeletion.delete({ where: { id: row.id } });
       done += 1;
     } catch (err) {
@@ -97,7 +109,7 @@ const ABANDONED_UPLOAD_MS = 24 * 60 * 60 * 1000;
 export async function collectOrphans(limit = 200): Promise<number> {
   const candidates = await db.storageObject.findMany({
     where: { courseId: { not: null } },
-    select: { id: true, orgId: true, objectKey: true, courseId: true },
+    select: { id: true, orgId: true, objectKey: true, courseId: true, remoteId: true },
     take: limit,
   });
   const courseIds = [...new Set(candidates.map((c) => c.courseId!))];
@@ -116,13 +128,16 @@ export async function collectOrphans(limit = 200): Promise<number> {
       courseId: null,
       createdAt: { lt: new Date(Date.now() - ABANDONED_UPLOAD_MS) },
     },
-    select: { id: true, orgId: true, objectKey: true },
+    select: { id: true, orgId: true, objectKey: true, remoteId: true },
     take: limit,
   });
 
   for (const orphan of [...orphans, ...abandoned]) {
     await db.$transaction([
-      db.storageDeletion.create({ data: { orgId: orphan.orgId, objectKey: orphan.objectKey } }),
+      db.storageDeletion.create({
+        data: { orgId: orphan.orgId, objectKey: orphan.objectKey, remoteId: orphan.remoteId },
+      }),
+      db.storageUploadSession.deleteMany({ where: { storageObjectId: orphan.id } }),
       db.storageObject.delete({ where: { id: orphan.id } }),
     ]);
   }
@@ -136,8 +151,10 @@ export async function collectOrphans(limit = 200): Promise<number> {
  * organization's owners get a high-priority message — the state must never present as
  * data loss, because it is not.
  */
-export async function runHealthChecks(): Promise<{ checked: number; degraded: number }> {
-  const rows = await db.orgStorage.findMany({ where: { status: { not: "UNCONFIGURED" } } });
+export async function runHealthChecks(orgIds?: string[]): Promise<{ checked: number; degraded: number }> {
+  const rows = await db.orgStorage.findMany({
+    where: { status: { not: "UNCONFIGURED" }, ...(orgIds ? { orgId: { in: orgIds } } : {}) },
+  });
   let degraded = 0;
 
   for (const row of rows) {
@@ -145,13 +162,7 @@ export async function runHealthChecks(): Promise<{ checked: number; degraded: nu
     if (result.status === "DEGRADED") degraded += 1;
     if (!result.changed) continue;
 
-    const owners = await db.placement.findMany({
-      where: { kind: "OWNER", membership: { orgId: row.orgId } },
-      select: { membership: { select: { profileId: true } } },
-    });
-    const profileIds = [...new Set(owners.map((o) => o.membership.profileId))];
-
-    for (const profileId of profileIds) {
+    for (const profileId of await ownerProfileIds(row.orgId)) {
       if (result.status === "DEGRADED") {
         await notify(
           profileId,
@@ -159,7 +170,8 @@ export async function runHealthChecks(): Promise<{ checked: number; degraded: nu
           "storage_degraded",
           { error: result.error ?? "" },
           {
-            subject: "Your storage is not reachable",
+            subject:
+              row.adapter === "gdrive" ? "Your Google Drive is not reachable" : "Your storage is not reachable",
             body:
               `Knowledge Vault cannot reach this organization's storage. ${result.error ?? ""}\n\n` +
               "Nothing has been lost. Existing documents will open again as soon as the " +
@@ -214,7 +226,6 @@ export async function migrateInlineFiles(
     take: limit,
   });
 
-  const cfg = s3ConfigFor(store);
   const encrypted = store.encryption === "ENCRYPTED";
   const dek = encrypted ? dekFor(store) : null;
   const errors: string[] = [];
@@ -230,19 +241,53 @@ export async function migrateInlineFiles(
 
       const plaintext = ref.gz ? gunzipSync(Buffer.from(file.data)) : Buffer.from(file.data);
       const sha256 = sha256Hex(plaintext);
-      const objectKey = mintObjectKey(encrypted);
 
+      if (store.adapter === "gdrive") {
+        // Uploaded, verified by size, and its revision pinned before the row goes.
+        const put = await putGdriveObject(store, plaintext, { filename: file.filename, mime: file.mime, sha256 }, mintObjectKey);
+        const [object] = await db.$transaction([
+          db.storageObject.create({
+            data: {
+              orgId,
+              objectKey: put.objectKey,
+              sha256,
+              bytes: plaintext.length,
+              mime: file.mime,
+              filename: file.filename,
+              encrypted,
+              courseId: course.id,
+              remoteId: put.remoteId,
+              remoteRevision: put.revision,
+              ...(put.stored as object),
+            },
+          }),
+          db.storedFile.deleteMany({ where: { id: ref.fileId } }),
+        ]);
+        await db.course.update({
+          where: { id: course.id },
+          data: {
+            storageRef: { adapter: "gdrive", objectKey: put.objectKey, storageObjectId: object.id, remoteId: put.remoteId },
+          },
+        });
+        moved += 1;
+        continue;
+      }
+
+      const cfg = s3ConfigFor(store);
+      const objectKey = mintObjectKey(encrypted);
       let body: Buffer = plaintext;
       let wrappedKey: string | null = null;
       if (encrypted && dek) {
         const fileKey = newFileKey();
+        wrappedKey = wrapFileKey(dek, fileKey, objectKey);
         const sealed = encryptToKvblob(plaintext, fileKey, {
           mime: file.mime,
           filename: file.filename,
           sha256,
+          wrappedKey,
+          objectKey,
         });
         body = sealed.blob;
-        wrappedKey = sealed.wrapFileKey(dek, objectKey);
       }
 
       await putObject(cfg, fullKey(store, objectKey), body, "application/octet-stream");
@@ -254,7 +299,7 @@ export async function migrateInlineFiles(
         throw new Error("The uploaded object did not read back at the expected size");
       }
 
-      await db.$transaction([
+      const [object] = await db.$transaction([
         db.storageObject.create({
           data: {
             orgId,
@@ -268,12 +313,12 @@ export async function migrateInlineFiles(
             ...(wrappedKey ? { wrappedKey } : {}),
           },
         }),
-        db.course.update({
-          where: { id: course.id },
-          data: { storageRef: { adapter: "s3", objectKey, storageObjectId: "" } },
-        }),
         db.storedFile.deleteMany({ where: { id: ref.fileId } }),
       ]);
+      await db.course.update({
+        where: { id: course.id },
+        data: { storageRef: { adapter: "s3", objectKey, storageObjectId: object.id } },
+      });
       moved += 1;
     } catch (err) {
       errors.push(`${course.id}: ${err instanceof Error ? err.message : String(err)}`);
@@ -287,4 +332,26 @@ export async function pendingMigrationCount(orgId: string): Promise<number> {
   return db.course.count({
     where: { orgId, storageRef: { path: ["adapter"], equals: "inline" } },
   });
+}
+
+// ── Google Drive housekeeping, nightly ───────────────────────────────────────
+
+/**
+ * Compare every Drive organization's folder with our records, and sweep sign-ins that
+ * were never used. Each organization is independent: one failing never stops the rest.
+ */
+export async function runDriveHousekeeping(): Promise<{ reconciled: number; swept: number; errors: number }> {
+  let reconciled = 0;
+  let errors = 0;
+  const rows = await db.orgStorage.findMany({ where: { adapter: "gdrive", status: "ACTIVE" } });
+  for (const row of rows) {
+    try {
+      await reconcileGdrive(row);
+      reconciled += 1;
+    } catch {
+      errors += 1;
+    }
+  }
+  const swept = await sweepPendingConnections().catch(() => 0);
+  return { reconciled, swept, errors };
 }

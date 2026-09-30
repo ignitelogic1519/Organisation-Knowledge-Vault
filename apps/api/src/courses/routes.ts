@@ -24,6 +24,9 @@ import { assertContentQuota } from "../orgs/plan.js";
 import { deletionOpsFor, storage, type StorageRef } from "../storage/adapter.js";
 import { drainSoon } from "../storage/jobs.js";
 import { dekFor, fullKey, s3ConfigFor, storageFor } from "../storage/org-storage.js";
+import { gatewayUrl } from "../storage/gateway-url.js";
+import { signTicket } from "../storage/tickets.js";
+import { allow, tooMany } from "../storage/rate.js";
 import { presign } from "../storage/s3.js";
 import { unwrapFileKey } from "../storage/secrets.js";
 import { actorPlacements, toRoleRef } from "../roles/helpers.js";
@@ -302,7 +305,10 @@ export async function courseRoutes(app: FastifyInstance) {
         if (object.courseId) {
           return reply.status(409).send({ error: "That upload is already attached to a document" });
         }
-        ref = await storage.saveObject(object.id, object.objectKey);
+        ref = await storage.saveObject(object.id, object.objectKey, {
+          adapter: object.remoteId ? "gdrive" : "s3",
+          remoteId: object.remoteId,
+        });
         attachObjectId = object.id;
       } else if (body.fileBase64 && body.filename && body.mime) {
         ref = await storage.saveInline(node.orgId, body.filename, body.mime, body.fileBase64);
@@ -630,7 +636,48 @@ export async function courseRoutes(app: FastifyInstance) {
               (store.lastError ? ` (${store.lastError})` : ""),
           });
         }
+        if (!allow(`content:${req.profileId}`, 120, 60_000)) throw tooMany();
+        if (store.adapter === "gdrive") {
+          // Google Drive has no per-file signed links, so the bytes come through our
+          // streaming gateway. The ticket names this one object, lasts ten minutes, and
+          // is renewed by opening the document again — which runs this check again.
+          const ttl = 600;
+          const ticket: DownloadTicket = {
+            transport: "gateway",
+            downloadUrl: gatewayUrl(`/stream/r/${object.id}`),
+            ticket: signTicket({
+              o: course.orgId,
+              s: object.id,
+              m: "r",
+              e: Math.floor(Date.now() / 1000) + ttl,
+              g: store.ticketEpoch,
+              p: req.profileId,
+              d: course.allowDownload ? 1 : 0,
+            }),
+            encrypted: object.encrypted,
+            mime: object.mime,
+            filename: object.filename,
+            bytes: object.bytes,
+            sha256: object.sha256,
+            expiresInSeconds: ttl,
+            ...(object.frameBytes && object.headerBytes && object.cipherBytes && object.nonceBase
+              ? {
+                  stream: {
+                    frameBytes: object.frameBytes,
+                    headerBytes: object.headerBytes,
+                    cipherBytes: object.cipherBytes,
+                    nonceBase: object.nonceBase,
+                  },
+                }
+              : {}),
+          };
+          if (object.encrypted && object.wrappedKey) {
+            ticket.fileKey = unwrapFileKey(dekFor(store), object.wrappedKey, object.objectKey).toString("base64");
+          }
+          return ticket;
+        }
         const ticket: DownloadTicket = {
+          transport: "presigned",
           downloadUrl: presign(
             s3ConfigFor(store),
             "GET",
@@ -860,7 +907,10 @@ export async function courseRoutes(app: FastifyInstance) {
         if (object.courseId && object.courseId !== course.id) {
           return reply.status(409).send({ error: "That upload is already attached to a document" });
         }
-        ref = await storage.saveObject(object.id, object.objectKey);
+        ref = await storage.saveObject(object.id, object.objectKey, {
+          adapter: object.remoteId ? "gdrive" : "s3",
+          remoteId: object.remoteId,
+        });
         newObjectId = object.id;
         source = "UPLOAD";
         contentChanged = true;

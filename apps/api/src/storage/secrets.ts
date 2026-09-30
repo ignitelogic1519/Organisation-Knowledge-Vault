@@ -2,7 +2,9 @@ import {
   createCipheriv,
   createDecipheriv,
   createHash,
+  hkdfSync,
   randomBytes,
+  scryptSync,
   timingSafeEqual,
 } from "node:crypto";
 
@@ -84,6 +86,27 @@ function open(key: Buffer, sealed: string, aad?: string): Buffer {
 }
 
 /**
+ * Seal any short secret under the platform key, bound to a purpose string. Used for the
+ * OAuth state and pending Google connections — values that must survive a browser round
+ * trip, or wait for an organization to exist, without being readable or forgeable.
+ */
+export function sealValue(aad: string, value: string): string {
+  return seal(platformKek(), Buffer.from(value, "utf8"), aad);
+}
+
+export function openValue(aad: string, sealed: string): string {
+  return open(platformKek(), sealed, aad).toString("utf8");
+}
+
+/**
+ * A 32-byte key derived from the platform KEK for one named purpose (HKDF-SHA256), so a
+ * second secret never has to be configured for, say, signing streaming tickets.
+ */
+export function derivedPlatformKey(purpose: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", platformKek(), Buffer.alloc(0), `kv:${purpose}`, 32));
+}
+
+/**
  * Seal one of the organization's storage credentials.
  *
  * `orgId` is bound in as additional authenticated data, so a sealed secret lifted from
@@ -140,9 +163,7 @@ export function unwrapDekFromPlatform(orgId: string, wrapped: string): Buffer {
  * KDF rather than two.
  */
 export function wrapDekForSupreme(dek: Buffer, supremePassword: string, saltB64: string): string {
-  // Imported lazily: node:crypto's scryptSync is synchronous and costly, and this path
-  // runs only on .main export.
-  const { scryptSync } = require("node:crypto") as typeof import("node:crypto");
+  // scryptSync is synchronous and costly; this path runs only on .main export.
   const key = scryptSync(supremePassword, Buffer.from(saltB64, "base64"), 32, {
     N: 16384,
     r: 8,
