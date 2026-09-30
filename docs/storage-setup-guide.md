@@ -619,7 +619,7 @@ a week after it connected.
 |---|---|
 | `GOOGLE_OAUTH_CLIENT_ID` | the Client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | the Client secret |
-| `WEB_ORIGIN` | the web app's address — already set; the sign-in pop-up returns there |
+| `WEB_ORIGIN` | optional — the web app's exact address (no trailing `/`). The sign-in pop-up returns to whichever site started it either way; setting this also limits the API to that one site |
 
 **Save** — Render redeploys. The redirect address is built from `RENDER_EXTERNAL_URL`, which
 Render sets itself; set `API_PUBLIC_URL` only if the API is reached at a different address
@@ -695,7 +695,7 @@ stored with Cloudflare.
 | Google says **Access blocked: this app can only be used by test users**, or connections stop working after a week | The app is still in *Testing* | 4.2 step 5 |
 | **Access blocked: … has not been approved by your admin** | A Workspace policy | The Workspace paragraph at the end of 4.2 |
 | The pop-up never opens | The browser blocked it | Allow pop-ups for the site; the button opens it directly on the click |
-| The pop-up says *connected* but the form keeps waiting | The pop-up returned to a different address than the form is on | `WEB_ORIGIN` must be the exact address owners use |
+| The pop-up says *connected* but the form keeps waiting, or lands on `localhost` | The pop-up returned to a different address than the form is on | If `WEB_ORIGIN` is set, it must be the exact address owners use; otherwise redeploy the API — since 2026-09-30 it returns the pop-up to the site that started the sign-in |
 | Test fails at **Confirm the folder is private** | The Knowledge Vault folder is shared by link or with the whole domain | Remove that sharing in Drive, test again |
 | Test fails at **Check there is room** | Less than 50 MB free in the Drive | Free space or add storage to the account |
 | *This organization's documents are in X's Google Drive* | Reconnecting with a different account | Use account X — only it can see those files |

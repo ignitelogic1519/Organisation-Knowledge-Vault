@@ -164,8 +164,36 @@ export interface OAuthState {
   profileId: string;
   intent: "create" | "reconnect";
   orgId?: string;
+  /** The web origin that started it, where the pop-up returns (signInReturnOrigin). */
+  returnTo?: string;
   verifier: string;
   exp: number;
+}
+
+/**
+ * The web origin a Google sign-in should return to: the page that started it. The pop-up
+ * must land on the same origin as the form waiting for it — a BroadcastChannel reaches
+ * only its own origin — and a deployment may leave WEB_ORIGIN unset (CORS then admits any
+ * origin), so a fixed address is not enough.
+ *
+ * With WEB_ORIGIN set, CORS lets only that origin call us, so it is the answer. Otherwise
+ * it is the browser's own Origin header on the request that started the sign-in: https,
+ * or plain http for a developer's own machine, nothing else. It travels sealed in the
+ * sign-in state, so it cannot be changed on the way through Google. And the authorize call
+ * needs the person's own access token, so a page that is not ours cannot start one.
+ */
+export function signInReturnOrigin(originHeader: unknown, configured?: string): string | undefined {
+  if (configured) return configured.replace(/\/+$/, "");
+  if (typeof originHeader !== "string" || !originHeader) return undefined;
+  let url: URL;
+  try {
+    url = new URL(originHeader);
+  } catch {
+    return undefined;
+  }
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return undefined;
+  return url.origin;
 }
 
 const b64url = (buf: Buffer) => buf.toString("base64url");
@@ -197,7 +225,7 @@ export function buildAuthorizeUrl(input: Omit<OAuthState, "verifier" | "exp">): 
   return `${endpoints().auth}?${params.toString()}`;
 }
 
-export function readState(raw: string): OAuthState {
+export function readState(raw: string, opts: { allowExpired?: boolean } = {}): OAuthState {
   let state: OAuthState;
   try {
     state = JSON.parse(
@@ -208,7 +236,7 @@ export function readState(raw: string): OAuthState {
       statusCode: 400,
     });
   }
-  if (!state.exp || state.exp < Date.now()) {
+  if (!opts.allowExpired && (!state.exp || state.exp < Date.now())) {
     throw Object.assign(new Error("This sign-in took too long and expired. Start again from Knowledge Vault."), {
       statusCode: 400,
     });
