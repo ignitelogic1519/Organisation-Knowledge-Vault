@@ -51,6 +51,7 @@ import {
   primeAccessToken,
   readState,
   revokeToken,
+  signInReturnOrigin,
 } from "./google.js";
 import { gatewayIsExternal } from "./gateway-url.js";
 import { streamUsage } from "./gateway.js";
@@ -80,11 +81,19 @@ async function isMember(profileId: string, orgId: string): Promise<boolean> {
   return m !== null;
 }
 
-/** Where the Google sign-in lands when it is done: a page on our own web origin. */
-function donePage(params: Record<string, string>): string {
-  const origin = env.webOrigin || "http://localhost:3000";
+/**
+ * Where the Google sign-in lands when it is done: the done page on the web origin that
+ * started it (sealed in the state), else WEB_ORIGIN. Null when neither is known in
+ * production — a guess there would strand the pop-up on some other site.
+ */
+function donePage(params: Record<string, string>, returnTo?: string): string | null {
+  const origin = returnTo || env.webOrigin || (env.isProd ? null : "http://localhost:3000");
+  if (!origin) return null;
   return `${origin.replace(/\/+$/, "")}/storage/google/done?${new URLSearchParams(params).toString()}`;
 }
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 export async function storageRoutes(app: FastifyInstance) {
   // ── The storage panel ──────────────────────────────────────────────────────
@@ -490,11 +499,13 @@ export async function storageRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: "Only this organization's owners can reconnect its storage" });
       }
     }
+    const returnTo = signInReturnOrigin(req.headers.origin, env.webOrigin);
     return {
       url: buildAuthorizeUrl({
         profileId: req.profileId,
         intent: body.intent,
         ...(body.intent === "reconnect" ? { orgId: body.orgId } : {}),
+        ...(returnTo ? { returnTo } : {}),
       }),
     };
   });
@@ -507,15 +518,35 @@ export async function storageRoutes(app: FastifyInstance) {
     "/storage/google/callback",
     async (req, reply) => {
       reply.header("referrer-policy", "no-referrer").header("cache-control", "no-store");
+      // Where the pop-up goes back to, whatever else went wrong: the origin sealed into the
+      // state when the sign-in started. An expired state still says where it came from.
+      let returnTo: string | undefined;
+      try {
+        if (req.query.state) returnTo = readState(req.query.state, { allowExpired: true }).returnTo;
+      } catch {
+        /* not a state of ours — the checks below say so */
+      }
+      const back = (params: Record<string, string>) => {
+        const url = donePage(params, returnTo);
+        if (url) return reply.redirect(url);
+        const text = params.error ?? "Your Google account is connected.";
+        return reply
+          .type("text/html; charset=utf-8")
+          .send(
+            `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">` +
+              `<title>Knowledge Vault</title><p style="font:16px system-ui;margin:2rem">` +
+              `${escapeHtml(text)} Close this window and go back to Knowledge Vault.</p>`,
+          );
+      };
       if (req.query.error) {
         const message =
           req.query.error === "access_denied"
             ? "Google sign-in was cancelled, so nothing was connected."
             : "Google did not complete the sign-in.";
-        return reply.redirect(donePage({ error: message }));
+        return back({ error: message });
       }
       if (!req.query.code || !req.query.state) {
-        return reply.redirect(donePage({ error: "The sign-in reply from Google was incomplete. Try again." }));
+        return back({ error: "The sign-in reply from Google was incomplete. Try again." });
       }
       try {
         const state = readState(req.query.state);
@@ -537,11 +568,11 @@ export async function storageRoutes(app: FastifyInstance) {
           data: { credentialEnc: sealValue(pendingKey(pending), grant.refreshToken) },
         });
         primeAccessToken(pendingKey(pending), grant.accessToken, grant.expiresAt);
-        return reply.redirect(donePage({ connection: pending.id }));
+        return back({ connection: pending.id });
       } catch (err) {
         req.log.warn({ err }, "google sign-in failed");
         const message = err instanceof Error ? err.message : "Google sign-in failed.";
-        return reply.redirect(donePage({ error: message.slice(0, 300) }));
+        return back({ error: message.slice(0, 300) });
       }
     },
   );

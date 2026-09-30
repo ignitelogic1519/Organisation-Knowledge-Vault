@@ -1100,8 +1100,10 @@ The status vocabulary is normative, because it is a promise to a reader:
   refresh token.
 - What the sign-in produces is a **pending connection**: the refresh token, sealed, usable only
   by the profile that started it, for one hour. The browser learns an id and the account's
-  address — nothing secret. The pop-up reports back over a `BroadcastChannel`, because
-  Google's pages cut the pop-up's link to its opener. Abandoned pending connections are swept
+  address — nothing secret. The pop-up returns to the web origin that started the sign-in
+  (`WEB_ORIGIN` when set, else the browser's `Origin` header, sealed in the state), and
+  reports back over a `BroadcastChannel`, because Google's pages cut the pop-up's link to
+  its opener. Abandoned pending connections are swept
   nightly and their grants revoked at Google.
 - **The connection test** runs against the pending connection, and saving is refused until it
   passes: *reach* the Drive; *open the folder* (create `Knowledge Vault` with a README and an

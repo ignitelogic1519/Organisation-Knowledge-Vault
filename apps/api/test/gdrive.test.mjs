@@ -143,6 +143,25 @@ test("a tampered sign-in state is refused", () => {
   assert.throws(() => g.readState("bm90LWEtc3RhdGU"), /not valid/);
 });
 
+test("the sign-in returns to the site that started it, sealed in the state", () => {
+  const url = new URL(
+    g.buildAuthorizeUrl({ profileId: "p", intent: "create", returnTo: "https://kv.example.app" }),
+  );
+  assert.equal(g.readState(url.searchParams.get("state")).returnTo, "https://kv.example.app");
+});
+
+test("only a real web origin is accepted as the place to return to", () => {
+  // WEB_ORIGIN, when set, is the answer — CORS admits nothing else.
+  assert.equal(g.signInReturnOrigin("https://other.example", "https://kv.example.app/"), "https://kv.example.app");
+  // Otherwise the browser's Origin header: https anywhere, http only on the developer's machine.
+  assert.equal(g.signInReturnOrigin("https://kv.example.app"), "https://kv.example.app");
+  assert.equal(g.signInReturnOrigin("http://localhost:3000"), "http://localhost:3000");
+  assert.equal(g.signInReturnOrigin("http://kv.example.app"), undefined);
+  assert.equal(g.signInReturnOrigin("javascript:alert(1)"), undefined);
+  assert.equal(g.signInReturnOrigin("null"), undefined);
+  assert.equal(g.signInReturnOrigin(undefined), undefined);
+});
+
 function driveFor(refreshToken, key = `t:${randomBytes(4).toString("hex")}`) {
   return new g.Drive(() => g.accessToken(key, () => refreshToken), () => g.dropAccessToken(key));
 }
