@@ -133,7 +133,8 @@ status, so the roadmap on `/storage` and this register can never disagree:
 | Backend | Status | What is actually left to do |
 |---------|--------|-----------------------------|
 | **Cloud object storage** (S3, R2, GCS, Wasabi, B2, Spaces) | `planned` | Nothing in the adapter — a provider list, endpoint templates, and per-provider IAM/CORS documentation. This is the whole return on choosing S3 first. |
-| **Cloud drives** (Google Drive, OneDrive) | `exploring` | **Google Drive is next** (owner's call, 2026-09-29), for Workspace and personal accounts, in both postures — `docs/structure.md` §9.16. The answer to "no signed URLs" is designed in `Data Storage Architecture/07-google-drive-architecture.md`: a streaming gateway that carries bytes for tickets the API signs, and a service worker that streams and decrypts in the browser. It runs at $0 with the gateway on a free VM (`09`). Left: questions 9–18 in `05`, the spikes, then the build. OneDrive follows the same design. |
+| **Google Drive** | `live` | **Built 2026-09-30** — `docs/structure.md` §9.16. Still to come, from `Data Storage Architecture/07` ("As built"): Shared Drives through the Google Picker, the keyless service identity for Workspace, moving an organization between NAS and Drive, and the gateway's caches and quota governor. |
+| **OneDrive and SharePoint** | `exploring` | The same shape as Google Drive — no single-file signed links, so the same gateway and stream client. Not started. |
 | **NAS with no public address** | `exploring` | A connector the organization runs beside the storage, opening outbound only. The unsolved part is the off-network read: any design that ends in us proxying the bytes is the cloud-drive problem in different clothes. |
 
 Large-media upload pipelines and previews still land here. Changing a status is one edit in the

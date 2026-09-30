@@ -230,6 +230,12 @@ interface StorageAdapter {
 > rule above for connected accounts and adds a streaming gateway, because Drive's bytes must pass
 > through us. The interface above also changes there: §13 of that document proposes a
 > `RemoteStore` port that the S3 code moves behind first.
+>
+> **Update 2026-09-30.** Google Drive is built (`structure.md` §9.16): connected accounts with
+> the `drive.file` scope, both postures, and the streaming gateway — inside the API under a
+> 2 GiB monthly cap by default, or on its own VM (`apps/api/src/stream-server.ts`). The
+> `RemoteStore` port was not extracted; the Drive store sits beside the S3 code behind the same
+> adapter functions.
 
 ---
 
@@ -311,11 +317,11 @@ mobile app's contract — no web-only shortcuts allowed.
 
 | Service | Constraint | Mitigation |
 |---------|-----------|------------|
-| Render (free) | API sleeps after inactivity → cold starts ~30-60 s. **Since April 2026, 5 GB of outbound bandwidth a month**; past it, with no card on file, every service is spun down until the next month | Acceptable for v1; health-ping later if needed. Document bytes never stream through the API in bulk — Drive's go through a separate gateway (`Data Storage Architecture/09-google-drive-cost-and-efficiency.md`). A card on file and a byte meter are open question 18. |
-| Oracle Cloud Always Free *(proposed, for the Drive gateway)* | 10 TB outbound a month; Arm VM halved to 2 cores / 12 GB on free accounts (June 2026); idle VMs can be reclaimed | Pay-as-you-go account (same free allowance, no idle reclamation) with a $1 budget alert; the gateway pauses at its monthly budget rather than billing. |
+| Render (free) | API sleeps after inactivity → cold starts ~30-60 s. **Since April 2026, 5 GB of outbound bandwidth a month**; past it, with no card on file, every service is spun down until the next month | Acceptable for v1; health-ping later if needed. Document bytes never stream through the API in bulk. Drive's go through the streaming gateway, which runs inside the API capped at **2 GiB a month** — it pauses at the cap rather than spend the 5 GB — or on a separate VM via `STREAM_GATEWAY_URL` (`structure.md` §9.16). |
+| Oracle Cloud Always Free *(optional, for the Drive gateway at volume)* | 10 TB outbound a month; Arm VM halved to 2 cores / 12 GB on free accounts (June 2026); idle VMs can be reclaimed | Pay-as-you-go account (same free allowance, no idle reclamation) with a $1 budget alert; the gateway pauses at its monthly budget rather than billing. |
 | Neon (free) | ~0.5 GB storage, connection limits | Prisma connection pooling; media never in DB. |
 | Vercel (free) | Serverless limits | Frontend only; heavy work lives on the API. |
-| Google Drive *(designed 2026-09-29, not built)* | 15 GB per personal account; no per-file signed links; per-identity request, write and daily-upload quotas | One Google identity per organization, so quotas never cross customers; bytes stream through our own gateway with range support, never through Drive preview or share links — `Data Storage Architecture/07-google-drive-architecture.md`. |
+| Google Drive *(built 2026-09-30)* | 15 GB per personal account; no per-file signed links; per-identity request, write and daily-upload quotas | One Google identity per organization, so quotas never cross customers; bytes stream through our own gateway with range support, never through Drive preview or share links — `Data Storage Architecture/07-google-drive-architecture.md`. |
 | Gmail (transactional mail) | Low daily send limits | Only two mail types in v1: deletion confirmation + sign-up email verification. |
 | Nightly jobs | Render free tier sleeps; no reliable built-in cron | Jobs exposed as a protected API endpoint, triggered by a free external scheduler (GitHub Actions `schedule`). |
 

@@ -2,6 +2,7 @@ import { gunzipSync } from "node:zlib";
 import type { OrgStorage } from "@prisma/client";
 import { db } from "../db.js";
 import { notify } from "../courses/helpers.js";
+import { ownerProfileIds } from "./owners.js";
 import { deleteObject, putObject } from "./s3.js";
 import { checkHealth, fullKey, mintObjectKey, s3ConfigFor, storageFor } from "./org-storage.js";
 import { encryptToKvblob } from "./kvblob.js";
@@ -150,15 +151,6 @@ export async function collectOrphans(limit = 200): Promise<number> {
  * organization's owners get a high-priority message — the state must never present as
  * data loss, because it is not.
  */
-/** Everyone who owns a branch of this organization — who storage news goes to. */
-export async function ownerProfileIds(orgId: string): Promise<string[]> {
-  const owners = await db.placement.findMany({
-    where: { kind: "OWNER", membership: { orgId } },
-    select: { membership: { select: { profileId: true } } },
-  });
-  return [...new Set(owners.map((o) => o.membership.profileId))];
-}
-
 export async function runHealthChecks(orgIds?: string[]): Promise<{ checked: number; degraded: number }> {
   const rows = await db.orgStorage.findMany({
     where: { status: { not: "UNCONFIGURED" }, ...(orgIds ? { orgId: { in: orgIds } } : {}) },

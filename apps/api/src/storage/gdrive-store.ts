@@ -39,6 +39,7 @@ import {
 import { signTicket } from "./tickets.js";
 import { gatewayUrl } from "./gateway-url.js";
 import { encryptToKvblob } from "./kvblob.js";
+import { ownerProfileIds } from "./owners.js";
 
 // Google Drive as organization-provided storage (docs/structure.md §9.16).
 //
@@ -902,11 +903,7 @@ export async function probeGdrive(row: OrgStorage): Promise<ProbeOutcome> {
 
 async function notifyOwners(orgId: string, kind: string, msg: { subject: string; body: string }) {
   const { notify } = await import("../courses/helpers.js");
-  const owners = await db.placement.findMany({
-    where: { kind: "OWNER", membership: { orgId } },
-    select: { membership: { select: { profileId: true } } },
-  });
-  for (const profileId of new Set(owners.map((o) => o.membership.profileId))) {
+  for (const profileId of await ownerProfileIds(orgId)) {
     await notify(profileId, orgId, kind, {}, { ...msg, priority: "HIGH" }).catch(() => {});
   }
 }

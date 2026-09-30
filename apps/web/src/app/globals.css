@@ -14244,3 +14244,36 @@ html.kv-pointer-on * {
     animation-duration: 2s;
   }
 }
+
+/* ── Legal pages (/privacy/google) ─────────────────────────────────────────── */
+
+.legal-body {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.6rem 1.8rem;
+  line-height: 1.6;
+}
+
+.legal-body h3 {
+  margin: 1.4rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.legal-body h3:first-child {
+  margin-top: 0;
+}
+
+.legal-body ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.legal-body li + li {
+  margin-top: 0.45rem;
+}
+
+@media (max-width: 640px) {
+  .legal-body {
+    padding: 1.1rem 1rem;
+  }
+}

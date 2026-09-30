@@ -6,6 +6,7 @@ import { db } from "../db.js";
 import { DriveError, putChunk, querySession } from "./google.js";
 import { driveForOrg, outcomeFor, sessionUriOf } from "./gdrive-store.js";
 import { gatewayIsExternal } from "./gateway-url.js";
+import { ownerProfileIds } from "./owners.js";
 import { readTicket, ticketFrom, type TicketClaims } from "./tickets.js";
 
 // The streaming gateway (docs/structure.md §9.16).
@@ -122,7 +123,6 @@ async function warnOwners(orgId: string, before: number, after: number): Promise
   const limit = orgMonthlyLimitBytes();
   const crossed = WARN_AT.filter((share) => before < share * limit && after >= share * limit).pop();
   if (crossed === undefined) return;
-  const { ownerProfileIds } = await import("./jobs.js");
   const { notify } = await import("../courses/helpers.js");
   const percent = Math.round(crossed * 100);
   const paused = crossed >= 1;

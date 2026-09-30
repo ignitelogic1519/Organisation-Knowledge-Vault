@@ -225,7 +225,7 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
     ],
     tradeoffs: [
       "Every byte crosses our streaming service on the way — unlike a NAS, where the browser talks to your storage directly.",
-      "Streaming has a monthly allowance. When it is used up, opening Drive documents pauses until the 1st; nothing is billed.",
+      "Streaming has a monthly allowance, and owners are warned as it runs down. When it is used up, opening and uploading Drive documents pauses until the 1st; nothing is billed.",
       "The files belong to the connected Google account and count against its storage.",
       "Readable documents pass through the streaming service readable. They are never kept.",
     ],

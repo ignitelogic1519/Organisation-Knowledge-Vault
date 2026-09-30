@@ -105,9 +105,9 @@ Relevant existing pieces:
 | `04-security-and-encryption.md` | Envelope encryption; three postures; the custody model |
 | `05-open-questions.md` | Eight decisions still open, each with a recommendation |
 | `06-risks-and-concerns.md` | Ten risks, ranked — two of which change the design |
-| `07-google-drive-architecture.md` | **Google Drive, designed 2026-09-29, not built** — accounts, postures, the streaming gateway, the stream client, quotas, integrity, delivery plan |
+| `07-google-drive-architecture.md` | **Google Drive, designed 2026-09-29, built 2026-09-30 in part** — its "As built" block says what shipped; `docs/structure.md` §9.16 is the rule |
 | `08-google-drive-failure-modes.md` | Every way Drive storage goes wrong, how we find out, and what prevents it |
-| `09-google-drive-cost-and-efficiency.md` | What Drive costs to run — $0, with the gateway on a free VM and never on the API's host — and how fast it is |
+| `09-google-drive-cost-and-efficiency.md` | What Drive costs to run — $0: the gateway ships inside the API capped at 2 GiB a month, and moves to a free VM for real volume — and how fast it is |
 
 **Read 01–06 before proposing a design, and 07–08 before touching Drive.** The conclusions
 below are load-bearing.

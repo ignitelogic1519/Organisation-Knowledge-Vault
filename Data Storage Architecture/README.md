@@ -1,7 +1,8 @@
 # Data Storage Architecture
 
-**Status: the first backend (NAS) is built and shipping. Google Drive is designed and in review
-— documents 07, 08 and 09, with questions 9–18 open. This folder remains the working record.**
+**Status: NAS and Google Drive are built and shipping. Google Drive's design is documents 07,
+08 and 09; what shipped and what did not is the "As built" block at the top of 07, and the rule
+for it is `docs/structure.md` §9.16. This folder remains the working record.**
 
 This folder is the working record of one decision: **moving document bytes off our
 infrastructure and onto storage the organization provides and pays for.**
@@ -144,6 +145,9 @@ Appended as we agree things. Nothing is settled until it appears here.
 | 2026-09-29 | **Both postures are offered on Drive** — `ENCRYPTED` by default, `PLAIN` available — exactly as on NAS | Owner's call. Overturns the storage register's earlier *"encrypted objects only"* line for cloud drives, which is corrected |
 | 2026-09-29 | **Speed over compression**: objects are stored byte for byte (`PLAIN`) or as framed ciphertext (`ENCRYPTED`), never compressed, and the byte path never applies transport compression | Owner's call. Media is already compressed, compressed bytes cannot be served by range (which is what seeking is), and compressing before encrypting leaks information through length |
 | 2026-09-29 | **Free first.** Every part of the Drive design runs on a free tier; a cost is accepted only where it is unavoidable, and is then stated plainly | Owner's call. Document 09 shows it can run at $0: Google charges nothing within quota, and the streaming gateway goes on a free VM with 10 TB a month — never on the API's host, whose free plan now allows 5 GB and shuts the product down past it. The gateway pauses at its free allowance instead of billing |
+| 2026-09-30 | **Google Drive built** — connected accounts (personal and Workspace, into the account's My Drive), both postures, the gateway, the stream client, health, reconciliation and the recovery chain | Owner's call: "implement". What is not built — Shared Drives, Mode B, backend-to-backend migration, the G2 caches — is listed in 07, "As built" |
+| 2026-09-30 | **The gateway runs inside the API by default, capped at 2 GiB a month**; `STREAM_GATEWAY_URL` moves it to the free Oracle VM, with a 9.5 TiB cap | Revises "never on the API's host". The cap keeps Drive from ever spending Render's 5 GB, so the trap of document 09 cannot spring, and Drive works before a second machine exists. Real use still belongs on the VM |
+| 2026-09-30 | **Owners are warned at 60%, 80% and 95% of the allowance**, and told when it pauses | Document 07, §8.3. A pause nobody saw coming reads as a fault |
 
 ---
 

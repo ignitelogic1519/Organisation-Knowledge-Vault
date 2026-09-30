@@ -151,12 +151,15 @@ Deploys with the normal git push. Two one-time setups:
    time: repo → Actions → nightly-compliance-job → Run workflow.
 
 ### 5.2 Storage
-The storage adapter port ships with three live backends:
+The storage adapter port ships with four live backends:
 - **Organization-provided (`s3`)** — the organization connects its own S3-compatible
   storage, offered as **NAS** and documented with Silo. Files go browser → their storage,
   encrypted in the browser by default, and never pass through our API. This is the path all
   new uploads should take. See **`docs/storage-setup-guide.md`** for the walkthrough,
   including how to test it against a folder on your own laptop before any NAS exists.
+- **Google Drive (`gdrive`)** — a folder in the organization's own Google Drive, personal or
+  Workspace. Bytes pass through our streaming gateway (Drive has no signed links), encrypted
+  in the browser by default. Needs a one-time Google OAuth client — **§5.3** below.
 - **Inline** — files up to 10 MB stored in Neon. Now the fallback for organizations that
   have not connected storage yet; existing files migrate across on request.
 - **Link** — external URLs for anything big (YouTube videos, Drive share links, podcasts…).
@@ -177,14 +180,33 @@ our database via the inline adapter. It is gated twice by a super-admin's own us
 password — once when the request is raised, and again at creation — which is what keeps the
 perk internal (`docs/structure.md` §9.13).
 
-Google Drive and OneDrive/SharePoint plug into the same port later (`future.md` §12); both
-proxy bytes through us, which is why the S3-compatible adapter came first. Google Drive is
-next, and designed in `Data Storage Architecture/07-google-drive-architecture.md` — nothing
-about deploying it exists yet.
+OneDrive/SharePoint plugs into the same port later (`future.md` §12).
 
 After a `.main` revival, media shows as *unreachable* until storage is reconnected — inline
 files do not survive a purge; links resume working immediately after re-adding them, and
 objects on the organization's own storage come back as soon as it is reconnected.
+
+### 5.3 Google Drive
+Switching Google Drive on is one-time platform setup, and free. The full click-by-click is
+**`docs/storage-setup-guide.md` Part 4.2**; in short:
+
+1. In Google Cloud: a project, the **Google Drive API** enabled, an **External** consent screen
+   with exactly the scopes `drive.file`, `openid` and `.../auth/userinfo.email`, and the privacy
+   policy link `<web app>/privacy/google`.
+2. A **Web application** OAuth client whose authorized redirect URI is
+   `https://<your-api>.onrender.com/storage/google/callback`.
+3. **Publish the app** so its status reads *In production* — in *Testing*, connections expire
+   after seven days.
+4. In **Render → Environment**: `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+   (both listed in `render.yaml`). `STORAGE_KEK` must be set too — it seals the Google grants.
+
+**The streaming allowance.** Drive bytes cross our servers, so the gateway meters them. By
+default it runs inside the API with a **2 GiB monthly allowance**, which keeps a free Render
+instance well inside its 5 GB of outbound traffic; at the limit, Drive uploads and viewing pause
+until the 1st and nothing is billed. For more, run `pnpm --filter @vault/api start:stream` on an
+Oracle Cloud Always Free VM (10 TB a month) and set `STREAM_GATEWAY_URL` on the API — Part 4.4
+of the storage guide. The optional variables are listed in `render.yaml` and
+`apps/api/.env.example`.
 
 ---
 

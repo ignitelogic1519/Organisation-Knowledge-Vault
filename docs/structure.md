@@ -1041,7 +1041,8 @@ roadmap section), the storage teaser on the home page, and the anchor links betw
 | `nas` | live | S3-compatible storage on hardware the organization owns — §9.2 |
 | `kvep` | live | The employee perk; content stays on our storage — §9.13 |
 | `cloud-object` | planned | S3 / R2 / GCS / Wasabi / B2 / Spaces — the same adapter, a different endpoint |
-| `cloud-drive` | exploring | Google Drive and OneDrive — no useful signed URLs, so every byte crosses our servers. Google Drive's scope is decided and its design is in review — §9.16 |
+| `google-drive` | live | A folder in the organization's Google Drive, personal or Workspace. No signed URLs, so bytes cross our streaming gateway — §9.16 |
+| `onedrive` | exploring | OneDrive and SharePoint — the same shape as Google Drive, not started |
 | `private-nas` | exploring | A NAS with no public address, reached through a connector the organization runs |
 
 The status vocabulary is normative, because it is a promise to a reader:
@@ -1051,18 +1052,19 @@ The status vocabulary is normative, because it is a promise to a reader:
 - **exploring** — a real requirement with an unsolved part. Listed so nobody has to guess
   whether we have thought about it, and honest about why it is not next.
 
-### 9.16 Google Drive — scope decided, design in review (2026-09-29)
+### 9.16 Google Drive ✅ BUILT (2026-09-29)
 
-> **Not built.** This subsection records only what has been decided. The design is
-> `Data Storage Architecture/07-google-drive-architecture.md`, its failure register is `08`, its
-> cost and efficiency are `09`, and the choices still open are questions 9–18 in `05`. Each rule
-> of that design is written into
-> this section as it is decided, and before its code — until then, the rest of §9 describes NAS
-> and KVEP only.
+> The design is `Data Storage Architecture/07-google-drive-architecture.md`, its failure
+> register is `08`, and its cost is `09`. **What shipped** is the connected-account mode (07
+> §3.2) writing into the connected account's **My Drive**, with the streaming gateway either
+> inside the API under a free budget or on a machine of its own. Not built: Shared Drives and
+> the Google Picker, the keyless service identity (07 §3.3), moving an organization between
+> backends, and the caches and quota governor of phase G2 — 07's "As built" block lists them.
+> This section is the rule for what exists; where it and 07 disagree, this section wins.
 
 **Decided by the owner:**
 
-- **Google Drive is the next backend** — for file storage, and for streaming audio and video.
+- **Google Drive is a storage backend** — for file storage, and for streaming audio and video.
 - **It serves Google Workspace and personal Google accounts alike.**
 - **Both postures of §9.5 are offered on Drive**: `ENCRYPTED` by default, `PLAIN` available,
   chosen at setup and fixed once storage is active, exactly as on NAS.
@@ -1072,20 +1074,162 @@ The status vocabulary is normative, because it is a promise to a reader:
   and compressing before encrypting leaks information through length.
 - **Free first.** Every part runs on a free tier; a cost is accepted only where it is unavoidable,
   and is then stated plainly. So the byte path **stops at its free allowance rather than billing
-  past it**: at the monthly limit, new streams and uploads pause until the 1st, and nothing else
-  in the product is affected.
+  past it**.
 
-**Fixed by the platform, not by choice** — any Drive design has to live with these:
+**Fixed by the platform, not by choice:**
 
 - **Document bytes cross our infrastructure on Drive, in both directions.** Drive issues no
   signed link for a single file, and its upload continuation endpoint cannot be reached from a
-  browser. A Drive organization is therefore never zero-bandwidth for us, and nothing published
-  may say it is. The storage ceiling of §9.12 still stops applying — the storage is theirs — but
-  the bandwidth is ours (question 16).
+  browser. A Drive organization is never zero-bandwidth for us, and nothing published may say it
+  is. The storage ceiling of §9.12 stops applying — the storage is theirs — but the bandwidth is
+  ours.
 - **A Google access token is never sent to a browser.** Drive tokens reach everything their
-  identity can reach, not one file.
-- **Drive's bytes never pass through the API's host.** Render's free plan includes 5 GB of
-  outbound traffic a month and, with no card on file, shuts every service down until the next
-  month once it is exceeded. The bytes need a machine of their own.
-- **The register entry `cloud-drive` stays `exploring`** until an adapter ships (§9.15).
+  grant can reach, not one file.
+- **`drive.file` files belong to the Google account that created them.** Another account —
+  even an administrator of the same Workspace — cannot see them through our grant, which is
+  why a reconnection must use the same account.
+
+**1 · Connecting.** Supreme-gated, like every storage change (§9.3).
+
+- Google sign-in runs in a pop-up: OAuth 2.0 authorization code with PKCE (`S256`), scopes
+  `openid email drive.file` and nothing else, offline access, and consent always asked so a
+  refresh token is always issued. `drive.file` reaches only the files Knowledge Vault itself
+  creates; the rest of the Drive is invisible to us.
+- The sign-in's `state` is sealed with the platform key and lives ten minutes. The callback
+  refuses a tampered or stale state, a grant without `drive.file`, and a grant without a
+  refresh token.
+- What the sign-in produces is a **pending connection**: the refresh token, sealed, usable only
+  by the profile that started it, for one hour. The browser learns an id and the account's
+  address — nothing secret. The pop-up reports back over a `BroadcastChannel`, because
+  Google's pages cut the pop-up's link to its opener. Abandoned pending connections are swept
+  nightly and their grants revoked at Google.
+- **The connection test** runs against the pending connection, and saving is refused until it
+  passes: *reach* the Drive; *open the folder* (create `Knowledge Vault` with a README and an
+  `objects` folder, or take it back out of the trash); *write* a health file; *read it back*;
+  *compare the bytes*; *confirm the folder is private* (a folder shared with anyone, or with the
+  whole domain, fails); *check there is room* (at least 50 MB free). The owner must also
+  acknowledge, by name, that the files will belong to that Google account.
+- **On save** the grant is re-sealed to the organization, the folder is renamed
+  `Knowledge Vault — <organization>`, and an `ENCRYPTED` organization gets its data key. One Drive
+  folder belongs to one organization (`OrgStorage.remoteTargetKey` is unique).
+- **Reconnecting** must use the same Google account, reuses the same folder, closes every open
+  document link (§9.16 · 6), and tells Google to forget the grant it replaces — we hold exactly
+  one per organization.
+- An organization whose NAS is connected cannot switch to Google Drive, or the reverse: there
+  is no storage-to-storage migration yet, and the refusal says so. Inline files (§9.12) do
+  migrate onto Drive with the existing migration button.
+
+**2 · Credentials.** The refresh token is the only Google credential ever stored: sealed with
+`STORAGE_KEK`, bound to the organization. Access tokens live in the API's memory only,
+refreshed five minutes before they expire, one refresh at a time per organization.
+
+**3 · The layout in Drive.**
+
+```
+Knowledge Vault — <organization>/
+  README.txt            what this folder is, and not to edit it
+  .kv-health            rewritten by every health check
+  objects/2026-09/      one folder per month
+    <random>.kvblob     ENCRYPTED: an opaque name and application/octet-stream
+    induction.webm      PLAIN: the document's own name and type
+```
+
+Every file carries private app properties — `kvOrg` (the organization number) and `kvObj`
+(its object key) — which only our client can read. They are how a commit proves a file is
+this organization's, and how reconciliation tells our files from anything else.
+
+**4 · Uploads** go through the gateway, in two passes, and are capped at 200 MB as on NAS.
+
+1. The browser hashes the file (SHA-256), reading 4 MiB at a time.
+2. The API checks the Drive has room, generates the Drive file id in advance (so a retry can
+   never create a duplicate), opens Google's resumable session **server-side** — the session
+   address never leaves the server, and is stored sealed — records the object, and answers
+   with an upload ticket and, for `ENCRYPTED`, the exact header and ciphertext length.
+3. The browser encrypts in 256 KiB frames and sends 8 MiB chunks to `PUT /stream/u/:session`.
+   The gateway relays each chunk to Google. A failed chunk resumes from the offset Google
+   confirms, never from a guess.
+4. The commit verifies the size, the `kvOrg` property, and Google's own `sha256Checksum`
+   against the hash the browser computed of what it sent. Then the revision is marked
+   **keep forever** and recorded, and reads are pinned to it: a new version uploaded over the
+   file in Drive's own interface is never what a reader receives.
+
+**5 · Reading.** The API checks the reader's permission exactly as for any document and issues
+a download ticket, valid ten minutes, for `GET /stream/r/:objectId` on the gateway. The ticket
+travels in an `Authorization: KVT <ticket>` header, never in a streaming URL.
+
+- **Audio and video** play through a service worker (`public/kv-stream-sw.js`) at
+  `/kv-stream/<id>`. It turns the player's plaintext ranges into the frames that hold them,
+  fetches only those, decrypts them in the browser, and keeps a few megabytes of decrypted
+  frames so the player's overlapping requests are not fetched twice. It asks the page to renew
+  an expired ticket, which re-runs the permission check. Seeking costs only the frames it
+  lands on.
+- **Everything else** (PDFs, images, downloads) is fetched whole through the gateway and
+  decrypted in the browser, as on NAS.
+- A frame that fails authentication is never shown: the reader is told the document failed its
+  integrity check.
+
+**6 · Tickets.** Ed25519-signed, carrying the organization, the one object or upload session,
+the mode (read or upload), the expiry and the organization's **ticket epoch**. The signing key
+is derived from `STORAGE_KEK` (or `STREAM_TICKET_SECRET`). A ticket for one document cannot
+read another; a read ticket cannot upload. **"Close open document links"** in the storage panel
+(Supreme-gated) raises the epoch, which ends every ticket the organization has; a reconnection
+does the same.
+
+**7 · The gateway** carries bytes and does nothing else. Every answer is `nosniff`,
+`Content-Security-Policy: default-src 'none'; sandbox`, `no-referrer` and `no-store`, and is
+never compressed. It runs in one of two places:
+
+| Where | Set by | Monthly allowance (default) | Why |
+|-------|--------|------------------------------|-----|
+| Inside the API process | Nothing — the default | **2 GiB** | Render's free plan includes 5 GB of outbound traffic and, with no card on file, stops every service when it runs out. 2 GiB of documents leaves the rest for the API itself. |
+| Its own service (`pnpm --filter @vault/api start:stream`) | `STREAM_GATEWAY_URL` on the API | **9.5 TiB** | An Oracle Cloud Always Free VM carries 10 TB a month at no cost (document 09). |
+
+The allowance counts the bytes that actually flowed — uploads and reads alike — per
+organization and platform-wide (`StreamUsage`), and can be changed with
+`STREAM_MONTHLY_LIMIT_BYTES` and `STREAM_ORG_MONTHLY_LIMIT_BYTES`. Owners are told at 60%, 80%
+and 95%; at 100% new reads and uploads are refused (`429`) with a plain sentence until the 1st,
+and nothing else in the product is affected. **A paused feature, never an invoice.** The
+storage panel shows the running total.
+
+**8 · Health.** The same probe as NAS (§9.8), with Drive's reasons:
+
+| Reason (`degradedReason`) | Meaning | When it degrades |
+|---------------------------|---------|------------------|
+| `AUTH_REVOKED` | The grant was removed in the Google account, or expired | At once |
+| `PERMISSION` | The account can no longer write to the folder | At once |
+| `ROOT_MISSING` | The folder is gone (a trashed one is put back automatically) | At once |
+| `QUOTA_FULL` | The Drive is full | At once |
+| `UNREACHABLE` | Rate limits, Google errors or the network | Only after 15 minutes of failing |
+| `KEY` | The platform key that opens the grant is missing or wrong (`STORAGE_KEK`) | At once |
+
+A definitive failure seen by a reader or an upload triggers a health check straight away.
+Degraded means what it means on NAS: owners are told, readers see "waiting on your storage",
+uploads and deadline processing pause, and nothing is presented as lost.
+
+**9 · Deletion and reconciliation.** Deleting a document queues its Drive file, and the queue
+deletes it permanently (§9.9). Nightly, reconciliation lists every file carrying the
+organization's `kvOrg` and compares it with our records. It changes nothing we did not put
+there:
+
+- a document someone moved to Drive's trash is taken back out;
+- a document someone uploaded a new version over keeps serving the revision we pinned, and the
+  owners are told;
+- a document missing from the Drive entirely is reported to the owners, with how to restore it;
+- a file of ours that no record refers to (an abandoned upload) is queued for deletion.
+
+The same nightly run sweeps abandoned pending connections (§9.16 · 1). When an organization is
+purged, its grant is revoked at Google; its files stay in its Drive, which is theirs.
+
+**10 · Recovery** (§9.11). Every object's header carries its file key wrapped by the
+organization's data key, and the `.main` file carries that data key and the object index. So
+`recovery-tool/kv-recover.mjs` opens every `ENCRYPTED` document with the Drive folder, the
+`.main` file and the Supreme password alone, offline, with Knowledge Vault gone. `PLAIN`
+documents are ordinary files already.
+
+**11 · Rate limits**, per profile: connection tests 20 a minute, uploads 30, Google sign-ins 10,
+health checks 10, document opens 120.
+
+**Switching it on** is one-time platform setup — a Google Cloud OAuth client and two environment
+variables — in `docs/storage-setup-guide.md`, Part 4. Until then the form says Google Drive is
+not switched on and everything else works.
 

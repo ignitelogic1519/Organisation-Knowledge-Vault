@@ -134,7 +134,11 @@ export function GoogleDriveSetup({
       <p className="muted">
         Your documents go into a folder called <strong>Knowledge Vault</strong> in your Google Drive.
         Knowledge Vault asks Google for access to <strong>only the files it creates there</strong> — it
-        can never see or change anything else in your Drive.
+        can never see or change anything else in your Drive.{" "}
+        <a href="/privacy/google" target="_blank" rel="noreferrer">
+          Exactly what we can reach, and keep
+        </a>
+        .
       </p>
 
       <div className="info-box">
