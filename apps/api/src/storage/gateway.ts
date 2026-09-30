@@ -98,12 +98,54 @@ async function budgetRefusal(orgId: string): Promise<string | null> {
 async function recordBytes(orgId: string, bytes: number): Promise<void> {
   if (bytes <= 0) return;
   const month = currentMonth();
+  let after = 0;
   for (const who of ["*", orgId]) {
-    await db.streamUsage.upsert({
+    const row = await db.streamUsage.upsert({
       where: { month_orgId: { month, orgId: who } },
       create: { month, orgId: who, bytes: BigInt(bytes) },
       update: { bytes: { increment: BigInt(bytes) } },
     });
+    if (who === orgId) after = Number(row.bytes);
+  }
+  await warnOwners(orgId, after - bytes, after).catch(() => {});
+}
+
+/** The shares of the monthly allowance at which owners hear about it — once each. */
+const WARN_AT = [0.6, 0.8, 0.95, 1] as const;
+
+/**
+ * Tell the owners when this addition crossed one of WARN_AT. Each increment is atomic
+ * and knows its own before and after, so exactly one request crosses each line and the
+ * message goes once a month, however many readers are streaming.
+ */
+async function warnOwners(orgId: string, before: number, after: number): Promise<void> {
+  const limit = orgMonthlyLimitBytes();
+  const crossed = WARN_AT.filter((share) => before < share * limit && after >= share * limit).pop();
+  if (crossed === undefined) return;
+  const { ownerProfileIds } = await import("./jobs.js");
+  const { notify } = await import("../courses/helpers.js");
+  const percent = Math.round(crossed * 100);
+  const paused = crossed >= 1;
+  for (const profileId of await ownerProfileIds(orgId)) {
+    await notify(
+      profileId,
+      orgId,
+      "streaming_allowance",
+      { percent },
+      {
+        subject: paused
+          ? "Google Drive streaming is paused until the 1st"
+          : `Google Drive streaming is at ${percent}% of this month's allowance`,
+        body: paused
+          ? "This organization has used its streaming allowance for the month, so opening and " +
+            "uploading Google Drive documents is paused until the 1st. Nothing is lost and " +
+            "nothing is billed. Everything else in Knowledge Vault works as normal."
+          : `Opening and uploading Google Drive documents has used ${percent}% of this month's ` +
+            "streaming allowance. At 100% they pause until the 1st — never billed. The storage " +
+            "panel shows the running total.",
+        priority: paused ? "HIGH" : "NORMAL",
+      },
+    ).catch(() => {});
   }
 }
 

@@ -342,6 +342,16 @@ export const NOTIFICATION_KINDS: Record<string, NotificationKindMeta> = {
     sublabel: "Storage",
     icon: "✅",
   },
+  // Google Drive's monthly streaming allowance (docs/structure.md §9.16): a warning at
+  // 60%, 80% and 95%, and a HIGH notice when it pauses at 100%.
+  streaming_allowance: {
+    label: "Streaming allowance",
+    category: "SYSTEM",
+    priority: "NORMAL",
+    retentionDays: RETENTION_DAYS.SYSTEM,
+    sublabel: "Storage",
+    icon: "📶",
+  },
 };
 
 /** Sub-labels for request messages, derived from the request kind they carry. */

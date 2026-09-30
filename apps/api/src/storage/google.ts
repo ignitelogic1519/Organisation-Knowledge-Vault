@@ -18,14 +18,19 @@ import { openValue, sealValue } from "./secrets.js";
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const SCOPES = ["openid", "email", DRIVE_SCOPE];
 
-/** The endpoints, overridable so tests can point the whole flow at a fake Google. */
+/**
+ * The endpoints, overridable so tests and local walk-throughs can point the whole flow
+ * at a fake Google. Never in production: there, a stray override would send customers'
+ * Google grants somewhere other than Google, so it is ignored.
+ */
 function endpoints() {
+  const override = (name: string) => (env.isProd ? "" : process.env[name]?.trim() || "");
   return {
-    auth: process.env.GOOGLE_AUTH_URL?.trim() || "https://accounts.google.com/o/oauth2/v2/auth",
-    token: process.env.GOOGLE_TOKEN_URL?.trim() || "https://oauth2.googleapis.com/token",
-    revoke: process.env.GOOGLE_REVOKE_URL?.trim() || "https://oauth2.googleapis.com/revoke",
-    drive: process.env.GOOGLE_DRIVE_API?.trim() || "https://www.googleapis.com/drive/v3",
-    upload: process.env.GOOGLE_DRIVE_UPLOAD?.trim() || "https://www.googleapis.com/upload/drive/v3",
+    auth: override("GOOGLE_AUTH_URL") || "https://accounts.google.com/o/oauth2/v2/auth",
+    token: override("GOOGLE_TOKEN_URL") || "https://oauth2.googleapis.com/token",
+    revoke: override("GOOGLE_REVOKE_URL") || "https://oauth2.googleapis.com/revoke",
+    drive: override("GOOGLE_DRIVE_API") || "https://www.googleapis.com/drive/v3",
+    upload: override("GOOGLE_DRIVE_UPLOAD") || "https://www.googleapis.com/upload/drive/v3",
   };
 }
 
