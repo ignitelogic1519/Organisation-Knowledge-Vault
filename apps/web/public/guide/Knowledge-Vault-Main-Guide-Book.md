@@ -4779,9 +4779,12 @@ product. Every one of them corresponds to a chapter here, in more depth.
 ---
 
 There is also a public **Features** page — the same material as a tour rather than a manual,
-useful for showing someone what the platform does before they have an account:
+useful for showing someone what the platform does before they have an account. Pick an area at
+the top; each feature is a card that names it, and **clicking a card turns it over** to the full
+description and, where there is one, a button straight into it. Click the back — or press
+**Esc** — to turn it face up again:
 
-![The public Features page](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/features-page.png)
+![The public Features page, with one card turned over](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/features-page.png)
 
 ---
 
@@ -5141,6 +5144,15 @@ names**. They used to be icons that only opened out into words when you pointed 
 nothing has to be hovered to be read, and nothing moves under your pointer. On a computer they
 sit in a row of their own under the search.
 See Chapter 20.
+
+### Feature cards you can turn over
+
+The feature cards on the front page and the **Features** page have been redesigned. Each one now
+shows a clean icon and the feature's name; **click it and the card turns over** to explain the
+feature and, where it lives inside the product, take you there. Every card in an area is the same
+size, the keyboard works (Enter to turn, Esc to turn back), and if your device asks for reduced
+motion the card swaps faces instead of turning.
+See Chapter 22.
 
 ### Plan cards line up
 

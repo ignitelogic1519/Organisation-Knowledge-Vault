@@ -298,3 +298,102 @@ export const IconKey = (p: IconProps) => (
     <path d="m17 8.3 1.8 2.6M19.4 6.9l1.6 2.4" />
   </Svg>
 );
+
+/* ── Feature catalogue icons ────────────────────────────────────────────────
+   The front page's feature cards, drawn in the same stroke as the app's own
+   navigation, so the catalogue looks like the product it describes rather than
+   a page of emoji. */
+
+export const IconHierarchy = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9" y="3" width="6" height="4.5" rx="1" />
+    <rect x="3" y="16.5" width="6" height="4.5" rx="1" />
+    <rect x="15" y="16.5" width="6" height="4.5" rx="1" />
+    <path d="M12 7.5v4.5M6 16.5v-2.5h12v2.5" />
+  </Svg>
+);
+
+export const IconEyeOff = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9.9 6.1A9.9 9.9 0 0 1 12 5.8c6 0 9.5 6.2 9.5 6.2a16.5 16.5 0 0 1-2.6 3.3" />
+    <path d="M6.6 7.6C4 9.3 2.5 12 2.5 12S6 18.2 12 18.2a9.3 9.3 0 0 0 4.4-1.1" />
+    <path d="M9.9 10a3 3 0 0 0 4.1 4.1" />
+    <path d="m3.5 3.5 17 17" />
+  </Svg>
+);
+
+export const IconTag = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.6 6.6a1.5 1.5 0 0 1-2.1 0z" />
+    <circle cx="8" cy="8" r="1.4" />
+  </Svg>
+);
+
+export const IconLayers = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m12 3.5 9 4.5-9 4.5L3 8z" />
+    <path d="m3 12 9 4.5 9-4.5" />
+    <path d="m3 16 9 4.5 9-4.5" />
+  </Svg>
+);
+
+export const IconCap = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m12 4.5 9.5 4.5-9.5 4.5L2.5 9z" />
+    <path d="M6.5 11v4.5c1.4 1.5 3.3 2.2 5.5 2.2s4.1-.7 5.5-2.2V11" />
+    <path d="M21.5 9v5" />
+  </Svg>
+);
+
+export const IconChart = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 4v16h16" />
+    <path d="M8 16v-4M12 16V8M16 16v-6" />
+  </Svg>
+);
+
+export const IconRefresh = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5" />
+    <path d="M4 4v4.5h4.5" />
+    <path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5" />
+    <path d="M20 20v-4.5h-4.5" />
+  </Svg>
+);
+
+export const IconClock = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Svg>
+);
+
+export const IconHourglass = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6.5 3.5h11M6.5 20.5h11" />
+    <path d="M7.5 3.5c0 4.5 4.5 5.5 4.5 8.5s-4.5 4-4.5 8.5M16.5 3.5c0 4.5-4.5 5.5-4.5 8.5s4.5 4 4.5 8.5" />
+  </Svg>
+);
+
+export const IconVolume = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+    <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11" />
+  </Svg>
+);
+
+export const IconCoin = (p: IconProps) => (
+  <Svg {...p}>
+    <ellipse cx="12" cy="7" rx="7.5" ry="3" />
+    <path d="M4.5 7v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V7" />
+    <path d="M4.5 12v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-5" />
+  </Svg>
+);
+
+/** "Turn this over" — the cue on a flip card. */
+export const IconFlip = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+    <path d="M19.8 4v3.6h-3.6" />
+  </Svg>
+);
