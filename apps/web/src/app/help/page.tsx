@@ -524,10 +524,11 @@ const TOPICS = [
             switch for the ambient movement — off by default, and remembered per device.
           </li>
           <li>
-            On a device with a real pointer the app draws <strong>its own cursor</strong>: a
-            star over anything clickable, a turning book while it fetches, a nib over text.
-            It follows a document or an exam into full screen, and hands the ordinary arrow
-            back if it ever cannot draw.
+            On a device with a real pointer the app draws <strong>its own cursor</strong>: an
+            accent dot exactly where you point and a thin ring that opens into an inverting
+            lens over anything clickable, and a caret over text. It is never drawn on a touch
+            screen, follows a document or an exam into full screen, and hands the ordinary
+            arrow back if it ever cannot draw.
           </li>
           <li>
             <strong>Hints</strong> replace the browser&apos;s tooltip — a card beside the

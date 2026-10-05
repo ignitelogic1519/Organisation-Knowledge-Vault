@@ -4080,7 +4080,8 @@ browser, come back next week: you get exactly the look you left.
 
 The palette menu's third section is **Motion**, with a single **Animation** switch. Turn it
 off and the ambient movement stops — the drifting star field behind the page, the float on the
-constellation's stars. It starts **off** and stays wherever you last set it, per device.
+constellation's stars, the pointer's trailing ring. It starts **off** and stays wherever you last
+set it, per device.
 
 If your operating system is set to reduce motion, the platform obeys that too, without being
 asked: the navigation rail stops sliding, transitions shorten, and the background animation
@@ -4092,20 +4093,25 @@ settles.
 
 ## 3. The pointer, and the hints it carries
 
-On a device with a real pointer, Knowledge Vault draws **its own**. It is not decoration —
-it is doing a job:
+On a device with a real pointer, Knowledge Vault draws **its own**: a small dot in your accent
+colour that sits exactly where you point — its centre is the click — and a thin ring around it.
+It is not decoration; it is doing a job:
 
 | Where it is | What it becomes |
 |-------------|-----------------|
-| Over the page | An ink dot at rest, with a softer ring trailing it |
-| Over anything clickable | An arrow with a **star** at its tip |
-| While the app is fetching | An **open book turning its pages** |
-| Over anything typeable | A nib |
-| Over a drag handle | A hand |
-| Over a disabled control | A struck ring |
+| Over the page | The dot, with the thin ring around it |
+| Over anything clickable — including a star in the constellation | The ring opens into a lens that **inverts** what it covers |
+| Over anything typeable | The dot draws out into a **caret** |
+| Over a drag handle | The ring widens, and closes round it as you take hold |
+| Over a disabled control | The dot turns red |
+| While the app is fetching | A segment of the ring **sweeps round** |
 
-It is switched off on touch devices, drops its motion if you have asked for reduced motion,
-and — importantly — hides the system arrow **only while it is actually painted**. If anything
+With **Animation** on, the ring follows the dot on a light spring, catching up in a fraction of
+a second; with it off — the default — or with reduced motion, the ring stays locked around the
+dot. The dot itself never lags.
+
+It is switched off on phones, tablets and other touch-first screens, and — importantly — hides the
+system arrow **only while it is actually painted**. If anything
 ever prevents it from drawing, the ordinary arrow comes back rather than leaving you with
 neither. That includes full screen: a document or an exam given the whole screen carries the
 pointer in with it.
@@ -5119,6 +5125,25 @@ custody means here."*
 
 A short, dated record of what changed in the product, so a returning reader can see what has
 moved since they last used it. Newest first.
+
+---
+
+## October 2026
+
+### A lighter, quicker pointer
+
+The pointer has been rebuilt. It is now a small dot in your accent colour that sits exactly
+where you point, with a thin ring around it: over anything clickable — a button, a link, a star
+in the constellation — the ring opens into a lens that inverts what it covers, and over text the
+dot becomes a caret. The playful glyphs and idle scenes are gone.
+
+It is also much lighter to move. The dot no longer waits for anything — it is drawn in the same
+instant your mouse reports where it is — and nothing about the pointer makes the page redo its
+layout as you move. With **Animation** on, the ring follows on a light spring and settles in a
+fraction of a second rather than dragging behind. Dragging something no longer leaves the
+pointer stuck in its "holding" pose afterwards. On phones, tablets and touch screens the pointer
+is never drawn at all.
+See Chapter 20.
 
 ---
 

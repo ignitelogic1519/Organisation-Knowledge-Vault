@@ -80,8 +80,8 @@ function MotionSwitch() {
       aria-label={on ? "Turn animation off" : "Turn animation on"}
       data-hint={
         on
-          ? "Turns off the animated cursor, its idle scenes and the decorative motion across the app. Remembered on this device."
-          : "Animation is off — the default. Turn it on for the animated cursor, its idle scenes and the motion across the app. Your choice is remembered."
+          ? "Turns off the cursor's trailing ring and the decorative motion across the app. Remembered on this device."
+          : "Animation is off — the default. Turn it on for the cursor's trailing ring and the motion across the app. Your choice is remembered."
       }
       data-hint-title="Animation"
       onClick={() => {
