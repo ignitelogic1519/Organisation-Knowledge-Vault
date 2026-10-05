@@ -6,10 +6,10 @@ import { useEffect, useState } from "react";
 import { Mailbox } from "./Mailbox";
 import { ThemeMenu } from "./ThemeMenu";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { NavSearch } from "./NavSearch";
 
-// Public-page navigation. The same icon-first rail the app shell uses, so moving from the
-// marketing pages into the product doesn't change how navigation behaves: an icon that
-// widens on hover or focus to show its real label.
+// Public-page navigation. The same labelled rail and search box the app shell uses, so
+// moving from the marketing pages into the product doesn't change how navigation behaves.
 //
 // Below 992px the rail leaves the bar and becomes a sheet under the hamburger — exactly as
 // it does in the app shell. It used to be rendered without a toggler, which meant every
@@ -89,6 +89,8 @@ export function SiteNav({ right }: { right?: React.ReactNode }) {
               </div>
             ) : null}
           </div>
+
+          <NavSearch />
 
           <div className="kv-navbar-controls">
             <Mailbox />

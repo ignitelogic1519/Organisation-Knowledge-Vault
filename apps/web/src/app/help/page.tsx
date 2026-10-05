@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/SiteNav";
+import { helpTopicId } from "@/lib/site-search";
 
 export const metadata = {
   title: "Help & guide book — Knowledge Vault",
@@ -602,7 +603,8 @@ export default function HelpPage() {
 
         <div className="help-grid stagger">
           {TOPICS.map((t) => (
-            <div key={t.title} className="help-card glass">
+            // The navbar search links straight to a topic, so each card is its own anchor.
+            <div key={t.title} id={helpTopicId(t.title)} className="help-card glass">
               <h3>
                 <span className="feature-icon" aria-hidden>
                   {t.icon}

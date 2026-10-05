@@ -87,7 +87,7 @@ The **five parameters** are the same in every chapter, so you can compare featur
 | 17 | [Plans, pricing & Knowledge Coins](chapter-17-plans-and-access.md) | Coins, the plan ladder, the free plan, access codes, upgrades |
 | 18 | [The Supreme zone — custody & recovery](chapter-18-supreme-and-custody.md) | Backups, `.main`, `.bkp`, the Recovery |
 | 19 | [Staying signed in — sessions & security](chapter-19-sessions-and-security.md) | The one-hour rule, the warning card, and what ends a session |
-| 20 | [Appearance & navigation](chapter-20-appearance-and-navigation.md) | Themes, accents, the pointer, hints, and the icon-first nav bar |
+| 20 | [Appearance & navigation](chapter-20-appearance-and-navigation.md) | Themes, accents, the pointer, hints, the navigation bar and search |
 | 21 | [Flow diagrams — every setting at a glance](chapter-21-flow-diagrams.md) | A diagram + screenshot for each owner action, member capability & request flow |
 | 22 | [Help & support](chapter-22-help-and-support.md) | Where to find answers in-app |
 | 23 | [Where your documents live](chapter-23-where-your-documents-live.md) | NAS, the KVEP perk, and the storage backends still to come |

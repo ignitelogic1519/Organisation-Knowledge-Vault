@@ -41,6 +41,20 @@
 
 /* ── Branded top navbar (replaces the old sidebar + bottom tab bar) ──────── */
 
+/* How much room the bar takes at the top of the page. Anything that has to clear it — a
+   sticky toolbar, the trail under the fixed public bar, an anchor scrolled into view —
+   reads this rather than guessing a number. On a wide screen the bar is two rows: the
+   brand, the search and the controls on top, every destination labelled beneath. */
+:root {
+  --kv-bar-h: 4.1rem;
+}
+
+@media (min-width: 992px) {
+  :root {
+    --kv-bar-h: 7.15rem;
+  }
+}
+
 .kv-navbar {
   background: var(--glass-strong);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
@@ -53,9 +67,12 @@
   z-index: 80;
 }
 
-.kv-brand,
-.kv-brand:hover,
-.kv-brand:focus {
+/* Scoped under the bar on purpose: Bootstrap's `.navbar-brand` (black) has the same
+   weight as a lone `.kv-brand`, so whichever stylesheet loaded last won — and when it was
+   Bootstrap, the wordmark went black on the night theme. Two classes win regardless. */
+.kv-navbar .kv-brand,
+.kv-navbar .kv-brand:hover,
+.kv-navbar .kv-brand:focus {
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -64,12 +81,12 @@
   color: var(--text);
 }
 
-/* ── The icon rail ───────────────────────────────────────────────────────────
-   Navigation is icons at rest and words on contact. Each link holds its real
-   label in the markup; hovering, focusing, or landing on the page it points to
-   opens the label out with a width transition. No tooltip attributes, no
-   placeholder text — assistive technology and in-page search both see the words
-   at all times, sighted users see them the moment they reach for one.
+/* ── The navigation rail ─────────────────────────────────────────────────────
+   Every destination shows its icon AND its name, all the time. The labels used to
+   stay folded away until the pointer reached them, which meant reading the bar
+   by hovering over it; a customer should see where they can go at a glance, so
+   nothing in the rail moves or changes size any more. Hover and focus only change
+   colour.
    ------------------------------------------------------------------------- */
 
 .kv-navbar-inner {
@@ -124,29 +141,21 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0;
-  max-width: 2.55rem;
+  gap: 0.4rem;
   min-height: 2.55rem;
-  padding: 0.5rem;
+  padding: 0.5rem 0.9rem 0.5rem 0.55rem;
   border-radius: 980px;
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
-  /* Geometry moves on the navigation budget (slow, no overshoot, hesitant at
-     both ends); colour still answers instantly, because feedback that you have
-     reached a link should never lag. The delays in the shorthand below are the
-     CLOSING delays — the hover rule replaces them with the opening ones. Order
-     matters: the delay list has to line up with the property list. */
+  /* Colour only — the link never changes size, so nothing in the bar shifts under
+     the pointer. */
   transition:
-    max-width var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
-    gap var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
-    padding var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
-    color var(--dur-micro) var(--ease) 0s,
-    background var(--dur-micro) var(--ease) 0s,
-    box-shadow var(--dur-micro) var(--ease) 0s;
+    color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease);
 }
 
 .kv-rail-icon {
@@ -164,40 +173,10 @@
   height: 1.15rem;
 }
 
-/* The label is always in the DOM; only its box collapses. */
-.kv-rail-label {
-  max-width: 0;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    max-width var(--dur-nav) var(--ease-nav) var(--nav-close-delay),
-    opacity var(--dur-standard) var(--ease) var(--nav-close-delay),
-    transform var(--dur-nav) var(--ease-nav) var(--nav-close-delay);
-}
-
 .kv-rail-link:hover,
 .kv-rail-link:focus-visible {
   color: var(--text);
   background: var(--accent-soft);
-}
-
-.kv-rail-link:hover,
-.kv-rail-link:focus-within,
-.kv-rail-link[data-active="true"] {
-  max-width: 15rem;
-  gap: 0.45rem;
-  padding-right: 0.95rem;
-  /* Opening delays, in the same property order as the base shorthand. */
-  transition-delay: var(--nav-open-delay), var(--nav-open-delay), var(--nav-open-delay), 0s, 0s, 0s;
-}
-
-.kv-rail-link:hover .kv-rail-label,
-.kv-rail-link:focus-within .kv-rail-label,
-.kv-rail-link[data-active="true"] .kv-rail-label {
-  max-width: 12rem;
-  opacity: 1;
-  transform: none;
-  transition-delay: var(--nav-open-delay);
 }
 
 .kv-rail-link[data-active="true"] {
@@ -311,11 +290,6 @@
     padding: 0.6rem 0.8rem;
     border-radius: var(--radius-sm);
   }
-  .kv-rail-label {
-    max-width: none;
-    opacity: 1;
-    transform: none;
-  }
   /* Session links stack full-width under a hairline, so "Sign in / Get started" (or the
      coin wallet on Pricing) reads as its own group rather than a crowded second row. */
   .kv-sheet-slot {
@@ -379,11 +353,295 @@
   }
 }
 
-/* Someone who prefers less motion gets the same rail, just without the slide. */
+/* Someone who prefers less motion gets the same rail, without even the colour fade. */
 @media (prefers-reduced-motion: reduce) {
-  .kv-rail-link,
-  .kv-rail-label {
+  .kv-rail-link {
     transition: none;
+  }
+}
+
+/* ── The navbar search — components/NavSearch.tsx ───────────────────────────
+   A field in the bar on a wide screen; a magnifier that opens a full-width row
+   under the bar on a narrow one. Results drop down beneath the field, grouped.
+   ------------------------------------------------------------------------- */
+
+.kv-search {
+  position: relative;
+  flex: 0 1 17rem;
+  min-width: 10rem;
+}
+
+.kv-search-toggle {
+  display: none;
+}
+
+.kv-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.4rem;
+  padding: 0 0.45rem 0 2.15rem;
+  border-radius: 980px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  border: 1px solid var(--border);
+  transition:
+    border-color var(--dur-micro) var(--ease),
+    box-shadow var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
+}
+
+.kv-search-field:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.kv-search-field:focus-within {
+  background: var(--surface-solid);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
+}
+
+.kv-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.kv-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.kv-search-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+/* Esc clears the field, so the browser's own little cross is just clutter. */
+.kv-search-input::-webkit-search-cancel-button,
+.kv-search-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.kv-search-kbd {
+  flex: none;
+  padding: 0.12rem 0.42rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-solid);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.kv-search-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  left: 0;
+  z-index: 5;
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.4rem;
+  border-radius: var(--radius);
+  /* Solid, like the mobile sheet: results sit on top of body copy. */
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  animation: kv-fade-up 160ms var(--ease) both;
+}
+
+.kv-search-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kv-search-group {
+  padding: 0.6rem 0.6rem 0.3rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.kv-search-option {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.kv-search-option[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.kv-search-option-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.65rem;
+  background: var(--surface-2);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.kv-search-option-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kv-search-option-title,
+.kv-search-option-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kv-search-option-title {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.kv-search-option-hint {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.kv-search-option-go {
+  flex: none;
+  color: var(--text-secondary);
+  opacity: 0;
+}
+
+.kv-search-option[aria-selected="true"] .kv-search-option-go {
+  opacity: 1;
+}
+
+.kv-search-empty {
+  margin: 0;
+  padding: 0.8rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+/* Wide screens: two rows. The labelled destinations are too many to share a row with
+   a usable search field on an ordinary laptop — an organization has six or seven — so
+   they get a row of their own, and the search sits in the middle of the top row where
+   it is the first thing you see. `order` rearranges without changing the markup, which
+   stays in reading order for assistive technology. */
+@media (min-width: 992px) {
+  .kv-navbar-inner {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+  .kv-brand {
+    order: 1;
+  }
+  .kv-search {
+    order: 2;
+    flex: 1 1 22rem;
+    max-width: 38rem;
+    margin: 0 auto;
+  }
+  .kv-sheet-slot {
+    order: 3;
+  }
+  .kv-navbar-controls {
+    order: 4;
+    margin-left: 0;
+  }
+  .kv-rail {
+    order: 5;
+    flex: 1 0 100%;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0.4rem 0 0.15rem;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    /* A last resort on the narrowest desktop with the longest menu: scroll, never wrap
+       into a third row or push a label out of sight. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .kv-rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .kv-rail-link,
+  .kv-rail-link:hover,
+  .kv-rail-link:focus {
+    padding-right: 0.75rem;
+  }
+}
+
+/* Narrow screens: a magnifier beside the controls, and the field opens as its own row
+   under the bar — anchored to the bar itself, not to the button. */
+@media (max-width: 991.98px) {
+  .kv-search {
+    position: static;
+    flex: none;
+    min-width: 0;
+    margin-left: auto;
+  }
+  .kv-navbar-controls {
+    margin-left: 0;
+  }
+  .kv-search-toggle {
+    display: inline-grid;
+  }
+  .kv-search-field {
+    display: none;
+  }
+  .kv-search[data-revealed="true"] .kv-search-field {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0.6rem;
+    left: 0.6rem;
+    z-index: 4;
+    display: flex;
+    height: 2.9rem;
+    background: var(--surface-solid);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  }
+  .kv-search-kbd {
+    display: none;
+  }
+  .kv-search-panel {
+    top: calc(100% + 3.8rem);
+    right: 0.6rem;
+    left: 0.6rem;
+    width: auto;
+    max-height: calc(100svh - 9rem);
   }
 }
 
@@ -394,7 +652,7 @@
 .kv-main {
   padding-top: 1.5rem;
   padding-bottom: 3rem;
-  min-height: calc(100svh - 4.5rem);
+  min-height: calc(100svh - var(--kv-bar-h));
   animation: kv-fade-up 450ms var(--ease) both;
 }
 

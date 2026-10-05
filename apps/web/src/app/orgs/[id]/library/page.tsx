@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   versionLabel,
@@ -413,7 +413,13 @@ function CourseDetail({
 
 export default function LibraryPage() {
   const { org } = useOrg();
-  const [query, setQuery] = useState("");
+  const params = useSearchParams();
+  const [query, setQuery] = useState(() => params.get("q") ?? "");
+  // The navbar search hands its words over as ?q= — including while already on this page.
+  const handedOver = params.get("q");
+  useEffect(() => {
+    if (handedOver !== null) setQuery(handedOver);
+  }, [handedOver]);
   const [list, setList] = useState<LibraryCourse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<LibraryCourse | null>(null);

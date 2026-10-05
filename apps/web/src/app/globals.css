@@ -61,18 +61,6 @@
   --dur-standard: 250ms;
   --dur-large: 450ms;
 
-  /* Navigation motion is its own budget, deliberately slower than the rest.
-     The icon rail changes its own width on hover, which moves every link after
-     it — so a fast, springy expansion means the target slides out from under
-     the pointer and the click lands on the wrong thing. Slow, no overshoot,
-     and hesitant at both ends: it waits before opening (brushing past on the
-     way somewhere else does not disturb the bar) and waits before closing (a
-     pointer that slips off the pill for a frame does not snap it shut). */
-  --ease-nav: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --dur-nav: 420ms;
-  --nav-open-delay: 90ms;
-  --nav-close-delay: 200ms;
-
   --radius: 18px;
   --radius-sm: 12px;
 }
@@ -3058,11 +3046,18 @@ select option[value=""] {
 }
 
 .help-card {
+  /* Reached from the navbar search as /help#topic — clear the fixed bar when it lands. */
+  scroll-margin-top: calc(var(--kv-bar-h) + 1.5rem);
   border-radius: var(--radius);
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+}
+
+.help-card:target {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 0.2rem var(--bs-focus-ring-color);
 }
 
 .help-card h3 {
@@ -5489,7 +5484,7 @@ button.reader-tab:focus-visible {
   overflow-x: auto;
   scrollbar-width: thin;
   position: sticky;
-  top: 4.2rem;
+  top: calc(var(--kv-bar-h) + 0.1rem);
   z-index: 7;
 }
 
@@ -5684,8 +5679,8 @@ button.reader-tab:focus-visible {
   flex-direction: column;
   gap: 0.5rem;
   position: sticky;
-  top: 7.6rem;
-  max-height: calc(100svh - 9rem);
+  top: calc(var(--kv-bar-h) + 3.5rem);
+  max-height: calc(100svh - var(--kv-bar-h) - 4.9rem);
   overflow: hidden;
 }
 
@@ -7320,7 +7315,7 @@ button.reader-tab:focus-visible {
   border-radius: 14px;
   position: sticky;
   /* Clears the sticky navigation bar — at 1rem it slid underneath it. */
-  top: 5rem;
+  top: calc(var(--kv-bar-h) + 0.9rem);
 }
 @media (max-width: 860px) {
   .plan-chooser {
@@ -9981,7 +9976,7 @@ body.is-dragging-block * {
    component returns nothing, and unconditional padding there would push the hero
    down for no reason. */
 .breadcrumbs-public:has(.breadcrumbs) {
-  padding-top: 5.2rem;
+  padding-top: calc(var(--kv-bar-h) + 1.1rem);
   padding-bottom: 0.2rem;
 }
 
@@ -10084,7 +10079,7 @@ body.is-dragging-block * {
 .storage-backend {
   border-radius: var(--radius);
   padding: clamp(1rem, 3vw, 1.6rem);
-  scroll-margin-top: 6rem;
+  scroll-margin-top: calc(var(--kv-bar-h) + 1.5rem);
 }
 
 .storage-backend-head {

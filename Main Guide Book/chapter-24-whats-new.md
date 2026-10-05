@@ -7,6 +7,20 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### Search from the top of every page, and a bar that names everything
+
+A **search box** now sits in the middle of the top bar, on every page. Type a page, a topic or an
+organization and jump straight there — *price* finds Pricing, *password* finds the help on
+signing in — and inside an organization it will search that organization's Library or your My
+Learning for you. Press **/** or **Ctrl K** (**⌘ K** on a Mac) to reach it from anywhere.
+
+The destinations in the bar — *Organizations*, *Pricing*, *Account*, *Help* and, inside an
+organization, *Constellation*, *My Learning*, *Library* and the rest — now **always show their
+names**. They used to be icons that only opened out into words when you pointed at them; now
+nothing has to be hovered to be read, and nothing moves under your pointer. On a computer they
+sit in a row of their own under the search.
+See [Chapter 20](chapter-20-appearance-and-navigation.md).
+
 ### A lighter, quicker pointer
 
 The pointer has been rebuilt. It is now a small dot in your accent colour that sits exactly
