@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   comparePlans,
   durationLabel,
@@ -94,17 +94,19 @@ function PlanCard({
         ))}
       </ul>
 
-      <button
-        className="btn btn-primary w-100"
-        onClick={() => (plan.isCustom ? onCustom(plan) : onRequest(plan))}
-      >
-        {plan.isCustom ? "Request a custom plan" : current ? "Renew this plan" : "Request this plan"}
-      </button>
+      {/* Above the button, not below it: every card is the same height, and the buttons
+          only line up along the bottom if nothing ever follows them. */}
       {!affordable && !plan.isCustom && (
         <p className="pricing-afford auth-sub">
           You hold {coins} coins — this plan needs {plan.priceCoins}.
         </p>
       )}
+      <button
+        className="btn btn-primary w-100 pricing-cta"
+        onClick={() => (plan.isCustom ? onCustom(plan) : onRequest(plan))}
+      >
+        {plan.isCustom ? "Request a custom plan" : current ? "Renew this plan" : "Request this plan"}
+      </button>
     </div>
   );
 }
@@ -308,6 +310,12 @@ export default function PricingPage() {
   };
 
   const shown = view?.plans.filter((p) => p.category === tab) ?? [];
+  const customPlan = shown.find((p) => p.key === customFor) ?? null;
+  const customRef = useRef<HTMLDivElement>(null);
+  // The form opens below the grid, which can be off screen — bring it to the reader.
+  useEffect(() => {
+    if (customFor) customRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [customFor]);
   const myPlanKeys = new Set((view?.myOrgs ?? []).map((o) => o.planKey));
   const upgradableOrgs = view?.myOrgs ?? [];
 
@@ -374,81 +382,86 @@ export default function PricingPage() {
                   setCustomFor(customFor === plan.key ? null : plan.key);
                 }}
               />
-              {customFor === p.key && (
-                <form
-                  className="pricing-custom glass"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const d = new FormData(e.currentTarget);
-                    try {
-                      await pricing.request({
-                        kind: "CUSTOM_PLAN",
-                        planKey: p.key,
-                        requestedDays: Number(d.get("days")),
-                        offeredCoins: Number(d.get("coins")),
-                        requestedMembers: Number(d.get("members")) || undefined,
-                        requestedDocuments: Number(d.get("documents")) || undefined,
-                        requestedUploads: Number(d.get("uploads")) || undefined,
-                        message: String(d.get("message") || "") || undefined,
-                      });
-                      setCustomFor(null);
-                      dialogs.toast(
-                        "Proposal sent — the Knowledge Base team will reply in your mailbox.",
-                        "success",
-                      );
-                      loadMine();
-                    } catch (err) {
-                      dialogs.toast(
-                        err instanceof Error ? err.message : "Could not send the proposal",
-                        "danger",
-                      );
-                    }
-                  }}
-                >
-                  <strong>Tell us the shape you need</strong>
-                  <p className="auth-sub">
-                    These numbers are what the team approves — you won&apos;t be asked to
-                    fill anything in twice.
-                  </p>
-                  <label className="field">
-                    <span>Days you need</span>
-                    <input name="days" type="number" min={1} max={3650} required />
-                  </label>
-                  <label className="field">
-                    <span>Number of people</span>
-                    <input name="members" type="number" min={1} required />
-                  </label>
-                  <label className="field">
-                    <span>Custom documents (built in the Studio)</span>
-                    <input name="documents" type="number" min={1} required />
-                  </label>
-                  <label className="field">
-                    <span>Uploaded documents</span>
-                    <input name="uploads" type="number" min={1} required />
-                  </label>
-                  <label className="field">
-                    <span>Coins you offer</span>
-                    <input name="coins" type="number" min={0} required />
-                  </label>
-                  <label className="field">
-                    <span>Anything else (optional)</span>
-                    <textarea name="message" rows={2} maxLength={600} />
-                  </label>
-                  <div className="tree-actions">
-                    <button className="btn btn-primary btn-small">Send proposal</button>
-                    <button
-                      type="button"
-                      className="btn btn-quiet btn-small"
-                      onClick={() => setCustomFor(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
             </div>
           ))}
         </div>
+
+        {/* The custom-plan form opens under the grid, not inside a card: inside, it made
+            one cell — and with equal rows, every card on the page — as tall as the form. */}
+        {customPlan && (
+          <div className="pricing-custom-wrap" ref={customRef}>
+            <form
+              className="pricing-custom glass"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const d = new FormData(e.currentTarget);
+                try {
+                  await pricing.request({
+                    kind: "CUSTOM_PLAN",
+                    planKey: customPlan.key,
+                    requestedDays: Number(d.get("days")),
+                    offeredCoins: Number(d.get("coins")),
+                    requestedMembers: Number(d.get("members")) || undefined,
+                    requestedDocuments: Number(d.get("documents")) || undefined,
+                    requestedUploads: Number(d.get("uploads")) || undefined,
+                    message: String(d.get("message") || "") || undefined,
+                  });
+                  setCustomFor(null);
+                  dialogs.toast(
+                    "Proposal sent — the Knowledge Base team will reply in your mailbox.",
+                    "success",
+                  );
+                  loadMine();
+                } catch (err) {
+                  dialogs.toast(
+                    err instanceof Error ? err.message : "Could not send the proposal",
+                    "danger",
+                  );
+                }
+              }}
+            >
+              <strong>Tell us the shape you need — {customPlan.name}</strong>
+              <p className="auth-sub">
+                These numbers are what the team approves — you won&apos;t be asked to
+                fill anything in twice.
+              </p>
+              <label className="field">
+                <span>Days you need</span>
+                <input name="days" type="number" min={1} max={3650} required />
+              </label>
+              <label className="field">
+                <span>Number of people</span>
+                <input name="members" type="number" min={1} required />
+              </label>
+              <label className="field">
+                <span>Custom documents (built in the Studio)</span>
+                <input name="documents" type="number" min={1} required />
+              </label>
+              <label className="field">
+                <span>Uploaded documents</span>
+                <input name="uploads" type="number" min={1} required />
+              </label>
+              <label className="field">
+                <span>Coins you offer</span>
+                <input name="coins" type="number" min={0} required />
+              </label>
+              <label className="field">
+                <span>Anything else (optional)</span>
+                <textarea name="message" rows={2} maxLength={600} />
+              </label>
+              <div className="tree-actions">
+                <button className="btn btn-primary btn-small">Send proposal</button>
+                <button
+                  type="button"
+                  className="btn btn-quiet btn-small"
+                  onClick={() => setCustomFor(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {authed && mine.length > 0 && (
           <div className="section" style={{ maxWidth: 760, margin: "2rem auto 0" }}>

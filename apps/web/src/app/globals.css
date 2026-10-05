@@ -7215,13 +7215,36 @@ button.reader-tab:focus-visible {
   max-width: 1000px;
   margin: 1.5rem auto 0;
 }
+/* Every plan card the same size. Columns are already equal (1fr); `1fr` rows make every
+   row as tall as the tallest card on the page, not just the tallest in its own row — so
+   a short plan never sits beside, or above, a long one looking like a lesser thing. One
+   column on a phone needs none of it, and would only pad the short cards with space. */
+@media (min-width: 576px) {
+  .pricing-grid {
+    grid-auto-rows: 1fr;
+  }
+}
+.pricing-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .pricing-card {
   position: relative;
+  flex: 1;
   padding: 1.4rem 1.3rem;
   border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+/* The button is always the card's last line, so across a row they line up. */
+.pricing-cta {
+  margin-top: auto;
+}
+.pricing-afford {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
 }
 .pricing-card h3 { margin: 0.2rem 0 0; }
 .pricing-badge {
@@ -7267,6 +7290,13 @@ button.reader-tab:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  padding: 1.3rem;
+  border-radius: 16px;
+}
+.pricing-custom-wrap {
+  max-width: 560px;
+  margin: 1.4rem auto 0;
+  scroll-margin: calc(var(--kv-bar-h) + 1rem) 0 1rem;
 }
 /* Admin messages panel on the Account page */
 .admin-inbox .bell-item-top { display: flex; gap: 0.5rem; align-items: center; }
