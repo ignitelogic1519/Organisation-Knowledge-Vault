@@ -65,9 +65,12 @@ product. Every one of them corresponds to a chapter here, in more depth.
 ---
 
 There is also a public **Features** page — the same material as a tour rather than a manual,
-useful for showing someone what the platform does before they have an account:
+useful for showing someone what the platform does before they have an account. Pick an area at
+the top; each feature is a card that names it, and **clicking a card turns it over** to the full
+description and, where there is one, a button straight into it. Click the back — or press
+**Esc** — to turn it face up again:
 
-![The public Features page](images/features-page.png)
+![The public Features page, with one card turned over](images/features-page.png)
 
 ---
 

@@ -1626,28 +1626,6 @@ select option[value=""] {
   color: var(--text-secondary);
 }
 
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.2rem;
-}
-
-.feature-card {
-  border-radius: var(--radius);
-  padding: 1.6rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  transition:
-    transform var(--dur-standard) var(--spring),
-    box-shadow var(--dur-standard) var(--ease);
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 40px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
 .feature-icon {
   width: 2.8rem;
   height: 2.8rem;
@@ -1657,16 +1635,6 @@ select option[value=""] {
   font-size: 1.3rem;
   background: var(--accent-soft);
   color: var(--accent);
-}
-
-.feature-card h3 {
-  font-size: 1.12rem;
-  letter-spacing: -0.01em;
-}
-
-.feature-card p {
-  color: var(--text-secondary);
-  font-size: 0.93rem;
 }
 
 .step-list {
@@ -9444,48 +9412,256 @@ body.is-dragging-block * {
   font-size: 0.95rem;
 }
 
-.feature-grid {
+/* ── Feature flip cards ──────────────────────────────────────────────────────
+   The front names a feature; a click turns the card over to its description.
+   Both faces sit in the same grid cell, so a card is always as tall as its
+   longer face — nothing is clipped and no height is guessed — and `1fr` rows
+   make every card in an area the same size. No backdrop blur on the faces: a
+   blurred layer inside a 3D transform is flattened by the browser and the turn
+   stutters, so the faces are solid.
+   ------------------------------------------------------------------------- */
+
+.fc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
+  grid-auto-rows: 1fr;
+  gap: 1rem;
 }
 
-.feature-card {
+.fc {
+  --fc-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  min-height: 15rem;
+  perspective: 1400px;
+}
+
+.fc-inner {
+  display: grid;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 650ms var(--fc-ease);
+}
+
+.fc[data-flipped="true"] .fc-inner {
+  transform: rotateY(180deg);
+}
+
+.fc-face {
+  grid-area: 1 / 1;
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 1rem 1.05rem 1.05rem;
-  border-radius: var(--radius);
+  min-width: 0;
+  padding: 1.3rem 1.3rem 1.1rem;
   border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--text) 5%, transparent),
+    0 10px 28px color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
-.feature-card h3 {
-  margin: 0;
-  font-size: 1.02rem;
+/* — the front — */
+.fc-front {
+  gap: 0.3rem;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-standard) var(--ease),
+    box-shadow var(--dur-standard) var(--ease);
 }
 
-.feature-card p {
-  margin: 0;
-  font-size: 0.86rem;
-  line-height: 1.6;
+.fc-front:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--text) 5%, transparent),
+    0 16px 36px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.fc-front:focus-visible,
+.fc-back-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.fc-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  /* Pushes the name to the foot of the card, so a row of cards reads as a row of
+     names along one line, whatever the icons above them. */
+  margin-bottom: auto;
+  padding-bottom: 1.4rem;
+}
+
+.fc-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--accent) 14%, transparent),
+    color-mix(in srgb, var(--accent-2) 8%, transparent)
+  );
+  color: var(--accent);
+}
+
+.fc-gate {
+  padding: 0.22rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
   color: var(--text-secondary);
-}
-
-.feature-card .btn {
-  align-self: flex-start;
-  margin-top: 0.2rem;
-}
-
-.feature-gate {
-  position: absolute;
-  top: 0.7rem;
-  right: 0.8rem;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.fc-index {
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}
+
+.fc-title {
+  display: block;
+  font-size: 1.14rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.fc-cue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
   color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: color var(--dur-micro) var(--ease);
+}
+
+.fc-cue svg {
+  transition: transform var(--dur-standard) var(--ease);
+}
+
+.fc-front:hover .fc-cue,
+.fc-front:focus-visible .fc-cue {
+  color: var(--accent);
+}
+
+.fc-front:hover .fc-cue svg {
+  transform: rotate(-90deg);
+}
+
+/* — the back — */
+.fc-back {
+  gap: 0.55rem;
+  overflow: hidden;
+  transform: rotateY(180deg);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--accent) 9%, var(--surface-solid)),
+      var(--surface-solid) 62%
+    );
+  cursor: pointer;
+}
+
+/* A thin accent rule across the top: the back reads as the same card, turned over. */
+.fc-back::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--grad-accent);
+}
+
+.fc[data-flipped="false"] .fc-back {
+  pointer-events: none;
+}
+
+.fc-back-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.fc-text {
+  margin: 0;
+  color: color-mix(in srgb, var(--text) 84%, var(--surface-solid));
+  font-size: 0.88rem;
+  line-height: 1.6;
+  cursor: text;
+}
+
+.fc-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.6rem;
+}
+
+.fc-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  padding: 0.35rem 0.6rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition:
+    color var(--dur-micro) var(--ease),
+    background var(--dur-micro) var(--ease);
+}
+
+.fc-back-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Reduced motion: the card does not turn — the faces cross-fade in place. */
+@media (prefers-reduced-motion: reduce) {
+  .fc-inner,
+  .fc[data-flipped="true"] .fc-inner {
+    transition: none;
+    transform: none;
+  }
+  .fc-face {
+    transition: opacity 160ms linear;
+  }
+  .fc-back {
+    transform: none;
+    opacity: 0;
+  }
+  .fc[data-flipped="true"] .fc-back {
+    opacity: 1;
+  }
+  .fc[data-flipped="true"] .fc-front {
+    opacity: 0;
+  }
 }
 
 .feature-foot {

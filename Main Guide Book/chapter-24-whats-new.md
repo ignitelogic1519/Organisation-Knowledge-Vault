@@ -21,6 +21,15 @@ nothing has to be hovered to be read, and nothing moves under your pointer. On a
 sit in a row of their own under the search.
 See [Chapter 20](chapter-20-appearance-and-navigation.md).
 
+### Feature cards you can turn over
+
+The feature cards on the front page and the **Features** page have been redesigned. Each one now
+shows a clean icon and the feature's name; **click it and the card turns over** to explain the
+feature and, where it lives inside the product, take you there. Every card in an area is the same
+size, the keyboard works (Enter to turn, Esc to turn back), and if your device asks for reduced
+motion the card swaps faces instead of turning.
+See [Chapter 22](chapter-22-help-and-support.md).
+
 ### Plan cards line up
 
 Every plan card on the **Pricing** page is now the same size, and every **Request this plan**
