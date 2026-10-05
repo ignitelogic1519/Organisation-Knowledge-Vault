@@ -7,51 +7,39 @@ import { topLayerHost, type TopLayerHost } from "@/lib/top-layer";
 /**
  * The Knowledge Vault pointer.
  *
- * A vault of documents should feel like one under your hand, so the cursor is part of the
- * product rather than the operating system's leftover arrow. One element follows the
- * pointer exactly; a second, softer ring trails behind it with a spring, which is what
- * gives the movement weight.
+ * Two marks and nothing else. A small accent dot sits exactly on the mouse — it IS the click
+ * point — and a thin ring follows it on a spring. Over something you can click the ring opens
+ * into a lens that inverts what it covers; over text the dot becomes a caret; over a drag
+ * handle the ring widens and tightens as you take hold.
  *
- * ── The hotspot ────────────────────────────────────────────────────────────────
- * Every glyph declares `--hx`/`--hy`: the point ON THE DRAWING that must sit exactly
- * where the operating system thinks the mouse is. The glyph is then offset by
- * -hx/-hy and given `transform-origin: hx hy`, so the hotspot stays pinned even while
- * the glyph scales in and out. Getting this wrong is not cosmetic — it is the
- * difference between clicking what you are pointing at and clicking somewhere near it.
- *
- * ── What it reacts to ──────────────────────────────────────────────────────────
- *   hover      arrow with a star tip / nib over text / hand over a grip / struck ring
- *   fetching   an open book turning its pages (it watches for the app's own `.skeleton`)
- *   scrolling  chevrons in the direction of travel
- *   zooming    a magnifier with + or −
- *   pressing   a spark burst at the click point, and the ring tightens
- *   moving     the ring stretches along the direction of travel, proportional to speed
- *   idle       after 10s of stillness the pointer wanders off into a little scene —
- *              see IDLE_SCENES. A new one every 10s, and the moment you move, it is a
- *              cursor again.
+ * ── Why it is fast ─────────────────────────────────────────────────────────────
+ *  · The dot is moved inside the `pointermove` handler itself, so it lands in the same frame
+ *    as the event. Nothing about it waits for a timer or a React render.
+ *  · Both marks move ONLY by `translate3d` on their own compositor layer. Every state change is
+ *    a `transform` or `opacity` transition on a child of that layer — no width, height, margin
+ *    or backdrop blur is ever animated, so moving the pointer never costs a layout or a repaint.
+ *  · The ring is one `requestAnimationFrame` loop that parks itself the moment the ring has
+ *    caught up. A still mouse costs nothing.
+ *  · The spring is integrated against real elapsed time in fixed sub-steps, so it feels the
+ *    same at 60Hz or 144Hz and cannot blow up after a dropped frame.
+ *  · What is under the pointer is resolved at most once per frame, not once per event.
  *
  * Rules it obeys, because a custom cursor that ignores them is worse than none:
- *  · Fine pointers only, and never on a coarse pointer or a touch screen.
- *  · `prefers-reduced-motion` drops the trail, the idle scenes and every idle animation.
+ *  · Only on a pointer that is precise AND can hover. A phone, a tablet or a touch-first
+ *    laptop never even mounts it, and a touch on a hybrid screen hides it until the mouse
+ *    moves again. Every listener is passive, so it can never hold up a scroll.
+ *  · The ring trails only while motion is allowed. Under `prefers-reduced-motion`, or with
+ *    Appearance → Animation off (the default), it sits locked around the dot instead.
  *  · The native cursor is hidden only while this one is genuinely on screen — which is a
  *    live question, not a fact settled at mount. A script that never runs leaves the
  *    ordinary arrow exactly where it was; and an exam or a document viewer showing part
  *    of the page full screen has the browser paint that element and nothing else, so the
  *    pointer travels into it (lib/top-layer) and stands down if it cannot. Getting this
  *    wrong is how a full-screen exam ends up with no visible cursor at all.
- *  · Nothing here ever intercepts a click — the layer is `pointer-events: none`.
+ *  · Nothing here ever intercepts a click — both marks are `pointer-events: none`.
  */
 
-type PointerState =
-  | "default"
-  | "select"
-  | "text"
-  | "grab"
-  | "grabbing"
-  | "blocked"
-  | "reading"
-  | "scroll"
-  | "zoom";
+type CursorState = "default" | "select" | "text" | "grab" | "grabbing" | "blocked";
 
 /** Anything you can click, in one selector — kept here so the cursor and the hint agree. */
 const CLICKABLE =
@@ -64,38 +52,49 @@ const TYPEABLE =
   'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"])' +
   ':not([type="color"]):not([type="submit"]),textarea,[contenteditable="true"]';
 
-const DRAGGABLE = '[draggable="true"],.sr-grip,.blockcard-grip,.sheet-grip,[data-grip]';
-
-/** Stillness before the pointer starts entertaining itself, and how long each scene lasts. */
-const IDLE_AFTER = 10_000;
-const SCENE_EVERY = 10_000;
-
-/** A transient reaction (scroll, zoom) outlives the event by this much. */
-const TRANSIENT_MS = 700;
+const DRAGGABLE =
+  '[draggable="true"],.sr-grip,.blockcard-grip,.sheet-grip,[data-grip],.graph-canvas';
 
 /**
- * The idle repertoire. Each is a self-contained SVG in the markup below, revealed by
- * `data-scene`; all the motion is CSS, so an idle pointer costs no JavaScript at all.
+ * A widget that draws its own content — the constellation is a single <canvas> — says what is
+ * under the pointer by setting an inline `cursor`. Our `cursor: none !important` stops the
+ * browser drawing it, but the declaration is still there to read, so a star you can click
+ * gets the same lens as a button without the graph knowing this component exists.
  */
-const IDLE_SCENES = [
-  "stars",
-  "shooting",
-  "planet",
-  "brain",
-  "rain",
-  "sun",
-  "cat",
-  "clock",
-  "signal",
-  "rocket",
-  "coffee",
-  "plant",
-] as const;
+const INLINE_CURSOR: Record<string, CursorState> = {
+  pointer: "select",
+  grab: "grab",
+  grabbing: "grabbing",
+  text: "text",
+  "not-allowed": "blocked",
+};
+
+/**
+ * The follower's spring, in px/s². Stiffness sets how quickly the ring catches up; the
+ * damping ratio of 0.82 lets it settle in about a fifth of a second with roughly 1% of
+ * overshoot — enough to feel like an object, never enough to wobble.
+ */
+const STIFFNESS = 520;
+const DAMPING = 2 * Math.sqrt(STIFFNESS) * 0.82;
+/** Integration sub-step. Small enough to be stable at any frame rate. */
+const STEP = 1 / 240;
+/** A frame gap longer than this (a background tab, a long task) is not replayed as motion. */
+const MAX_GAP = 1 / 20;
+/** Close enough, and slow enough, to call the ring settled and park the loop. */
+const REST_DISTANCE = 0.1;
+const REST_SPEED = 2;
+
+/** The skeleton check is throttled: a burst of DOM changes is one look, not hundreds. */
+const BUSY_CHECK_MS = 120;
+
+/** A precise pointer that can hover — the only kind of device that gets this cursor. */
+const FINE = "(hover: hover) and (pointer: fine)";
 
 export function Pointer() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
-  const layerRef = useRef<HTMLDivElement>(null);
+  /** Whether this device should have the cursor at all. Unknown until mounted, so: no. */
+  const [fine, setFine] = useState(false);
   /**
    * The pointer is portalled into a host of its own, because it has to be able to move:
    * see lib/top-layer. The host only exists after mount, so the layer is client-only —
@@ -103,54 +102,59 @@ export function Pointer() {
    */
   const [top, setTop] = useState<TopLayerHost | null>(null);
 
+  // A pointing device can be plugged in or unplugged, or the window dragged to a touch
+  // screen. Follow it, so the cursor is never left running on a device that has no use for it.
   useEffect(() => {
-    const owned = topLayerHost("kv-pointer-host");
-    setTop(owned);
-    return () => owned.remove();
+    const query = window.matchMedia(FINE);
+    const sync = () => setFine(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
   }, []);
 
   useEffect(() => {
-    if (!top) return;
-    // A pointer this precise is only meaningful on a device that has one.
-    const fine = window.matchMedia("(pointer: fine)");
-    if (!fine.matches) return;
-    const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!fine) return;
+    const owned = topLayerHost("kv-pointer-host");
+    setTop(owned);
+    return () => {
+      owned.remove();
+      setTop(null);
+    };
+  }, [fine]);
 
+  useEffect(() => {
+    if (!top) return;
     const dot = dotRef.current;
     const ring = ringRef.current;
-    const layer = layerRef.current;
-    if (!dot || !ring || !layer) return;
+    if (!dot || !ring) return;
 
     const root = document.documentElement;
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
+
     /**
-     * The native cursor is hidden only once the custom one KNOWS where it is.
-     *
-     * Hiding it at mount left a window — from page load until the first mouse movement —
-     * with the system cursor already gone and ours still parked at a guessed position
-     * with `data-hidden`. That window reopens on every navigation, which is why the
-     * pointer seemed to be missing "most of the time". Nothing is hidden until the first
-     * real pointermove gives us a true coordinate.
+     * Is decorative motion allowed? Two sources, and the OS setting always wins: someone
+     * who has asked their system for reduced motion must not be overridden by an
+     * in-app switch. The switch (Appearance → Animation) is for the other case — a
+     * system that permits motion, and a person who would rather this product sat still.
+     */
+    const still = () => calm.matches || root.dataset.motion === "off";
+
+    /**
+     * The native cursor is hidden only once the custom one KNOWS where it is. Until the
+     * first real pointermove gives us a coordinate, the system arrow stays.
      */
     let placed = false;
+    let hidden = true;
 
     /**
      * Every condition for taking the system cursor away, in one place: ours has to be
-     * mounted and positioned (`placed`), wanted by the device (`fine`), and actually
-     * painted where the mouse is (`top.painted()`). The last one is why this is a
-     * function rather than a line in `takeOver` — full screen can take our pointer off
-     * the screen at any moment, and hiding the system one anyway leaves nothing to point
-     * with.
+     * positioned (`placed`) and actually painted where the mouse is (`top.painted()`). Full
+     * screen can take our pointer off the screen at any moment, and hiding the system one
+     * anyway leaves nothing to point with. `toggle` with a force writes nothing when the
+     * class is already right — which matters, because this class restyles every element.
      */
     const syncNative = () => {
-      root.classList.toggle("kv-pointer-on", placed && fine.matches && top.painted());
-    };
-
-    const takeOver = () => {
-      if (placed) return;
-      placed = true;
-      syncNative();
-      dot.dataset.hidden = "false";
-      ring.dataset.hidden = "false";
+      root.classList.toggle("kv-pointer-on", placed && top.painted());
     };
 
     /**
@@ -163,602 +167,288 @@ export function Pointer() {
       syncNative();
     };
 
-    /**
-     * Is decorative motion allowed? Two sources, and the OS setting always wins: someone
-     * who has asked their system for reduced motion must not be overridden by an
-     * in-app switch. The switch (Appearance → Animation) is for the other case — a
-     * system that permits motion, and a person who would rather this product sat still.
-     */
-    const still = () => calm.matches || root.dataset.motion === "off";
-
-    let x = window.innerWidth / 2;
-    let y = window.innerHeight / 2;
-    let ringX = x;
-    let ringY = y;
+    // ── Where things are ─────────────────────────────────────────────────────
+    let x = 0;
+    let y = 0;
+    /** The ring's position and velocity — the spring's state. */
+    let rx = 0;
+    let ry = 0;
+    let vx = 0;
+    let vy = 0;
     let frame = 0;
+    /** Timestamp of the previous frame; 0 while the loop is parked. */
+    let last = 0;
+
+    let target: Element | null = null;
+    /** The element under the pointer may have changed since the state was last worked out. */
+    let stale = true;
+    /** The page scrolled under a still pointer, so what is under it has to be looked up. */
+    let scrolled = false;
     let down = false;
-    /** True while the app is fetching — the book-turning state. */
-    let reading = false;
-    /** The element under the pointer, remembered so state can be recomputed without a move. */
-    let hovered: EventTarget | null = null;
 
-    // ── Transient reactions (scroll / zoom) ──────────────────────────────────
-    let transient: "scroll" | "zoom" | null = null;
-    let transientTimer = 0;
+    const put = (el: HTMLElement, px: number, py: number) => {
+      el.style.transform = `translate3d(${px}px, ${py}px, 0)`;
+    };
 
-    // ── Idle ─────────────────────────────────────────────────────────────────
-    let idle = false;
-    let idleTimer = 0;
-    let sceneTimer = 0;
-    let lastScene = -1;
+    /** One attribute on both marks, written only when it actually changes. */
+    const flag = (name: "state" | "down" | "busy" | "hidden", value: string) => {
+      if (dot.dataset[name] === value) return;
+      dot.dataset[name] = value;
+      ring.dataset[name] = value;
+    };
 
-    const setState = (state: PointerState) => {
-      if (dot.dataset.state !== state) dot.dataset.state = state;
-      if (ring.dataset.state !== state) ring.dataset.state = state;
+    const reveal = () => {
+      if (!hidden) return;
+      hidden = false;
+      flag("hidden", "false");
+    };
+
+    const conceal = () => {
+      if (hidden) return;
+      hidden = true;
+      flag("hidden", "true");
     };
 
     /** What is under the pointer decides what the pointer is. */
-    const resolve = (target: EventTarget | null): PointerState => {
-      if (transient) return transient;
-      if (down) return "grabbing";
-      const el = target instanceof Element ? target : null;
-      if (!el) return reading ? "reading" : "default";
-      if (el.closest('[aria-disabled="true"]') || el.closest(":disabled")) return "blocked";
-      if (el.closest(DRAGGABLE)) return "grab";
-      if (el.closest(TYPEABLE)) return "text";
-      if (el.closest(CLICKABLE)) return "select";
-      return reading ? "reading" : "default";
+    const resolve = (el: Element | null): CursorState => {
+      if (!el) return "default";
+      let state: CursorState = "default";
+      const inline = (el as HTMLElement).style?.cursor;
+      if (inline && INLINE_CURSOR[inline]) state = INLINE_CURSOR[inline];
+      else if (el.closest('[aria-disabled="true"],:disabled')) state = "blocked";
+      else if (el.closest(DRAGGABLE)) state = "grab";
+      else if (el.closest(TYPEABLE)) state = "text";
+      else if (el.closest(CLICKABLE)) state = "select";
+      return state === "grab" && down ? "grabbing" : state;
     };
 
-    const refresh = () => setState(resolve(hovered));
+    // ── The frame ────────────────────────────────────────────────────────────
+    const tick = (now: number) => {
+      frame = 0;
 
-    // ── The idle repertoire ──────────────────────────────────────────────────
-    /** A real clock is worth the four lines: the scene shows the actual time. */
-    const syncClock = () => {
-      const now = new Date();
-      dot.style.setProperty("--kv-sec", String(now.getSeconds()));
-      dot.style.setProperty("--kv-min", `${now.getMinutes() * 6 + now.getSeconds() * 0.1}deg`);
-      dot.style.setProperty(
-        "--kv-hour",
-        `${(now.getHours() % 12) * 30 + now.getMinutes() * 0.5}deg`,
-      );
-    };
-
-    const nextScene = () => {
-      let i = 0;
-      // Never the same scene twice running — the change is the point.
-      do {
-        i = Math.floor(Math.random() * IDLE_SCENES.length);
-      } while (IDLE_SCENES.length > 1 && i === lastScene);
-      lastScene = i;
-      const scene = IDLE_SCENES[i];
-      if (scene === "clock") syncClock();
-      dot.dataset.scene = scene;
-    };
-
-    const goIdle = () => {
-      if (idle || still()) return;
-      idle = true;
-      nextScene();
-      dot.dataset.idle = "true";
-      ring.dataset.idle = "true";
-      sceneTimer = window.setInterval(nextScene, SCENE_EVERY);
-    };
-
-    const wake = () => {
-      if (idle) {
-        idle = false;
-        window.clearInterval(sceneTimer);
-        dot.dataset.idle = "false";
-        ring.dataset.idle = "false";
-        refresh();
+      if (scrolled) {
+        scrolled = false;
+        // The layer is `pointer-events: none`, so this finds the page, never ourselves.
+        target = document.elementFromPoint(x, y);
+        stale = true;
       }
-      window.clearTimeout(idleTimer);
-      if (!still()) idleTimer = window.setTimeout(goIdle, IDLE_AFTER);
+      if (stale) {
+        stale = false;
+        flag("state", resolve(target));
+      }
+
+      if (still()) {
+        rx = x;
+        ry = y;
+        vx = vy = 0;
+        last = 0;
+        put(ring, rx, ry);
+        return;
+      }
+
+      let dt = last ? Math.min((now - last) / 1000, MAX_GAP) : 1 / 60;
+      last = now;
+      while (dt > 0) {
+        const h = Math.min(dt, STEP);
+        vx += (STIFFNESS * (x - rx) - DAMPING * vx) * h;
+        vy += (STIFFNESS * (y - ry) - DAMPING * vy) * h;
+        rx += vx * h;
+        ry += vy * h;
+        dt -= h;
+      }
+
+      if (Math.hypot(x - rx, y - ry) < REST_DISTANCE && Math.hypot(vx, vy) < REST_SPEED) {
+        // Caught up: land exactly on the dot and stop asking for frames.
+        rx = x;
+        ry = y;
+        vx = vy = 0;
+        last = 0;
+        put(ring, rx, ry);
+        return;
+      }
+
+      put(ring, rx, ry);
+      frame = requestAnimationFrame(tick);
+    };
+
+    const kick = () => {
+      if (!frame) frame = requestAnimationFrame(tick);
     };
 
     // ── Movement ─────────────────────────────────────────────────────────────
     const onMove = (e: PointerEvent) => {
+      // A finger on a hybrid screen has no cursor to draw; hand back until the mouse returns.
+      if (e.pointerType === "touch") {
+        conceal();
+        return;
+      }
       // The host rides inside whatever is full screen. If React tore that element down —
       // an exam handed in, a viewer closed — the host went with it, and no
       // `fullscreenchange` we have already handled will bring it back. Notice on the next
       // movement, which is the first moment it would matter.
       if (!top.host.isConnected) onFullscreen();
+
       x = e.clientX;
       y = e.clientY;
-      hovered = e.target;
-      if (still()) {
-        ringX = x;
-        ringY = y;
-      }
-      dot.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      if (!placed) {
-        // First real coordinate: put the ring there too, so it does not fly in from
-        // the middle of the window.
-        ringX = x;
-        ringY = y;
-        ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      }
-      takeOver();
-      wake();
-      setState(resolve(e.target));
-    };
+      // Zero latency: the dot is written here, in the event, not on the next frame.
+      put(dot, x, y);
 
-    // The ring is deliberately a frame behind: it is what makes the pointer feel like an
-    // object with mass. It also stretches along the direction of travel, which reads as
-    // speed without needing a number on screen.
-    const tick = () => {
-      const dx = x - ringX;
-      const dy = y - ringY;
-      ringX += dx * 0.18;
-      ringY += dy * 0.18;
-      const speed = Math.min(Math.hypot(dx, dy) / 26, 1);
-      const angle = speed > 0.02 ? (Math.atan2(dy, dx) * 180) / Math.PI : 0;
-      ring.style.transform =
-        `translate3d(${ringX}px, ${ringY}px, 0) rotate(${angle}deg) ` +
-        `scale(${1 + speed * 0.5}, ${1 - speed * 0.32})`;
-      frame = requestAnimationFrame(tick);
-    };
-    const startTrail = () => {
-      cancelAnimationFrame(frame);
-      if (still()) {
-        ringX = x;
-        ringY = y;
-        ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      } else {
-        frame = requestAnimationFrame(tick);
+      if (!placed || still()) {
+        // First real coordinate: put the ring there too, so it does not fly in from a corner.
+        rx = x;
+        ry = y;
+        put(ring, x, y);
       }
+      if (!placed) {
+        placed = true;
+        syncNative();
+      }
+
+      target = e.target instanceof Element ? e.target : null;
+      stale = true;
+      reveal();
+      kick();
     };
-    startTrail();
 
     // ── Press ────────────────────────────────────────────────────────────────
     const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        conceal();
+        return;
+      }
       down = true;
-      dot.dataset.down = "true";
-      ring.dataset.down = "true";
-      wake();
-      if (still()) return;
-      // A spark burst at the exact click point — proof the hotspot is where you think.
-      const burst = document.createElement("span");
-      burst.className = "kv-burst";
-      burst.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
-      for (let i = 0; i < 6; i++) {
-        const spark = document.createElement("i");
-        spark.style.setProperty("--a", `${i * 60}deg`);
-        burst.appendChild(spark);
-      }
-      layer.appendChild(burst);
-      window.setTimeout(() => burst.remove(), 620);
+      flag("down", "true");
+      stale = true;
+      kick();
     };
 
-    const onUp = (e: PointerEvent) => {
+    /**
+     * The press is over. `pointerup` is not the only way that happens: a native drag ends
+     * the pointer stream with `pointercancel` and never sends an `up`, which used to leave
+     * the cursor stuck in its grabbing pose until the next click.
+     */
+    const release = () => {
+      if (!down) return;
       down = false;
-      dot.dataset.down = "false";
-      ring.dataset.down = "false";
-      hovered = e.target;
-      refresh();
+      flag("down", "false");
+      stale = true;
+      kick();
     };
 
-    // Leaving the window (or entering a native menu) must not leave a ghost behind.
-    const onLeave = () => {
-      dot.dataset.hidden = "true";
-      ring.dataset.hidden = "true";
+    // A native (HTML5) drag hands the pointer to the operating system: it draws its own
+    // cursor and drag image, and sends us no movement until the drop. Step aside rather
+    // than leave a frozen dot where the drag began.
+    const onDragStart = () => {
+      release();
+      conceal();
     };
-    const onEnter = () => {
-      if (!placed) return;
-      dot.dataset.hidden = "false";
-      ring.dataset.hidden = "false";
-    };
-
-    // ── Scroll & zoom ────────────────────────────────────────────────────────
-    const setTransient = (kind: "scroll" | "zoom", dir: string) => {
-      transient = kind;
-      dot.dataset.dir = dir;
-      setState(kind);
-      window.clearTimeout(transientTimer);
-      transientTimer = window.setTimeout(() => {
-        transient = null;
-        refresh();
-      }, TRANSIENT_MS);
+    const onDragEnd = (e: DragEvent) => {
+      // Some browsers report the drop point here; where they do, reappear on it at once.
+      if (!e.clientX && !e.clientY) return;
+      x = rx = e.clientX;
+      y = ry = e.clientY;
+      vx = vy = 0;
+      put(dot, x, y);
+      put(ring, x, y);
+      target = document.elementFromPoint(x, y);
+      stale = true;
+      reveal();
+      kick();
     };
 
-    const onWheel = (e: WheelEvent) => {
-      wake();
-      // ctrl+wheel is the browser's own zoom gesture, and a trackpad pinch arrives as
-      // exactly that — so one branch covers both.
-      if (e.ctrlKey) setTransient("zoom", e.deltaY < 0 ? "in" : "out");
-      else setTransient("scroll", e.deltaY < 0 ? "up" : "down");
+    // Leaving the window — or crossing into an embedded frame, which has its own cursor and
+    // stops sending us movement — must not leave a ghost behind.
+    const onOut = (e: PointerEvent) => {
+      const to = e.relatedTarget;
+      if (!to || (to instanceof Element && /^(IFRAME|EMBED|OBJECT)$/.test(to.tagName))) conceal();
     };
 
-    // Keyboard and scrollbar scrolling never fire `wheel`, so the scroll reaction would
-    // be mouse-only without this.
-    let lastScrollY = window.scrollY;
+    // The page moving under a still pointer changes what it is over.
     const onScroll = () => {
-      const now = window.scrollY;
-      if (now !== lastScrollY) {
-        if (transient !== "zoom") setTransient("scroll", now > lastScrollY ? "down" : "up");
-        lastScrollY = now;
-      }
-      wake();
+      if (!placed || hidden) return;
+      scrolled = true;
+      kick();
     };
 
-    const onKey = () => wake();
-
-    // "Loading" is not a guess: the app draws a `.skeleton` while it waits, so watching
-    // for one is watching the app's own definition of being busy.
-    const skeletons = () => document.querySelector(".skeleton") !== null;
+    // ── Busy ─────────────────────────────────────────────────────────────────
+    // "Loading" is not a guess: the app draws a `.skeleton` while it waits. A live
+    // collection makes each look a length read, and the observer only schedules one look
+    // per burst of DOM changes rather than querying the document on every mutation.
+    const skeletons = document.getElementsByClassName("skeleton");
+    let busyTimer = 0;
+    const checkBusy = () => {
+      busyTimer = 0;
+      flag("busy", skeletons.length > 0 ? "true" : "false");
+    };
     const observer = new MutationObserver(() => {
-      const next = skeletons();
-      if (next === reading) return;
-      reading = next;
-      refresh();
+      if (!busyTimer) busyTimer = window.setTimeout(checkBusy, BUSY_CHECK_MS);
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    reading = skeletons();
+    checkBusy();
 
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true });
-    window.addEventListener("pointerup", onUp, { passive: true });
-    window.addEventListener("wheel", onWheel, { passive: true });
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("keydown", onKey, { passive: true });
-    document.addEventListener("pointerleave", onLeave);
-    document.addEventListener("pointerenter", onEnter);
-    window.addEventListener("blur", onLeave);
-    document.addEventListener("fullscreenchange", onFullscreen);
-
-    // A pointing device can be unplugged, or the window dragged to a touch screen.
-    const onPointerKind = () => syncNative();
-    fine.addEventListener("change", onPointerKind);
-
-    // Appearance → Animation was toggled: drop out of any scene at once and re-arm (or
-    // don't) the idle countdown. Waiting for the next page load would make the switch
-    // feel broken.
+    // Appearance → Animation was toggled, or the OS setting changed: the next frame either
+    // locks the ring onto the dot or lets the spring take it from where it is.
     const onMotionChange = () => {
-      if (still() && idle) {
-        idle = false;
-        window.clearInterval(sceneTimer);
-        dot.dataset.idle = "false";
-        ring.dataset.idle = "false";
-        refresh();
-      }
-      startTrail();
-      wake();
+      vx = vy = 0;
+      last = 0;
+      kick();
     };
+
+    const passive = { passive: true } as const;
+    window.addEventListener("pointermove", onMove, passive);
+    window.addEventListener("pointerdown", onDown, passive);
+    window.addEventListener("pointerup", release, passive);
+    window.addEventListener("pointercancel", release, passive);
+    window.addEventListener("dragstart", onDragStart, passive);
+    window.addEventListener("dragend", onDragEnd, passive);
+    document.addEventListener("pointerout", onOut, passive);
+    window.addEventListener("blur", conceal);
+    // Capture, so a scrolling panel inside the page counts as well as the page itself.
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    document.addEventListener("fullscreenchange", onFullscreen);
     window.addEventListener("kv:motionchange", onMotionChange);
     calm.addEventListener("change", onMotionChange);
 
-    wake(); // arm the first idle countdown
     onFullscreen(); // the page may already be full screen — a reader navigating inside one
 
     return () => {
       root.classList.remove("kv-pointer-on");
-      document.removeEventListener("fullscreenchange", onFullscreen);
       cancelAnimationFrame(frame);
-      window.clearTimeout(idleTimer);
-      window.clearTimeout(transientTimer);
-      window.clearInterval(sceneTimer);
+      window.clearTimeout(busyTimer);
       observer.disconnect();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("wheel", onWheel);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerleave", onLeave);
-      document.removeEventListener("pointerenter", onEnter);
-      window.removeEventListener("blur", onLeave);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("dragstart", onDragStart);
+      window.removeEventListener("dragend", onDragEnd);
+      document.removeEventListener("pointerout", onOut);
+      window.removeEventListener("blur", conceal);
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      document.removeEventListener("fullscreenchange", onFullscreen);
       window.removeEventListener("kv:motionchange", onMotionChange);
       calm.removeEventListener("change", onMotionChange);
-      fine.removeEventListener("change", onPointerKind);
     };
   }, [top]);
 
-  const overlay = (
-    <div className="kv-pointer-layer" ref={layerRef} aria-hidden>
-      {/* The trailing ring — behind the glyph, so the glyph always reads first. */}
-      <div ref={ringRef} className="kv-pointer-ring" data-state="default" data-hidden="true" />
-      <div ref={dotRef} className="kv-pointer" data-state="default" data-hidden="true" data-idle="false">
-        {/* ── Pointing glyphs. --hx/--hy is the hotspot: the point that sits on the
-            mouse. Measured off each drawing, in rendered pixels. ─────────────── */}
-
-        {/* default AND select — the arrow. A dot does not read as a cursor, so the
-            resting pointer is the arrow too; the star simply lights up on something
-            you can click. Hotspot IS the tip, (4, 2.6). */}
-        <svg
-          className="kv-pointer-arrow"
-          viewBox="0 0 24 24"
-          width="24"
-          height="24"
-          style={{ "--hx": "4px", "--hy": "2.6px" } as React.CSSProperties}
-        >
-          <path
-            d="M4 2.6 L4 17.4 L8.2 13.6 L10.9 19.8 L13.6 18.6 L11 12.6 L16.6 12.2 Z"
-            className="kv-pointer-arrow-body"
-          />
-          <path
-            d="M18.6 2 L19.6 4.6 L22.2 5.6 L19.6 6.6 L18.6 9.2 L17.6 6.6 L15 5.6 L17.6 4.6 Z"
-            className="kv-pointer-arrow-star"
-          />
-        </svg>
-
-        {/* text — a nib; hotspot is its point, (12, 2.5) in a 24 box drawn at 20 */}
-        <svg
-          className="kv-pointer-nib"
-          viewBox="0 0 24 24"
-          width="20"
-          height="20"
-          style={{ "--hx": "10px", "--hy": "2.1px" } as React.CSSProperties}
-        >
-          <path className="kv-nib-body" d="M12 2.5 L16.5 13 L12 21.5 L7.5 13 Z" />
-          <path className="kv-nib-slit" d="M12 9.5 L12 16" />
-        </svg>
-
-        {/* grab — an open hand that closes on press; hotspot at the grip */}
-        <svg
-          className="kv-pointer-hand"
-          viewBox="0 0 24 24"
-          width="22"
-          height="22"
-          style={{ "--hx": "11px", "--hy": "4.6px" } as React.CSSProperties}
-        >
-          <path
-            className="kv-hand-body"
-            d="M7 12.5 V6.6 a1.5 1.5 0 0 1 3 0 V11 V5.2 a1.5 1.5 0 0 1 3 0 V11 V6 a1.5 1.5 0 0 1 3 0 v5.4 V9.2 a1.4 1.4 0 0 1 2.8 0 v5.4 c0 3.6-2.6 6.4-6.2 6.4 -3.6 0-6.6-2.4-6.6-6 Z"
-          />
-        </svg>
-
-        {/* blocked — a struck-through ring, centred */}
-        <svg
-          className="kv-pointer-block"
-          viewBox="0 0 24 24"
-          width="20"
-          height="20"
-          style={{ "--hx": "10px", "--hy": "10px" } as React.CSSProperties}
-        >
-          <circle className="kv-block-ring" cx="12" cy="12" r="8.4" />
-          <path className="kv-block-bar" d="M6.2 17.8 L17.8 6.2" />
-        </svg>
-
-        {/* reading — an open book, one leaf always in flight */}
-        <svg
-          className="kv-pointer-book"
-          viewBox="0 0 32 24"
-          width="32"
-          height="24"
-          style={{ "--hx": "16px", "--hy": "12px" } as React.CSSProperties}
-        >
-          <path className="kv-book-spine" d="M16 4.8 L16 21" />
-          <path className="kv-book-page" d="M16 4.8 C12.4 2.2 7.6 1.8 3.4 3 L3.4 19.4 C7.6 18.2 12.4 18.6 16 21 Z" />
-          <path className="kv-book-page" d="M16 4.8 C19.6 2.2 24.4 1.8 28.6 3 L28.6 19.4 C24.4 18.2 19.6 18.6 16 21 Z" />
-          <path className="kv-book-turn" d="M16 4.8 C19.6 2.2 24.4 1.8 28.6 3 L28.6 19.4 C24.4 18.2 19.6 18.6 16 21 Z" />
-        </svg>
-
-        {/* scroll — chevrons travelling the way the page is going */}
-        <svg
-          className="kv-pointer-scroll"
-          viewBox="0 0 24 32"
-          width="20"
-          height="27"
-          style={{ "--hx": "10px", "--hy": "13.5px" } as React.CSSProperties}
-        >
-          <rect className="kv-scroll-shell" x="4" y="3" width="16" height="26" rx="8" />
-          <circle className="kv-scroll-bead" cx="12" cy="10" r="2.2" />
-          <path className="kv-scroll-chev kv-scroll-chev-1" d="M8 24 L12 28 L16 24" />
-          <path className="kv-scroll-chev kv-scroll-chev-2" d="M8 19 L12 23 L16 19" />
-        </svg>
-
-        {/* zoom — a magnifier that gains a + or a − */}
-        <svg
-          className="kv-pointer-zoom"
-          viewBox="0 0 24 24"
-          width="24"
-          height="24"
-          style={{ "--hx": "10px", "--hy": "10px" } as React.CSSProperties}
-        >
-          <circle className="kv-zoom-lens" cx="10" cy="10" r="6.6" />
-          <path className="kv-zoom-handle" d="M14.9 14.9 L21 21" />
-          <path className="kv-zoom-sign kv-zoom-h" d="M6.6 10 H13.4" />
-          <path className="kv-zoom-sign kv-zoom-v" d="M10 6.6 V13.4" />
-        </svg>
-
-        {/* ── Idle scenes ────────────────────────────────────────────────────
-            Shown only when `data-idle="true"`, selected by `data-scene`. All
-            centred on the point, all animated purely in CSS. ──────────────── */}
-        {/* Shared shading. Living inside .kv-pointer means these gradients inherit the
-            scene ink variables, so a palette change re-lights every scene for free.
-            Flat fills were what made the scenes read as stickers; a sphere needs a
-            highlight, a terminator and a bounce to read as a sphere. */}
-        <svg className="kv-defs" width="0" height="0" aria-hidden focusable="false">
-          <defs>
-            <radialGradient id="kvSphere" cx="34%" cy="28%" r="78%">
-              <stop offset="0%" stopColor="var(--kv-hi)" />
-              <stop offset="52%" stopColor="var(--ink)" />
-              <stop offset="100%" stopColor="var(--kv-lo)" />
-            </radialGradient>
-            <radialGradient id="kvSphere2" cx="34%" cy="28%" r="78%">
-              <stop offset="0%" stopColor="var(--kv-hi2)" />
-              <stop offset="52%" stopColor="var(--ink2)" />
-              <stop offset="100%" stopColor="var(--kv-lo2)" />
-            </radialGradient>
-            <linearGradient id="kvBody" x1="0" y1="0" x2="0.35" y2="1">
-              <stop offset="0%" stopColor="var(--kv-hi)" />
-              <stop offset="60%" stopColor="var(--ink)" />
-              <stop offset="100%" stopColor="var(--kv-lo)" />
-            </linearGradient>
-            <linearGradient id="kvBody2" x1="0" y1="0" x2="0.35" y2="1">
-              <stop offset="0%" stopColor="var(--kv-hi2)" />
-              <stop offset="60%" stopColor="var(--ink2)" />
-              <stop offset="100%" stopColor="var(--kv-lo2)" />
-            </linearGradient>
-            {/* The corona behind the sun — a glow, not an outline. */}
-            <radialGradient id="kvGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="55%" stopColor="var(--ink2)" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="var(--ink2)" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-        </svg>
-
-        <div className="kv-idle" style={{ "--hx": "16px", "--hy": "16px" } as React.CSSProperties}>
-          {/* twinkling stars */}
-          <svg className="kv-scene" data-for="stars" viewBox="0 0 44 44" width="32" height="32">
-            <g className="kv-twinkle-g">
-              <path className="kv-twinkle kv-t1" d="M12 8 l1.4 3.6 3.6 1.4 -3.6 1.4 -1.4 3.6 -1.4 -3.6 -3.6 -1.4 3.6 -1.4 Z" />
-              <path className="kv-twinkle kv-t2" d="M31 14 l1.1 2.9 2.9 1.1 -2.9 1.1 -1.1 2.9 -1.1 -2.9 -2.9 -1.1 2.9 -1.1 Z" />
-              <path className="kv-twinkle kv-t3" d="M20 27 l1.6 4.1 4.1 1.6 -4.1 1.6 -1.6 4.1 -1.6 -4.1 -4.1 -1.6 4.1 -1.6 Z" />
-              <circle className="kv-twinkle kv-t4" cx="35" cy="32" r="1.6" />
-              <circle className="kv-twinkle kv-t2" cx="8" cy="26" r="1.2" />
-            </g>
-          </svg>
-
-          {/* shooting star */}
-          <svg className="kv-scene" data-for="shooting" viewBox="0 0 44 44" width="32" height="32">
-            <circle className="kv-sky-dot" cx="9" cy="34" r="1.1" />
-            <circle className="kv-sky-dot" cx="34" cy="9" r="1.1" />
-            <circle className="kv-sky-dot" cx="14" cy="12" r="0.9" />
-            <g className="kv-shoot">
-              <path className="kv-shoot-tail" d="M0 0 L-15 9" />
-              <path className="kv-shoot-head" d="M0 -3.2 l1 2.2 2.2 1 -2.2 1 -1 2.2 -1 -2.2 -2.2 -1 2.2 -1 Z" />
-            </g>
-          </svg>
-
-          {/* planet with an orbiting moon */}
-          <svg className="kv-scene" data-for="planet" viewBox="0 0 44 44" width="32" height="32">
-            <ellipse className="kv-orbit" cx="22" cy="22" rx="17" ry="7" />
-            <circle className="kv-planet" cx="22" cy="22" r="8" />
-            <path className="kv-planet-term" d="M14.4 25 a8 8 0 0 0 14.4 -8.6" />
-            <path className="kv-planet-band" d="M14.6 19 q7.4 -2.6 14.8 0" />
-            <g className="kv-moon-g">
-              <circle className="kv-moon" cx="39" cy="22" r="2.6" />
-            </g>
-          </svg>
-
-          {/* a brain, braining */}
-          <svg className="kv-scene" data-for="brain" viewBox="0 0 44 44" width="32" height="32">
-            <g className="kv-brain-g">
-              <path
-                className="kv-brain"
-                d="M21 11 a5 5 0 0 0 -8.4 3.2 a4.4 4.4 0 0 0 -2 7.2 a4.6 4.6 0 0 0 2.6 7 a5 5 0 0 0 7.8 3.4 Z"
-              />
-              <path
-                className="kv-brain"
-                d="M23 11 a5 5 0 0 1 8.4 3.2 a4.4 4.4 0 0 1 2 7.2 a4.6 4.6 0 0 1 -2.6 7 a5 5 0 0 1 -7.8 3.4 Z"
-              />
-              <path className="kv-brain-fold" d="M17 16 q3 2 1 5 q-2 3 1 5" />
-              <path className="kv-brain-fold" d="M27 16 q-3 2 -1 5 q2 3 -1 5" />
-            </g>
-            <circle className="kv-spark kv-spark-1" cx="12" cy="9" r="1.5" />
-            <circle className="kv-spark kv-spark-2" cx="32" cy="8" r="1.2" />
-            <circle className="kv-spark kv-spark-3" cx="36" cy="18" r="1.3" />
-          </svg>
-
-          {/* a cloud, raining */}
-          <svg className="kv-scene" data-for="rain" viewBox="0 0 44 44" width="32" height="32">
-            <path
-              className="kv-cloud"
-              d="M13 24 a6 6 0 0 1 1.4 -11.8 a8 8 0 0 1 15 2.4 a5.6 5.6 0 0 1 -1.4 11 Z"
-            />
-            <g className="kv-rain">
-              <path className="kv-drop kv-d1" d="M14 27 l-1.6 5" />
-              <path className="kv-drop kv-d2" d="M21 27 l-1.6 5" />
-              <path className="kv-drop kv-d3" d="M28 27 l-1.6 5" />
-            </g>
-          </svg>
-
-          {/* the sun */}
-          <svg className="kv-scene" data-for="sun" viewBox="0 0 44 44" width="32" height="32">
-            <circle className="kv-corona" cx="22" cy="22" r="19" />
-            <g className="kv-rays">
-              {Array.from({ length: 12 }, (_, i) => (
-                <path
-                  key={i}
-                  className="kv-ray"
-                  style={{ animationDelay: `${i * 110}ms` }}
-                  d={i % 2 ? "M22 4.5 L22 8.6" : "M22 2.6 L22 8.6"}
-                  transform={`rotate(${i * 30} 22 22)`}
-                />
-              ))}
-            </g>
-            <circle className="kv-sun" cx="22" cy="22" r="8.6" />
-            {/* The bright limb and the specular are what make it a ball rather than a
-                circle — without them a radial gradient still reads flat. */}
-            <path className="kv-sun-limb" d="M15.2 26.8 a8.6 8.6 0 0 0 13.6 -9.6" />
-            <ellipse className="kv-sun-spec" cx="18.6" cy="18.2" rx="2.8" ry="2" />
-          </svg>
-
-          {/* a cat, licking its paw */}
-          <svg className="kv-scene" data-for="cat" viewBox="0 0 44 44" width="32" height="32">
-            <g className="kv-cat-body">
-              <path className="kv-cat-fill" d="M12 20 L14 11 L19 15 h6 L30 11 L32 20 a10 10 0 0 1 -20 0 Z" />
-              <circle className="kv-cat-eye" cx="18" cy="21" r="1.3" />
-              <circle className="kv-cat-eye" cx="26" cy="21" r="1.3" />
-              <path className="kv-cat-nose" d="M22 24 l-1.4 -1.6 h2.8 Z" />
-              <path className="kv-cat-whisk" d="M13 24 h4 M31 24 h-4" />
-            </g>
-            {/* The paw rises to the SIDE of the muzzle, not over it — dead centre just
-                read as a blob on the chin at cursor size. */}
-            <g className="kv-paw-g">
-              <ellipse className="kv-paw" cx="30" cy="35" rx="4" ry="3.1" />
-              <circle className="kv-paw-bean" cx="28.6" cy="33.9" r="0.75" />
-              <circle className="kv-paw-bean" cx="31.4" cy="33.9" r="0.75" />
-            </g>
-            <path className="kv-tongue" d="M23.4 25.4 q2.4 1.8 0.6 4 q-2.6 -1.4 -0.6 -4 Z" />
-          </svg>
-
-          {/* a clock — showing the actual time */}
-          <svg className="kv-scene" data-for="clock" viewBox="0 0 44 44" width="32" height="32">
-            <circle className="kv-clock-face" cx="22" cy="22" r="15" />
-            {Array.from({ length: 12 }, (_, i) => (
-              <path key={i} className="kv-clock-tick" d="M22 9 L22 11.4" transform={`rotate(${i * 30} 22 22)`} />
-            ))}
-            <path className="kv-clock-hand kv-clock-hour" d="M22 22 L22 14.5" />
-            <path className="kv-clock-hand kv-clock-min" d="M22 22 L22 11" />
-            <path className="kv-clock-hand kv-clock-sec" d="M22 24 L22 10" />
-            <circle className="kv-clock-pin" cx="22" cy="22" r="1.5" />
-          </svg>
-
-          {/* an internet signal, finding its bars */}
-          <svg className="kv-scene" data-for="signal" viewBox="0 0 44 44" width="32" height="32">
-            <rect className="kv-bar kv-bar-1" x="8" y="27" width="5.5" height="8" rx="1.6" />
-            <rect className="kv-bar kv-bar-2" x="16" y="22" width="5.5" height="13" rx="1.6" />
-            <rect className="kv-bar kv-bar-3" x="24" y="16" width="5.5" height="19" rx="1.6" />
-            <rect className="kv-bar kv-bar-4" x="32" y="9" width="5.5" height="26" rx="1.6" />
-          </svg>
-
-          {/* a rocket, going up */}
-          <svg className="kv-scene" data-for="rocket" viewBox="0 0 44 44" width="32" height="32">
-            <g className="kv-rocket-g">
-              <path className="kv-rocket-body" d="M22 6 c5 5 6.6 11 6.6 16.4 L15.4 22.4 C15.4 17 17 11 22 6 Z" />
-              <path className="kv-rocket-fin" d="M15.4 19 L11.4 26 L15.4 24.6 Z" />
-              <path className="kv-rocket-fin" d="M28.6 19 L32.6 26 L28.6 24.6 Z" />
-              <circle className="kv-rocket-port" cx="22" cy="16" r="2.6" />
-              <path className="kv-flame kv-flame-a" d="M18.8 23.4 q3.2 7 3.2 10 q0 -3 3.2 -10 Z" />
-              <path className="kv-flame kv-flame-b" d="M20.4 23.4 q1.6 4.6 1.6 6.6 q0 -2 1.6 -6.6 Z" />
-            </g>
-          </svg>
-
-          {/* a coffee, steaming */}
-          <svg className="kv-scene" data-for="coffee" viewBox="0 0 44 44" width="32" height="32">
-            <path className="kv-steam kv-steam-1" d="M17 16 q-2.4 -3 0 -6 q2.4 -3 0 -6" />
-            <path className="kv-steam kv-steam-2" d="M23 16 q-2.4 -3 0 -6 q2.4 -3 0 -6" />
-            <path className="kv-cup" d="M11 19 h20 v7 a10 10 0 0 1 -20 0 Z" />
-            <path className="kv-cup-handle" d="M31 21 a4.6 4.6 0 0 1 0 8" />
-            <path className="kv-saucer" d="M8 37 h24" />
-          </svg>
-
-          {/* a seedling, growing */}
-          <svg className="kv-scene" data-for="plant" viewBox="0 0 44 44" width="32" height="32">
-            <path className="kv-pot" d="M13 28 h18 l-2.4 10 h-13.2 Z" />
-            <g className="kv-sprout">
-              <path className="kv-stem" d="M22 28 V15" />
-              <path className="kv-leaf kv-leaf-l" d="M22 20 q-7 -1.4 -7 -6 q6 0 7 6 Z" />
-              <path className="kv-leaf kv-leaf-r" d="M22 17 q7 -1.4 7 -6 q-6 0 -7 6 Z" />
-            </g>
-          </svg>
-        </div>
+  const cursor = (
+    <>
+      {/* The follower. Blended by `difference`, so it is drawn in the inverse of whatever
+          it is over — dark on the day theme, light at night, never lost against either. */}
+      <div ref={ringRef} className="kv-cursor-ring" data-state="default" data-hidden="true" aria-hidden>
+        <span className="kv-cursor-ring-shape">
+          <span className="kv-cursor-halo" />
+          <span className="kv-cursor-arc" />
+          <span className="kv-cursor-lens" />
+        </span>
       </div>
-    </div>
+      {/* The core. Its centre is the click point. */}
+      <div ref={dotRef} className="kv-cursor-dot" data-state="default" data-hidden="true" aria-hidden>
+        <span className="kv-cursor-core" />
+        <span className="kv-cursor-caret" />
+      </div>
+    </>
   );
 
-  return top ? createPortal(overlay, top.host) : null;
+  return top ? createPortal(cursor, top.host) : null;
 }

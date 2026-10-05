@@ -5,6 +5,25 @@ moved since they last used it. Newest first.
 
 ---
 
+## October 2026
+
+### A lighter, quicker pointer
+
+The pointer has been rebuilt. It is now a small dot in your accent colour that sits exactly
+where you point, with a thin ring around it: over anything clickable — a button, a link, a star
+in the constellation — the ring opens into a lens that inverts what it covers, and over text the
+dot becomes a caret. The playful glyphs and idle scenes are gone.
+
+It is also much lighter to move. The dot no longer waits for anything — it is drawn in the same
+instant your mouse reports where it is — and nothing about the pointer makes the page redo its
+layout as you move. With **Animation** on, the ring follows on a light spring and settles in a
+fraction of a second rather than dragging behind. Dragging something no longer leaves the
+pointer stuck in its "holding" pose afterwards. On phones, tablets and touch screens the pointer
+is never drawn at all.
+See [Chapter 20](chapter-20-appearance-and-navigation.md).
+
+---
+
 ## September 2026
 
 ### Keep your documents in Google Drive

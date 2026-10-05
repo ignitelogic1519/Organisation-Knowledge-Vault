@@ -25,12 +25,10 @@
   --warning: #a16207;
   --danger: #c92f45;
 
-  /* The cursor's own ink. Deliberately NOT the accent: an accent-coloured pointer
+  /* The edge round the cursor's accent dot. On its own an accent-coloured pointer
      disappears the moment it crosses an accent-coloured button, which is most of the
-     primary actions in the app. A dark body with a light outline (inverted for the night
-     theme) is legible over anything, and the brand lives in the star on its tip and the
-     ring that trails it. */
-  --kv-cur: #1a1310;
+     primary actions in the app; a hairline in the theme's opposite ink (light by day,
+     dark at night) keeps it legible over anything. */
   --kv-cur-edge: #ffffff;
 
   /* Readable foreground ON a solid status fill — the same idea as --accent-contrast.
@@ -93,7 +91,6 @@
   --warning: #fbbf24;
   --danger: #ff5d73;
 
-  --kv-cur: #f3f6ff;
   --kv-cur-edge: #05070f;
 
   /* The night palette lights these up so they read against a dark ground — which means
@@ -10480,9 +10477,12 @@ body.is-dragging-block * {
 /* ═══════════════════════════════════════════════════════════════════════════
    The pointer — components/Pointer.tsx
 
-   Two elements: a glyph pinned exactly to the mouse, and a softer ring that
-   trails it with a spring. Which glyph is drawn comes from `data-state`, set
-   from what is under the pointer. The whole layer is inert.
+   Two marks: an accent dot pinned exactly to the mouse, and a thin ring that
+   follows it on a spring. Script moves each one with a translate3d on its own
+   compositor layer; everything else here is a transform or opacity transition
+   on a child of that layer, keyed off `data-state`. Nothing animates width,
+   height, margin or a backdrop filter, so moving the pointer never costs a
+   layout or a repaint.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* The hosts the pointer and the hint card are portalled into (lib/top-layer.ts). Both get
@@ -10494,269 +10494,223 @@ body.is-dragging-block * {
   display: contents;
 }
 
+/* Only once the script has a real coordinate — a failure leaves the ordinary arrow alone —
+   and only on a precise pointer that can hover, whatever a script believes. */
+@media (hover: hover) and (pointer: fine) {
+  html.kv-pointer-on,
+  html.kv-pointer-on * {
+    cursor: none !important;
+  }
+}
+
+/* A finger, a stylus-first tablet or a phone never sees either mark. The component does not
+   mount there at all; this is the belt to that pair of braces. */
+@media (pointer: coarse), (hover: none) {
+  .kv-cursor-dot,
+  .kv-cursor-ring {
+    display: none !important;
+  }
+}
+
 /* The z-index buys the top of the PAGE, and nothing more: full screen is not a stacking
    problem and cannot be solved as one. The browser paints the full-screen element and its
    descendants, and everything else in the document sits behind the backdrop however high
    it is stacked. That is what the host above is for. */
-.kv-pointer-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483000;
-  pointer-events: none;
-  contain: strict;
-}
-
-/* Only once the script has mounted — a failure leaves the ordinary arrow alone. */
-html.kv-pointer-on,
-html.kv-pointer-on * {
-  cursor: none !important;
-}
-
-.kv-pointer,
-.kv-pointer-ring {
+.kv-cursor-dot,
+.kv-cursor-ring {
+  --kv-cursor-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: fixed;
   top: 0;
   left: 0;
-  pointer-events: none;
-  will-change: transform;
-}
-
-.kv-pointer {
   width: 0;
   height: 0;
-  transition: opacity 160ms var(--ease);
+  pointer-events: none;
+  /* `transform` belongs to the script — position only — and must never be transitioned,
+     or the mark would trail a transition behind the hand moving it. */
+  will-change: transform;
+  transition: opacity 180ms var(--ease);
 }
 
-.kv-pointer[data-hidden="true"],
-.kv-pointer-ring[data-hidden="true"] {
+.kv-cursor-ring {
+  z-index: 2147483000;
+  /* White blended by `difference` is whatever is underneath, inverted: the ring reads dark
+     on the day theme, light at night, and never disappears into either. It has to be set
+     on this element, the one that sits directly on the page — set any deeper and it would
+     only blend with the ring's own transparent layer. */
+  mix-blend-mode: difference;
+}
+
+.kv-cursor-dot {
+  z-index: 2147483001;
+}
+
+.kv-cursor-dot[data-hidden="true"],
+.kv-cursor-ring[data-hidden="true"] {
   opacity: 0;
 }
 
-/* Every glyph is stacked on the same point; `data-state` reveals exactly one.
-   The hotspot (--hx/--hy) is subtracted from the position AND used as the transform
-   origin, so the tip of the arrow is the click point and stays the click point through
-   every scale transition. The previous version centred each glyph on the mouse and then
-   nudged it back with a percentage translate, which put the real hotspot somewhere
-   inside the trailing ring — close enough to look right, far enough to click wrong. */
-.kv-pointer > *:not(.kv-defs) {
+/* — the core — */
+/* The hotspot is the dot's centre, and the dot's centre is the mouse: the element is
+   placed at the coordinate and the shape is drawn around it. */
+.kv-cursor-core,
+.kv-cursor-caret {
   position: absolute;
-  left: calc(-1 * var(--hx, 0px));
-  top: calc(-1 * var(--hy, 0px));
-  transform-origin: var(--hx, 0px) var(--hy, 0px);
-  opacity: 0;
-  transform: scale(0.6);
+  background: var(--accent);
+  /* A one-pixel edge in the theme's opposite ink, so the accent dot survives crossing an
+     accent-coloured button. */
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kv-cur-edge) 80%, transparent);
   transition:
-    opacity 140ms var(--ease),
-    transform 220ms var(--spring);
-}
-
-.kv-pointer[data-idle="false"][data-state="default"] .kv-pointer-arrow,
-.kv-pointer[data-idle="false"][data-state="select"] .kv-pointer-arrow,
-.kv-pointer[data-idle="false"][data-state="reading"] .kv-pointer-book,
-.kv-pointer[data-idle="false"][data-state="text"] .kv-pointer-nib,
-.kv-pointer[data-idle="false"][data-state="grab"] .kv-pointer-hand,
-.kv-pointer[data-idle="false"][data-state="grabbing"] .kv-pointer-hand,
-.kv-pointer[data-idle="false"][data-state="blocked"] .kv-pointer-block,
-.kv-pointer[data-idle="false"][data-state="scroll"] .kv-pointer-scroll,
-.kv-pointer[data-idle="false"][data-state="zoom"] .kv-pointer-zoom {
-  opacity: 1;
-  transform: scale(1);
-}
-
-/* — select: arrow with a star at the tip — */
-/* `paint-order: stroke` puts the outline OUTSIDE the shape, which is what turns a
-   stroke into a legible halo rather than a line eating into the silhouette. */
-.kv-pointer-arrow-body {
-  fill: var(--kv-cur);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.6;
-  stroke-linejoin: round;
-  paint-order: stroke;
-}
-
-/* A little separation from whatever is underneath, on top of the outline. */
-.kv-pointer > svg {
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.45));
-}
-
-.kv-pointer-arrow-star {
-  fill: var(--accent-2);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 0.8;
-  paint-order: stroke;
-  transform-origin: 18.6px 5.6px;
-  opacity: 0;
-  transform: scale(0.3);
-  transition:
+    transform 260ms var(--kv-cursor-ease),
     opacity 160ms var(--ease),
-    transform 300ms var(--spring);
+    background-color 160ms var(--ease);
 }
 
-.kv-pointer[data-state="select"] .kv-pointer-arrow-star {
+.kv-cursor-core {
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* Over text the dot draws itself out into a caret. */
+.kv-cursor-caret {
+  left: -1px;
+  top: -9px;
+  width: 2px;
+  height: 18px;
+  border-radius: 1px;
+  opacity: 0;
+  transform: scaleY(0.3);
+}
+
+.kv-cursor-dot[data-state="text"] .kv-cursor-core {
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.kv-cursor-dot[data-state="text"] .kv-cursor-caret {
   opacity: 1;
-  transform: scale(1);
-  animation: kv-star-twinkle 1.8s var(--ease) infinite;
+  transform: none;
 }
 
-@keyframes kv-star-twinkle {
-  0%,
-  100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 0.9;
+.kv-cursor-dot[data-state="blocked"] .kv-cursor-core {
+  background: var(--danger);
+}
+
+.kv-cursor-dot[data-down="true"] .kv-cursor-core {
+  transform: scale(0.7);
+}
+
+/* — the follower — */
+.kv-cursor-ring-shape {
+  position: absolute;
+  left: -17px;
+  top: -17px;
+  width: 34px;
+  height: 34px;
+  transition:
+    transform 380ms var(--kv-cursor-ease),
+    opacity 220ms var(--ease);
+}
+
+.kv-cursor-halo,
+.kv-cursor-arc,
+.kv-cursor-lens {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transition: opacity 220ms var(--ease);
+}
+
+/* Pure white on purpose: under `difference` that is a clean inversion, not a tint. */
+.kv-cursor-halo {
+  border: 1px solid #ffffff;
+  opacity: 0.55;
+}
+
+.kv-cursor-lens {
+  background: #ffffff;
+  opacity: 0;
+}
+
+/* While the app is fetching (it draws a `.skeleton`), a segment of the ring sweeps round. */
+.kv-cursor-arc {
+  border: 1px solid transparent;
+  border-top-color: #ffffff;
+  opacity: 0;
+}
+
+.kv-cursor-ring[data-busy="true"][data-state="default"] .kv-cursor-arc {
+  opacity: 1;
+  animation: kv-cursor-spin 0.9s linear infinite;
+}
+
+@keyframes kv-cursor-spin {
+  to {
+    transform: rotate(1turn);
   }
-  45% {
-    transform: scale(1.35) rotate(28deg);
-    opacity: 1;
-  }
 }
 
-/* — reading: an open book, one leaf always in flight — */
-.kv-book-page {
-  fill: var(--kv-cur);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.4;
-  stroke-linejoin: round;
-  paint-order: stroke;
+/* Something you can click — a link, a button, a star in the constellation: the ring opens
+   into a lens and inverts what it covers. */
+.kv-cursor-ring[data-state="select"] .kv-cursor-ring-shape {
+  transform: scale(1.45);
 }
 
-.kv-book-spine {
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.6;
-  stroke-linecap: round;
+.kv-cursor-ring[data-state="select"] .kv-cursor-halo {
+  opacity: 0;
 }
 
-.kv-book-turn {
-  fill: var(--accent);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.2;
-  paint-order: stroke;
-  transform-origin: 16px 12px;
-  animation: kv-page-turn 1.5s var(--ease) infinite;
+.kv-cursor-ring[data-state="select"] .kv-cursor-lens {
+  opacity: 1;
 }
 
-/* The leaf lifts off the right stack, sweeps across the spine and settles left. */
-@keyframes kv-page-turn {
-  0% {
-    transform: rotateY(0deg);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  80% {
-    transform: rotateY(-172deg);
-    opacity: 1;
-  }
-  92%,
-  100% {
-    transform: rotateY(-180deg);
-    opacity: 0;
-  }
+/* Text: the ring steps aside, so the caret reads on its own. */
+.kv-cursor-ring[data-state="text"] .kv-cursor-ring-shape {
+  opacity: 0;
+  transform: scale(0.5);
 }
 
-/* — text: a nib — */
-.kv-nib-body {
-  fill: var(--kv-cur);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-  paint-order: stroke;
-}
-.kv-nib-slit {
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.4;
-  stroke-linecap: round;
+/* A drag handle: the ring widens, ready to take hold — and closes round it once it has. */
+.kv-cursor-ring[data-state="grab"] .kv-cursor-ring-shape {
+  transform: scale(1.25);
 }
 
-/* — grab: an open hand that closes under the press — */
-.kv-hand-body {
-  fill: var(--kv-cur);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-  paint-order: stroke;
+.kv-cursor-ring[data-state="grab"] .kv-cursor-halo,
+.kv-cursor-ring[data-state="grabbing"] .kv-cursor-halo {
+  opacity: 0.9;
 }
-.kv-pointer[data-state="grabbing"] .kv-pointer-hand {
+
+.kv-cursor-ring[data-state="blocked"] .kv-cursor-ring-shape {
+  transform: scale(0.8);
+}
+
+.kv-cursor-ring[data-state="blocked"] .kv-cursor-halo {
+  opacity: 0.25;
+}
+
+/* Press: the ring tightens toward the click point. */
+.kv-cursor-ring[data-down="true"] .kv-cursor-ring-shape {
   transform: scale(0.82);
 }
 
-/* — blocked — */
-.kv-block-ring,
-.kv-block-bar {
-  fill: none;
-  stroke: var(--danger);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  /* The danger red is mid-tone in both themes, so it needs its own halo to stay
-     legible over a red button or a dark photo. */
-  paint-order: stroke;
-}
-.kv-block-ring {
-  fill: var(--kv-cur-edge);
-  fill-opacity: 0.55;
+.kv-cursor-ring[data-down="true"][data-state="select"] .kv-cursor-ring-shape {
+  transform: scale(1.2);
 }
 
-/* — the trailing ring — */
-.kv-pointer-ring {
-  width: 24px;
-  height: 24px;
-  margin: -12px 0 0 -12px;
-  border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-  -webkit-backdrop-filter: blur(1px);
-  backdrop-filter: blur(1px);
-  /* `transform` is owned by the rAF loop (position + velocity stretch) and must NOT be
-     transitioned, or the stretch would lag a frame behind the movement causing it. */
-  transition:
-    width 260ms var(--spring),
-    height 260ms var(--spring),
-    margin 260ms var(--spring),
-    opacity 200ms var(--ease),
-    border-color 200ms var(--ease),
-    background 200ms var(--ease);
-}
-
-.kv-pointer-ring[data-state="select"] {
-  width: 34px;
-  height: 34px;
-  margin: -17px 0 0 -17px;
-  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.kv-pointer-ring[data-state="text"],
-.kv-pointer-ring[data-state="reading"] {
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
-  opacity: 0.5;
-}
-
-.kv-pointer-ring[data-state="blocked"] {
-  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-}
-
-.kv-pointer-ring[data-down="true"] {
-  width: 16px;
-  height: 16px;
-  margin: -8px 0 0 -8px;
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-}
-
-/* A pointer that cannot be still is a pointer that cannot be ignored. */
+/* Under reduced motion the marks still change — that is information — but they change in
+   place: no scaling, no sweep. The ring is already locked to the dot by the script. */
 @media (prefers-reduced-motion: reduce) {
-  .kv-pointer-ring {
-    display: none;
+  .kv-cursor-core,
+  .kv-cursor-caret,
+  .kv-cursor-ring-shape {
+    transition:
+      opacity 120ms linear,
+      background-color 120ms linear;
   }
-  .kv-pointer-arrow-star,
-  .kv-book-turn {
-    animation: none;
-  }
-  .kv-pointer > * {
-    transition: opacity 100ms linear;
-    transform: none;
+  .kv-cursor-arc {
+    animation: none !important;
   }
 }
 
@@ -11961,851 +11915,6 @@ html.kv-pointer-on * {
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--warning) 70%, transparent);
 }
 
-/* ── Pointer: scroll & zoom reactions ──────────────────────────────────── */
-
-.kv-scroll-shell {
-  fill: var(--kv-cur);
-  stroke: var(--kv-cur-edge);
-  stroke-width: 1.6;
-  paint-order: stroke;
-}
-
-.kv-scroll-bead {
-  fill: var(--kv-cur-edge);
-  animation: kv-scroll-bead 1.1s var(--ease) infinite;
-}
-
-@keyframes kv-scroll-bead {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  50% {
-    transform: translateY(6px);
-    opacity: 0.45;
-  }
-}
-
-.kv-scroll-chev {
-  fill: none;
-  stroke: var(--kv-cur);
-  stroke-width: 2.4;
-  paint-order: stroke;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0;
-  animation: kv-chev 900ms var(--ease) infinite;
-}
-
-.kv-scroll-chev-2 {
-  animation-delay: 150ms;
-}
-
-/* Scrolling up flips the chevrons so they always travel with the page. */
-.kv-pointer[data-dir="up"] .kv-pointer-scroll {
-  transform: scale(1) rotate(180deg);
-}
-
-@keyframes kv-chev {
-  0% {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-  45% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-
-.kv-zoom-lens {
-  fill: var(--kv-cur-edge);
-  fill-opacity: 0.75;
-  stroke: var(--kv-cur);
-  stroke-width: 2.2;
-  paint-order: stroke;
-}
-
-.kv-zoom-handle {
-  fill: none;
-  stroke: var(--kv-cur);
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  paint-order: stroke;
-}
-
-.kv-zoom-sign {
-  stroke: var(--kv-cur);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  transition: opacity 160ms var(--ease);
-}
-
-/* The vertical stroke is what turns − into +, so zooming out simply drops it. */
-.kv-pointer[data-dir="out"] .kv-zoom-v {
-  opacity: 0;
-}
-
-.kv-pointer[data-state="zoom"] .kv-pointer-zoom {
-  animation: kv-zoom-pulse 700ms var(--ease);
-}
-
-@keyframes kv-zoom-pulse {
-  0% {
-    transform: scale(0.82);
-  }
-  55% {
-    transform: scale(1.12);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-/* ── Pointer: the click burst ──────────────────────────────────────────── */
-
-.kv-burst {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-.kv-burst::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: -6px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  animation: kv-burst-ring 560ms var(--ease) forwards;
-}
-
-@keyframes kv-burst-ring {
-  from {
-    transform: scale(0.4);
-    opacity: 0.9;
-  }
-  to {
-    transform: scale(3.4);
-    opacity: 0;
-  }
-}
-
-.kv-burst i {
-  position: absolute;
-  left: -1.5px;
-  top: -1.5px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--accent-2);
-  transform: rotate(var(--a)) translateX(0);
-  animation: kv-burst-spark 560ms var(--ease) forwards;
-}
-
-@keyframes kv-burst-spark {
-  from {
-    transform: rotate(var(--a)) translateX(2px) scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: rotate(var(--a)) translateX(20px) scale(0.2);
-    opacity: 0;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Pointer: the idle repertoire
-
-   After ten seconds of stillness the cursor stops being a cursor and becomes a
-   small scene; a different one every ten seconds. The moment the mouse moves,
-   it is a cursor again. Every scene is pure CSS on inline SVG — an idle pointer
-   costs no JavaScript at all — and the whole feature is off under
-   `prefers-reduced-motion`, where an unprompted animation is exactly the thing
-   the setting exists to prevent.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.kv-idle {
-  position: absolute;
-  left: calc(-1 * var(--hx));
-  top: calc(-1 * var(--hy));
-  width: 32px;
-  height: 32px;
-  opacity: 0;
-  transform: scale(0.5);
-  transform-origin: var(--hx) var(--hy);
-  transition:
-    opacity 260ms var(--ease),
-    transform 420ms var(--spring);
-  pointer-events: none;
-}
-
-.kv-pointer[data-idle="true"] .kv-idle {
-  opacity: 1;
-  transform: scale(1);
-}
-
-/* Idle wins over every pointing glyph. */
-.kv-pointer[data-idle="true"] > *:not(.kv-idle):not(.kv-defs) {
-  opacity: 0 !important;
-}
-
-/* The trailing ring gets out of the way and becomes the scene's halo. */
-.kv-pointer-ring[data-idle="true"] {
-  width: 40px;
-  height: 40px;
-  margin: -20px 0 0 -20px;
-  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
-  animation: kv-idle-halo 3.6s var(--ease) infinite;
-}
-
-@keyframes kv-idle-halo {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.95;
-  }
-}
-
-.kv-scene {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transform: scale(0.7) rotate(-8deg);
-  transition:
-    opacity 300ms var(--ease),
-    transform 460ms var(--spring);
-}
-
-/* Only the chosen scene is visible; the swap is a cross-fade, not a cut. */
-.kv-pointer[data-scene="stars"] .kv-scene[data-for="stars"],
-.kv-pointer[data-scene="shooting"] .kv-scene[data-for="shooting"],
-.kv-pointer[data-scene="planet"] .kv-scene[data-for="planet"],
-.kv-pointer[data-scene="brain"] .kv-scene[data-for="brain"],
-.kv-pointer[data-scene="rain"] .kv-scene[data-for="rain"],
-.kv-pointer[data-scene="sun"] .kv-scene[data-for="sun"],
-.kv-pointer[data-scene="cat"] .kv-scene[data-for="cat"],
-.kv-pointer[data-scene="clock"] .kv-scene[data-for="clock"],
-.kv-pointer[data-scene="signal"] .kv-scene[data-for="signal"],
-.kv-pointer[data-scene="rocket"] .kv-scene[data-for="rocket"],
-.kv-pointer[data-scene="coffee"] .kv-scene[data-for="coffee"],
-.kv-pointer[data-scene="plant"] .kv-scene[data-for="plant"] {
-  opacity: 1;
-  transform: none;
-}
-
-/* Shared ink for the scenes, so they read as one family. Declared on .kv-pointer
-   rather than .kv-scene so the <defs> gradients — which live beside the scenes, not
-   inside them — inherit the same values. */
-.kv-pointer {
-  --ink: var(--accent);
-  --ink2: var(--accent-2);
-  --paper: color-mix(in srgb, var(--surface-solid) 88%, transparent);
-  /* Lit and shaded versions of each ink: the two extra tones that turn a flat fill
-     into a form. */
-  --kv-hi: color-mix(in srgb, var(--accent) 42%, #ffffff);
-  --kv-lo: color-mix(in srgb, var(--accent) 52%, #000000);
-  --kv-hi2: color-mix(in srgb, var(--accent-2) 42%, #ffffff);
-  --kv-lo2: color-mix(in srgb, var(--accent-2) 52%, #000000);
-}
-
-/* A 1px, painted-but-empty box. Not display:none, not zero-size and not opacity:0 —
-   all three stop the browser rendering the subtree, and a gradient in an unrendered
-   subtree is a gradient that silently fills nothing. An <svg> holding only <defs>
-   draws no pixels anyway, so this is invisible in practice. */
-.kv-defs {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* Every scene sits on the page rather than being pasted onto it. */
-.kv-scene {
-  filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.45));
-}
-
-/* — twinkling stars — */
-.kv-twinkle {
-  fill: url(#kvBody2);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-twinkle 2.4s var(--ease) infinite;
-}
-.kv-t1 { animation-delay: 0ms; }
-.kv-t2 { animation-delay: 500ms; fill: var(--ink2); }
-.kv-t3 { animation-delay: 1000ms; }
-.kv-t4 { animation-delay: 1500ms; fill: var(--ink2); }
-
-@keyframes kv-twinkle {
-  0%,
-  100% {
-    opacity: 0.25;
-    transform: scale(0.72);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-/* — shooting star — */
-.kv-sky-dot {
-  fill: var(--ink);
-  opacity: 0.5;
-  animation: kv-twinkle 3s var(--ease) infinite;
-}
-.kv-shoot {
-  animation: kv-shoot 2.6s var(--ease) infinite;
-}
-.kv-shoot-head {
-  fill: url(#kvBody2);
-}
-.kv-shoot-tail {
-  stroke: var(--ink);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-
-@keyframes kv-shoot {
-  0% {
-    transform: translate(36px, 4px);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  62% {
-    opacity: 1;
-  }
-  75%,
-  100% {
-    transform: translate(8px, 34px);
-    opacity: 0;
-  }
-}
-
-/* — planet with an orbiting moon — */
-.kv-orbit {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.2;
-  opacity: 0.45;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-orbit-tilt 8s var(--ease) infinite;
-}
-.kv-planet {
-  fill: url(#kvSphere);
-}
-/* The terminator — the curved edge where the lit half meets the dark. */
-.kv-planet-term {
-  fill: none;
-  stroke: var(--kv-lo);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-.kv-planet-band {
-  fill: none;
-  stroke: var(--paper);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0.8;
-}
-.kv-moon-g {
-  transform-origin: 22px 22px;
-  animation: kv-spin 3.4s linear infinite;
-}
-.kv-moon {
-  fill: url(#kvSphere2);
-}
-
-@keyframes kv-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes kv-orbit-tilt {
-  0%,
-  100% {
-    transform: rotate(-8deg);
-  }
-  50% {
-    transform: rotate(8deg);
-  }
-}
-
-/* — a brain, braining — */
-.kv-brain {
-  fill: url(#kvBody);
-}
-.kv-brain-fold {
-  fill: none;
-  stroke: var(--paper);
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-.kv-brain-g {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-brain-pulse 1.8s var(--ease) infinite;
-}
-.kv-spark {
-  fill: var(--ink2);
-  animation: kv-spark 1.8s var(--ease) infinite;
-}
-.kv-spark-2 { animation-delay: 300ms; }
-.kv-spark-3 { animation-delay: 620ms; }
-
-@keyframes kv-brain-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.07);
-  }
-}
-@keyframes kv-spark {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.4);
-  }
-  35% {
-    opacity: 1;
-    transform: scale(1.25);
-  }
-}
-
-/* — a cloud, raining — */
-.kv-cloud {
-  fill: url(#kvBody);
-  animation: kv-cloud-drift 4.5s var(--ease) infinite;
-}
-.kv-drop {
-  stroke: var(--ink2);
-  stroke-width: 2;
-  stroke-linecap: round;
-  animation: kv-drop 1.25s linear infinite;
-}
-.kv-d2 { animation-delay: 400ms; }
-.kv-d3 { animation-delay: 800ms; }
-
-@keyframes kv-drop {
-  0% {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  25% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(9px);
-  }
-}
-@keyframes kv-cloud-drift {
-  0%,
-  100% {
-    transform: translateX(-1.5px);
-  }
-  50% {
-    transform: translateX(1.5px);
-  }
-}
-
-/* — the sun — */
-.kv-sun {
-  fill: url(#kvSphere2);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-brain-pulse 3s var(--ease) infinite;
-}
-/* The lit limb: a bright arc along the edge facing the light. */
-.kv-sun-limb {
-  fill: none;
-  stroke: var(--kv-hi2);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-.kv-sun-spec {
-  fill: #fff;
-  opacity: 0.5;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-spec 3s var(--ease) infinite;
-}
-.kv-corona {
-  fill: url(#kvGlow);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-corona 3s var(--ease) infinite;
-}
-.kv-rays {
-  transform-origin: 22px 22px;
-  animation: kv-spin 18s linear infinite;
-}
-.kv-ray {
-  stroke: var(--kv-hi2);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  /* No transform-origin here: each ray carries its own rotate(N 22 22) attribute, and
-     adding a CSS origin on top of it applies the centre twice and flings most of the
-     rays out of the viewBox. The animation below touches opacity and width only.
-     Rays that merely rotate look like a pinwheel; rays that also breathe radiate. */
-  animation: kv-ray 2.4s var(--ease) infinite;
-}
-
-@keyframes kv-ray {
-  0%,
-  100% {
-    opacity: 0.45;
-    stroke-width: 2;
-  }
-  50% {
-    opacity: 1;
-    stroke-width: 2.8;
-  }
-}
-@keyframes kv-corona {
-  0%,
-  100% {
-    transform: scale(0.86);
-    opacity: 0.65;
-  }
-  50% {
-    transform: scale(1.06);
-    opacity: 1;
-  }
-}
-@keyframes kv-spec {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.08);
-  }
-}
-
-/* — a cat, licking its paw — */
-.kv-cat-fill {
-  fill: url(#kvBody);
-}
-.kv-cat-eye {
-  fill: var(--paper);
-  animation: kv-blink 4s var(--ease) infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.kv-cat-nose {
-  fill: var(--ink2);
-}
-.kv-cat-whisk {
-  stroke: var(--paper);
-  stroke-width: 1.1;
-  stroke-linecap: round;
-  opacity: 0.8;
-}
-.kv-cat-body {
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  animation: kv-cat-lean 2.8s var(--ease) infinite;
-}
-.kv-paw-g {
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  animation: kv-paw 2.8s var(--ease) infinite;
-}
-.kv-paw {
-  fill: url(#kvBody);
-  /* An outline is what stops the paw dissolving into the face when it reaches it. */
-  stroke: var(--paper);
-  stroke-width: 1.1;
-}
-.kv-paw-bean {
-  fill: var(--ink2);
-}
-.kv-tongue {
-  fill: var(--ink2);
-  opacity: 0;
-  animation: kv-tongue 2.8s var(--ease) infinite;
-}
-
-@keyframes kv-blink {
-  0%,
-  92%,
-  100% {
-    transform: scaleY(1);
-  }
-  96% {
-    transform: scaleY(0.1);
-  }
-}
-/* The head dips to the paw, the paw lifts to meet it — that is what makes it a lick. */
-@keyframes kv-cat-lean {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  45%,
-  70% {
-    transform: translateY(2px) rotate(7deg);
-  }
-}
-/* Up and inward, so it arrives at the mouth rather than at the chin. */
-@keyframes kv-paw {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  45%,
-  70% {
-    transform: translate(-5px, -9px) rotate(-14deg);
-  }
-}
-@keyframes kv-tongue {
-  0%,
-  42%,
-  74%,
-  100% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-  50%,
-  66% {
-    opacity: 1;
-    transform: translateY(2px);
-  }
-}
-
-/* — a clock, showing the actual time — */
-.kv-clock-face {
-  fill: url(#kvBody);
-  fill-opacity: 0.28;
-  stroke: var(--ink);
-  stroke-width: 2;
-}
-.kv-clock-tick {
-  stroke: var(--ink);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-.kv-clock-hand {
-  stroke: var(--ink);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  transform-origin: 22px 22px;
-}
-.kv-clock-hour {
-  transform: rotate(var(--kv-hour, 0deg));
-}
-.kv-clock-min {
-  stroke-width: 1.8;
-  transform: rotate(var(--kv-min, 0deg));
-}
-/* Wound to the real second: a 60s rotation started `--kv-sec` seconds ago. */
-.kv-clock-sec {
-  stroke: var(--ink2);
-  stroke-width: 1.2;
-  animation: kv-spin 60s linear infinite;
-  animation-delay: calc(var(--kv-sec, 0) * -1s);
-}
-.kv-clock-pin {
-  fill: var(--ink2);
-}
-
-/* — an internet signal — */
-.kv-bar {
-  fill: url(#kvBody);
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  animation: kv-bar 2s var(--ease) infinite;
-}
-.kv-bar-2 { animation-delay: 220ms; }
-.kv-bar-3 { animation-delay: 440ms; }
-.kv-bar-4 { animation-delay: 660ms; fill: url(#kvBody2); }
-
-@keyframes kv-bar {
-  0%,
-  100% {
-    opacity: 0.22;
-    transform: scaleY(0.55);
-  }
-  35%,
-  70% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-}
-
-/* — a rocket — */
-.kv-rocket-g {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: kv-rocket 2.2s var(--ease) infinite;
-}
-.kv-rocket-body {
-  fill: var(--paper);
-  stroke: var(--ink);
-  stroke-width: 1.8;
-  stroke-linejoin: round;
-}
-.kv-rocket-fin {
-  fill: url(#kvBody);
-}
-.kv-rocket-port {
-  fill: url(#kvSphere2);
-}
-.kv-flame {
-  fill: url(#kvBody2);
-  transform-box: fill-box;
-  transform-origin: center top;
-  animation: kv-flame 260ms var(--ease) infinite alternate;
-}
-.kv-flame-b {
-  fill: var(--paper);
-  opacity: 0.85;
-  animation-duration: 190ms;
-}
-
-@keyframes kv-rocket {
-  0%,
-  100% {
-    transform: translateY(2px);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-}
-@keyframes kv-flame {
-  from {
-    transform: scaleY(0.75) scaleX(0.9);
-  }
-  to {
-    transform: scaleY(1.15) scaleX(1.05);
-  }
-}
-
-/* — a coffee, steaming — */
-.kv-cup {
-  fill: url(#kvBody);
-}
-.kv-cup-handle,
-.kv-saucer {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.kv-steam {
-  fill: none;
-  stroke: var(--ink2);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0;
-  animation: kv-steam 2.6s var(--ease) infinite;
-}
-.kv-steam-2 {
-  animation-delay: 700ms;
-}
-
-@keyframes kv-steam {
-  0% {
-    opacity: 0;
-    transform: translateY(4px) scaleY(0.7);
-  }
-  30% {
-    opacity: 0.9;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-6px) scaleY(1.15);
-  }
-}
-
-/* — a seedling — */
-.kv-pot {
-  fill: url(#kvBody);
-}
-.kv-stem {
-  stroke: var(--ink2);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.kv-leaf {
-  fill: url(#kvBody2);
-}
-.kv-sprout {
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  animation: kv-sway 3.2s var(--ease) infinite;
-}
-.kv-leaf-l {
-  transform-box: fill-box;
-  transform-origin: right bottom;
-  animation: kv-leaf 3.2s var(--ease) infinite;
-}
-.kv-leaf-r {
-  transform-box: fill-box;
-  transform-origin: left bottom;
-  animation: kv-leaf 3.2s var(--ease) infinite reverse;
-}
-
-@keyframes kv-sway {
-  0%,
-  100% {
-    transform: rotate(-4deg);
-  }
-  50% {
-    transform: rotate(4deg);
-  }
-}
-@keyframes kv-leaf {
-  0%,
-  100% {
-    transform: rotate(-6deg) scale(0.96);
-  }
-  50% {
-    transform: rotate(6deg) scale(1.04);
-  }
-}
-
-/* An unprompted animation is precisely what this setting exists to prevent. */
-@media (prefers-reduced-motion: reduce) {
-  .kv-idle,
-  .kv-burst {
-    display: none;
-  }
-  .kv-scroll-bead,
-  .kv-scroll-chev,
-  .kv-pointer[data-state="zoom"] .kv-pointer-zoom {
-    animation: none;
-  }
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    Appearance → Animation = off
 
@@ -12815,7 +11924,8 @@ html.kv-pointer-on * {
    motion but who wants this product to sit still.
 
    What it stops: everything that moves ON ITS OWN — looping animations, the
-   aurora drift, the cursor's trail, its click burst and its idle scenes.
+   aurora drift, the cursor's trail (the script reads this same attribute and
+   locks the ring onto the dot, so the cursor needs no rule here).
    What it keeps: transitions, because those are direct responses to something
    you just did, and freezing them makes the interface feel broken rather than
    calm.
@@ -12835,20 +11945,6 @@ html.kv-pointer-on * {
 [data-motion="off"] .skeleton::after {
   animation-duration: 1.4s !important;
   animation-iteration-count: infinite !important;
-}
-
-/* The pointer's decorative companions go entirely, rather than freezing mid-pose. */
-[data-motion="off"] .kv-idle,
-[data-motion="off"] .kv-burst,
-[data-motion="off"] .kv-pointer-ring {
-  display: none;
-}
-
-/* Without the trailing ring the arrow carries the whole cursor, so it keeps its
-   outline and shadow — this must not become a less legible pointer. */
-[data-motion="off"] .kv-pointer-arrow-star {
-  opacity: 1;
-  transform: none;
 }
 
 
