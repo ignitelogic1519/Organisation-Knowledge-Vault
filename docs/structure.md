@@ -731,6 +731,24 @@ not something its owner can act on there.
 no breach-corpus lookup. The first three punish people who already chose well; the fourth
 is a network call on a password field.
 
+### 8.10 Navigation is labelled, and searchable ✅ DECIDED (2026-10-05)
+- **Every destination is named, all the time.** The rail's labels no longer fold away until
+  hovered; hover and focus change colour only, so nothing moves under the pointer. From
+  992 px up the bar is two rows — brand · search · controls, then the rail — because seven
+  labelled tabs and a search field do not fit one row on a laptop. Phones keep one row:
+  the hamburger sheet, plus a magnifier that opens the search as a row under the bar.
+- **A search box in the top bar** (`NavSearch`, index in `lib/site-search.ts`), on the
+  public pages and in the app alike. It searches on the client — pages (with the words
+  customers use: *price*, *billing*, *coins* → Pricing), the Help page's topics (each card
+  is an anchor, `/help#help-…`) and, when signed in, the profile's organizations by name or
+  number (fetched once, on first focus). Inside an organization it offers to carry the words
+  into that organization's **Library** or **My Learning** as `?q=`, where the real,
+  server-side course search lives — it does not duplicate it. `/` or Ctrl/⌘ K focuses it
+  (Ctrl/⌘ K is left alone inside a rich-text editor); ↑ ↓ Enter Esc drive it; it is an ARIA
+  combobox.
+
+---
+
 ## 9. Organization-provided storage ✅ DECIDED (2026-08-04) — built for files
 
 > This section is normative. The working record of how it was reached lives in

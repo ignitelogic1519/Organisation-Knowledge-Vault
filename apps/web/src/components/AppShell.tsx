@@ -8,6 +8,7 @@ import { Mailbox } from "./Mailbox";
 import { ThemeMenu } from "./ThemeMenu";
 import { IconLogout } from "./icons";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { NavSearch } from "./NavSearch";
 
 export interface ShellNavItem {
   href: string;
@@ -53,11 +54,9 @@ function MenuIcon({ open }: { open: boolean }) {
   );
 }
 
-// Authenticated app chrome: a compact, icon-first navigation bar. Each destination is an
-// icon that widens on hover/focus to reveal its real label — the label is part of the
-// link's markup (so it is read by assistive technology and found by in-page search), not
-// a tooltip attribute the browser draws on its own schedule. The active page always keeps
-// its label open, so you can see where you are without touching anything.
+// Authenticated app chrome: the navigation bar. Every destination shows its icon and its
+// name at all times — nothing has to be hovered to be read — and the search box beside it
+// finds pages, help topics and your organizations.
 export function AppShell({
   nav,
   title,
@@ -93,7 +92,7 @@ export function AppShell({
             <span className="kv-brand-word">Knowledge Vault</span>
           </Link>
 
-          {/* Desktop: the icon rail sits in the middle of the bar and expands on hover.
+          {/* Desktop: the labelled rail sits in the middle of the bar.
               Below 992px the wrapper turns into the sheet under the hamburger. */}
           <div className="kv-sheet" id="kv-navbar-nav" data-open={open}>
             <ul className="kv-rail">
@@ -116,6 +115,8 @@ export function AppShell({
               ))}
             </ul>
           </div>
+
+          <NavSearch />
 
           <div className="kv-navbar-controls">
             <Mailbox />

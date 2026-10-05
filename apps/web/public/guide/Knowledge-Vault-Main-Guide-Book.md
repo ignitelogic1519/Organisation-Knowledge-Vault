@@ -87,7 +87,7 @@ The **five parameters** are the same in every chapter, so you can compare featur
 | 17 | Plans, pricing & Knowledge Coins | Coins, the plan ladder, the free plan, access codes, upgrades |
 | 18 | The Supreme zone — custody & recovery | Backups, `.main`, `.bkp`, the Recovery |
 | 19 | Staying signed in — sessions & security | The one-hour rule, the warning card, and what ends a session |
-| 20 | Appearance & navigation | Themes, accents, the pointer, hints, and the icon-first nav bar |
+| 20 | Appearance & navigation | Themes, accents, the pointer, hints, the navigation bar and search |
 | 21 | Flow diagrams — every setting at a glance | A diagram + screenshot for each owner action, member capability & request flow |
 | 22 | Help & support | Where to find answers in-app |
 | 23 | Where your documents live | NAS, the KVEP perk, and the storage backends still to come |
@@ -3971,7 +3971,7 @@ of them are deliberately quiet — and the ones that are yours to set remember w
 
 | Parameter | What changes |
 |-----------|--------------|
-| **Time** | An icon-first bar keeps every destination one click away without a menu; hints answer "what does this do?" without leaving the page. |
+| **Time** | Every destination is named and one click away, and the search box reaches any page, help topic or organization in a few keystrokes; hints answer "what does this do?" without leaving the page. |
 | **Risk & compliance** | The hint on a compulsory field explains *why* it is compulsory, which is what stops people typing anything to get past it. |
 | **Security & custody** | Nothing here leaves your device: the theme is a cookie on the machine you are sitting at, not a setting on your account. |
 | **Cost** | Zero. But a product people find comfortable is one they open — and unused training software is the most expensive kind. |
@@ -3981,54 +3981,53 @@ of them are deliberately quiet — and the ones that are yours to set remember w
 
 ## 1. The navigation bar
 
-The bar across the top of every page is **icons at rest and words on contact**.
+The bar across the top of every page has two rows on a computer.
 
-At rest each destination is a single icon, so the bar stays short even when an organization
-has a dozen places to be. Hover it — or reach it with the keyboard — and the icon **widens
-out into its full label**: *Constellation*, *My Learning*, *Library*, *Requests*,
-*Compliance*, *Studio*.
+**The top row** holds the Knowledge Vault mark, the **search box** in the middle, and your
+mailbox, the appearance palette and sign-out on the right.
 
-Three things worth knowing:
+**The second row** lists every destination **by name, always**: *Organizations*,
+*Constellation*, *My Learning*, *Library*, *Requests*, *Compliance*, *Help* — or, on the public
+pages, *Home*, *Features*, *Storage*, *Pricing* and *Help & guide*. Nothing has to be hovered to
+be read, and nothing moves or changes size when you point at it; reaching a link only changes
+its colour.
 
-- **The label is real text.** It is part of the link, not a tooltip the browser draws on its
-  own schedule and not a placeholder. Screen readers read it, and your browser's *find on
-  page* finds it, whether or not it is currently visible.
-- **The page you are on keeps its label open.** You can always see where you are without
-  touching anything.
-- **Counts ride along.** A branch with requests waiting shows the number on its icon, expanded
-  or not.
+- **The page you are on is filled in** with your accent colour, so you can always see where
+  you are.
+- **Counts ride along.** A branch with requests waiting shows the number beside *Requests*.
+- **The labels are real text** — screen readers read them and *find on page* finds them.
+
+### Search
+
+Type in the search box to jump straight to what you need. As you type it finds:
+
+- **Pages** — *Pricing*, *Account*, *Storage*, *Found an organization*… It understands the words
+  people actually use, so *price*, *plans*, *billing* or *coins* all find Pricing.
+- **Help topics** — *password*, *exams*, *backup*, *dark mode*… open the right card on the Help
+  page.
+- **Your organizations**, by name or by number.
+- **Inside an organization**, it offers to **search that organization's Library** or **your My
+  Learning** for the words you typed, and takes you there with the search already filled in.
+
+Use **↑** and **↓** to move through the results and **Enter** to open one; **Esc** clears the
+box, and a second **Esc** closes it. From anywhere on a page, press **/** or **Ctrl K**
+(**⌘ K** on a Mac) to jump to the search box without reaching for the mouse.
+
+![The navigation bar: search on top, every destination named beneath](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/navigation-search.png)
 
 **Under the bar sit breadcrumbs** — *Home › Aurora Robotics › Compliance* — so you always know
 which organization you are in and how you got to this page:
 
 ![Breadcrumbs, under the navigation bar](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/breadcrumbs.png)
 
-### The bar is deliberately unhurried
-
-Widening a label makes the bar wider, which moves every link after it. If that happened at the
-speed of an ordinary hover effect, the link you were aiming at would slide out from under your
-pointer and you would click the wrong one — which is exactly what used to happen.
-
-So the navigation bar moves on its own, slower timing:
-
-- **It waits before it opens.** Sweeping past a link on your way somewhere else does not
-  disturb the bar at all.
-- **It opens gently, and does not overshoot.** No bounce, nothing that springs past its resting
-  place and comes back.
-- **It waits before it closes.** Slipping off the pill for an instant does not snap it shut
-  under your finger.
-
-Colour still answers instantly — you always know the moment you have reached a link. Only the
-*shape* takes its time. If you have asked your device to reduce motion, none of this animates
-at all.
-
 ### On a phone or a tablet
 
 ![The navigation sheet on a phone](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/mobile-navigation.png)
 
 
-There is no hovering on a touch screen, so the bar behaves differently and honestly: the
-**menu button** opens the destinations as a vertical sheet with **every label already showing**.
+A phone has no room for two rows, so the bar keeps to one: the **menu button** opens the
+destinations as a vertical sheet with **every label showing**, and the **magnifier** beside it
+opens the same search box as a full-width row under the bar.
 Nothing is hidden behind a gesture you cannot perform. The sheet is solid rather than
 see-through, so the page underneath never competes with the links, and it scrolls on its own if
 there are more destinations than fit.
@@ -4084,7 +4083,7 @@ constellation's stars, the pointer's trailing ring. It starts **off** and stays 
 set it, per device.
 
 If your operating system is set to reduce motion, the platform obeys that too, without being
-asked: the navigation rail stops sliding, transitions shorten, and the background animation
+asked: transitions shorten, and the background animation
 settles.
 
 ---
@@ -4138,10 +4137,9 @@ organization, so it cannot live inside one.
 
 ## Tips & pitfalls
 
-- **Learn two icons and you know the bar.** The branching mark is your constellation; the book
-  is your learning. Everything else you can hover.
+- **Lost? Search.** Press **/** and type what you are looking for — a page, a topic, an
+  organization or, inside one, a course.
 - **Set the theme once, on each device you use.** It is a per-device choice by design.
-- **If the bar looks cramped, it isn't broken** — that is the collapsed state. Hover or tap.
 - **Hover before you ask.** Most "what does this field mean?" questions are answered by
   resting the pointer on it for half a second.
 - **On a projector, use the day theme.** The night theme's contrast is tuned for a screen a
@@ -4157,7 +4155,7 @@ organization, so it cannot live inside one.
 
 | # | Shot | Say |
 |---|------|-----|
-| 1 | Slow hover along the nav bar, labels opening | "Icons at rest, words on contact — and the page you're on always shows its name." |
+| 1 | Press `/`, type *price*, press Enter | "Every destination named, and a search box that understands what you mean." |
 | 2 | Open the palette; switch to night; switch accent | "Day or night, five accents, and it's remembered on this device." |
 | 3 | Reload the page — no flash of the wrong theme | "Applied before the first frame is painted." |
 | 4 | Hover a compulsory field; the hint card opens | "Hints replace the browser's tooltip — and say *why*, not just *what*." |
@@ -5129,6 +5127,20 @@ moved since they last used it. Newest first.
 ---
 
 ## October 2026
+
+### Search from the top of every page, and a bar that names everything
+
+A **search box** now sits in the middle of the top bar, on every page. Type a page, a topic or an
+organization and jump straight there — *price* finds Pricing, *password* finds the help on
+signing in — and inside an organization it will search that organization's Library or your My
+Learning for you. Press **/** or **Ctrl K** (**⌘ K** on a Mac) to reach it from anywhere.
+
+The destinations in the bar — *Organizations*, *Pricing*, *Account*, *Help* and, inside an
+organization, *Constellation*, *My Learning*, *Library* and the rest — now **always show their
+names**. They used to be icons that only opened out into words when you pointed at them; now
+nothing has to be hovered to be read, and nothing moves under your pointer. On a computer they
+sit in a row of their own under the search.
+See Chapter 20.
 
 ### A lighter, quicker pointer
 

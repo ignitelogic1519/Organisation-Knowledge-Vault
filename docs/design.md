@@ -191,7 +191,8 @@ scroll while an overlay is open.
 ## 4. Application Structure
 
 - **Public (marketing) pages:** `/` (hero + features + storage + steps + CTA), `/features`,
-  `/storage`, `/pricing`, `/login`, `/register`, `/help` — the icon rail in a glass bar.
+  `/storage`, `/pricing`, `/login`, `/register`, `/help` — the labelled rail and the search box
+  in a glass bar (two rows from 992 px up: brand · search · controls, then the rail).
   Below 992 px the rail becomes a sheet under a hamburger; the sheet is **solid, not glass**,
   because a translucent navigation panel leaves body copy showing through its own links.
 - **App pages:** wrapped in the `AppShell` (sidebar / tab bar + top row with
@@ -215,27 +216,19 @@ scroll while an overlay is open.
 - Skeleton shimmer (`.skeleton`) stands in for loading content — never spinners.
 - Theme switch cross-fades tokens (250 ms) — no white flash in dark mode.
 
-### 5.1 Navigation has its own, slower budget
+### 5.1 Navigation never moves
 
-The icon rail changes its own width on hover, which moves every link after it. At the
-standard 250 ms with the springy `--spring` easing, the target slid out from under the
-pointer and the click landed on the wrong link — a real, reported defect, not a taste
-question. Navigation therefore runs on its own tokens:
+Every rail link shows its icon **and** its label at all times, and hover or focus changes only
+colour (`--dur-micro`). The rail used to fold each label away until the pointer reached it,
+which meant reading the bar by hovering over it, and a widening link moved every link after it
+— which needed a slow, delayed navigation-motion budget (`--dur-nav`, `--nav-*-delay`) just to
+stop the target sliding out from under the pointer. With nothing changing size, that budget is
+gone.
 
-| Token | Value | Why |
-|-------|-------|-----|
-| `--dur-nav` | 420 ms | Slow enough that the geometry is still moving when you arrive, so you track it instead of chasing it |
-| `--ease-nav` | `cubic-bezier(0.22, 0.61, 0.36, 1)` | Ease-out with **no overshoot** — a spring makes the pill bounce past its resting place and back |
-| `--nav-open-delay` | 90 ms | Brushing past a link on the way somewhere else does not disturb the bar at all |
-| `--nav-close-delay` | 200 ms | A pointer that slips off the pill for a frame does not snap it shut |
-
-The delays are expressed as the **closing** delays in the base rule's `transition` shorthand;
-the `:hover` / `:focus-within` rule replaces them with the opening ones. The delay list must
-stay aligned with the property list — that ordering is why the shorthand is written out in
-full rather than split into separate declarations.
-
-Colour still answers on `--dur-micro`. Feedback that you have *reached* a link must never lag,
-even when the geometry deliberately does.
+Seven labelled destinations, a usable search field and the controls do not share one row on an
+ordinary laptop, so from 992 px up the bar is **two rows**: brand · search · controls on top,
+the rail on its own row beneath. `--kv-bar-h` holds the bar's height for anything that has to
+clear it (sticky toolbars, the trail under the fixed public bar, anchors scrolled into view).
 
 ## 6. The Constellation Org Graph (signature feature)
 

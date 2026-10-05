@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { versionLabel, type LearningItem, type MyLearningView } from "@vault/shared";
 import { ApiError } from "@/lib/auth-client";
 import { courses } from "@/lib/courses-client";
@@ -57,8 +57,14 @@ function itemMeta(item: Item): string {
 
 export function MyLearning({ orgId }: { orgId: string }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [view, setView] = useState<MyLearningView | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => params.get("q") ?? "");
+  // The navbar search hands its words over as ?q= — including while already on this page.
+  const handedOver = params.get("q");
+  useEffect(() => {
+    if (handedOver !== null) setQuery(handedOver);
+  }, [handedOver]);
   /** The item whose action menu is open — the ⋯ beside a row opens it. */
   const [openCode, setOpenCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
