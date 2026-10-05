@@ -21,6 +21,14 @@ nothing has to be hovered to be read, and nothing moves under your pointer. On a
 sit in a row of their own under the search.
 See [Chapter 20](chapter-20-appearance-and-navigation.md).
 
+### Plan cards line up
+
+Every plan card on the **Pricing** page is now the same size, and every **Request this plan**
+button sits on the same line along the bottom, so the plans read as a set you compare rather than
+a stack of different-sized boxes. The form for a custom plan now opens beneath the cards instead
+of stretching one of them.
+See [Chapter 17](chapter-17-plans-and-access.md).
+
 ### A lighter, quicker pointer
 
 The pointer has been rebuilt. It is now a small dot in your accent colour that sits exactly
