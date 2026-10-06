@@ -7,6 +7,25 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### A front page that gets to the point
+
+The front page is shorter and says more:
+
+- **Less empty space** between the opening, the product and the sections after it, so the
+  product is in view sooner.
+- **A preview you can click.** The Constellation picture on the front page is now a small working
+  map: click a role — CEO, HR, Payroll… — and its panel opens beside it, just as in the product,
+  with its role number, who is in it, and what you can do there.
+- **Benefits instead of counters.** The strip under the product now reads *Role-based
+  workflows*, *Your storage, your control*, *One connected workspace* and *Unlimited role depth*.
+- **Four principles** follow straight after — custody, least privilege, real time and standard
+  documents — so the core of the product is clear before you open a single feature card.
+- **Storage you can choose today comes first.** NAS and Google Drive are shown on their own;
+  what is planned or being explored sits in a smaller *On the roadmap* list, labelled simply
+  *Planned* or *Exploring*.
+- **One set of icons** in the same style across the page and the Storage page.
+- **The service-status note** ("All systems normal") has moved from the opening to the footer.
+
 ### Feature cards that say what they do
 
 The feature cards on the front page and the **Features** page are easier to use and to read:

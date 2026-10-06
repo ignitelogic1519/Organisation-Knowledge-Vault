@@ -7,6 +7,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 type State = { state: "checking" } | { state: "ok"; ms: number } | { state: "down" };
 
+/**
+ * A quiet service-status line for the footer. It used to sit in the hero as "API connected
+ * · 566 ms", which read like a development diagnostic in the one place that should only
+ * carry the product's promise and the next step. The words are for customers; the response
+ * time is still there for whoever wants it, as the line's hint.
+ */
 export function ApiStatus() {
   const [status, setStatus] = useState<State>({ state: "checking" });
 
@@ -25,14 +31,25 @@ export function ApiStatus() {
   }, []);
 
   return (
-    <div className="status-card glass" role="status">
+    <span
+      className="status-line"
+      role="status"
+      data-hint={
+        status.state === "ok"
+          ? `The service answered in ${status.ms} ms.`
+          : status.state === "down"
+            ? "The service did not answer. Signing in and loading organizations will not work until it does."
+            : undefined
+      }
+    >
       <span
         className="status-dot"
         data-state={status.state === "checking" ? undefined : status.state}
+        aria-hidden
       />
-      {status.state === "checking" && "Checking API…"}
-      {status.state === "ok" && `API connected · ${status.ms} ms`}
-      {status.state === "down" && "API offline — start apps/api or check NEXT_PUBLIC_API_URL"}
-    </div>
+      {status.state === "checking" && "Checking service…"}
+      {status.state === "ok" && "All systems normal"}
+      {status.state === "down" && "Service unavailable"}
+    </span>
   );
 }

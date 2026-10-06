@@ -397,3 +397,39 @@ export const IconFlip = (p: IconProps) => (
     <path d="M19.8 4v3.6h-3.6" />
   </Svg>
 );
+
+/* Storage and principle marks for the landing page — same 24px grid and stroke as the rest. */
+
+export const IconServer = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3.5" y="4" width="17" height="7" rx="2" />
+    <rect x="3.5" y="13" width="17" height="7" rx="2" />
+    <path d="M7.5 7.5h.01M7.5 16.5h.01M11 7.5h5.5M11 16.5h5.5" />
+  </Svg>
+);
+
+export const IconCloud = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+  </Svg>
+);
+
+export const IconFolder = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" />
+  </Svg>
+);
+
+export const IconPlug = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9 3v4.5M15 3v4.5" />
+    <path d="M6 7.5h12V12a6 6 0 0 1-12 0Z" />
+    <path d="M12 18v3" />
+  </Svg>
+);
+
+export const IconBolt = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M13 2.5 4.5 13.5H11L10 21.5l8.5-11H12Z" />
+  </Svg>
+);

@@ -1575,7 +1575,9 @@ select option[value=""] {
    one-row bar and no more, and centres in what is left. */
 .hero {
   position: relative;
-  min-height: 100svh;
+  /* A full screen on a laptop, but capped on a tall monitor, so the product section below
+     starts within reach instead of a screen-height of empty sky later. */
+  min-height: min(100svh, 44rem);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -1718,22 +1720,37 @@ select option[value=""] {
   }
 }
 
+/* Sections breathe around their headings, not between related blocks: 4rem a side gives
+   8rem between two sections, where 5.5rem a side left almost a screen of nothing. */
 .section {
   max-width: 68rem;
   margin: 0 auto;
-  padding: 5.5rem 1.5rem;
+  padding: 4rem 1.5rem;
+}
+
+/* The first section after the hero follows straight on — the hero already has its air. */
+.section-first {
+  padding-top: 1.5rem;
 }
 
 .section-head {
   text-align: center;
   max-width: 40rem;
-  margin: 0 auto 3rem;
+  margin: 0 auto 2.4rem;
 }
 
 .section-head h2 {
   font-size: clamp(1.8rem, 4vw, 2.7rem);
   letter-spacing: -0.02em;
   margin-top: 0.5rem;
+  /* Even lines, so a heading never ends on one stranded word. */
+  text-wrap: balance;
+}
+
+/* A phrase that should travel to the next line as a unit rather than leave a word behind
+   ("One platform for / your people and knowledge"); it still wraps inside on a phone. */
+.heading-phrase {
+  display: inline-block;
 }
 
 .section-head p {
@@ -1840,15 +1857,19 @@ select option[value=""] {
   }
 }
 
-.status-card {
-  margin-top: 2rem;
+/* The service status, in the footer: one quiet line, never a badge in the hero. */
+.status-line {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 1.15rem;
-  border-radius: 980px;
+  gap: 0.5rem;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+}
+
+.footer-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .status-dot {
@@ -7030,7 +7051,9 @@ button.reader-tab:focus-visible {
 
 .showcase-body {
   display: grid;
-  grid-template-columns: 1fr 1.1fr;
+  /* The picture gets the larger share: the Constellation tab's is a working miniature with
+     a map and a panel side by side. */
+  grid-template-columns: 0.9fr 1.25fr;
   gap: 2rem;
   align-items: center;
   border-radius: calc(var(--radius) + 8px);
@@ -7106,35 +7129,231 @@ button.reader-tab:focus-visible {
   display: block;
 }
 
-/* ── Landing: stat band ────────────────────────────────────────────────── */
-
-.stat-band {
+/* The Constellation tab's working miniature (components/LandingShowcase.tsx: RolePreview).
+   Map on the left, the role's panel on the right — as in the product — stacked on a phone.
+   Tall enough for the fullest panel, so choosing a role never resizes the showcase. */
+.rp {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  border-radius: calc(var(--radius) + 6px);
-  padding: 2rem 1.4rem;
-  text-align: center;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 18rem;
 }
-@media (max-width: 640px) {
-  .stat-band {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.4rem;
+@media (max-width: 520px) {
+  .rp {
+    grid-template-columns: 1fr;
   }
 }
-.stat-band-item {
+
+.rp-map {
+  position: relative;
+  min-height: 15rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(70% 55% at 50% 0%, var(--accent-soft), transparent 75%),
+    var(--surface-2);
+  overflow: hidden;
+}
+
+.rp-links {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.rp-links line {
+  stroke: color-mix(in srgb, var(--accent) 30%, var(--border));
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.rp-links line[data-on] {
+  stroke: var(--accent);
+}
+
+/* Each role is a real button: the star sits exactly on its point, the name beneath it. */
+.rp-node {
+  position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-}
-.stat-band-n {
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.stat-band-l {
-  font-size: 0.85rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.2rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
   color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  transform: translate(-50%, -0.55rem);
+}
+.rp-node[data-root] {
+  transform: translate(-50%, -0.675rem);
+}
+.rp-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.rp-star {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: var(--grad-accent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent);
+  transition: box-shadow var(--dur-micro) var(--ease);
+}
+.rp-node[data-root] .rp-star {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+/* A hidden branch reads as dimmer, as it does on the real map. */
+.rp-node[data-hidden] .rp-star {
+  opacity: 0.45;
+}
+.rp-node[aria-pressed="true"] .rp-star {
+  box-shadow:
+    0 0 0 3px var(--surface-2),
+    0 0 0 5px var(--accent);
+}
+
+.rp-label {
+  padding: 0.05rem 0.35rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+  white-space: nowrap;
+  transition: color var(--dur-micro) var(--ease);
+}
+.rp-node:hover .rp-label,
+.rp-node[aria-pressed="true"] .rp-label {
+  color: var(--text);
+}
+
+.rp-hint {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.rp-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-solid);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.rp-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.rp-name {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.rp-num {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+}
+
+.rp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.rp-badges .badge {
+  font-size: 0.66rem;
+}
+
+.rp-ask {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.rp-menu {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rp-menu li {
+  display: flex;
+  flex-direction: column;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.rp-menu-label {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+.rp-menu-desc {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+}
+
+/* ── Landing: benefits strip ───────────────────────────────────────────── */
+
+.benefit-band {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.2rem;
+  margin: 1.6rem 0 0;
+  padding: 1.4rem 1.5rem;
+  border-radius: calc(var(--radius) + 6px);
+  list-style: none;
+}
+@media (max-width: 900px) {
+  .benefit-band {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .benefit-band {
+    grid-template-columns: 1fr;
+  }
+}
+.benefit {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+.benefit .icon-tile {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+}
+.benefit-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.benefit-title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  line-height: 1.3;
+}
+.benefit-text {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 /* ── Landing: pillars ──────────────────────────────────────────────────── */
@@ -7157,15 +7376,6 @@ button.reader-tab:focus-visible {
 .pillar-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 18px 44px color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.pillar-icon {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 1.4rem;
-  background: var(--accent-soft);
 }
 .pillar-card h3 {
   font-size: 1.12rem;
@@ -9629,7 +9839,10 @@ body.is-dragging-block * {
   padding-bottom: 1rem;
 }
 
-.fc-icon {
+/* The one icon treatment on the public pages: a stroke icon in the accent, on a softly
+   tinted tile. Feature cards, benefits, principles and storage all use it. */
+.fc-icon,
+.icon-tile {
   display: grid;
   place-items: center;
   flex: none;
@@ -10441,20 +10654,6 @@ body.is-dragging-block * {
   margin-bottom: 0.9rem;
 }
 
-.storage-backend-icon {
-  display: grid;
-  place-items: center;
-  width: 2.8rem;
-  height: 2.8rem;
-  flex: none;
-  border-radius: 14px;
-  font-size: 1.3rem;
-  background: var(--surface-solid);
-  box-shadow:
-    -4px -4px 10px var(--neu-hi),
-    4px 4px 10px var(--neu-lo);
-}
-
 .storage-backend-head h3 {
   font-size: 1.15rem;
   letter-spacing: -0.01em;
@@ -10777,19 +10976,6 @@ body.is-dragging-block * {
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-.home-storage-icon {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 13px;
-  font-size: 1.2rem;
-  background: var(--surface-solid);
-  box-shadow:
-    -4px -4px 10px var(--neu-hi),
-    4px 4px 10px var(--neu-lo);
-}
-
 .home-storage-card h3 {
   font-size: 1rem;
   line-height: 1.3;
@@ -10803,10 +10989,88 @@ body.is-dragging-block * {
   flex: 1;
 }
 
-.home-storage-card .storage-status {
-  align-self: flex-start;
+.home-storage-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.home-storage-card .storage-status,
+.home-storage-later .storage-status {
   margin-left: 0;
   font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+/* What is coming, kept apart from what you can choose today: a smaller, quieter list. */
+.home-storage-later {
+  max-width: 52rem;
+  margin: 0.4rem auto 1.6rem;
+  padding: 1rem 1.2rem 0.4rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.home-storage-later-title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.home-storage-later ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-storage-later li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.home-storage-later li:first-child {
+  border-top: 0;
+}
+
+.home-storage-later-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.home-storage-later-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.home-storage-later-copy a {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.home-storage-later-copy a:hover {
+  color: var(--accent);
 }
 
 .home-storage-link {

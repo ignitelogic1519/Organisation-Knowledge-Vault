@@ -14,17 +14,20 @@
 
 export type BackendStatus = "live" | "planned" | "exploring";
 
+/** Badge text: short on purpose. What "planned" means for a backend goes in its tagline. */
 export const STATUS_LABEL: Record<BackendStatus, string> = {
   live: "Available now",
-  planned: "Planned — the adapter already exists",
-  exploring: "Being explored",
+  planned: "Planned",
+  exploring: "Exploring",
 };
 
 export interface StorageBackend {
   key: string;
   /** What the organization sees it called in the creation form. */
   name: string;
-  icon: string;
+  /** Not something a customer can choose (a staff-only shape). The public front page leaves
+   *  it out of the options it offers; the full storage page still explains it. */
+  internal?: boolean;
   status: BackendStatus;
   /** One line: what this is. */
   tagline: string;
@@ -47,7 +50,6 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
   {
     key: "nas",
     name: "NAS — your own storage",
-    icon: "🗄",
     status: "live",
     tagline:
       "An S3-compatible server on hardware you own. Silo — an open-source storage server that speaks the S3 API — on a NAS in your own building is the recommended shape.",
@@ -100,7 +102,7 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
   {
     key: "kvep",
     name: "KVEP — Knowledge Vault Employee Perk",
-    icon: "✦",
+    internal: true,
     status: "live",
     tagline:
       "An organization created by Knowledge Vault staff, for staff use, whose documents stay on our own storage.",
@@ -144,10 +146,9 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
   {
     key: "cloud-object",
     name: "Cloud object storage",
-    icon: "☁",
     status: "planned",
     tagline:
-      "Amazon S3, Cloudflare R2, Google Cloud Storage, Wasabi, Backblaze B2, DigitalOcean Spaces — the same adapter, a different endpoint.",
+      "Amazon S3, Cloudflare R2, Google Cloud Storage, Wasabi, Backblaze B2, DigitalOcean Spaces. The adapter already exists — it is the one the NAS uses, pointed at a different endpoint.",
     whoFor:
       "Organizations that would rather rent storage than run it, and are happy for the bytes to live with a cloud provider they already pay.",
     steps: [
@@ -183,7 +184,6 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
   {
     key: "google-drive",
     name: "Google Drive",
-    icon: "📁",
     status: "live",
     tagline:
       "A folder in your Google Drive — a personal Google account or Google Workspace. Knowledge Vault can only see the files it creates there, never the rest of your Drive.",
@@ -233,7 +233,6 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
   {
     key: "onedrive",
     name: "OneDrive and SharePoint",
-    icon: "🗂",
     status: "exploring",
     tagline:
       "Microsoft's drives, through the same design as Google Drive: least-privilege access, the same postures, the same streaming service.",
@@ -267,7 +266,6 @@ export const STORAGE_BACKENDS: StorageBackend[] = [
   {
     key: "private-nas",
     name: "NAS with no public address",
-    icon: "🔌",
     status: "exploring",
     tagline:
       "A file server that only exists on your own network, reached through a small connector you run beside it.",

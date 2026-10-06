@@ -220,15 +220,17 @@ The storage page lists the backends still ahead, with an honest label on each.
 
 | Backend | Status | What it is |
 |---------|--------|-----------|
-| **Cloud object storage** | *Planned — the adapter already exists* | Amazon S3, Cloudflare R2, Google Cloud Storage, Wasabi, Backblaze B2, DigitalOcean Spaces. The same adapter with a different endpoint, which is exactly why S3 was chosen as the first protocol. |
-| **OneDrive and SharePoint** | *Being explored* | The same design as Google Drive — Microsoft's drives issue no signed links either, so documents would travel through the same streaming service. |
-| **NAS with no public address** | *Being explored* | A file server that only exists on your own network, reached through a small connector you run beside it. A real requirement with a genuinely unsolved part — how someone off the network reads a document. |
+| **Cloud object storage** | *Planned* | Amazon S3, Cloudflare R2, Google Cloud Storage, Wasabi, Backblaze B2, DigitalOcean Spaces. The same adapter with a different endpoint, which is exactly why S3 was chosen as the first protocol. |
+| **OneDrive and SharePoint** | *Exploring* | The same design as Google Drive — Microsoft's drives issue no signed links either, so documents would travel through the same streaming service. |
+| **NAS with no public address** | *Exploring* | A file server that only exists on your own network, reached through a small connector you run beside it. A real requirement with a genuinely unsolved part — how someone off the network reads a document. |
 
 Those three labels mean exactly what they say:
 
 - **Available now** — you can pick it today.
-- **Planned** — the code exists; what remains is configuration and documentation.
-- **Being explored** — a real requirement with an unsolved part. Listed so you never have to
+- **Planned** — the code exists; what remains is configuration and documentation. (For cloud
+  object storage the adapter is the very one the NAS already uses, pointed at a different
+  endpoint — the description says so.)
+- **Exploring** — a real requirement with an unsolved part. Listed so you never have to
   guess whether we have thought about it, and honest about why it is not next.
 
 The list is a register the product reads from, not a page somebody has to remember to update.
