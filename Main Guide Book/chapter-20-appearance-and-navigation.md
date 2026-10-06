@@ -119,9 +119,8 @@ browser, come back next week: you get exactly the look you left.
 ### Motion
 
 The palette menu's third section is **Motion**, with a single **Animation** switch. Turn it
-off and the ambient movement stops — the drifting star field behind the page, the float on the
-constellation's stars, the pointer's trailing ring. It starts **off** and stays wherever you last
-set it, per device.
+off and the ambient movement stops — the drifting star field behind the page and the float on
+the constellation's stars. It starts **off** and stays wherever you last set it, per device.
 
 If your operating system is set to reduce motion, the platform obeys that too, without being
 asked: transitions shorten, and the background animation
@@ -133,28 +132,16 @@ settles.
 
 ## 3. The pointer, and the hints it carries
 
-On a device with a real pointer, Knowledge Vault draws **its own**: a small dot in your accent
-colour that sits exactly where you point — its centre is the click — and a thin ring around it.
-It is not decoration; it is doing a job:
+The pointer is your **system's own cursor**, and it keeps to two shapes:
 
-| Where it is | What it becomes |
-|-------------|-----------------|
-| Over the page | The dot, with the thin ring around it |
-| Over anything clickable — including a star in the constellation | The ring opens into a lens that **inverts** what it covers |
-| Over anything typeable | The dot draws out into a **caret** |
-| Over a drag handle | The ring widens, and closes round it as you take hold |
-| Over a disabled control | The dot turns red |
-| While the app is fetching | A segment of the ring **sweeps round** |
+| Where it is | What it looks like |
+|-------------|--------------------|
+| Over the page | The ordinary **arrow** |
+| Over anything clickable — a link, a button, a star in the constellation | A **hand** |
 
-With **Animation** on, the ring follows the dot on a light spring, catching up in a fraction of
-a second; with it off — the default — or with reduced motion, the ring stays locked around the
-dot. The dot itself never lags.
-
-It is switched off on phones, tablets and other touch-first screens, and — importantly — hides the
-system arrow **only while it is actually painted**. If anything
-ever prevents it from drawing, the ordinary arrow comes back rather than leaving you with
-neither. That includes full screen: a document or an exam given the whole screen carries the
-pointer in with it.
+Your operating system draws it, so it moves exactly with your mouse — nothing trails behind it
+and nothing about it slows the page down. A box you type into still shows the text caret, and a
+drag handle shows a grabbing hand, because that is what tells you what will happen when you press.
 
 **Hints replace the browser's tooltip.** A glass card opens beside the pointer and travels
 with it: a short delay to open, instant when you move from one hint to the next, and it flips

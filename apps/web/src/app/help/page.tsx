@@ -525,11 +525,9 @@ const TOPICS = [
             switch for the ambient movement — off by default, and remembered per device.
           </li>
           <li>
-            On a device with a real pointer the app draws <strong>its own cursor</strong>: an
-            accent dot exactly where you point and a thin ring that opens into an inverting
-            lens over anything clickable, and a caret over text. It is never drawn on a touch
-            screen, follows a document or an exam into full screen, and hands the ordinary
-            arrow back if it ever cannot draw.
+            The <strong>cursor</strong> is your system&apos;s own: the ordinary arrow, which turns
+            into a <strong>hand</strong> over anything you can click. It moves exactly with your
+            mouse, with nothing trailing behind it.
           </li>
           <li>
             <strong>Hints</strong> replace the browser&apos;s tooltip — a card beside the

@@ -58,7 +58,7 @@ export function ThemeSwitch() {
  * Separate from the OS-level `prefers-reduced-motion`, which this never overrides: that
  * setting always wins, and this is for someone whose system allows motion but who would
  * rather this particular product sat still. It drives `data-motion` on <html>, which the
- * pointer reads and the stylesheet keys off, and it is remembered exactly like the theme.
+ * stylesheet keys off, and it is remembered exactly like the theme.
  */
 function MotionSwitch() {
   const [motion, setMotion] = useState<"full" | "off">("full");
@@ -80,8 +80,8 @@ function MotionSwitch() {
       aria-label={on ? "Turn animation off" : "Turn animation on"}
       data-hint={
         on
-          ? "Turns off the cursor's trailing ring and the decorative motion across the app. Remembered on this device."
-          : "Animation is off — the default. Turn it on for the cursor's trailing ring and the motion across the app. Your choice is remembered."
+          ? "Turns off the decorative motion across the app. Remembered on this device."
+          : "Animation is off — the default. Turn it on for the motion across the app. Your choice is remembered."
       }
       data-hint-title="Animation"
       onClick={() => {
@@ -89,8 +89,6 @@ function MotionSwitch() {
         setMotion(next);
         document.documentElement.setAttribute("data-motion", next);
         remember("kv.motion", next);
-        // The pointer runs outside React, so it is told directly rather than polled.
-        window.dispatchEvent(new CustomEvent("kv:motionchange", { detail: next }));
       }}
     >
       <span className="theme-knob" aria-hidden>

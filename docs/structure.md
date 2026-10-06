@@ -592,32 +592,16 @@ a reminder (`POST /roles/:roleId/compliance/remind`) with a default or custom me
 ---
 
 ### 8.7 Pointer, hints and prompt surfaces ✅ DECIDED (2026-08-05)
-- **The pointer is part of the product.** A branded cursor replaces the system arrow on
-  fine-pointer devices, and it is two marks, nothing more: a small **accent dot** pinned
-  exactly to the mouse (its centre is the click point) and a **thin ring** that follows it
-  on a spring. The ring is blended by `difference`, so it is drawn in the inverse of
-  whatever it is over and is never lost on either theme. Over anything clickable —
-  including a star in the constellation canvas, which announces itself through its inline
-  `cursor` — the ring opens into a **lens that inverts what it covers**; over anything
-  typeable the dot draws out into a **caret**; over a drag handle the ring widens, and
-  tightens as you take hold; a disabled control turns the dot red; and while the app is
-  fetching (it watches for the `.skeleton` the app already draws) a segment of the ring
-  sweeps round.
-- **It must cost nothing to move.** The dot is written inside the `pointermove` handler,
-  so it lands in the same frame as the event. Both marks move only by `translate3d` on
-  their own compositor layer, and every state change is a `transform`/`opacity`
-  transition — no size, margin or backdrop-filter animation, so movement never lays out
-  or repaints. The ring's spring is integrated against real elapsed time (same feel at
-  60Hz or 144Hz) in one `requestAnimationFrame` loop that parks the moment the ring has
-  caught up. A native HTML5 drag ends with `pointercancel`, not `pointerup`, and the
-  pointer releases on either.
-- **Where it stands down.** It mounts only on a pointer that is precise *and* can hover
-  (`(hover: hover) and (pointer: fine)`) — never on a phone, a tablet or a touch-first
-  screen, and a touch on a hybrid screen hides it until the mouse moves. Every listener is
-  passive, so it can never hold up a scroll. The ring trails only while motion is allowed:
-  under `prefers-reduced-motion`, or with Appearance → Animation off (the default), it
-  sits locked around the dot. It hides the native cursor only *after* the first real
-  coordinate (so a script failure leaves the ordinary arrow), and intercepts no clicks.
+- **The pointer is the system's own** ✅ REVISED (2026-10-06). The branded cursor (an
+  accent dot and a ring on a spring, drawn by script) is gone: however cheaply it moved, a
+  cursor drawn by the page is a frame behind the one the operating system draws, and it
+  read as lag. The page now only chooses between two shapes: the **arrow** (`cursor:
+  default` on `<html>`, so body text does not turn into an I-beam) and the **hand** over
+  anything clickable (one zero-specificity `:where()` rule in globals.css covering links,
+  buttons, `role="button"`-style widgets and clickable inputs). A disabled control is the
+  arrow, not a hand or a no-entry sign. Fields you type into keep the text caret, drag
+  handles and resize grips keep their own cursor, and the constellation canvas still sets
+  its inline `cursor` for a star.
 - **Hints replace the browser tooltip.** A glass card opens beside the pointer and travels
   with it: a short delay to open, but instant when chaining from one hint to the next, and
   it flips across the pointer near a screen edge. It reads `data-hint` (with optional

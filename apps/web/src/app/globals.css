@@ -25,12 +25,6 @@
   --warning: #a16207;
   --danger: #c92f45;
 
-  /* The edge round the cursor's accent dot. On its own an accent-coloured pointer
-     disappears the moment it crosses an accent-coloured button, which is most of the
-     primary actions in the app; a hairline in the theme's opposite ink (light by day,
-     dark at night) keeps it legible over anything. */
-  --kv-cur-edge: #ffffff;
-
   /* Readable foreground ON a solid status fill — the same idea as --accent-contrast.
      The light palette's status colours are DEEP, so white reads on them. The dark
      palette's are BRIGHT, so it does not: see the override in [data-theme="dark"].
@@ -78,8 +72,6 @@
   --success: #4cd471;
   --warning: #fbbf24;
   --danger: #ff5d73;
-
-  --kv-cur-edge: #05070f;
 
   /* The night palette lights these up so they read against a dark ground — which means
      the fill itself is now the BRIGHT surface, and white text on it is unreadable. The
@@ -181,7 +173,6 @@ a {
 
 button {
   font: inherit;
-  cursor: pointer;
   color: inherit;
   background: none;
   border: none;
@@ -391,7 +382,7 @@ button {
 .btn:disabled,
 .btn[aria-disabled="true"] {
   opacity: 0.5;
-  cursor: not-allowed;
+  cursor: default;
   transform: none;
   box-shadow: none;
   filter: none;
@@ -546,7 +537,7 @@ button {
   display: inline-flex;
   align-items: baseline;
   gap: 0.28rem;
-  cursor: help;
+  cursor: pointer;
   border-bottom: 1px dotted color-mix(in srgb, currentColor 55%, transparent);
   transition: color var(--dur-standard) var(--ease);
 }
@@ -699,7 +690,7 @@ button {
   color: var(--text-secondary);
   font-size: 0.7rem;
   font-weight: 800;
-  cursor: help;
+  cursor: pointer;
   transition:
     border-color var(--dur-micro) var(--ease),
     color var(--dur-micro) var(--ease);
@@ -2437,7 +2428,6 @@ select option[value=""] {
 
 .role-chip-more {
   font-variant-numeric: tabular-nums;
-  cursor: help;
 }
 
 /* "Your position" in the organization's own header. */
@@ -5066,7 +5056,7 @@ button.reader-tab:focus-visible {
 }
 .doc-button-empty {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: default;
 }
 
 /* Highlight pens are light, paper-coloured inks. In the dark theme the surrounding text
@@ -5502,7 +5492,7 @@ button.reader-tab:focus-visible {
 }
 .studio-tool:disabled {
   opacity: 0.35;
-  cursor: not-allowed;
+  cursor: default;
 }
 .studio-tool-color {
   display: inline-block;
@@ -10676,243 +10666,66 @@ body.is-dragging-block * {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   The pointer — components/Pointer.tsx
+   The pointer
 
-   Two marks: an accent dot pinned exactly to the mouse, and a thin ring that
-   follows it on a spring. Script moves each one with a translate3d on its own
-   compositor layer; everything else here is a transform or opacity transition
-   on a child of that layer, keyed off `data-state`. Nothing animates width,
-   height, margin or a backdrop filter, so moving the pointer never costs a
-   layout or a repaint.
+   The system's own cursor, and only two shapes of it: the arrow, and the hand
+   over anything you can click. The operating system draws it, so it moves with
+   the mouse at no cost and never trails behind it. A field you type into keeps
+   its text caret and a drag handle its grabbing hand; a disabled control is
+   the plain arrow, because there is nothing to click.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* The hosts the pointer and the hint card are portalled into (lib/top-layer.ts). Both get
-   re-parented into whatever element is showing full screen, so neither may bring a box of
-   its own: `display: contents` keeps the host out of the layout it lands in — no row in a
-   grid, no item in a flex column, no gap. */
-.kv-pointer-host,
+html {
+  cursor: default;
+}
+
+/* `:where` keeps these at zero specificity, so any component's own cursor rule wins. */
+:where(
+    a[href],
+    button,
+    summary,
+    select,
+    [role="button"],
+    [role="tab"],
+    [role="option"],
+    [role="menuitem"],
+    [role="switch"],
+    label:has(input[type="checkbox"], input[type="radio"], input[type="file"]),
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"],
+    input[type="file"],
+    input[type="color"],
+    input[type="submit"],
+    input[type="button"],
+    input[type="reset"]
+  ):not(:disabled, [aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+:where(
+    input:not(
+        [type="checkbox"],
+        [type="radio"],
+        [type="range"],
+        [type="file"],
+        [type="color"],
+        [type="submit"],
+        [type="button"],
+        [type="reset"]
+      ),
+    textarea,
+    [contenteditable="true"]
+  ) {
+  cursor: text;
+}
+
+/* The host the hint card is portalled into (lib/top-layer.ts). It gets re-parented into
+   whatever element is showing full screen, so it may not bring a box of its own:
+   `display: contents` keeps it out of the layout it lands in — no row in a grid, no item
+   in a flex column, no gap. */
 .kv-hint-host {
   display: contents;
-}
-
-/* Only once the script has a real coordinate — a failure leaves the ordinary arrow alone —
-   and only on a precise pointer that can hover, whatever a script believes. */
-@media (hover: hover) and (pointer: fine) {
-  html.kv-pointer-on,
-  html.kv-pointer-on * {
-    cursor: none !important;
-  }
-}
-
-/* A finger, a stylus-first tablet or a phone never sees either mark. The component does not
-   mount there at all; this is the belt to that pair of braces. */
-@media (pointer: coarse), (hover: none) {
-  .kv-cursor-dot,
-  .kv-cursor-ring {
-    display: none !important;
-  }
-}
-
-/* The z-index buys the top of the PAGE, and nothing more: full screen is not a stacking
-   problem and cannot be solved as one. The browser paints the full-screen element and its
-   descendants, and everything else in the document sits behind the backdrop however high
-   it is stacked. That is what the host above is for. */
-.kv-cursor-dot,
-.kv-cursor-ring {
-  --kv-cursor-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-  /* `transform` belongs to the script — position only — and must never be transitioned,
-     or the mark would trail a transition behind the hand moving it. */
-  will-change: transform;
-  transition: opacity 180ms var(--ease);
-}
-
-.kv-cursor-ring {
-  z-index: 2147483000;
-  /* White blended by `difference` is whatever is underneath, inverted: the ring reads dark
-     on the day theme, light at night, and never disappears into either. It has to be set
-     on this element, the one that sits directly on the page — set any deeper and it would
-     only blend with the ring's own transparent layer. */
-  mix-blend-mode: difference;
-}
-
-.kv-cursor-dot {
-  z-index: 2147483001;
-}
-
-.kv-cursor-dot[data-hidden="true"],
-.kv-cursor-ring[data-hidden="true"] {
-  opacity: 0;
-}
-
-/* — the core — */
-/* The hotspot is the dot's centre, and the dot's centre is the mouse: the element is
-   placed at the coordinate and the shape is drawn around it. */
-.kv-cursor-core,
-.kv-cursor-caret {
-  position: absolute;
-  background: var(--accent);
-  /* A one-pixel edge in the theme's opposite ink, so the accent dot survives crossing an
-     accent-coloured button. */
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--kv-cur-edge) 80%, transparent);
-  transition:
-    transform 260ms var(--kv-cursor-ease),
-    opacity 160ms var(--ease),
-    background-color 160ms var(--ease);
-}
-
-.kv-cursor-core {
-  left: -3px;
-  top: -3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-/* Over text the dot draws itself out into a caret. */
-.kv-cursor-caret {
-  left: -1px;
-  top: -9px;
-  width: 2px;
-  height: 18px;
-  border-radius: 1px;
-  opacity: 0;
-  transform: scaleY(0.3);
-}
-
-.kv-cursor-dot[data-state="text"] .kv-cursor-core {
-  opacity: 0;
-  transform: scale(0.4);
-}
-
-.kv-cursor-dot[data-state="text"] .kv-cursor-caret {
-  opacity: 1;
-  transform: none;
-}
-
-.kv-cursor-dot[data-state="blocked"] .kv-cursor-core {
-  background: var(--danger);
-}
-
-.kv-cursor-dot[data-down="true"] .kv-cursor-core {
-  transform: scale(0.7);
-}
-
-/* — the follower — */
-.kv-cursor-ring-shape {
-  position: absolute;
-  left: -17px;
-  top: -17px;
-  width: 34px;
-  height: 34px;
-  transition:
-    transform 380ms var(--kv-cursor-ease),
-    opacity 220ms var(--ease);
-}
-
-.kv-cursor-halo,
-.kv-cursor-arc,
-.kv-cursor-lens {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  transition: opacity 220ms var(--ease);
-}
-
-/* Pure white on purpose: under `difference` that is a clean inversion, not a tint. */
-.kv-cursor-halo {
-  border: 1px solid #ffffff;
-  opacity: 0.55;
-}
-
-.kv-cursor-lens {
-  background: #ffffff;
-  opacity: 0;
-}
-
-/* While the app is fetching (it draws a `.skeleton`), a segment of the ring sweeps round. */
-.kv-cursor-arc {
-  border: 1px solid transparent;
-  border-top-color: #ffffff;
-  opacity: 0;
-}
-
-.kv-cursor-ring[data-busy="true"][data-state="default"] .kv-cursor-arc {
-  opacity: 1;
-  animation: kv-cursor-spin 0.9s linear infinite;
-}
-
-@keyframes kv-cursor-spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-/* Something you can click — a link, a button, a star in the constellation: the ring opens
-   into a lens and inverts what it covers. */
-.kv-cursor-ring[data-state="select"] .kv-cursor-ring-shape {
-  transform: scale(1.45);
-}
-
-.kv-cursor-ring[data-state="select"] .kv-cursor-halo {
-  opacity: 0;
-}
-
-.kv-cursor-ring[data-state="select"] .kv-cursor-lens {
-  opacity: 1;
-}
-
-/* Text: the ring steps aside, so the caret reads on its own. */
-.kv-cursor-ring[data-state="text"] .kv-cursor-ring-shape {
-  opacity: 0;
-  transform: scale(0.5);
-}
-
-/* A drag handle: the ring widens, ready to take hold — and closes round it once it has. */
-.kv-cursor-ring[data-state="grab"] .kv-cursor-ring-shape {
-  transform: scale(1.25);
-}
-
-.kv-cursor-ring[data-state="grab"] .kv-cursor-halo,
-.kv-cursor-ring[data-state="grabbing"] .kv-cursor-halo {
-  opacity: 0.9;
-}
-
-.kv-cursor-ring[data-state="blocked"] .kv-cursor-ring-shape {
-  transform: scale(0.8);
-}
-
-.kv-cursor-ring[data-state="blocked"] .kv-cursor-halo {
-  opacity: 0.25;
-}
-
-/* Press: the ring tightens toward the click point. */
-.kv-cursor-ring[data-down="true"] .kv-cursor-ring-shape {
-  transform: scale(0.82);
-}
-
-.kv-cursor-ring[data-down="true"][data-state="select"] .kv-cursor-ring-shape {
-  transform: scale(1.2);
-}
-
-/* Under reduced motion the marks still change — that is information — but they change in
-   place: no scaling, no sweep. The ring is already locked to the dot by the script. */
-@media (prefers-reduced-motion: reduce) {
-  .kv-cursor-core,
-  .kv-cursor-caret,
-  .kv-cursor-ring-shape {
-    transition:
-      opacity 120ms linear,
-      background-color 120ms linear;
-  }
-  .kv-cursor-arc {
-    animation: none !important;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
