@@ -33,8 +33,16 @@
 
 Defined as CSS custom properties on `:root` (light) and `[data-theme="dark"]`; switched via
 `next-themes` (`data-theme`, no flash, persisted, system default). Accent palettes override
-`--accent` / `--accent-2` via `[data-accent="aurora|ocean|sunset|forest"]`, persisted in
-`localStorage("kv.accent")` and applied pre-paint by an inline script in the root layout.
+`--accent` / `--accent-2` via `[data-accent="blue|peach|aurora|ocean|sunset|forest"]`,
+persisted in the `kv.accent` cookie (mirrored to `localStorage`) and applied pre-paint by an
+inline script in the root layout.
+
+**Default look (2026-10): white and blue.** The day base is a faintly cool page (`#f6f8fc`)
+with white surfaces and slate ink (`#0f172a` / `#475569`); the default accent is **Blue**,
+`#2563eb` into `#2b6cee`, chosen so white text keeps ≥ 4.5:1 across the whole gradient (the
+brighter `#3b82f6` alone is 3.7:1). At night Blue is `#60a5fa` / `#3b82f6` with the dark
+ground as `--accent-contrast`. **Peach** keeps the original warm peach-white base by day, so
+anyone who chose it keeps the page they chose.
 
 Key token groups (see `apps/web/src/app/globals.css` for values):
 
@@ -42,6 +50,7 @@ Key token groups (see `apps/web/src/app/globals.css` for values):
 |-------|--------|
 | Base | `--bg`, `--bg-2`, `--surface-solid`, `--surface-2`, `--text`, `--text-secondary`, `--border`, `--star` |
 | State | `--success`, `--warning`, `--danger` |
+| Tints | `--tint-pink`, `--tint-mint`, `--tint-cream` (soft card fills by day; the plain surface at night) |
 | Glass | `--glass`, `--glass-strong`, `--glass-border` |
 | Neumorphism | `--neu-hi`, `--neu-lo` (paired soft shadows; inset variant for inputs/pressed) |
 | Accent | `--accent`, `--accent-2`, `--accent-contrast`, `--accent-soft`, `--grad-accent` |

@@ -7,9 +7,10 @@ import { IconPalette } from "./icons";
 // Multi-theme control: a skeuomorphic day/night switch plus accent-palette swatches.
 // Both choices are written to a COOKIE (and mirrored into localStorage), so the next
 // visit — on this browser or after a fresh sign-in — paints in the same colours before
-// the first frame. The default is Peach, the warm day theme.
+// the first frame. The default is Blue, the white-and-blue day theme.
 
 const ACCENTS = [
+  { id: "blue", label: "Blue", from: "#3b82f6", to: "#2563eb" },
   { id: "peach", label: "Peach", from: "#ff9472", to: "#f2709c" },
   { id: "aurora", label: "Aurora", from: "#7c7cff", to: "#c06bff" },
   { id: "ocean", label: "Ocean", from: "#0ea5e9", to: "#22d3ee" },
@@ -100,11 +101,11 @@ function MotionSwitch() {
 
 export function ThemeMenu() {
   const [open, setOpen] = useState(false);
-  const [accent, setAccent] = useState("peach");
+  const [accent, setAccent] = useState("blue");
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setAccent(document.documentElement.getAttribute("data-accent") ?? "peach");
+    setAccent(document.documentElement.getAttribute("data-accent") ?? "blue");
   }, []);
 
   useEffect(() => {

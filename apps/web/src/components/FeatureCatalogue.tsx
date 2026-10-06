@@ -257,7 +257,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       {
         icon: <IconPalette size={22} />,
         title: "Themes that stay put",
-        text: "A warm peach-white day theme by default, a full night theme, and five accent palettes — remembered on your device and restored next time you sign in.",
+        text: "A clean white-and-blue day theme by default, a full night theme, and six accent palettes — remembered on your device and restored next time you sign in.",
       },
     ],
   },

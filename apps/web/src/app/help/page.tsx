@@ -509,12 +509,12 @@ const TOPICS = [
       <>
         <p>
           The palette button opens appearance settings: a <strong>day/night switch</strong>{" "}
-          and five <strong>accent palettes</strong> (Peach, Aurora, Ocean, Sunset, Forest).
+          and six <strong>accent palettes</strong> (Blue, Peach, Aurora, Ocean, Sunset, Forest).
         </p>
         <ul>
           <li>
-            The warm <strong>peach-white day theme</strong> is the default. Night mode and
-            every accent are one click away.
+            The clean <strong>white-and-blue day theme</strong> is the default. Night mode and
+            every accent are one click away; Peach brings back the warm peach-white page.
           </li>
           <li>
             Your choice is stored in a cookie on this device, so signing in again brings
