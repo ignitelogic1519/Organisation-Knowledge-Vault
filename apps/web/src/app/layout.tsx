@@ -40,7 +40,7 @@ export const viewport: Viewport = {
 
 // Appearance is restored before first paint from a COOKIE first, localStorage second —
 // the cookie is what survives across sessions and devices where site storage gets cleared
-// more aggressively than cookies do. The default is the warm peach-white day theme; dark
+// more aggressively than cookies do. The default is the white-and-blue day theme; dark
 // is a deliberate choice the reader makes, not the starting point.
 const appearanceInit = `
 try{
@@ -53,7 +53,7 @@ try{
   var t=read('kv.theme')||'light';
   d.setAttribute('data-theme', t==='dark'?'dark':'light');
   try{ localStorage.setItem('theme', t==='dark'?'dark':'light') }catch(e){}
-  d.setAttribute('data-accent', read('kv.accent')||'peach');
+  d.setAttribute('data-accent', read('kv.accent')||'blue');
   // Motion is a preference like the others, so it has to be on the element before the
   // first frame — otherwise a reader whose animation is off still sees one paint of it
   // on every page load.
@@ -72,7 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       suppressHydrationWarning
       data-theme="light"
-      data-accent="peach"
+      data-accent="blue"
       data-motion="off"
       className={`${inter.variable} ${geist.variable}`}
     >

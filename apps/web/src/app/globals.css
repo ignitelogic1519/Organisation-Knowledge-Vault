@@ -12,15 +12,16 @@
      `option` rules below for why that needs its own answer. */
   color-scheme: light;
 
-  /* base (light) — the peach-white day theme, the platform's default look */
-  --bg: #fdf3ec;
-  --bg-2: #f7e6dc;
-  --surface-solid: #fffaf6;
-  --surface-2: #f9ece3;
-  --text: #241a16;
-  --text-secondary: #6d5b52;
-  --border: rgba(70, 42, 30, 0.11);
-  --star: rgba(70, 42, 30, 0.45);
+  /* base (light) — the white-and-blue day theme, the platform's default look: white
+     surfaces on a faintly cool page, slate ink. Peach keeps its own warm base below. */
+  --bg: #f6f8fc;
+  --bg-2: #eaf0fa;
+  --surface-solid: #ffffff;
+  --surface-2: #f1f5fb;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --border: rgba(15, 23, 42, 0.1);
+  --star: rgba(15, 23, 42, 0.4);
   --success: #0f7a3d;
   --warning: #a16207;
   --danger: #c92f45;
@@ -32,6 +33,11 @@
   --on-success: #ffffff;
   --on-warning: #ffffff;
 
+  /* soft card tints — pink, mint, cream — for a row of cards that should read as a set */
+  --tint-pink: #fff1f9;
+  --tint-mint: #effdfc;
+  --tint-cream: #fcf9f0;
+
   /* glass */
   --glass: color-mix(in srgb, var(--surface-solid) 60%, transparent);
   --glass-strong: color-mix(in srgb, var(--surface-solid) 84%, transparent);
@@ -39,11 +45,13 @@
 
   /* neumorphic shadow pair */
   --neu-hi: rgba(255, 255, 255, 0.95);
-  --neu-lo: rgba(163, 118, 94, 0.26);
+  --neu-lo: rgba(71, 85, 105, 0.2);
 
-  /* accent — overridden by [data-accent] below; peach is the default */
-  --accent: #e2673f;
-  --accent-2: #d9407a;
+  /* accent — overridden by [data-accent] below; blue is the default. Deep blue running
+     into a slightly brighter one: white text keeps at least 4.5:1 across the whole
+     gradient, which the brighter #3b82f6 on its own (3.7:1) would not. */
+  --accent: #2563eb;
+  --accent-2: #2b6cee;
   --accent-contrast: #ffffff;
   --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
   --grad-accent: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -92,6 +100,11 @@
   --on-success: #052614;
   --on-warning: #2a1c00;
 
+  /* Pastels glare at night; the tints fall back to the plain surface. */
+  --tint-pink: var(--surface-solid);
+  --tint-mint: var(--surface-solid);
+  --tint-cream: var(--surface-solid);
+
   --glass: color-mix(in srgb, var(--surface-solid) 58%, transparent);
   --glass-strong: color-mix(in srgb, var(--surface-solid) 82%, transparent);
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -102,9 +115,26 @@
 
 /* ── Accent palettes (multi-theme) ─────────────────────────────────────── */
 
+[data-accent="blue"] {
+  --accent: #2563eb;
+  --accent-2: #2b6cee;
+}
 [data-accent="peach"] {
   --accent: #e2673f;
   --accent-2: #d9407a;
+}
+/* Peach was the original day theme, and someone who chose it chose the warm page with
+   it — so Peach keeps its peach-white base by day. */
+[data-accent="peach"]:not([data-theme="dark"]) {
+  --bg: #fdf3ec;
+  --bg-2: #f7e6dc;
+  --surface-solid: #fffaf6;
+  --surface-2: #f9ece3;
+  --text: #241a16;
+  --text-secondary: #6d5b52;
+  --border: rgba(70, 42, 30, 0.11);
+  --star: rgba(70, 42, 30, 0.45);
+  --neu-lo: rgba(163, 118, 94, 0.26);
 }
 [data-accent="aurora"] {
   --accent: #5b5bf0;
@@ -123,8 +153,14 @@
   --accent-2: #6aac1e;
 }
 /* Night versions of the same palettes — brighter, so they read on a dark ground. */
-[data-theme="dark"][data-accent="peach"],
-[data-theme="dark"]:not([data-accent="aurora"]):not([data-accent="ocean"]):not([data-accent="sunset"]):not([data-accent="forest"]) {
+[data-theme="dark"][data-accent="blue"],
+[data-theme="dark"]:not([data-accent="peach"]):not([data-accent="aurora"]):not([data-accent="ocean"]):not([data-accent="sunset"]):not([data-accent="forest"]) {
+  --accent: #60a5fa;
+  --accent-2: #3b82f6;
+  /* Light blue is too bright for white text (2.5:1); the night ground reads on it at 7:1. */
+  --accent-contrast: #0a0d17;
+}
+[data-theme="dark"][data-accent="peach"] {
   --accent: #ff9472;
   --accent-2: #f2709c;
 }
@@ -1296,7 +1332,7 @@ select option[value=""] {
   background: var(--grad-accent);
   display: inline-grid;
   place-items: center;
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 0.95rem;
   box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 45%, transparent);
 }
@@ -7272,7 +7308,7 @@ button.reader-tab:focus-visible {
   top: 0.9rem;
   right: 0.9rem;
   background: linear-gradient(120deg, var(--accent, #7c7cff), var(--accent-2, #c06bff));
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 0.72rem;
   font-weight: 600;
   padding: 0.15rem 0.6rem;
@@ -9524,6 +9560,19 @@ body.is-dragging-block * {
   transition:
     border-color var(--dur-standard) var(--ease),
     box-shadow var(--dur-standard) var(--ease);
+}
+
+/* The fronts take the soft tints in turn — pink, mint, cream — fading to the surface, so
+   a row of cards reads as a set rather than a wall of white. (At night the tints are the
+   plain surface.) */
+.fc:nth-child(3n + 1) .fc-front {
+  background: linear-gradient(160deg, var(--tint-pink), var(--surface-solid) 75%);
+}
+.fc:nth-child(3n + 2) .fc-front {
+  background: linear-gradient(160deg, var(--tint-mint), var(--surface-solid) 75%);
+}
+.fc:nth-child(3n + 3) .fc-front {
+  background: linear-gradient(160deg, var(--tint-cream), var(--surface-solid) 75%);
 }
 
 .fc-front:hover {
@@ -12804,7 +12853,7 @@ html {
   background: var(--glass-strong);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   backdrop-filter: blur(14px) saturate(140%);
-  box-shadow: 0 18px 44px rgba(70, 42, 30, 0.18);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
   animation: layer-in 200ms var(--ease) both;
 }
 

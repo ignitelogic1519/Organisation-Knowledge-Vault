@@ -7,6 +7,15 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### A white-and-blue look
+
+The platform's default look is now **white and blue**: clean white pages, slate text and a calm
+blue for buttons, links and highlights, with soft pink, mint and cream tints on the feature
+cards. The blue is chosen so that white text on every button stays easy to read. Prefer the old
+warm look? Pick **Peach** in the palette menu and the peach-white page comes back with it — and
+if you had already picked an accent, nothing changes for you.
+See [Chapter 20](chapter-20-appearance-and-navigation.md).
+
 ### New typefaces
 
 Headings now use **Clash Display**, a crisp display face that gives page titles and big numbers

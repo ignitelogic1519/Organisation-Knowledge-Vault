@@ -4043,20 +4043,21 @@ The **palette button** sits beside the bell on every page.
 
 ### Day and night
 
-The default is the warm **peach-white day theme** — the look the platform ships with, chosen
-because most people read documents in daylight and a bright, low-contrast page is easier on
-the eyes for long stretches. The switch flips to a full **night theme** for dark rooms and
-late shifts.
+The default is the clean **white-and-blue day theme** — white pages, slate text and a calm
+blue for buttons and highlights, chosen because most people read documents in daylight and a
+bright, uncluttered page is easy on the eyes for long stretches. The switch flips to a full
+**night theme** for dark rooms and late shifts.
 
 ![The theme menu](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/theme-menu.png)
 
 ### Accents
 
-Five accent palettes change the colour of buttons, highlights and the constellation's glow:
+Six accent palettes change the colour of buttons, highlights and the constellation's glow:
 
 | Accent | Feel |
 |--------|------|
-| **Peach** | The default — warm, low-glare. |
+| **Blue** | The default — clean, calm, high-contrast. |
+| **Peach** | Warm and low-glare; by day it also brings back the peach-white page. |
 | **Aurora** | Violet and indigo. |
 | **Ocean** | Blue and cyan. |
 | **Sunset** | Orange and pink. |
@@ -5117,6 +5118,15 @@ moved since they last used it. Newest first.
 ---
 
 ## October 2026
+
+### A white-and-blue look
+
+The platform's default look is now **white and blue**: clean white pages, slate text and a calm
+blue for buttons, links and highlights, with soft pink, mint and cream tints on the feature
+cards. The blue is chosen so that white text on every button stays easy to read. Prefer the old
+warm look? Pick **Peach** in the palette menu and the peach-white page comes back with it — and
+if you had already picked an accent, nothing changes for you.
+See Chapter 20.
 
 ### New typefaces
 

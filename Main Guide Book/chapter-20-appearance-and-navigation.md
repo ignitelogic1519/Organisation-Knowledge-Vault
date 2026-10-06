@@ -84,20 +84,21 @@ The **palette button** sits beside the bell on every page.
 
 ### Day and night
 
-The default is the warm **peach-white day theme** — the look the platform ships with, chosen
-because most people read documents in daylight and a bright, low-contrast page is easier on
-the eyes for long stretches. The switch flips to a full **night theme** for dark rooms and
-late shifts.
+The default is the clean **white-and-blue day theme** — white pages, slate text and a calm
+blue for buttons and highlights, chosen because most people read documents in daylight and a
+bright, uncluttered page is easy on the eyes for long stretches. The switch flips to a full
+**night theme** for dark rooms and late shifts.
 
 ![The theme menu](images/theme-menu.png)
 
 ### Accents
 
-Five accent palettes change the colour of buttons, highlights and the constellation's glow:
+Six accent palettes change the colour of buttons, highlights and the constellation's glow:
 
 | Accent | Feel |
 |--------|------|
-| **Peach** | The default — warm, low-glare. |
+| **Blue** | The default — clean, calm, high-contrast. |
+| **Peach** | Warm and low-glare; by day it also brings back the peach-white page. |
 | **Aurora** | Violet and indigo. |
 | **Ocean** | Blue and cyan. |
 | **Sunset** | Orange and pink. |
