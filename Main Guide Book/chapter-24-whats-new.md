@@ -7,6 +7,21 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### Feature cards that say what they do
+
+The feature cards on the front page and the **Features** page are easier to use and to read:
+
+- **Clear labels.** The front says **Flip for details** and the back says **Back to overview**,
+  in the same bottom-right corner on both sides of every card. *Open in the app* stays apart
+  from them as the card's main action.
+- **Shorter descriptions** that lead with what the feature does for you, then say how.
+- **Lighter titles**, with a little more space between the letters, and a slightly tighter front.
+- **Works however you use it** — click, tap, or **Enter** / **Space** on the keyboard, with a
+  clear focus ring on every control and **Esc** to turn back. If your device asks for reduced
+  motion, the card swaps sides with a fade instead of turning.
+
+See [Chapter 22](chapter-22-help-and-support.md).
+
 ### A calmer front page
 
 The front page has been simplified so you can see what Knowledge Vault is, and act on it,

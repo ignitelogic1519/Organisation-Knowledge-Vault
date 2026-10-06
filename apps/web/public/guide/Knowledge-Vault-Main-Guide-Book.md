@@ -4774,9 +4774,11 @@ product. Every one of them corresponds to a chapter here, in more depth.
 
 There is also a public **Features** page — the same material as a tour rather than a manual,
 useful for showing someone what the platform does before they have an account. Pick an area at
-the top; each feature is a card that names it, and **clicking a card turns it over** to the full
-description and, where there is one, a button straight into it. Click the back — or press
-**Esc** — to turn it face up again:
+the top; each feature is a card that names it. **Flip for details** — click or tap the card, or
+press **Enter** on it — turns it over to a short description that leads with what it does for
+you, and, where there is one, an **Open in the app** button straight into it. **Back to
+overview** — or **Esc**, or a click anywhere on the back — turns it face up again. The flip
+control is always in the same bottom-right corner, on both sides of every card:
 
 ![The public Features page, with one card turned over](https://raw.githubusercontent.com/ignitelogic1519/Organisation-Knowledge-Vault/main/Main%20Guide%20Book/images/features-page.png)
 
@@ -5124,6 +5126,21 @@ moved since they last used it. Newest first.
 ---
 
 ## October 2026
+
+### Feature cards that say what they do
+
+The feature cards on the front page and the **Features** page are easier to use and to read:
+
+- **Clear labels.** The front says **Flip for details** and the back says **Back to overview**,
+  in the same bottom-right corner on both sides of every card. *Open in the app* stays apart
+  from them as the card's main action.
+- **Shorter descriptions** that lead with what the feature does for you, then say how.
+- **Lighter titles**, with a little more space between the letters, and a slightly tighter front.
+- **Works however you use it** — click, tap, or **Enter** / **Space** on the keyboard, with a
+  clear focus ring on every control and **Esc** to turn back. If your device asks for reduced
+  motion, the card swaps sides with a fade instead of turning.
+
+See Chapter 22.
 
 ### A calmer front page
 
