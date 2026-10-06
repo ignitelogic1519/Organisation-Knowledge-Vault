@@ -66,9 +66,11 @@ product. Every one of them corresponds to a chapter here, in more depth.
 
 There is also a public **Features** page — the same material as a tour rather than a manual,
 useful for showing someone what the platform does before they have an account. Pick an area at
-the top; each feature is a card that names it, and **clicking a card turns it over** to the full
-description and, where there is one, a button straight into it. Click the back — or press
-**Esc** — to turn it face up again:
+the top; each feature is a card that names it. **Flip for details** — click or tap the card, or
+press **Enter** on it — turns it over to a short description that leads with what it does for
+you, and, where there is one, an **Open in the app** button straight into it. **Back to
+overview** — or **Esc**, or a click anywhere on the back — turns it face up again. The flip
+control is always in the same bottom-right corner, on both sides of every card:
 
 ![The public Features page, with one card turned over](images/features-page.png)
 
