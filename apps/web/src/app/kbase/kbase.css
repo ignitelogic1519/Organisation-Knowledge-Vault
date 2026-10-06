@@ -439,6 +439,7 @@
 
 .kb-section-title {
   margin: 0 0 0.6rem;
+  font-family: var(--font-ui);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -579,6 +580,7 @@
 }
 
 .kb-tile-v {
+  font-family: var(--font-heading);
   font-size: clamp(1.3rem, 3.4vw, 1.75rem);
   font-weight: 700;
   line-height: 1.1;
