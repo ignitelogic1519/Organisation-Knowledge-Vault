@@ -55,8 +55,15 @@ Rule: **no component may hardcode a color** — tokens only. New colors enter th
 - **`.glass`** — translucent blurred container (cards, panels, nav pill, sidebar, drawers).
 - **`.neu` / `.neu-inset`** — raised / pressed soft-shadow controls; inputs are inset,
   icon buttons raised and press inward (skeuomorphic feedback).
-- **Type design:** system font stack; display headlines clamp 2.6–5 rem, -0.03 em
-  tracking, with `.gradient-text` accents; `.eyebrow` uppercase labels introduce sections.
+- **Type design:** three families, each with one job — **Clash Display** for headings
+  (`h1`–`h6`), the wordmark and the big display numbers; **Inter** for text you read;
+  **Geist** for the interface (buttons, fields, labels, navigation, tabs, chips, and the
+  small uppercase labels that are tagged as headings). Use the tokens `--font-heading`,
+  `--font-body` and `--font-ui`, never a family name. Inter and Geist are self-hosted by
+  `next/font`; Clash Display loads from Fontshare's CDN, and headings fall back to Geist if
+  it cannot. Roboto is in the system fallback stack only. Display headlines clamp 2.6–5 rem,
+  -0.03 em tracking, with `.gradient-text` accents; `.eyebrow` uppercase labels introduce
+  sections.
 - **Dynamic background:** fixed `.aurora` layer — three blurred accent-tinted blobs
   drifting (26–38 s loops) behind every page, plus the constellation canvas on the hero.
 

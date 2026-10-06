@@ -7,6 +7,12 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### New typefaces
+
+Headings now use **Clash Display**, a crisp display face that gives page titles and big numbers
+more character. Text you read is set in **Inter**, and buttons, fields, menus and labels in
+**Geist**, so the interface and the content each have a face suited to them.
+
 ### A plain, quick cursor
 
 The app no longer draws its own cursor. The accent dot and the ring that followed it are gone;
