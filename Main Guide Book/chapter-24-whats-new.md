@@ -7,6 +7,14 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### A plain, quick cursor
+
+The app no longer draws its own cursor. The accent dot and the ring that followed it are gone;
+you now get your **system's ordinary arrow**, which turns into a **hand** over anything you can
+click. Because your operating system draws it, it moves exactly with your mouse — no trailing,
+no lag.
+See [Chapter 20](chapter-20-appearance-and-navigation.md).
+
 ### Search from the top of every page, and a bar that names everything
 
 A **search box** now sits in the middle of the top bar, on every page. Type a page, a topic or an

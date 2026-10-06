@@ -3,7 +3,6 @@ import { ThemeProvider } from "next-themes";
 import { DialogProvider } from "@/components/dialogs";
 import { HintLayer } from "@/components/Hint";
 import { MailProvider } from "@/components/mail-events";
-import { Pointer } from "@/components/Pointer";
 import { SessionGuard } from "@/components/SessionGuard";
 // Load order matters: Bootstrap base first, then the app's custom design tokens
 // (which win on the few shared class names), then the branded Bootstrap theme
@@ -66,10 +65,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <MailProvider>
             <DialogProvider>{children}</DialogProvider>
           </MailProvider>
-          {/* The pointer and the hint layer sit above everything and intercept nothing.
-              Both no-op on touch devices and degrade to the native cursor/tooltip if
-              their scripts never run. */}
-          <Pointer />
+          {/* The hint layer sits above everything and intercepts nothing. It no-ops on
+              touch devices and degrades to the native tooltip if its script never runs. */}
           <HintLayer />
           {/* Watches the hour of inactivity that ends a session (structure.md §8.8).
               Renders nothing until the last minute of it. */}
