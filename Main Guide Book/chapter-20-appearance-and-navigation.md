@@ -12,7 +12,7 @@ of them are deliberately quiet — and the ones that are yours to set remember w
 
 | Parameter | What changes |
 |-----------|--------------|
-| **Time** | Every destination is named and one click away, and the search box reaches any page, help topic or organization in a few keystrokes; hints answer "what does this do?" without leaving the page. |
+| **Time** | Every destination is named and one click away, and once you are signed in the search box reaches any page, help topic or organization in a few keystrokes; hints answer "what does this do?" without leaving the page. |
 | **Risk & compliance** | The hint on a compulsory field explains *why* it is compulsory, which is what stops people typing anything to get past it. |
 | **Security & custody** | Nothing here leaves your device: the theme is a cookie on the machine you are sitting at, not a setting on your account. |
 | **Cost** | Zero. But a product people find comfortable is one they open — and unused training software is the most expensive kind. |
@@ -22,16 +22,20 @@ of them are deliberately quiet — and the ones that are yours to set remember w
 
 ## 1. The navigation bar
 
-The bar across the top of every page has two rows on a computer.
+**On the public pages** — the front page, Features, Storage, Pricing, Help — the bar is a
+single row: the Knowledge Vault mark (click it to go home), **Features**, **Storage**,
+**Pricing** and **Help & guide** in the middle, and **Sign in** and **Create your profile** on
+the right. It is kept deliberately quiet so that the page itself does the talking.
+
+**Once you are signed in**, the bar has two rows on a computer.
 
 **The top row** holds the Knowledge Vault mark, the **search box** in the middle, and your
 mailbox, the appearance palette and sign-out on the right.
 
 **The second row** lists every destination **by name, always**: *Organizations*,
-*Constellation*, *My Learning*, *Library*, *Requests*, *Compliance*, *Help* — or, on the public
-pages, *Home*, *Features*, *Storage*, *Pricing* and *Help & guide*. Nothing has to be hovered to
-be read, and nothing moves or changes size when you point at it; reaching a link only changes
-its colour.
+*Constellation*, *My Learning*, *Library*, *Requests*, *Compliance*, *Help*. Nothing has to be
+hovered to be read, and nothing moves or changes size when you point at it; reaching a link only
+changes its colour.
 
 - **The page you are on is filled in** with your accent colour, so you can always see where
   you are.
@@ -40,7 +44,8 @@ its colour.
 
 ### Search
 
-Type in the search box to jump straight to what you need. As you type it finds:
+Once you are signed in, type in the search box to jump straight to what you need. As you type it
+finds:
 
 - **Pages** — *Pricing*, *Account*, *Storage*, *Found an organization*… It understands the words
   people actually use, so *price*, *plans*, *billing* or *coins* all find Pricing.
@@ -67,14 +72,14 @@ which organization you are in and how you got to this page:
 
 
 A phone has no room for two rows, so the bar keeps to one: the **menu button** opens the
-destinations as a vertical sheet with **every label showing**, and the **magnifier** beside it
-opens the same search box as a full-width row under the bar.
+destinations as a vertical sheet with **every label showing**, and — once you are signed in —
+the **magnifier** beside it opens the same search box as a full-width row under the bar.
 Nothing is hidden behind a gesture you cannot perform. The sheet is solid rather than
 see-through, so the page underneath never competes with the links, and it scrolls on its own if
 there are more destinations than fit.
 
-The same menu button now serves the public pages — Home, Features, Storage, Pricing and Help —
-which previously had no way to reach their navigation on a narrow screen at all.
+The same menu button serves the public pages — Features, Storage, Pricing, Help, and Sign in
+and Create your profile beneath them.
 
 ---
 
@@ -166,8 +171,8 @@ organization, so it cannot live inside one.
 
 ## Tips & pitfalls
 
-- **Lost? Search.** Press **/** and type what you are looking for — a page, a topic, an
-  organization or, inside one, a course.
+- **Lost? Search.** Signed in, press **/** and type what you are looking for — a page, a topic,
+  an organization or, inside one, a course.
 - **Set the theme once, on each device you use.** It is a per-device choice by design.
 - **Hover before you ask.** Most "what does this field mean?" questions are answered by
   resting the pointer on it for half a second.

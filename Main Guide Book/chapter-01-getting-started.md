@@ -26,7 +26,8 @@ account.
 
 ## Creating your profile
 
-From the welcome screen, choose **Create your profile** (or **Get started**). You'll see the
+From the welcome screen, choose **Create your profile** — in the middle of the page or at the
+top right. You'll see the
 registration form:
 
 ![The registration form](images/register.png)

@@ -7,6 +7,26 @@ moved since they last used it. Newest first.
 
 ## October 2026
 
+### A calmer front page
+
+The front page has been simplified so you can see what Knowledge Vault is, and act on it,
+without scrolling:
+
+- **One row across the top.** The public pages now carry a single, quiet bar: the mark (which
+  takes you home), *Features*, *Storage*, *Pricing*, *Help & guide*, **Sign in** and **Create your
+  profile**. The search box now lives in the signed-in app, where there are organizations and
+  libraries to search.
+- **A lighter headline** — smaller and less heavy, so it reads at a glance — with a plainer line
+  under it: *organize your team's knowledge, deliver role-based training, and keep an auditable
+  record — all under your control.*
+- **Both buttons in view** on an ordinary laptop screen as soon as the page opens.
+- **One name for one action.** Every button that starts you off now says **Create your
+  profile** — the old *Get started* did the same thing under a different name.
+- **A quieter sky.** The constellation behind the hero fades away behind the words and stays at
+  the edges.
+
+See [Chapter 20](chapter-20-appearance-and-navigation.md).
+
 ### A white-and-blue look
 
 The platform's default look is now **white and blue**: clean white pages, slate text and a calm

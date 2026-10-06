@@ -87,9 +87,8 @@ export default function Home() {
             <span className="gradient-text">in your custody.</span>
           </h1>
           <p>
-            Role-based training and a real knowledge library, structured like your
-            organization — a living constellation of roles, documents and people. Modern,
-            auditable, and entirely yours.
+            Organize your team&apos;s knowledge, deliver role-based training, and keep an
+            auditable record — all under your control.
           </p>
           {/* Both account doors — register and sign in — decided in the browser. */}
           <HeroCta />
@@ -243,7 +242,7 @@ export default function Home() {
             <h2>
               Ready to map your <span className="gradient-text">constellation</span>?
             </h2>
-            <p>Create a profile, found your organization, and watch your structure light up.</p>
+            <p>Create your profile, found your organization, and watch your structure light up.</p>
             <div className="hero-cta" style={{ marginTop: 0 }}>
               <Link className="btn btn-primary btn-lg" href="/register">
                 Create your profile
