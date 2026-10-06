@@ -99,7 +99,7 @@ export default function RegisterPage() {
           </div>
           {error && <p className="form-error">{error}</p>}
           <button className="btn btn-primary w-100" disabled={busy}>
-            {busy ? "Creating…" : "Create profile"}
+            {busy ? "Creating…" : "Create your profile"}
           </button>
           <p className="auth-alt mt-3">
             Already have a profile? <Link href="/login">Sign in</Link>

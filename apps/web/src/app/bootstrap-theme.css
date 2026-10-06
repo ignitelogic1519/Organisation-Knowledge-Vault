@@ -42,8 +42,9 @@
 
 /* How much room the bar takes at the top of the page. Anything that has to clear it — a
    sticky toolbar, the trail under the fixed public bar, an anchor scrolled into view —
-   reads this rather than guessing a number. On a wide screen the bar is two rows: the
-   brand, the search and the controls on top, every destination labelled beneath. */
+   reads this rather than guessing a number. In the signed-in app a wide screen's bar is
+   two rows: the brand, the search and the controls on top, every destination labelled
+   beneath. The public bar is one row at every width (see "The public bar" below). */
 :root {
   --kv-bar-h: 4.1rem;
 }
@@ -51,6 +52,9 @@
 @media (min-width: 992px) {
   :root {
     --kv-bar-h: 7.15rem;
+  }
+  :root:has(.kv-navbar-public) {
+    --kv-bar-h: 3.65rem;
   }
 }
 
@@ -601,6 +605,62 @@
   .kv-rail-link:focus {
     padding-right: 0.75rem;
   }
+}
+
+/* ── The public bar — components/SiteNav.tsx ────────────────────────────────
+   One row: the mark, four plain text links in the middle, then Sign in and the one
+   call to action. No search field and no pill track: on a marketing page the bar's
+   job is to get out of the way of the hero. The page you are on is marked in the
+   accent's soft tint rather than a filled pill, so nothing in the bar outweighs the
+   primary button. Below 992px it is the same hamburger sheet as everywhere else.
+   ------------------------------------------------------------------------- */
+
+@media (min-width: 992px) {
+  .kv-navbar-public .kv-navbar-inner {
+    flex-wrap: nowrap;
+  }
+  .kv-navbar-public .kv-brand,
+  .kv-navbar-public .kv-sheet-slot,
+  .kv-navbar-public .kv-navbar-controls {
+    order: 0;
+  }
+  .kv-navbar-public .kv-rail {
+    order: 0;
+    flex: 0 1 auto;
+    gap: 0.15rem;
+    margin: 0 auto;
+    padding: 0;
+    border-top: 0;
+  }
+  .kv-navbar-public .kv-sheet-slot {
+    flex: none;
+    gap: 0.6rem;
+  }
+  .kv-navbar-public .kv-sheet-slot .nav-link,
+  .kv-navbar-public .kv-sheet-slot .btn {
+    white-space: nowrap;
+  }
+  .kv-navbar-public .kv-rail-link,
+  .kv-navbar-public .kv-rail-link:hover,
+  .kv-navbar-public .kv-rail-link:focus {
+    min-height: 2.35rem;
+    padding: 0.45rem 0.85rem;
+    font-weight: 500;
+  }
+}
+
+/* The one crowded case: signed in on Pricing, the bar also carries "Buy coins", and on a
+   small laptop the row runs out. The mark alone still says where home is. */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .kv-navbar-public:has(.pricing-wallet .btn) .kv-brand-word {
+    display: none;
+  }
+}
+
+.kv-navbar-public .kv-rail-link[data-active="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
 }
 
 /* Narrow screens: a magnifier beside the controls, and the field opens as its own row

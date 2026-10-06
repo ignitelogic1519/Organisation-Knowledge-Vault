@@ -393,7 +393,7 @@ export function FeatureCatalogue({ defaultGroup }: { defaultGroup?: string }) {
         title: "Sign in to open this",
         message: `${f.title} lives inside your organization, so it needs an account. Sign in — or create a profile, it takes a moment.`,
         confirmLabel: "Sign in",
-        cancelLabel: "Create a profile",
+        cancelLabel: "Create your profile",
       });
       window.location.href = go ? "/login" : "/register";
       return;

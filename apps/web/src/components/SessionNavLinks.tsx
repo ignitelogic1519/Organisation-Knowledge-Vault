@@ -51,7 +51,7 @@ export function SessionNavLinks() {
         Sign in
       </Link>
       <Link href="/register" className="btn btn-primary btn-small">
-        Get started
+        Create your profile
       </Link>
     </>
   );

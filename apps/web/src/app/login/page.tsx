@@ -48,7 +48,7 @@ export default function LoginPage() {
 
   return (
     <main>
-      <SiteNav right={<Link href="/register" className="nav-link">Create profile</Link>} />
+      <SiteNav right={<Link href="/register" className="nav-link">Create your profile</Link>} />
       <div className="kv-auth-wrap">
         <form className="card kv-auth-card" onSubmit={submit}>
           <span className="brand-mark" aria-hidden>
@@ -93,7 +93,7 @@ export default function LoginPage() {
             {busy ? "Signing in…" : "Sign in"}
           </button>
           <p className="auth-alt mt-3">
-            New here? <Link href="/register">Create a profile</Link>
+            New here? <Link href="/register">Create your profile</Link>
           </p>
         </form>
       </div>

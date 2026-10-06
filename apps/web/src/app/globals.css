@@ -1570,6 +1570,9 @@ select option[value=""] {
 
 /* ── Landing ───────────────────────────────────────────────────────────── */
 
+/* The hero has to show the headline, the line under it and BOTH buttons on a laptop
+   screen without scrolling — 1366×~650 of usable window is common. So it clears the
+   one-row bar and no more, and centres in what is left. */
 .hero {
   position: relative;
   min-height: 100svh;
@@ -1577,13 +1580,32 @@ select option[value=""] {
   place-items: center;
   overflow: hidden;
   text-align: center;
-  padding: 7rem 1.5rem 4rem;
+  padding: calc(var(--kv-bar-h) + 2rem) 1.5rem 3.5rem;
 }
 
 .hero-sky {
   position: absolute;
   inset: 0;
   z-index: 0;
+}
+
+/* The sky stays at the edges and clears out behind the words: a mask that is empty over
+   the middle, where the headline and the line under it sit, and fades the stars and
+   their links back in towards the sides and corners. A mask, not a change to the
+   drawing, so it costs nothing per frame. */
+.hero .hero-sky {
+  -webkit-mask-image: radial-gradient(
+    ellipse 58% 52% at 50% 50%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.35) 72%,
+    #000 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 58% 52% at 50% 50%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.35) 72%,
+    #000 100%
+  );
 }
 
 .hero-content {
@@ -1594,24 +1616,28 @@ select option[value=""] {
      past the section's own padding and into the clip. `width: 100%` pins it to the
      content box; `max-width` still holds the measure on a wide screen. */
   width: 100%;
-  max-width: 48rem;
+  /* Wide enough that "Your organization's knowledge," holds one line on a laptop, so the
+     headline is two lines, not three. The paragraph keeps its own, narrower measure. */
+  max-width: 60rem;
   margin-inline: auto;
   animation: fade-up 700ms var(--ease) both;
 }
 
 .hero h1 {
   /* The floor has to be a size at which "organization's" still fits a 320px screen —
-     below the viewport width the `vw` term stops helping and the minimum is all there is. */
-  font-size: clamp(2rem, 7vw, 5rem);
-  letter-spacing: -0.03em;
-  line-height: 1.04;
-  font-weight: 800;
+     below the viewport width the `vw` term stops helping and the minimum is all there is.
+     Semibold at a modest size with natural spacing: the headline is read, not stared at. */
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  letter-spacing: -0.005em;
+  line-height: 1.1;
+  font-weight: 600;
+  text-wrap: balance;
   /* Last resort for a long unbroken word (a URL, a compound name) on a narrow screen. */
   overflow-wrap: break-word;
 }
 
 .hero p {
-  margin: 1.4rem auto 0;
+  margin: 1.1rem auto 0;
   font-size: clamp(1.05rem, 2vw, 1.3rem);
   color: var(--text-secondary);
   max-width: 38rem;
@@ -1621,7 +1647,7 @@ select option[value=""] {
    Registering and signing in are the same kind of decision, so they share a row and a
    size; "see every feature" is not, so it does not compete as a third button. */
 .hero-cta {
-  margin-top: 2.4rem;
+  margin-top: 1.9rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1815,7 +1841,7 @@ select option[value=""] {
 }
 
 .status-card {
-  margin-top: 3rem;
+  margin-top: 2rem;
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
@@ -6944,7 +6970,7 @@ button.reader-tab:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 1.4rem;
+  margin-bottom: 1.1rem;
 }
 
 .hero-glow {

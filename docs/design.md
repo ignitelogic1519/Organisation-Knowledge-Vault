@@ -207,10 +207,21 @@ scroll while an overlay is open.
 ## 4. Application Structure
 
 - **Public (marketing) pages:** `/` (hero + features + storage + steps + CTA), `/features`,
-  `/storage`, `/pricing`, `/login`, `/register`, `/help` — the labelled rail and the search box
-  in a glass bar (two rows from 992 px up: brand · search · controls, then the rail).
-  Below 992 px the rail becomes a sheet under a hamburger; the sheet is **solid, not glass**,
-  because a translucent navigation panel leaves body copy showing through its own links.
+  `/storage`, `/pricing`, `/login`, `/register`, `/help` — a **one-row** glass bar
+  (`.kv-navbar-public`): mark (home) · Features · Storage · Pricing · Help & guide · Sign in ·
+  **Create your profile**. No search field and no pill track — on a marketing page the bar must
+  not compete with the hero's call to action; the current page is the accent's soft tint, not
+  a filled pill. Below 992 px the links become a sheet under a hamburger; the sheet is **solid,
+  not glass**, because a translucent navigation panel leaves body copy showing through its own
+  links.
+- **Calls to action say one thing.** Every button that leads to `/register` reads **Create
+  your profile** — the nav, the hero, the closing band, the register form's own submit. (Not
+  "Create your workspace": registering makes a personal profile; organizations are founded or
+  joined afterwards.)
+- **The landing hero fits a laptop.** At ~1366×625 the headline (two lines, Clash Display
+  semibold, `clamp(2rem, 4.6vw, 3.6rem)`, near-natural tracking), the line under it and both
+  buttons are in view without scrolling. The constellation is masked out behind the copy
+  (a radial `mask-image` on `.hero-sky`) and keeps its detail at the edges.
 - **App pages:** wrapped in the `AppShell` (sidebar / tab bar + top row with
   notifications, appearance controls and **sign-out**): `/orgs`, `/orgs/new`, `/account`.
   Popovers anchored in the sidebar footer open **upward** so they never clip off-screen.
@@ -241,9 +252,10 @@ which meant reading the bar by hovering over it, and a widening link moved every
 stop the target sliding out from under the pointer. With nothing changing size, that budget is
 gone.
 
-Seven labelled destinations, a usable search field and the controls do not share one row on an
-ordinary laptop, so from 992 px up the bar is **two rows**: brand · search · controls on top,
-the rail on its own row beneath. `--kv-bar-h` holds the bar's height for anything that has to
+In the signed-in app, seven labelled destinations, a usable search field and the controls do
+not share one row on an ordinary laptop, so from 992 px up the app bar is **two rows**: brand ·
+search · controls on top, the rail on its own row beneath. The public bar has four links and
+no search, so it stays one row. `--kv-bar-h` holds the bar's height for anything that has to
 clear it (sticky toolbars, the trail under the fixed public bar, anchors scrolled into view).
 
 ## 6. The Constellation Org Graph (signature feature)

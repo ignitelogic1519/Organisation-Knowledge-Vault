@@ -264,7 +264,7 @@ export default function PricingPage() {
   const requireSignIn = async () => {
     await dialogs.alert({
       title: "Sign in first",
-      message: "Create a profile or sign in — plan requests are answered into your mailbox.",
+      message: "Create your profile or sign in — plan requests are answered into your mailbox.",
     });
   };
 

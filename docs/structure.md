@@ -721,8 +721,11 @@ is a network call on a password field.
   992 px up the bar is two rows — brand · search · controls, then the rail — because seven
   labelled tabs and a search field do not fit one row on a laptop. Phones keep one row:
   the hamburger sheet, plus a magnifier that opens the search as a row under the bar.
-- **A search box in the top bar** (`NavSearch`, index in `lib/site-search.ts`), on the
-  public pages and in the app alike. It searches on the client — pages (with the words
+- **A search box in the top bar** (`NavSearch`, index in `lib/site-search.ts`), in the
+  signed-in app. ✅ REVISED (2026-10-06): the public pages dropped it — their bar is one row
+  (mark · Features · Storage · Pricing · Help & guide · Sign in · Create your profile), because
+  on a marketing page a wide search field competed with the call to action. It searches on the
+  client — pages (with the words
   customers use: *price*, *billing*, *coins* → Pricing), the Help page's topics (each card
   is an anchor, `/help#help-…`) and, when signed in, the profile's organizations by name or
   number (fetched once, on first focus). Inside an organization it offers to carry the words

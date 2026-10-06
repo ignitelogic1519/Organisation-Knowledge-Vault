@@ -6,10 +6,11 @@ import { useEffect, useState } from "react";
 import { Mailbox } from "./Mailbox";
 import { ThemeMenu } from "./ThemeMenu";
 import { Breadcrumbs } from "./Breadcrumbs";
-import { NavSearch } from "./NavSearch";
 
-// Public-page navigation. The same labelled rail and search box the app shell uses, so
-// moving from the marketing pages into the product doesn't change how navigation behaves.
+// Public-page navigation: ONE row — the mark (which is the way home), the four places a
+// visitor goes, then Sign in and Create your profile. The search box belongs to the
+// signed-in app (AppShell), where there are organizations and libraries to search; on a
+// marketing page a wide field only competes with the call to action.
 //
 // Below 992px the rail leaves the bar and becomes a sheet under the hamburger — exactly as
 // it does in the app shell. It used to be rendered without a toggler, which meant every
@@ -22,11 +23,10 @@ import { NavSearch } from "./NavSearch";
 // the page sideways.
 
 const LINKS = [
-  { href: "/", label: "Home", icon: "✦" },
-  { href: "/features", label: "Features", icon: "✨" },
-  { href: "/storage", label: "Storage", icon: "🗄" },
-  { href: "/pricing", label: "Pricing", icon: "🪙" },
-  { href: "/help", label: "Help & guide", icon: "❓" },
+  { href: "/features", label: "Features" },
+  { href: "/storage", label: "Storage" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/help", label: "Help & guide" },
 ];
 
 function MenuIcon({ open }: { open: boolean }) {
@@ -53,9 +53,9 @@ export function SiteNav({ right }: { right?: React.ReactNode }) {
 
   return (
     <>
-      <nav className="navbar fixed-top kv-navbar" aria-label="Site">
+      <nav className="navbar fixed-top kv-navbar kv-navbar-public" aria-label="Site">
         <div className="container-xxl kv-navbar-inner">
-          <Link href="/" className="navbar-brand kv-brand">
+          <Link href="/" className="navbar-brand kv-brand" aria-label="Knowledge Vault — home">
             <span className="brand-mark" aria-hidden>
               ✦
             </span>
@@ -71,13 +71,10 @@ export function SiteNav({ right }: { right?: React.ReactNode }) {
                   <Link
                     href={l.href}
                     className="kv-rail-link"
-                    data-active={l.href === "/" ? pathname === "/" : pathname.startsWith(l.href)}
+                    data-active={pathname.startsWith(l.href)}
                     aria-current={pathname === l.href ? "page" : undefined}
                     onClick={() => setOpen(false)}
                   >
-                    <span className="kv-rail-icon" aria-hidden>
-                      {l.icon}
-                    </span>
                     <span className="kv-rail-label">{l.label}</span>
                   </Link>
                 </li>
@@ -89,8 +86,6 @@ export function SiteNav({ right }: { right?: React.ReactNode }) {
               </div>
             ) : null}
           </div>
-
-          <NavSearch />
 
           <div className="kv-navbar-controls">
             <Mailbox />

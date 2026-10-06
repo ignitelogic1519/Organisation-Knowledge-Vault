@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeatureCatalogue } from "@/components/FeatureCatalogue";
+import { SessionNavLinks } from "@/components/SessionNavLinks";
 import { SiteNav } from "@/components/SiteNav";
 
 export const metadata = {
@@ -13,7 +14,7 @@ export const metadata = {
 export default function FeaturesPage() {
   return (
     <main className="landing">
-      <SiteNav right={<Link href="/login" className="nav-link">Sign in</Link>} />
+      <SiteNav right={<SessionNavLinks />} />
 
       <section className="section" style={{ paddingTop: "6rem" }}>
         <div className="section-head">
