@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/SiteNav";
 import { SessionNavLinks } from "@/components/SessionNavLinks";
+import { StorageIcon } from "@/components/StorageIcon";
 import { Reveal } from "@/components/Reveal";
 import {
   COMPARISON_ROWS,
@@ -28,8 +29,8 @@ function Backend({ b }: { b: StorageBackend }) {
   return (
     <article className="storage-backend glass" id={b.key}>
       <header className="storage-backend-head">
-        <span className="storage-backend-icon" aria-hidden>
-          {b.icon}
+        <span className="icon-tile" aria-hidden>
+          <StorageIcon backend={b.key} />
         </span>
         <div style={{ minWidth: 0 }}>
           <h3>{b.name}</h3>
@@ -179,7 +180,7 @@ export default function StoragePage() {
                   <th scope="col">Question</th>
                   {STORAGE_BACKENDS.map((b) => (
                     <th key={b.key} scope="col">
-                      {b.icon} {b.name.split(" — ")[0]}
+                      {b.name.split(" — ")[0]}
                       <span className="storage-th-status" data-status={b.status}>
                         {b.status === "live" ? "now" : b.status === "planned" ? "planned" : "exploring"}
                       </span>
@@ -195,7 +196,7 @@ export default function StoragePage() {
                       <span className="storage-hint">{row.hint}</span>
                     </th>
                     {STORAGE_BACKENDS.map((b) => (
-                      <td key={b.key} data-label={`${b.icon} ${b.name.split(" — ")[0]}`}>
+                      <td key={b.key} data-label={b.name.split(" — ")[0]}>
                         {b.facts[row.key]}
                       </td>
                     ))}

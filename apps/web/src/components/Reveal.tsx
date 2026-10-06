@@ -11,14 +11,17 @@ export function Reveal({
   className = "",
   variant = "up",
   delay = 0,
+  as: Tag = "div",
 }: {
   children: React.ReactNode;
   className?: string;
   /** direction the element travels in from */
   variant?: "up" | "down" | "left" | "right" | "scale";
   delay?: number;
+  /** The element to render — an `li` when the reveal is an item of a list. */
+  as?: "div" | "li";
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement & HTMLLIElement>(null);
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
@@ -37,7 +40,7 @@ export function Reveal({
   }, []);
 
   return (
-    <div
+    <Tag
       ref={ref}
       className={`reveal ${className}`}
       data-variant={variant}
@@ -45,6 +48,6 @@ export function Reveal({
       style={delay ? { transitionDelay: `${delay}ms` } : undefined}
     >
       {children}
-    </div>
+    </Tag>
   );
 }

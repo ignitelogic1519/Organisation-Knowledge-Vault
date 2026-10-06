@@ -21,7 +21,8 @@ pnpm --filter @vault/web dev
 ```
 
 Open http://localhost:3000 — you should see the landing page with the constellation, the
-theme toggle (top right), and a green "API connected" chip. That chip is the Phase 0 test.
+theme toggle (top right), and, in the footer, a green **"All systems normal"** line (hover it
+for the response time). That line is the Phase 0 test.
 
 ---
 
@@ -53,11 +54,11 @@ theme toggle (top right), and a green "API connected" chip. That chip is the Pha
 6. Click **Deploy**. When live, copy your Vercel URL (e.g. `https://your-app.vercel.app`),
    go back to **Render → knowledge-vault-api → Environment**, set `WEB_ORIGIN` to that URL,
    and let Render redeploy.
-7. Open the Vercel URL: landing page + constellation + theme toggle + green
-   **"API connected"** chip. If the chip says offline, the API is probably waking from
-   sleep — wait a minute and refresh.
+7. Open the Vercel URL: landing page + constellation + theme toggle + a green
+   **"All systems normal"** line in the footer. If it says **"Service unavailable"**, the API
+   is probably waking from sleep — wait a minute and refresh.
 
-**Phase 0 is done when that chip is green on the production URL.**
+**Phase 0 is done when that footer line is green on the production URL.**
 
 ## 3. Neon — database (needed at Phase 1, fine to do now)
 

@@ -3,10 +3,21 @@ import { ApiStatus } from "@/components/ApiStatus";
 import { Constellation } from "@/components/Constellation";
 import { FeatureCatalogue } from "@/components/FeatureCatalogue";
 import { HeroCta } from "@/components/HeroCta";
+import {
+  IconBolt,
+  IconDoc,
+  IconGrid,
+  IconHierarchy,
+  IconKey,
+  IconServer,
+  IconShield,
+  IconUsers,
+} from "@/components/icons";
 import { LandingShowcase } from "@/components/LandingShowcase";
 import { PricingPreview } from "@/components/PricingPreview";
 import { Reveal } from "@/components/Reveal";
 import { SiteNav } from "@/components/SiteNav";
+import { StorageIcon } from "@/components/StorageIcon";
 import { SessionNavLinks } from "@/components/SessionNavLinks";
 import { STATUS_LABEL, STORAGE_BACKENDS } from "@/lib/storage-backends";
 
@@ -33,35 +44,58 @@ const STEPS = [
   },
 ];
 
-const STATS = [
-  { n: "4", l: "labeled request flows" },
-  { n: "100%", l: "your data custody" },
-  { n: "0", l: "second-tab redirects" },
-  { n: "∞", l: "roles & sub-roles" },
+/* What the product does for you, in four plain lines — not counters that need a footnote.
+   (A "100% data custody" claim was dropped: the documents are yours, on your storage, but we
+   do hold the catalogue of who may see what — so "100%" would not be true.) */
+const BENEFITS = [
+  {
+    icon: <IconUsers size={22} />,
+    title: "Role-based workflows",
+    text: "Training, reviews and requests follow your structure.",
+  },
+  {
+    icon: <IconServer size={22} />,
+    title: "Your storage, your control",
+    text: "Documents live on storage you provide. We keep only the catalogue.",
+  },
+  {
+    icon: <IconGrid size={22} />,
+    title: "One connected workspace",
+    text: "Structure, library, exams and mail in one place.",
+  },
+  {
+    icon: <IconHierarchy size={22} />,
+    title: "Unlimited role depth",
+    text: "Roles and sub-roles as deep as your organization goes.",
+  },
 ];
 
 const PILLARS = [
   {
-    icon: "🔐",
+    icon: <IconKey size={22} />,
     title: "Custody by design",
-    text: "The Supreme password and .main revival file never leave your hands. The platform holds nothing it could hold hostage.",
+    text: "The Supreme password and the .main recovery file never leave your hands. The platform holds nothing it could hold hostage.",
   },
   {
-    icon: "🛡",
+    icon: <IconShield size={22} />,
     title: "Least-privilege governance",
     text: "Owners hold only the rights granted to them — and can never hand out a capability they don't have themselves.",
   },
   {
-    icon: "⚡",
+    icon: <IconBolt size={22} />,
     title: "Real-time everywhere",
-    text: "Structure, requests, courses and notifications update live across every open session over server-sent events.",
+    text: "Changes to structure, requests, courses and messages appear at once for everyone who has the page open.",
   },
   {
-    icon: "🧭",
+    icon: <IconDoc size={22} />,
     title: "Standardized documents",
-    text: "Every document gets an authenticated cover, a classification, and a header/footer — consistent, professional, auditable.",
+    text: "Every document gets an authenticated cover, a classification, and a header and footer — consistent, professional, auditable.",
   },
 ];
+
+/** What a customer can choose today, and — kept apart and smaller — what is coming. */
+const STORAGE_NOW = STORAGE_BACKENDS.filter((b) => b.status === "live" && !b.internal);
+const STORAGE_LATER = STORAGE_BACKENDS.filter((b) => b.status !== "live");
 
 export default function Home() {
   return (
@@ -92,35 +126,58 @@ export default function Home() {
           </p>
           {/* Both account doors — register and sign in — decided in the browser. */}
           <HeroCta />
-          <ApiStatus />
         </div>
         <span className="hero-scroll" aria-hidden>
           ↓
         </span>
       </section>
 
-      <section className="section" id="showcase">
+      <section className="section section-first" id="showcase">
         <Reveal className="section-head" variant="up">
           <span className="eyebrow">The product</span>
           <h2>
-            One platform, from <span className="gradient-text">structure to shelf</span>
+            One platform for{" "}
+            <span className="gradient-text heading-phrase">your people and knowledge</span>
           </h2>
           <p>
-            Explore the surfaces your team lives in every day — mapped, shelved, authored
-            and measured.
+            The surfaces your team lives in every day — mapped, shelved, authored and
+            measured.
           </p>
         </Reveal>
         <Reveal variant="scale" delay={80}>
           <LandingShowcase />
         </Reveal>
+
+        {/* Right under the product, as part of the same story — not a section of its own. */}
+        <ul className="benefit-band glass">
+          {BENEFITS.map((b, i) => (
+            <Reveal as="li" key={b.title} className="benefit" variant="up" delay={i * 70}>
+              <span className="icon-tile" aria-hidden>
+                {b.icon}
+              </span>
+              <span className="benefit-copy">
+                <strong className="benefit-title">{b.title}</strong>
+                <span className="benefit-text">{b.text}</span>
+              </span>
+            </Reveal>
+          ))}
+        </ul>
       </section>
 
+      {/* The essential story is told above and here; the flip cards below are for digging in. */}
       <section className="section">
-        <div className="stat-band glass">
-          {STATS.map((s, i) => (
-            <Reveal key={s.l} className="stat-band-item" variant="up" delay={i * 70}>
-              <span className="stat-band-n gradient-text">{s.n}</span>
-              <span className="stat-band-l">{s.l}</span>
+        <Reveal className="section-head" variant="up">
+          <span className="eyebrow">Why teams choose it</span>
+          <h2>Four principles. Built into everything.</h2>
+        </Reveal>
+        <div className="pillar-grid">
+          {PILLARS.map((p, i) => (
+            <Reveal key={p.title} className="pillar-card glass" variant="up" delay={i * 80}>
+              <span className="icon-tile" aria-hidden>
+                {p.icon}
+              </span>
+              <h3>{p.title}</h3>
+              <p>{p.text}</p>
             </Reveal>
           ))}
         </div>
@@ -128,13 +185,13 @@ export default function Home() {
 
       <section className="section" id="features">
         <Reveal className="section-head" variant="up">
-          <span className="eyebrow">Features</span>
+          <span className="eyebrow">Explore in depth</span>
           <h2>
-            What you get, <span className="gradient-text">area by area</span>
+            Every feature, <span className="gradient-text">area by area</span>
           </h2>
           <p>
-            Pick the part of the product you care about. Everything here is built and
-            working — nothing on this page is a promise.
+            Pick an area and turn any card over for the detail. Everything here is built
+            and working — nothing on this page is a promise.
           </p>
         </Reveal>
         <Reveal variant="up" delay={60}>
@@ -168,23 +225,25 @@ export default function Home() {
           </h2>
           <p>
             Your documents live on storage you provide and control — a NAS in your own
-            building today, more backends as their adapters ship. We hold only what answers
-            who may see what, and what has been done.
+            building or your Google Drive today, more as their adapters ship. We hold only
+            what answers who may see what, and what has been done.
           </p>
         </Reveal>
         <div className="home-storage-grid">
-          {STORAGE_BACKENDS.map((b, i) => (
+          {STORAGE_NOW.map((b, i) => (
             <Reveal
               key={b.key}
               className="home-storage-card glass"
               variant="up"
               delay={i * 60}
             >
-              <span className="home-storage-icon" aria-hidden>
-                {b.icon}
-              </span>
-              <span className="badge storage-status" data-status={b.status}>
-                {STATUS_LABEL[b.status]}
+              <span className="home-storage-top">
+                <span className="icon-tile" aria-hidden>
+                  <StorageIcon backend={b.key} />
+                </span>
+                <span className="badge storage-status" data-status={b.status}>
+                  {STATUS_LABEL[b.status]}
+                </span>
               </span>
               <h3>{b.name}</h3>
               <p>{b.tagline}</p>
@@ -194,28 +253,31 @@ export default function Home() {
             </Reveal>
           ))}
         </div>
+        {STORAGE_LATER.length > 0 && (
+          <div className="home-storage-later">
+            <h3 className="home-storage-later-title">On the roadmap</h3>
+            <ul>
+              {STORAGE_LATER.map((b) => (
+                <li key={b.key}>
+                  <span className="home-storage-later-icon" aria-hidden>
+                    <StorageIcon backend={b.key} />
+                  </span>
+                  <span className="home-storage-later-copy">
+                    <Link href={`/storage#${b.key}`}>{b.name}</Link>
+                    <span>{b.tagline}</span>
+                  </span>
+                  <span className="badge storage-status" data-status={b.status}>
+                    {STATUS_LABEL[b.status]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="hero-cta" style={{ justifyContent: "center" }}>
           <Link className="btn btn-quiet" href="/storage">
             Read the whole storage story
           </Link>
-        </div>
-      </section>
-
-      <section className="section">
-        <Reveal className="section-head" variant="up">
-          <span className="eyebrow">Why teams choose it</span>
-          <h2>Built on four uncompromising pillars</h2>
-        </Reveal>
-        <div className="pillar-grid">
-          {PILLARS.map((p, i) => (
-            <Reveal key={p.title} className="pillar-card glass" variant="up" delay={i * 80}>
-              <span className="pillar-icon" aria-hidden>
-                {p.icon}
-              </span>
-              <h3>{p.title}</h3>
-              <p>{p.text}</p>
-            </Reveal>
-          ))}
         </div>
       </section>
 
@@ -256,7 +318,10 @@ export default function Home() {
       </section>
 
       <footer className="footer">
-        <span>Knowledge Vault — your structure, your knowledge, your custody.</span>
+        <span className="footer-lead">
+          <span>Knowledge Vault — your structure, your knowledge, your custody.</span>
+          <ApiStatus />
+        </span>
         <span className="footer-links">
           <Link href="/features">Features</Link>
           <Link href="/storage">Storage</Link>

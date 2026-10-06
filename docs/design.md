@@ -206,7 +206,8 @@ scroll while an overlay is open.
 
 ## 4. Application Structure
 
-- **Public (marketing) pages:** `/` (hero + features + storage + steps + CTA), `/features`,
+- **Public (marketing) pages:** `/` (hero · product showcase with the benefits strip · four
+  principles · feature cards · pricing · storage · steps · CTA · footer), `/features`,
   `/storage`, `/pricing`, `/login`, `/register`, `/help` — a **one-row** glass bar
   (`.kv-navbar-public`): mark (home) · Features · Storage · Pricing · Help & guide · Sign in ·
   **Create your profile**. No search field and no pill track — on a marketing page the bar must
@@ -221,7 +222,24 @@ scroll while an overlay is open.
 - **The landing hero fits a laptop.** At ~1366×625 the headline (two lines, Clash Display
   semibold, `clamp(2rem, 4.6vw, 3.6rem)`, near-natural tracking), the line under it and both
   buttons are in view without scrolling. The constellation is masked out behind the copy
-  (a radial `mask-image` on `.hero-sky`) and keeps its detail at the edges.
+  (a radial `mask-image` on `.hero-sky`) and keeps its detail at the edges. The hero carries
+  only the promise and the next step: the service status lives in the footer
+  (`ApiStatus`, "All systems normal", response time in its hint), never in the hero.
+- **The landing tells the core story without a single flip.** The showcase's Constellation
+  tab is a working miniature (`RolePreview`): labelled roles, and clicking one opens the same
+  panel the product shows (role number, owners/members/sub-roles, the four sections). Under
+  it, a benefits strip (what it does for you — no counters that need a footnote), then the
+  four principles. The flip cards come after, for depth.
+- **Storage on the landing:** what a customer can choose today first (`status: "live"`,
+  not `internal`), then an "On the roadmap" list, smaller and dashed. Badges are one word —
+  *Available now*, *Planned*, *Exploring* — and what a status means goes in the tagline.
+- **One icon family on the public pages:** the stroke icons in `components/icons.tsx`, in
+  the accent, on the shared `.icon-tile` (also `.fc-icon`). No emoji as icons — they render
+  in a different style per platform and some (🛡) all but vanish. Storage backends map to
+  icons in `components/StorageIcon.tsx`.
+- **Section rhythm:** `.section` is 4rem a side; the section right after the hero
+  (`.section-first`) follows on at 1.5rem; section headings `text-wrap: balance`, with
+  `.heading-phrase` to keep a phrase together across the break.
 - **App pages:** wrapped in the `AppShell` (sidebar / tab bar + top row with
   notifications, appearance controls and **sign-out**): `/orgs`, `/orgs/new`, `/account`.
   Popovers anchored in the sidebar footer open **upward** so they never clip off-screen.

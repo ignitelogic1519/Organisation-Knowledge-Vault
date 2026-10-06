@@ -3,8 +3,9 @@
 import { useState } from "react";
 
 // Interactive tabbed product showcase for the landing page. Each tab pairs a benefit
-// narrative with a lightweight SVG "screenshot" so the value reads instantly — no
-// external image assets, fully theme-aware, crisp at any size.
+// narrative with a picture of the surface — the Constellation one is a working miniature
+// (click a role, its panel opens), the others lightweight SVG sketches. No external image
+// assets, fully theme-aware, crisp at any size.
 
 /** Gradient shared by every illustration — rendered once, always present. */
 function ArtDefs() {
@@ -20,28 +21,132 @@ function ArtDefs() {
   );
 }
 
-function ConstellationArt() {
+/* ── The Constellation, as you actually use it ─────────────────────────────
+   A labelled role tree; click a role and its panel opens beside it, with the same
+   contents as the real one (components in app/orgs/[id]/page.tsx: NodeDrawer) — the role,
+   its permanent number, who is in it, and the four things you can do there. The example
+   organization is invented; the shape of the panel is not. */
+
+type PreviewRole = {
+  id: string;
+  name: string;
+  number: number;
+  /** Position in the map, as a percentage of its box. */
+  x: number;
+  y: number;
+  parent?: string;
+  owners: number;
+  members: number;
+  hidden?: boolean;
+  /** The visitor's own place in it, as the real panel shows it ("you: owner"). */
+  you?: "owner" | "member";
+};
+
+/* You own HR, so you govern HR and everything under it — Payroll included, though it is
+   hidden — and you are a member of Quality. Everything else you can see, not govern. */
+const PREVIEW_ROLES: PreviewRole[] = [
+  { id: "ceo", name: "CEO", number: 100, x: 50, y: 14, owners: 1, members: 2 },
+  { id: "hr", name: "HR", number: 101, x: 26, y: 47, parent: "ceo", owners: 2, members: 6, you: "owner" },
+  { id: "ops", name: "Operations", number: 102, x: 74, y: 47, parent: "ceo", owners: 1, members: 9 },
+  { id: "rec", name: "Recruiting", number: 103, x: 12, y: 80, parent: "hr", owners: 1, members: 4 },
+  { id: "pay", name: "Payroll", number: 104, x: 37, y: 80, parent: "hr", owners: 1, members: 3, hidden: true },
+  { id: "log", name: "Logistics", number: 105, x: 63, y: 80, parent: "ops", owners: 1, members: 12 },
+  { id: "qa", name: "Quality", number: 106, x: 88, y: 80, parent: "ops", owners: 2, members: 5, you: "member" },
+];
+
+/** Owning a branch governs its whole subtree, as in the product. */
+function governs(role: PreviewRole): boolean {
+  for (let r: PreviewRole | undefined = role; r; r = PREVIEW_ROLES.find((q) => q.id === r!.parent)) {
+    if (r.you === "owner") return true;
+  }
+  return false;
+}
+
+const PREVIEW_SECTIONS = [
+  { label: "Group configuration", desc: "Visibility, sub-groups, deletion" },
+  { label: "People", desc: "Owners and members of this branch" },
+  { label: "Courses", desc: "Publish knowledge for this branch" },
+  { label: "Backup", desc: "Export this branch as an encrypted .bkp" },
+];
+
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+function RolePreview() {
+  const [selected, setSelected] = useState("hr");
+  const role = PREVIEW_ROLES.find((r) => r.id === selected) ?? PREVIEW_ROLES[0];
+  const subRoles = PREVIEW_ROLES.filter((r) => r.parent === role.id).length;
+
   return (
-    <svg viewBox="0 0 400 260" className="art" role="img" aria-label="Constellation org chart">
-      <g stroke="url(#g1)" strokeWidth="1.6" opacity="0.7" fill="none">
-        <path d="M200 46 L120 110 M200 46 L280 110 M120 110 L80 180 M120 110 L160 180 M280 110 L240 180 M280 110 L320 180" />
-      </g>
-      {[
-        [200, 46, 11],
-        [120, 110, 8],
-        [280, 110, 8],
-        [80, 180, 6],
-        [160, 180, 6],
-        [240, 180, 6],
-        [320, 180, 6],
-      ].map(([x, y, r], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r={(r as number) + 6} fill="url(#g1)" opacity="0.16" />
-          <circle cx={x} cy={y} r={r} fill="url(#g1)" />
-        </g>
-      ))}
-      <circle cx="200" cy="46" r="19" fill="none" stroke="var(--warning)" strokeWidth="1.4" opacity="0.8" />
-    </svg>
+    <div className="rp" role="group" aria-label="Interactive preview of the Constellation">
+      <div className="rp-map">
+        <svg className="rp-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+          {PREVIEW_ROLES.filter((r) => r.parent).map((r) => {
+            const p = PREVIEW_ROLES.find((q) => q.id === r.parent)!;
+            return (
+              <line
+                key={r.id}
+                x1={p.x}
+                y1={p.y}
+                x2={r.x}
+                y2={r.y}
+                data-on={r.id === selected || r.parent === selected || undefined}
+              />
+            );
+          })}
+        </svg>
+        {PREVIEW_ROLES.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            className="rp-node"
+            style={{ left: `${r.x}%`, top: `${r.y}%` }}
+            aria-pressed={r.id === selected}
+            data-root={!r.parent || undefined}
+            data-hidden={r.hidden || undefined}
+            onClick={() => setSelected(r.id)}
+          >
+            <span className="rp-star" aria-hidden />
+            <span className="rp-label">{r.name}</span>
+          </button>
+        ))}
+        <span className="rp-hint" aria-hidden>
+          Click a role
+        </span>
+      </div>
+
+      <div className="rp-drawer" aria-live="polite">
+        <div className="rp-head">
+          <strong className="rp-name">{role.name}</strong>
+          <span className="rp-num">role #{role.number}</span>
+        </div>
+        <div className="rp-badges">
+          {role.hidden && <span className="badge">hidden</span>}
+          {role.you && <span className="badge badge-ok">you: {role.you}</span>}
+          <span className="badge">{plural(role.owners, "owner")}</span>
+          <span className="badge">{plural(role.members, "member")}</span>
+          <span className="badge">{plural(subRoles, "sub-role")}</span>
+        </div>
+        {governs(role) ? (
+          <>
+            <p className="rp-ask">What do you want to do here?</p>
+            <ul className="rp-menu">
+              {PREVIEW_SECTIONS.map((sec) => (
+                <li key={sec.label}>
+                  <span className="rp-menu-label">{sec.label}</span>
+                  <span className="rp-menu-desc">{sec.desc}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="rp-ask">
+            {role.you === "member"
+              ? "One of your positions — its courses are waiting in My Learning."
+              : "You don’t govern this branch: you can see who is in it, and ask to join."}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -125,9 +230,9 @@ const TABS = [
     key: "constellation",
     label: "Constellation",
     title: "See your whole organization as a living map",
-    text: "The role tree renders as a top-down star map. Pan, zoom, and click any star you govern to manage people, courses, visibility and backups — right where they live. Public branches are discoverable; hidden ones cascade privacy down the tree.",
-    points: ["Top-down tree layout", "Click-to-act on any role", "Public / private per branch", "Live updates for everyone"],
-    art: <ConstellationArt />,
+    text: "Every role is a star on a top-down map. Click one you govern and its panel opens right there — people, courses, visibility and backups, without hunting through menus. Try it: click a role in the preview.",
+    points: ["Top-down tree layout", "Click-to-act on any role", "Public / hidden per branch", "Live updates for everyone"],
+    art: <RolePreview />,
   },
   {
     key: "library",

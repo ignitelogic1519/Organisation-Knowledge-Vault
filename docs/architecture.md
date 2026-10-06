@@ -434,7 +434,7 @@ horizontally requires Postgres `LISTEN/NOTIFY` or Redis pub/sub (tracked risk).
 
 ```
 apps/web/src/app
-├── page.tsx                  landing — hero, showcase, features, pricing, STORAGE, pillars, steps
+├── page.tsx                  landing — hero, showcase + benefits, principles, features, pricing, STORAGE, steps
 ├── features/                 the full feature catalogue
 ├── storage/                  where documents live: NAS · KVEP · what comes next
 │   └── page.tsx              renders entirely from lib/storage-backends.ts
